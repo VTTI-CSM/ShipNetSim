@@ -1,4 +1,4 @@
-set(ShipNeTSim_LIB_TARGET_NAME "ShipNetSimLib") # Choose the name as per your requirements
+set(units_LIB_TARGET_NAME "unitsLib")
 
 add_subdirectory(ShipNetSim)
 add_subdirectory(ShipNetSimGUI)
