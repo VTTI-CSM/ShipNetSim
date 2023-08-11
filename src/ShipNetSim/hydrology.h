@@ -43,8 +43,8 @@ inline double R_n(units::velocity::meters_per_second_t ship_speed,
 inline double C_F(units::velocity::meters_per_second_t ship_speed,
                   units::length::meter_t ship_length)
 {
-    double dom_value = units::math::log10(
-                           R_n(ship_speed, ship_length)).value() - 2.0;
+    double dom_value = log10(
+                           R_n(ship_speed, ship_length)) - 2.0;
 
     return 0.075 / (dom_value * dom_value);
 }
