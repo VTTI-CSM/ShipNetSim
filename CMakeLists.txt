@@ -8,6 +8,9 @@ set(MY_PROJECT_VERSION "1.0.0" CACHE STRING "Project version")
 
 project(ShipNetSim VERSION ${MY_PROJECT_VERSION} LANGUAGES CXX)
 
+# Add the project name as a compiler definition
+add_definitions(-DPROJECT_NAME="${PROJECT_NAME}")
+
 # Enable Qt's Automatic User Interface Compiler (UIC)
 set(CMAKE_AUTOUIC ON)
 # Enable Qt's Meta-Object Compiler (MOC) which allows
