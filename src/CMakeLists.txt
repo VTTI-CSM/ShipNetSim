@@ -11,6 +11,9 @@ add_subdirectory(ShipNetSimGUI)
 # Add the subdirectory 'third_party' to the build.
 add_subdirectory(third_party)
 
+# Add the sudirectory 'test' to the build.
+add_subdirectory(test)
+
 # Add the subdirectory 'ShipNetSimInstaller' to the build.
 #add_subdirectory(ShipNetSimInstaller)
 
