@@ -36,8 +36,11 @@ link_directories(${Boost_LIBRARY_DIRS})
 # listing the required source and header files
 add_executable(ShipNetSim
   main.cpp
-  ship.h ship.cpp
-  hydrology.h
+  ship/ship.h ship/ship.cpp
+  ship/hydrology.h
+  ship/ishipresistancestrategy.h
+  ship/holtropresistancemethod.h ship/holtropresistancemethod.cpp
+  utils/logger.h utils/logger.cpp
 )
 
 # Link the Boost and Qt libraries to the executable target
