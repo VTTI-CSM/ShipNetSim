@@ -27,6 +27,10 @@ set(CMAKE_CXX_STANDARD 20)
 # requirement for the compiler
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_definitions(-DQT_NO_DEBUG_OUTPUT)
+endif()
+
 # Set BOOST_ROOT based on the platform
 if(WIN32)
     set(BOOST_ROOT "C:/dev/boost"
