@@ -38,9 +38,17 @@ add_executable(ShipNetSim
   main.cpp
   ship/ship.h ship/ship.cpp
   ship/hydrology.h
-  ship/ishipresistancestrategy.h
-  ship/holtropresistancemethod.h ship/holtropresistancemethod.cpp
+  ship/ishipresistancepropulsionstrategy.h
+  ship/holtropmethod.h ship/holtropmethod.cpp
   utils/logger.h utils/logger.cpp
+  network/geometry.h
+  network/point.h network/point.cpp
+  network/line.h network/line.cpp
+  network/polygon.h network/polygon.cpp
+  network/visibilitygraph.h network/visibilitygraph.cpp
+
+
+
 )
 
 # Link the Boost and Qt libraries to the executable target
