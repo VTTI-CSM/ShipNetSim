@@ -12,11 +12,11 @@ class Ship;  // Forward declaration of the class ship
  *
  * Provides an interface to manage multiple resistance prediction methods
  */
-class IShipResistanceStrategy
+class IShipResistancePropulsionStrategy
 {
 
 public:
-    virtual ~IShipResistanceStrategy() = default;
+    virtual ~IShipResistancePropulsionStrategy() = default;
 
     /**
      * @brief Calculates the frictional resistance of the ship.
@@ -27,7 +27,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Frictional resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getfrictionalResistance(const Ship &ship) = 0;
 
     /**
@@ -40,7 +40,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Appendage resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getAppendageResistance(const Ship &ship) = 0;
 
     /**
@@ -53,7 +53,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Wave resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getWaveResistance(const Ship &ship) = 0;
 
 
@@ -68,7 +68,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Bulbous bow resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getBulbousBowResistance(const Ship &ship) = 0;
 
     /**
@@ -82,7 +82,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Resistance due to immersed transom pressure in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getImmersedTransomPressureResistance(const Ship &ship) = 0;
 
     /**
@@ -97,7 +97,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Model ship correlation resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getModelShipCorrelationResistance(const Ship &ship) = 0;
 
     /**
@@ -111,7 +111,7 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Air resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getAirResistance(const Ship &ship) = 0;
 
     /**
@@ -124,8 +124,15 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Total resistance in kilonewtons.
      */
-    virtual units::force::kilonewton_t
+    virtual units::force::newton_t
     getTotalResistance(const Ship &ship) = 0;
+
+
+//    virtual units::force::newton_t
+//    getThrust(const Ship &ship) = 0;
+
+    virtual units::velocity::meters_per_second_t
+    calc_SpeedOfAdvance(const Ship &ship) = 0;
 
     /**
      * @brief Retrieves the name of the resistance prediction method.
