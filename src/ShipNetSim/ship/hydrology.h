@@ -16,7 +16,7 @@ static constexpr units::velocity::meters_per_second_t NUE =
     units::velocity::meters_per_second_t(1.1883e-6);
 
 static constexpr units::density::kilograms_per_cubic_meter_t WATER_RHO =
-    units::density::kilograms_per_cubic_meter_t(1025);
+    units::density::kilograms_per_cubic_meter_t(1025.0);
 
 static constexpr units::density::kilograms_per_cubic_meter_t AIR_RHO =
     units::density::kilograms_per_cubic_meter_t(1.225);
@@ -31,12 +31,17 @@ inline units::velocity::meters_per_second_t get_nue(
 
     if (salinity < 0.0)
     {
-        qDebug() << "salinity must be greater than 0%!";
+        qCritical() << "salinity must be greater than 0%!";
+        return units::velocity::meters_per_second_t(0);
+    }
+    if (salinity > 1.0)
+    {
+        qCritical() << "salinity must be less than 100%!";
         return units::velocity::meters_per_second_t(0);
     }
     if (temp.value() < 0.0)
     {
-        qDebug() << "temperature must be greater than 0 celcuis!";
+        qCritical() << "temperature must be greater than 0 celcuis!";
         return units::velocity::meters_per_second_t(0);
     }
     return units::velocity::meters_per_second_t(
@@ -47,30 +52,31 @@ inline units::velocity::meters_per_second_t get_nue(
         );
 }
 
-inline double F_n(units::velocity::knot_t ship_speed,
+inline double F_n(units::velocity::meters_per_second_t ship_speed,
                   units::length::meter_t ship_length)
 {
     if (ship_speed.value() < 0.0)
     {
-        qDebug() << "Ship speed must be greater than 0 knots!";
+
+        qCritical() << "Ship speed must be greater than 0 knots!";
         return 0.0;
     }
     if (ship_length.value() < 0.0)
     {
-        qDebug() << "Ship Length must be greater than 0!";
+        qCritical() << "Ship Length must be greater than 0!";
         return 0.0;
     }
-    units::velocity::meters_per_second_t speed =
-        ship_speed.convert<velocity::meters_per_second>();
-    qDebug() << "Ship Speed is :" << QString::number(speed.value(), 'f', 10);
+    qDebug() << "Ship Speed is :" <<
+        QString::number(ship_speed.value(), 'f', 10);
     qDebug() << "G Value is :" << QString::number(G.value(), 'f', 10);
     qDebug() << "Ship Length is (m): " <<
         QString::number(ship_length.value(), 'f', 10);
-    return speed.value() /
+
+    return ship_speed.value() /
            sqrt(ship_length.value() * G.value());
 }
 
-inline double R_n(units::velocity::knot_t ship_speed,
+inline double R_n(units::velocity::meters_per_second_t ship_speed,
                   units::length::meter_t ship_length,
                   double salinity = 0.035,
                   units::temperature::celsius_t temp =
@@ -78,61 +84,35 @@ inline double R_n(units::velocity::knot_t ship_speed,
 {
     if (ship_speed.value() < 0.0)
     {
-        qDebug() << "Ship speed must be greater than 0 knots!";
+        qCritical() << "Ship speed must be greater than 0 knots!";
         return 0.0;
     }
     if (ship_length.value() < 0.0)
     {
-        qDebug() << "Ship Length must be greater than 0!";
+        qCritical() << "Ship Length must be greater than 0!";
         return 0.0;
     }
     if (salinity < 0.0)
     {
-        qDebug() << "salinity must be greater than 0%!";
+        qCritical() << "salinity must be greater than 0%!";
         return 0.0;
     }
     if (temp.value() < 0.0)
     {
-        qDebug() << "temperature must be greater than 0 celcuis!";
+        qCritical() << "temperature must be greater than 0 celcuis!";
         return 0.0;
     }
-    units::velocity::meters_per_second_t speed =
-        ship_speed.convert<velocity::meters_per_second>();
 
-    qDebug() << "Ship Speed is :" << QString::number(speed.value(), 'f', 10);
+    qDebug() << "Ship Speed is :" <<
+        QString::number(ship_speed.value(), 'f', 10);
     qDebug() << "Ship Length is (m): " <<
         QString::number(ship_length.value(), 'f', 10);
     qDebug() << "nue value is: " <<
         QString::number(get_nue(salinity, temp).value(), 'f', 10);
 
-    return (speed.value() * ship_length.value()) /
+    return (ship_speed.value() * ship_length.value()) /
            get_nue(salinity, temp).value();
 }
 
-inline double C_F(units::velocity::knot_t ship_speed,
-                  units::length::meter_t ship_length)
-{
-
-    if (ship_speed.value() < 0.0)
-    {
-        qDebug() << "Ship speed must be greater than 0 knots!";
-        return 0.0;
-    }
-    if (ship_length.value() < 0.0)
-    {
-        qDebug() << "Ship Length must be greater than 0!";
-        return 0.0;
-    }
-
-    qDebug() << "Ship Speed is (knots):" <<
-        QString::number(ship_speed.value(), 'f', 10);
-    qDebug() << "Ship Length is (m): " <<
-        QString::number(ship_length.value(), 'f', 10);
-
-    double dom_value = log10(
-                           R_n(ship_speed, ship_length)) - 2.0;
-
-    return (double)0.075 / (dom_value * dom_value);
-}
 }
 #endif // HYDROLOGY_H
