@@ -13,7 +13,7 @@
 #ifndef RESISTANCESTRATEGY_H
 #define RESISTANCESTRATEGY_H
 
-#include "ishipresistancestrategy.h"
+#include "ishipresistancepropulsionstrategy.h"
 
 
 /**
@@ -29,57 +29,63 @@
  * appendage resistance, wave resistance, bulbous bow resistance,
  * and other resistance types.
  */
-class HoltropResistanceMethod : public IShipResistanceStrategy
+class HoltropMethod : public IShipResistancePropulsionStrategy
 {
 public:
+
 
     /**
      * @copydoc IShipResistanceStrategy::getfrictionalResistance()
      */
-    units::force::kilonewton_t
-    getfrictionalResistance(const Ship &ship) override;
+    units::force::newton_t getfrictionalResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getAppendageResistance()
      */
-    units::force::kilonewton_t
-    getAppendageResistance(const Ship &ship) override;
+    units::force::newton_t getAppendageResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getWaveResistance()
      */
-    units::force::kilonewton_t
+    units::force::newton_t
     getWaveResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getBulbousBowResistance()
      */
-    units::force::kilonewton_t
+    units::force::newton_t
     getBulbousBowResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getImmersedTransomPressureResistance()
      */
-    units::force::kilonewton_t
+    units::force::newton_t
     getImmersedTransomPressureResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getModelShipCorrelationResistance()
      */
-    units::force::kilonewton_t
-    getModelShipCorrelationResistance(const Ship &ship) override;
+    units::force::newton_t getModelShipCorrelationResistance(
+        const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getAirResistance()
      */
-    units::force::kilonewton_t
+    units::force::newton_t
     getAirResistance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getTotalResistance()
      */
-    units::force::kilonewton_t
+    units::force::newton_t
     getTotalResistance(const Ship &ship) override;
+
+
+//    units::force::newton_t
+//    getThrust(const Ship &ship) override;
+
+    units::velocity::meters_per_second_t
+    calc_SpeedOfAdvance(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getMethodName()
@@ -88,6 +94,65 @@ public:
 
 
 private:
+
+    double c1 = std::nan("uninitialized");
+    double c2 = std::nan("uninitialized");
+    double c3 = std::nan("uninitialized");
+    double c4 = std::nan("uninitialized");
+    double c5 = std::nan("uninitialized");
+    double c7 = std::nan("uninitialized");
+    double C8 = std::nan("uninitialized");
+    double C9 = std::nan("uninitialized");
+    double C11 = std::nan("uninitialized");
+    double c14 = std::nan("uninitialized");
+    double c15 = std::nan("uninitialized");
+    double c16 = std::nan("uninitialized");
+    double c17 = std::nan("uninitialized");
+    double C19 = std::nan("uninitialized");
+    double C20 = std::nan("uninitialized");
+    double CP1 = std::nan("uninitialized");
+    double lambda = std::nan("uninitialized");
+    double m1 = std::nan("uninitialized");
+    double m3 = std::nan("uninitialized");
+    double PB = std::nan("uninitialized");
+
+    double get_C1(const Ship &ship);
+    double get_C2(const Ship &ship);
+    double get_C3(const Ship &ship);
+    double get_C4(const Ship &ship);
+    double get_C5(const Ship &ship);
+    double get_C7(const Ship &ship);
+    double get_C8(const Ship &ship);
+    double get_C9(const Ship &ship);
+    double get_C11(const Ship &ship);
+    double get_C14(const Ship &ship);
+    double get_C15(const Ship &ship);
+    double get_C16(const Ship &ship);
+    double get_C17(const Ship &ship);
+    double get_C19(const Ship &ship);
+    double get_C20(const Ship &ship);
+    double get_CP1(const Ship &ship);
+    double get_lambda(const Ship &ship);
+    double get_m1(const Ship &ship);
+    double get_m3(const Ship &ship);
+    double get_PB(const Ship &ship);
+
+
+
+    double calc_c_8(const Ship &ship);
+
+    double calc_c_9(const Ship &ship);
+
+    double calc_c_11(const Ship &ship);
+
+    double calc_c_19(const Ship &ship);
+
+    double calc_c_20(const Ship &ship);
+
+    double calc_c_p1(const Ship &ship);
+
+
+
 
     /**
      * @brief Computes the c_7 coefficient.
@@ -262,7 +327,7 @@ private:
      * @param customSpeed Optional custom speed value.
      * @return Resistance 'a' component.
      */
-    units::force::kilonewton_t calc_R_Wa(
+    units::force::newton_t calc_R_Wa(
         const Ship &ship,
         units::velocity::meters_per_second_t customSpeed =
         units::velocity::meters_per_second_t(std::nan("no value")));
@@ -273,7 +338,7 @@ private:
      * @param customSpeed Optional custom speed value.
      * @return Resistance 'b' component.
      */
-    units::force::kilonewton_t calc_R_Wb(
+    units::force::newton_t calc_R_Wb(
         const Ship &ship,
         units::velocity::meters_per_second_t customSpeed =
         units::velocity::meters_per_second_t(std::nan("no value")));
@@ -285,8 +350,15 @@ private:
      */
     double calc_C_F(const Ship &ship);
 
-
     const double d = -0.9;
+
+    double calc_C_V(const Ship &ship);
+
+    double calc_w_s(const Ship &ship);
+    double calc_t(const Ship &ship);
+//    double calc_rotEff(Ship &ship);
+
+    friend class HoltropResistanceMethodTest;
 
 };
 
