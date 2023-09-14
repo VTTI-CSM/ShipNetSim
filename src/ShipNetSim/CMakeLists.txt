@@ -2,12 +2,6 @@
 # the programming language used (CXX for C++)
 project(ShipNetSim VERSION ${MY_PROJECT_VERSION} LANGUAGES CXX)
 
-# Boost library settings: turn off static linking,
-# enable multi-threading, turn off static runtime
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-
 # Add the units library target
 add_library(${units_LIB_TARGET_NAME})
 
@@ -17,7 +11,7 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core)
 
 # Find the Boost library
-find_package(Boost REQUIRED)
+find_package(Boost 1.83 REQUIRED )
 
 # Check if the Boost library was found, and if
 # not, print a fatal error message
@@ -29,8 +23,9 @@ endif()
 
 # Include the directories for the Boost header files
 # and link the Boost library directories
-include_directories(${Boost_INCLUDE_DIRS})
-link_directories(${Boost_LIBRARY_DIRS})
+#include_directories(${Boost_INCLUDE_DIRS})
+#link_directories(${Boost_LIBRARY_DIRS})
+
 
 # Define the executable target for the project,
 # listing the required source and header files
@@ -41,15 +36,23 @@ add_executable(ShipNetSim
   ship/ishipresistancepropulsionstrategy.h
   ship/holtropmethod.h ship/holtropmethod.cpp
   utils/logger.h utils/logger.cpp
-  network/geometry.h
+  network/basegeometry.h
   network/point.h network/point.cpp
   network/line.h network/line.cpp
   network/polygon.h network/polygon.cpp
   network/visibilitygraph.h network/visibilitygraph.cpp
-
-
+  ship/ishippropeller.h ship/ishippropeller.cpp
+  ship/shippropeller.h ship/shippropeller.cpp
+  utils/utils.h
+  utils/data.h utils/data.cpp
+  ship/battery.h ship/battery.cpp
+  ship/tank.h ship/tank.cpp
+  network/network.h network/network.cpp
 
 )
+
+
+target_include_directories(ShipNetSim PRIVATE ${Boost_INCLUDE_DIR})
 
 # Link the Boost and Qt libraries to the executable target
 target_link_libraries(ShipNetSim
@@ -66,5 +69,3 @@ install(TARGETS ShipNetSim
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-
-
