@@ -21,7 +21,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 # Set the C++20 standard to be used for compiling
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 # Ensure that the selected C++ standard is a
 # requirement for the compiler
@@ -33,7 +33,7 @@ endif()
 
 # Set BOOST_ROOT based on the platform
 if(WIN32)
-    set(BOOST_ROOT "C:/dev/boost"
+    set(BOOST_ROOT "C:/Boost"
         CACHE STRING "Boost root directory") # Windows path
 elseif(APPLE)
     set(BOOST_ROOT "/path/to/boost/on/mac"
@@ -42,6 +42,14 @@ else()
     set(BOOST_ROOT "/path/to/boost/on/linux"
         CACHE STRING "Boost root directory") # Linux path
 endif()
+
+
+
+# Boost library settings: turn off static linking,
+# enable multi-threading, turn off static runtime
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
 
 # include src directory
 add_subdirectory(src)
