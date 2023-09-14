@@ -5,6 +5,7 @@
 #include "holtropmethod.h"
 #include <QDebug>
 #include "../../third_party/units/units.h"
+#include "../utils/utils.h"
 
 Ship::Ship(units::length::meter_t lengthInWaterline,
            units::length::meter_t moldedBeam,
@@ -167,171 +168,184 @@ Ship::Ship(const QMap<QString, std::any>& parameters)
     }
 
     mWaterlineLength =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "WaterlineLength",
             units::length::meter_t(std::nan("uninitialized")));
 
     mBeam =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "Beam",
             units::length::meter_t(std::nan("uninitialized")));
 
     mMeanDraft =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "MeanDraft",
             units::length::meter_t(std::nan("uninitialized")));
 
     mDraftAtForward =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "DraftAtForward",
             units::length::meter_t(std::nan("uninitialized")));
 
     mDraftAtAft =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "DraftAtAft",
             units::length::meter_t(std::nan("uninitialized")));
 
     mVolumetricDisplacement =
-        getValueFromMap<units::volume::cubic_meter_t>(
+        Utils::getValueFromMap<units::volume::cubic_meter_t>(
             parameters,
             "VolumetricDisplacement",
             units::volume::cubic_meter_t(std::nan("uninitialized")));
 
     mWettedHullSurface =
-        getValueFromMap<units::area::square_meter_t>(
+        Utils::getValueFromMap<units::area::square_meter_t>(
             parameters,
             "WettedHullSurface",
             units::area::square_meter_t(std::nan("uninitialized")));
 
     mWetSurfaceAreaMethod =
-        getValueFromMap<WetSurfaceAreaCalculationMethod>(
+        Utils::getValueFromMap<WetSurfaceAreaCalculationMethod>(
             parameters,
             "WetSurfaceAreaMethod",
             WetSurfaceAreaCalculationMethod::None);
 
     mBulbousBowTransverseAreaCenterHeight =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "BulbousBowTransverseAreaCenterHeight",
             units::length::meter_t(std::nan("uninitialized")));
 
     mAppendagesWettedSurfaces =
-        getValueFromMap<QMap<ShipAppendage, units::area::square_meter_t>>(
+        Utils::getValueFromMap<QMap<ShipAppendage,
+                                    units::area::square_meter_t>>(
             parameters,
             "AppendagesWettedSurfaces",
             QMap<ShipAppendage, units::area::square_meter_t>());
 
     mBulbousBowTransverseArea =
-        getValueFromMap<units::area::square_meter_t>(
+        Utils::getValueFromMap<units::area::square_meter_t>(
             parameters,
             "BulbousBowTransverseArea",
             units::area::square_meter_t(std::nan("uninitialized")));
 
     mImmersedTransomArea =
-        getValueFromMap<units::area::square_meter_t>(
+        Utils::getValueFromMap<units::area::square_meter_t>(
             parameters,
             "ImmersedTransomArea",
             units::area::square_meter_t(std::nan("uninitialized")));
 
     mHalfWaterlineEntranceAngle =
-        getValueFromMap<units::angle::degree_t>(
+        Utils::getValueFromMap<units::angle::degree_t>(
             parameters,
             "HalfWaterlineEntranceAngle",
             units::angle::degree_t(std::nan("uninitialized")));
 
     mSpeed =
-        getValueFromMap<units::velocity::meters_per_second_t>(
+        Utils::getValueFromMap<units::velocity::meters_per_second_t>(
             parameters,
             "Speed",
             units::velocity::meters_per_second_t(0.0));
 
     mSurfaceRoughness =
-        getValueFromMap<units::length::nanometer_t>(
+        Utils::getValueFromMap<units::length::nanometer_t>(
             parameters,
             "SurfaceRoughness",
             units::length::nanometer_t(std::nan("uninitialized")));
 
     mRunLength =
-        getValueFromMap<units::length::meter_t>(
+        Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "RunLength",
             units::length::meter_t(std::nan("uninitialized")));
 
     mLongitudinalBuoyancyCenter =
-        getValueFromMap<double>(
+        Utils::getValueFromMap<double>(
             parameters,
             "LongitudinalBuoyancyCenter",
             std::nan("uninitialized"));
 
     mSternShapeParam =
-        getValueFromMap<CStern>(
+        Utils::getValueFromMap<CStern>(
             parameters,
             "SternShapeParam",
             CStern::None);
 
     mMidshipSectionCoef =
-        getValueFromMap<double>(
+        Utils::getValueFromMap<double>(
             parameters,
             "MidshipSectionCoef",
             std::nan("uninitialized"));
 
     mWaterplaneAreaCoef =
-        getValueFromMap<double>(
+        Utils::getValueFromMap<double>(
             parameters,
             "WaterplaneAreaCoef",
             std::nan("uninitialized"));
 
     mWaterplaneCoefMethod =
-        getValueFromMap<WaterPlaneCoefficientMethod>(
+        Utils::getValueFromMap<WaterPlaneCoefficientMethod>(
             parameters,
             "WaterplaneCoefMethod",
             WaterPlaneCoefficientMethod::None);
 
     mPrismaticCoef =
-        getValueFromMap<double>(
+        Utils::getValueFromMap<double>(
             parameters,
             "PrismaticCoef",
             std::nan("uninitialized"));
 
     mBlockCoef =
-        getValueFromMap<double>(
+        Utils::getValueFromMap<double>(
             parameters,
             "BlockCoef",
             std::nan("uninitialized"));
 
     mBlockCoefMethod =
-        getValueFromMap<BlockCoefficientMethod>(
+        Utils::getValueFromMap<BlockCoefficientMethod>(
             parameters,
             "BlockCoefMethod",
             BlockCoefficientMethod::None);
 
-    mBreakPower = getValueFromMap<units::power::kilowatt_t>(
-        parameters, "gearEfficiency",
-        units::power::kilowatt_t(std::nan("uninitialized")));
+    mPropellers =
+        Utils::getValueFromMap<QVector<IShipPropeller*>>(
+        parameters,
+        "propellers",
+        QVector<IShipPropeller*>());
 
-    mGearEfficiency = getValueFromMap<double>(
-        parameters, "gearEfficiency", std::nan("uninitialized"));
-    mShaftEfficiency = getValueFromMap<double>(
-        parameters, "shaftEfficiency", std::nan("uninitialized"));
-    mPropellerEfficiency = getValueFromMap<double>(
-        parameters, "propellerEfficiency", std::nan("uninitialized"));
-    mHullEfficiency = getValueFromMap<double>(
-        parameters, "hullEfficiency", std::nan("uninitialized"));
-    mPropulsiveEfficiency = getValueFromMap<double>(
-        parameters, "propulsiveEfficiency", std::nan("uninitialized"));
 
     initializeDefaults();
 }
 
 Ship::~Ship()
 {
+    // avoid memory leaks
     if (mStrategy) {
-        delete mStrategy;  // avoid memory leaks
+        delete mStrategy;
+    }
+    for (IShipPropeller* propeller : mPropellers)
+    {
+        if (propeller)
+            delete propeller;
+    }
+    for (Ship* vessel : mDraggedVessels)
+    {
+        if (vessel)
+            delete vessel;
+    }
+    if (mBattery)
+    {
+        delete mBattery;
+    }
+
+    if (mTank)
+    {
+        delete mTank;
     }
 }
 
@@ -765,112 +779,32 @@ void Ship::setScrewVesselType(ScrewVesselType newScrewVesselType)
     mScrewVesselType = newScrewVesselType;
 }
 
-units::power::kilowatt_t Ship::getBreakPower() const
+void Ship::addPropeller(IShipPropeller *newPropeller)
 {
-    return mBreakPower;
+    mPropellers.push_back(newPropeller);
 }
 
-void Ship::setBreakPower(const units::power::kilowatt_t newPower)
+QVector<IShipPropeller *> *Ship::propellers()
 {
-    mBreakPower = newPower;
+    return &mPropellers;
 }
 
-units::power::kilowatt_t Ship::getShaftPower() const
+QVector<Ship *> *Ship::draggedVessels()
 {
-    return getBreakPower() * mGearEfficiency;
+    return &mDraggedVessels;
 }
 
-units::power::kilowatt_t Ship::getDeliveredPower() const
+units::force::newton_t Ship::getTotalThrust() const
 {
-    return getShaftPower() * mShaftEfficiency;
-}
+    units::force::newton_t totalThrust = units::force::newton_t(0.0);
 
-units::power::kilowatt_t Ship::getThrustPower() const
-{
-    return getDeliveredPower() * mPropellerEfficiency;
-}
+    for (const auto propeller: mPropellers)
+    {
+        totalThrust += propeller->getThrust() *
+                       getHyperbolicThrottleCoef(mSpeed);
+    }
 
-units::power::kilowatt_t Ship::getEffectivePower() const
-{
-    return getThrustPower() * mHullEfficiency;
-}
-
-units::force::newton_t Ship::getThrust() const
-{
-    return units::math::min(
-        (getEffectivePower() /
-         units::math::max(
-             mStrategy->calc_SpeedOfAdvance(*this),
-             units::velocity::meters_per_second_t(0.0001))).
-        convert<units::force::newton>(),
-
-        units::force::kilonewton_t(
-            (double)2.0 * hydrology::WATER_RHO.value() *
-            getPropellerDiskArea().value() *
-            pow(getDeliveredPower().convert<units::power::watts>().value(),
-                (double)2.0) / (double)1000.0
-            ).convert<units::force::newton>());
-}
-
-double Ship::getRPM() const
-{
-    return pow(pow(getShaftPower().
-                   convert<units::power::horsepower>().value(),
-                   (double)0.2) * ((double)632.7/
-                      getPropellerDiameter().
-                      convert<units::length::inch>().value()),
-               ((double)1 / (double)0.6));
-}
-
-units::torque::newton_meter_t Ship::getTorque() const
-{
-    return units::torque::newton_meter_t(
-        getDeliveredPower().convert<units::power::watt>().value() /
-            ((double)2.0 * units::constants::pi.value() * getRPM()));
-
-//    return units::torque::foot_pound_t(
-//               getEffectivePower().convert<units::power::horsepower>().value() /
-//                                       (getRPM() / (double)5252.0)).
-//        convert<units::torque::newton_meter>();
-}
-
-double Ship::getThrustCoefficient() const
-{
-    return (getThrust().value() /
-            (hydrology::WATER_RHO.value() *
-             pow(getRPM(), (double)2.0) *
-             pow(getPropellerDiameter().value(),(double)4.0)));
-}
-
-double Ship::getTorqueCoefficient() const
-{
-    return (getTorque().value() /
-            (hydrology::WATER_RHO.value() *
-             pow(getRPM(), (double)2.0) *
-             pow(getPropellerDiameter().value(),(double)5.0)));
-}
-
-double Ship::getAdvancedRatio() const
-{
-    return (mStrategy->calc_SpeedOfAdvance(*this).value() /
-            (getRPM() * getPropellerDiameter().value()));
-}
-
-//double Ship::calc_propellerEfficiency()
-//{
-//    return ((getThrustCoefficient() / getTorqueCoefficient()) *
-//            (getAdvancedRatio() / ((double)2.0 *
-//                                   units::constants::pi.value())));
-//}
-
-double Ship::getPropellerEfficiency() const
-{
-    return mPropellerEfficiency;
-}
-
-void Ship::setPropellerEfficiency(double newPropellerEfficiency)
-{
-    mPropellerEfficiency = newPropellerEfficiency;
+    return totalThrust;
 }
 
 units::mass::metric_ton_t Ship::getVesselWeight() const
@@ -906,12 +840,8 @@ units::mass::metric_ton_t Ship::calc_addedWeight() const
         convert<units::mass::metric_ton>();
 }
 
-units::acceleration::meters_per_second_squared_t
-Ship::calc_maxAcceleration() const
-{
-    return (getThrust() - mStrategy->getTotalResistance(*this)) /
-           getTotalVesselWeight().convert<units::mass::kilogram>();
-}
+
+
 
 units::angle::degree_t Ship::getHalfWaterlineEntranceAngle() const
 {
@@ -1382,44 +1312,467 @@ void Ship::initializeDefaults()
                                        getPropellerDiskArea().value();
     }
 
-    if (std::isnan(mGearEfficiency))
-    {
-        mGearEfficiency = (double)0.99;
-    }
-
-    if (std::isnan(mShaftEfficiency))
-    {
-        mShaftEfficiency = (double)0.00;
-    }
-
-    if (std::isnan(mPropellerEfficiency))
-    {
-        mPropellerEfficiency = (double)0.75;
-    }
-
-    if (std::isnan(mHullEfficiency))
-    {
-        mHullEfficiency = 0.99;
-    }
-
-    if (std::isnan(mPropulsiveEfficiency))
-    {
-        mPropulsiveEfficiency = mGearEfficiency * mShaftEfficiency *
-                                mPropellerEfficiency * mHullEfficiency;
-    }
-
-//    mPropellerDeliveredPower = mPropellerBreakPower * mPropulsiveEfficiency;
 }
 
-
-units::force::newton_t Ship::calc_Torque()
+std::vector<std::shared_ptr<Line>> Ship::shipPath()
 {
-    return units::force::kilonewton_t(
-               cbrt((double)2.0 *
-                    hydrology::WATER_RHO.value() *
-                    getPropellerDiskArea().value() *
-                    pow(getDeliveredPower().
-                        convert<units::power::watts>().value(), (double)2.0)
-                    )/(double)1000.0).convert<units::force::newton>();
+    return mPath;
 }
+
+void Ship::setShipPath(std::vector<std::shared_ptr<Line>> &path)
+{
+    mPath = path;
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+units::acceleration::meters_per_second_squared_t
+Ship::calc_maxAcceleration() const
+{
+    return (getTotalThrust() - mStrategy->getTotalResistance(*this)) /
+           getTotalVesselWeight().convert<units::mass::kilogram>();
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::calc_decelerationAtSpeed(
+    const units::velocity::meters_per_second_t customSpeed) const
+{
+    return ((double)-1.0 * mStrategy->getTotalResistance(*this, customSpeed)) /
+           getTotalVesselWeight().convert<units::mass::kilogram>();
+}
+
+
+double Ship::getHyperbolicThrottleCoef(
+    const units::velocity::meters_per_second_t &ShipSpeed) const
+{
+    double dv, um;
+    // ratio of current train speed by the max loco speed
+    dv = (ShipSpeed / mMaxSpeed).value();
+    double lambda = (double)1.0 / (1.0 + exp(-7.82605 * (dv - 0.42606)));
+
+    if (lambda < 0.0){
+        return 0.0;
+    }
+    else if (lambda > 1.0) {
+        return 1.0;
+    }
+
+    return lambda;
+
+};
+
+
+
+units::length::meter_t Ship::getSafeGap(
+    const units::length::meter_t initialGap,
+    const units::velocity::meters_per_second_t speed,
+    const units::velocity::meters_per_second_t freeFlowSpeed,
+    const units::time::second_t T_s, bool estimate)
+{
+    units::length::meter_t gap_lad = units::length::meter_t(0.0);
+
+    units::acceleration::meters_per_second_squared_t d_des;
+
+    if (! estimate )
+    {
+        d_des = units::math::min(
+            units::math::abs(calc_decelerationAtSpeed(speed)),
+            mD_des);
+
+        gap_lad =
+            initialGap + T_s * speed +
+            (units::math::pow<2>(speed) / (2.0 * mD_des));
+    }
+        else
+    {
+        d_des = units::math::min(
+            units::math::abs(calc_decelerationAtSpeed(freeFlowSpeed)),
+            mD_des);
+        gap_lad = initialGap + T_s * freeFlowSpeed +
+                  (units::math::pow<2>(freeFlowSpeed) /
+                   (2.0 * d_des));
+    }
+    return gap_lad;
+}
+
+units::velocity::meters_per_second_t
+Ship::getNextTimeStepSpeed(
+    const units::length::meter_t gap,
+    const units::length::meter_t minGap,
+    const units::velocity::meters_per_second_t speed,
+    const units::velocity::meters_per_second_t freeFlowSpeed,
+    const units::acceleration::meters_per_second_squared_t aMax,
+    const units::time::second_t T_s,
+    const units::time::second_t deltaT)
+{
+    units::velocity::meters_per_second_t u_hat =
+        units::math::min((gap - minGap) / T_s, freeFlowSpeed);
+
+    if (u_hat < speed)
+    {
+        u_hat = max(u_hat, speed - calc_decelerationAtSpeed(speed) * deltaT);
+    }
+    else if (u_hat > speed && u_hat != freeFlowSpeed) {
+        u_hat = min(u_hat, speed + aMax * deltaT);
+    }
+    return u_hat;
+}
+
+units::time::second_t Ship::getTimeToCollision(
+    const units::length::meter_t gap,
+    const units::length::meter_t minGap,
+    const units::velocity::meters_per_second_t speed,
+    const units::velocity::meters_per_second_t leaderSpeed)
+{
+    return units::math::min(
+        (gap - minGap) /
+            units::math::max(speed - leaderSpeed,
+                             units::velocity::meters_per_second_t(0.0001)),
+        units::time::second_t(100.0));
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an11(
+    const units::velocity::meters_per_second_t u_hat,
+    const units::velocity::meters_per_second_t speed,
+    const units::time::second_t TTC_s)
+{
+    units::time::second_t denominator = units::time::second_t(0.0);
+    if (TTC_s.value() > 0) {
+        denominator = TTC_s;
+    }
+    else {
+        denominator = units::time::second_t(0.0001);
+    }
+    return units::math::max(((u_hat - speed) / (denominator)),
+               calc_decelerationAtSpeed(speed));
+}
+
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an12(
+    const units::velocity::meters_per_second_t &u_hat,
+    const units::velocity::meters_per_second_t &speed,
+    const units::time::second_t &T_s,
+    const units::acceleration::meters_per_second_squared_t &amax)
+{
+    units::time::second_t t_s = (T_s == units::time::second_t(0.0L)) ?
+              units::time::second_t(0.0001L) : T_s;
+    return units::math::min((u_hat - speed) / t_s, amax);
+}
+
+double Ship::get_beta1(
+    const units::acceleration::meters_per_second_squared_t &an11)
+{
+    if (an11.value() > 0)
+    {
+        return 1.0;
+    }
+    else {
+        return 0.0;
+    }
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an13(
+    const double beta1,
+    const units::acceleration::meters_per_second_squared_t &an11,
+    const units::acceleration::meters_per_second_squared_t &an12)
+{
+    return (1.0 - beta1) * an11 + beta1 * an12;
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an14(
+    const units::velocity::meters_per_second_t &speed,
+    const units::velocity::meters_per_second_t &leaderSpeed,
+    const units::time::second_t &T_s,
+    const units::acceleration::meters_per_second_squared_t &amax)
+{
+    return units::math::max(
+        units::math::min(
+            (leaderSpeed - speed) / T_s, amax),
+               calc_decelerationAtSpeed(speed));
+}
+
+double Ship::get_beta2()
+{
+    return 1.0;
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an1(
+    const double beta2,
+    const units::acceleration::meters_per_second_squared_t &an13,
+    const units::acceleration::meters_per_second_squared_t &an14)
+{
+    return beta2 * an13 + (1.0 - beta2) * an14;
+}
+
+double Ship::get_gamma(
+    const units::velocity::meters_per_second_t &speedDiff)
+{
+    if (speedDiff.value() > 0.0) {
+        return 1.0;
+    }
+    else {
+        return 0.0;
+    }
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::get_acceleration_an2(
+    const units::length::meter_t &gap,
+    const units::length::meter_t &minGap,
+    const units::velocity::meters_per_second_t &speed,
+    const units::velocity::meters_per_second_t &leaderSpeed,
+    const units::time::second_t &T_s)
+{
+    units::acceleration::meters_per_second_squared_t d_des =
+        units::math::min(
+            units::math::abs(calc_decelerationAtSpeed(speed)),
+            mD_des);
+
+    units::acceleration::meters_per_second_squared_t term;
+    term = units::math::pow<2>(units::math::pow<2>(speed) -
+                               units::math::pow<2>(leaderSpeed)) /
+           (4.0 * d_des *
+            units::math::pow<2>(
+                units::math::max((gap - minGap),
+                                 units::length::meter_t(0.0001)
+                                 )
+                )
+            );
+    return min(term, calc_decelerationAtSpeed(speed) * (double)-1.0);
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::accelerate(
+    const units::length::meter_t &gap,
+    const units::length::meter_t &mingap,
+    const units::velocity::meters_per_second_t &speed,
+    const units::acceleration::meters_per_second_squared_t &acceleration,
+    const units::velocity::meters_per_second_t &leaderSpeed,
+    const units::velocity::meters_per_second_t &freeFlowSpeed,
+    const units::time::second_t &deltaT)
+{
+    //get the maximum acceleration that the train can go by
+    units::acceleration::meters_per_second_squared_t amax =
+        calc_maxAcceleration();
+
+    if ((gap > this->getSafeGap(mingap, speed, freeFlowSpeed, mT_s, false)) &&
+        (amax.value() > 0))
+    {
+        if (speed < freeFlowSpeed)
+        {
+            return amax;
+        }
+        else if ( speed == freeFlowSpeed)
+        {
+            return units::acceleration::meters_per_second_squared_t(0.0);
+        }
+    }
+    units::velocity::meters_per_second_t u_hat =
+        this->getNextTimeStepSpeed(gap, mingap, speed,
+                                   freeFlowSpeed, amax, mT_s, deltaT);
+    units::time::second_t TTC_s =
+        this->getTimeToCollision(gap, mingap, speed, leaderSpeed);
+    units::acceleration::meters_per_second_squared_t an11 =
+        this->get_acceleration_an11(u_hat, speed, TTC_s);
+    units::acceleration::meters_per_second_squared_t an12 =
+        this->get_acceleration_an12(u_hat, speed, mT_s, amax);
+    double beta1 = this->get_beta1(an11);
+    units::acceleration::meters_per_second_squared_t an13 =
+        this->get_acceleration_an13(beta1, an11, an12);
+    units::acceleration::meters_per_second_squared_t an14 =
+        this->get_acceleration_an14(speed, leaderSpeed, mT_s, amax);
+    double beta2 = this->get_beta2();
+    units::acceleration::meters_per_second_squared_t an1 =
+        this->get_acceleration_an1(beta2, an13, an14);
+    units::velocity::meters_per_second_t du = speed - leaderSpeed;
+    double gamma = this->get_gamma(du);
+    units::acceleration::meters_per_second_squared_t an2 =
+        this->get_acceleration_an2(gap, mingap, speed, leaderSpeed, mT_s);
+    units::acceleration::meters_per_second_squared_t a =
+        an1 * (1.0 - gamma) - gamma * an2;
+    return a;
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::accelerateConsideringJerk(
+    units::acceleration::meters_per_second_squared_t &acceleration,
+    units::acceleration::meters_per_second_squared_t &previousAcceleration,
+    units::jerk::meters_per_second_cubed_t &jerk,
+    units::time::second_t &deltaT )
+{
+
+    units::acceleration::meters_per_second_squared_t an =
+        units::math::min(units::math::abs(acceleration),
+                    units::math::abs(previousAcceleration) + jerk * deltaT);
+    return an * ((acceleration.value() > 0) ? 1 : -1);
+}
+
+units::acceleration::meters_per_second_squared_t
+Ship::smoothAccelerate(
+    units::acceleration::meters_per_second_squared_t &acceleration,
+    units::acceleration::meters_per_second_squared_t &previousAccelerationValue,
+    double &alpha)
+{
+    return alpha * acceleration + (1 - alpha) * previousAccelerationValue;
+}
+
+units::velocity::meters_per_second_t Ship::speedUpDown(
+    units::velocity::meters_per_second_t &previousSpeed,
+    units::acceleration::meters_per_second_squared_t &acceleration,
+    units::time::second_t &deltaT,
+    units::velocity::meters_per_second_t &freeFlowSpeed)
+{
+    units::velocity::meters_per_second_t u_next =
+        units::math::min(previousSpeed + (acceleration * deltaT),
+                         freeFlowSpeed);
+    return units::math::max(u_next, units::velocity::meters_per_second_t(0.0));
+}
+
+units::acceleration::meters_per_second_squared_t Ship::adjustAcceleration(
+    units::velocity::meters_per_second_t &speed,
+    units::velocity::meters_per_second_t &previousSpeed,
+    units::time::second_t &deltaT)
+{
+    return ((speed - previousSpeed) / deltaT);
+}
+
+bool Ship::checkSuddenAccChange(
+    units::acceleration::meters_per_second_squared_t &previousAcceleration,
+    units::acceleration::meters_per_second_squared_t &currentAcceleration,
+    units::time::second_t &deltaT)
+{
+    if (units::math::abs((currentAcceleration -
+                          previousAcceleration) / deltaT) >
+        this->mMaxJerk)
+    {
+        emit suddenAccelerationOccurred(
+            "sudden acceleration change!\n Report to the developer!");
+        return true;
+    }
+    return false;
+}
+
+
+units::acceleration::meters_per_second_squared_t
+Ship::getStepAcceleration(
+    units::time::second_t &timeStep,
+    units::velocity::meters_per_second_t &freeFlowSpeed,
+    QVector<units::length::meter_t> *gapToNextCriticalPoint,
+    QVector<bool> *gapToNextCrticalPointType,
+    QVector<units::velocity::meters_per_second_t> *leaderSpeeds)
+{
+    units::length::meter_t minGap = units::length::meter_t(0.0);
+
+    QVector<units::acceleration::meters_per_second_squared_t>
+        allAccelerations;
+
+    for (int i = 0; i < gapToNextCriticalPoint->size(); i++) {
+        if (! gapToNextCrticalPointType->at(i)) {
+            allAccelerations.push_back(
+                this->accelerate(gapToNextCriticalPoint->at(i),
+                                 minGap, mSpeed,
+                                 mAcceleration,
+                                 leaderSpeeds->at(i),
+                                 freeFlowSpeed,
+                                 timeStep));
+        }
+    }
+
+    units::acceleration::meters_per_second_squared_t nonSmoothedAcceleration =
+        *std::min_element(allAccelerations.begin(), allAccelerations.end());
+
+    if (nonSmoothedAcceleration.value() < 0.0 &&
+        mSpeed.value() <= 0.001 &&
+        gapToNextCriticalPoint->back().value() > 50.0)
+    {
+        if (!mShowNoPowerMessage)
+        {
+            std::stringstream message;
+            message << "Ship " << mShipUserID.toStdString()
+                    << " Resistance is "
+                    << "larger than train tractive force at distance "
+                    << mTraveledDistance.value() << "(m)\n";
+            emit slowSpeedOrStopped(message.str());
+            mShowNoPowerMessage = true;
+        }
+
+    }
+
+    double alpha = (double)1.0;
+    units::acceleration::meters_per_second_squared_t smoothedAcceleration =
+        smoothAccelerate(nonSmoothedAcceleration,
+                         mPreviousAcceleration, alpha);
+    units::acceleration::meters_per_second_squared_t jerkAcceleration =
+        accelerateConsideringJerk(smoothedAcceleration,
+                                  mPreviousAcceleration,
+                                  mMaxJerk,
+                                  timeStep);
+
+    if (round(mSpeed.value()*1000.0)/1000.0 == 0.0
+        && jerkAcceleration.value() < 0) {
+        jerkAcceleration =
+            units::acceleration::meters_per_second_squared_t(0.0);
+    }
+    return jerkAcceleration;
+
+}
+
+void Ship::moveShip(
+    units::time::second_t &timeStep,
+    units::velocity::meters_per_second_t &freeFlowSpeed,
+    QVector<units::length::meter_t> *gapToNextCriticalPoint,
+    QVector<bool> *gapToNextCrticalPointType,
+    QVector<units::velocity::meters_per_second_t> *leaderSpeeds)
+{
+
+    units::acceleration::meters_per_second_squared_t jerkedAcceleration =
+        this->getStepAcceleration(timeStep,
+                                  freeFlowSpeed,
+                                  gapToNextCriticalPoint,
+                                  gapToNextCrticalPointType,
+                                  leaderSpeeds);
+
+    mAcceleration = jerkedAcceleration;
+    mPreviousSpeed = this->mSpeed;
+    mSpeed = this->speedUpDown(this->mPreviousSpeed,
+                               this->mAcceleration,
+                               timeStep, freeFlowSpeed);
+    mAcceleration = this->adjustAcceleration(this->mSpeed,
+                                             this->mPreviousSpeed,
+                                             timeStep);
+    checkSuddenAccChange(this->mPreviousAcceleration,
+                         this->mAcceleration,
+                         timeStep);
+    mTraveledDistance += this->mSpeed * timeStep;
+}
+
+void Ship::immediateStop(units::time::second_t &timestep)
+{
+    this->mPreviousAcceleration = this->mAcceleration;
+    this->mPreviousSpeed = this->mSpeed;
+    this->mSpeed =
+        units::velocity::meters_per_second_t(0.0);
+    this->mAcceleration =
+        units::acceleration::meters_per_second_squared_t(0.0);
+}
+
+void Ship::kickForwardADistance(
+    units::length::meter_t &distance)
+{
+    this->mPreviousAcceleration =
+        units::acceleration::meters_per_second_squared_t(0.0);
+    this->mAcceleration =
+        units::acceleration::meters_per_second_squared_t(0.0);
+    this->mPreviousSpeed = units::velocity::meters_per_second_t(0.0);
+    this->mSpeed = units::velocity::meters_per_second_t(0.0);
+    this->mTraveledDistance += distance;
+}
+
 

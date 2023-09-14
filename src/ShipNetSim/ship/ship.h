@@ -13,13 +13,17 @@
 
 #ifndef SHIP_H
 #define SHIP_H
+#include <iostream>
 #include <any>
 #include "../../third_party/units/units.h"
+#include "battery.h"
+#include "ishippropeller.h"
+#include "tank.h"
 #include <QObject>
 #include <QMap>
+#include "../network/line.h"
 
 class IShipResistancePropulsionStrategy; // Forward declaration of the Interface
-
 
 /**
  * @class Ship
@@ -567,30 +571,7 @@ public:
     ScrewVesselType getScrewVesselType() const;
     void setScrewVesselType(ScrewVesselType newScrewVesselType);
 
-    units::power::kilowatt_t getBreakPower() const;
-    void setBreakPower(const units::power::kilowatt_t newPower);
-
-    units::power::kilowatt_t getShaftPower() const;
-
-    units::power::kilowatt_t getDeliveredPower() const;
-
-    units::power::kilowatt_t getThrustPower() const;
-
-    units::power::kilowatt_t getEffectivePower() const;
-
-    units::force::newton_t getThrust() const;
-
-    double getRPM() const;
-
-    units::torque::newton_meter_t getTorque() const;
-
-    double getThrustCoefficient() const;
-    double getTorqueCoefficient() const;
-
-    double getAdvancedRatio() const;
-
-    double getPropellerEfficiency() const;
-    void setPropellerEfficiency(double newPropellerEfficiency);
+    units::force::newton_t getTotalThrust() const;
 
     units::mass::metric_ton_t getVesselWeight() const;
     void setVesselWeight(const units::mass::metric_ton_t &newVesselWeight);
@@ -600,10 +581,28 @@ public:
 
     units::mass::metric_ton_t getTotalVesselWeight() const;
 
+    void addPropeller(IShipPropeller *newPropeller);
+
+    QVector<IShipPropeller*> *propellers();
+
+    QVector<Ship*> *draggedVessels();
+
+    std::vector<std::shared_ptr<Line>> shipPath();
+    void setShipPath(std::vector<std::shared_ptr<Line> > &path);
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    void moveShip(units::time::second_t &timeStep,
+                  units::velocity::meters_per_second_t &freeFlowSpeed,
+                  QVector<units::length::meter_t> *gapToNextCriticalPoint,
+                  QVector<bool> *gapToNextCrticalPointType,
+                  QVector<units::velocity::meters_per_second_t> *leaderSpeeds);
 private:
 
     //!< The ship ID
-    QString mShipID;
+    QString mShipUserID;
 
     //!< Strategy used for calculating ship resistance.
     IShipResistancePropulsionStrategy* mStrategy;
@@ -722,25 +721,21 @@ private:
 
     ScrewVesselType mScrewVesselType;
 
-    double mGearEfficiency;
-
-    double mShaftEfficiency;
-
-    double mPropellerEfficiency;
-
-    double mHullEfficiency;
-
-    double mPropulsiveEfficiency;
-
-    units::power::kilowatt_t mBreakPower;
-
     //!< Total resistance faced by the ship.
     units::force::newton_t mTotalResistance;
 
-    units::acceleration::meters_per_second_squared mAcceleration;
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~ Dynamics Variables ~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    units::acceleration::meters_per_second_squared mPreviousAcceleration;
+    units::jerk::meters_per_second_cubed_t mMaxJerk =
+        units::jerk::meters_per_second_cubed_t(2.0);
 
+    units::acceleration::meters_per_second_squared_t mAcceleration;
+
+    units::acceleration::meters_per_second_squared_t mPreviousAcceleration;
+
+    units::velocity::meters_per_second_t mMaxSpeed;
     //!< Current speed of the ship.
     units::velocity::meters_per_second_t mSpeed;
 
@@ -748,9 +743,6 @@ private:
 
     //!< The ship traveled distance
     units::length::meter_t mTraveledDistance;
-
-    //!< The ship total trip distance since loaded
-    units::time::second_t mTripTime;
 
     units::mass::metric_ton_t mVesselWeight;
 
@@ -770,8 +762,28 @@ private:
 
     bool mLoaded;
 
-    QVector<std::shared_ptr<Ship>> mDraggedVessels;
+    QVector<IShipPropeller*> mPropellers;
+    QVector<Ship*> mDraggedVessels;
+    Battery *mBattery;
+    Tank *mTank;
+    std::vector<std::shared_ptr<Line>> mPath;
 
+    bool mShowNoPowerMessage;
+    units::time::second_t mT_s = units::time::second_t(2.0);
+
+    units::acceleration::meters_per_second_squared_t mD_des =
+        units::acceleration::meters_per_second_squared_t(0.2);
+
+
+
+
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~ Ship Statistics ~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    //!< The ship total trip distance since loaded
+    units::time::second_t mTripTime;
 
 
 
@@ -867,8 +879,7 @@ private:
 
     units::mass::metric_ton_t calc_addedWeight() const;
 
-    units::acceleration::meters_per_second_squared_t
-    calc_maxAcceleration() const;
+
 
     /**
      * @brief Checks the assumptions of the selected resistance strategy.
@@ -886,13 +897,155 @@ private:
 
     units::force::newton_t calc_Torque();
 
-    template<typename T>
-    T getValueFromMap(const QMap<QString, std::any>& parameters,
-                      const QString& key, const T& defaultValue)
-    {
-        return parameters.contains(key) ?
-                   std::any_cast<T>(parameters[key]) : defaultValue;
-    }
+
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    units::acceleration::meters_per_second_squared_t
+    calc_maxAcceleration() const;
+
+    units::acceleration::meters_per_second_squared_t
+    calc_decelerationAtSpeed(
+        const units::velocity::meters_per_second_t customSpeed) const;
+
+    double getHyperbolicThrottleCoef(
+        const units::velocity::meters_per_second_t &shipSpeed) const;
+
+    units::length::meter_t getSafeGap(
+        const units::length::meter_t initialGap,
+        const units::velocity::meters_per_second_t speed,
+        const units::velocity::meters_per_second_t freeFlowSpeed,
+        const units::time::second_t T_s, bool estimate);
+
+    units::velocity::meters_per_second_t
+    getNextTimeStepSpeed(
+        const units::length::meter_t gap,
+        const units::length::meter_t minGap,
+        const units::velocity::meters_per_second_t speed,
+        const units::velocity::meters_per_second_t freeFlowSpeed,
+        const units::acceleration::meters_per_second_squared_t aMax,
+        const units::time::second_t T_s,
+        const units::time::second_t deltaT);
+
+    units::time::second_t getTimeToCollision(
+        const units::length::meter_t gap,
+        const units::length::meter_t minGap,
+        const units::velocity::meters_per_second_t speed,
+        const units::velocity::meters_per_second_t leaderSpeed);
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an11(
+        const units::velocity::meters_per_second_t u_hat,
+        const units::velocity::meters_per_second_t speed,
+        const units::time::second_t TTC_s);
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an12(
+        const units::velocity::meters_per_second_t &u_hat,
+        const units::velocity::meters_per_second_t &speed,
+        const units::time::second_t &T_s,
+        const units::acceleration::meters_per_second_squared_t &amax);
+
+    double get_beta1(
+        const units::acceleration::meters_per_second_squared_t &an11);
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an13(double beta1,
+        const units::acceleration::meters_per_second_squared_t &an11,
+        const units::acceleration::meters_per_second_squared_t &an12);
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an14(
+        const units::velocity::meters_per_second_t &speed,
+        const units::velocity::meters_per_second_t &leaderSpeed,
+        const units::time::second_t &T_s,
+        const units::acceleration::meters_per_second_squared_t &amax);
+
+    double get_beta2();
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an1(double beta2,
+        const units::acceleration::meters_per_second_squared_t &an13,
+        const units::acceleration::meters_per_second_squared_t &an14);
+
+    double get_gamma(
+        const units::velocity::meters_per_second_t &speedDiff);
+
+    units::acceleration::meters_per_second_squared_t
+    get_acceleration_an2(
+        const units::length::meter_t &gap,
+        const units::length::meter_t &minGap,
+        const units::velocity::meters_per_second_t &speed,
+        const units::velocity::meters_per_second_t &leaderSpeed,
+        const units::time::second_t &T_s);
+
+    units::acceleration::meters_per_second_squared_t
+    accelerate(
+        const units::length::meter_t &gap,
+        const units::length::meter_t &mingap,
+        const units::velocity::meters_per_second_t &speed,
+        const units::acceleration::meters_per_second_squared_t &acceleration,
+        const units::velocity::meters_per_second_t &leaderSpeed,
+        const units::velocity::meters_per_second_t &freeFlowSpeed,
+        const units::time::second_t &deltaT);
+
+    units::acceleration::meters_per_second_squared_t
+    getStepAcceleration(units::time::second_t &timeStep,
+        units::velocity::meters_per_second_t &freeFlowSpeed,
+        QVector<units::length::meter_t> *gapToNextCriticalPoint,
+        QVector<bool> *gapToNextCrticalPointType,
+        QVector<units::velocity::meters_per_second_t> *leaderSpeeds);
+
+    units::acceleration::meters_per_second_squared_t
+    accelerateConsideringJerk(units::acceleration::meters_per_second_squared_t &acceleration,
+        units::acceleration::meters_per_second_squared_t &previousAcceleration,
+        units::jerk::meters_per_second_cubed_t &jerk,
+        units::time::second_t &deltaT );
+
+    units::acceleration::meters_per_second_squared_t
+    smoothAccelerate(units::acceleration::meters_per_second_squared_t &acceleration,
+        units::acceleration::meters_per_second_squared_t &previousAccelerationValue,
+        double &alpha);
+
+    units::velocity::meters_per_second_t
+    speedUpDown(units::velocity::meters_per_second_t &previousSpeed,
+        units::acceleration::meters_per_second_squared_t &acceleration,
+        units::time::second_t &deltaT,
+        units::velocity::meters_per_second_t &freeFlowSpeed);
+
+    units::acceleration::meters_per_second_squared_t
+    adjustAcceleration(units::velocity::meters_per_second_t &speed,
+        units::velocity::meters_per_second_t &previousSpeed,
+        units::time::second_t &deltaT);
+
+    bool checkSuddenAccChange(units::acceleration::meters_per_second_squared_t &previousAcceleration,
+        units::acceleration::meters_per_second_squared_t &currentAcceleration,
+        units::time::second_t &deltaT);
+
+    void immediateStop(units::time::second_t &timestep);
+
+    void kickForwardADistance(units::length::meter_t &distance);
+
+public:
+signals:
+
+    /**
+     * @brief report a sudden acceleration.
+     * @details this is emitted when the train's acceleration is larger
+     * than the jerk
+     * @param msg is the warning message
+     */
+    void suddenAccelerationOccurred(std::string msg);
+
+    /**
+     * @brief report the ship is very slow or stopped
+     * @details this is emitted when the ship's speed is very
+     * slow either because the resistance is high or because the
+     * speed of the ship is very small
+     * @param msg
+     */
+    void slowSpeedOrStopped(std::string msg);
 };
 
 #endif // SHIP_H
