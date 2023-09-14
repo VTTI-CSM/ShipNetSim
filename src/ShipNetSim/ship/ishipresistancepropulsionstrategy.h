@@ -28,7 +28,11 @@ public:
      * @return Frictional resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getfrictionalResistance(const Ship &ship) = 0;
+    getfrictionalResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the appendage resistance of the ship.
@@ -41,7 +45,11 @@ public:
      * @return Appendage resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getAppendageResistance(const Ship &ship) = 0;
+    getAppendageResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the wave resistance of the ship.
@@ -54,7 +62,11 @@ public:
      * @return Wave resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getWaveResistance(const Ship &ship) = 0;
+    getWaveResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
 
     /**
@@ -69,7 +81,11 @@ public:
      * @return Bulbous bow resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getBulbousBowResistance(const Ship &ship) = 0;
+    getBulbousBowResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the resistance due to pressure changes
@@ -83,7 +99,11 @@ public:
      * @return Resistance due to immersed transom pressure in kilonewtons.
      */
     virtual units::force::newton_t
-    getImmersedTransomPressureResistance(const Ship &ship) = 0;
+    getImmersedTransomPressureResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the resistance due to correlations between
@@ -98,7 +118,11 @@ public:
      * @return Model ship correlation resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getModelShipCorrelationResistance(const Ship &ship) = 0;
+    getModelShipCorrelationResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the air resistance experienced by the ship.
@@ -112,7 +136,11 @@ public:
      * @return Air resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getAirResistance(const Ship &ship) = 0;
+    getAirResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the total resistance of the ship.
@@ -125,14 +153,22 @@ public:
      * @return Total resistance in kilonewtons.
      */
     virtual units::force::newton_t
-    getTotalResistance(const Ship &ship) = 0;
+    getTotalResistance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
 
 //    virtual units::force::newton_t
 //    getThrust(const Ship &ship) = 0;
 
     virtual units::velocity::meters_per_second_t
-    calc_SpeedOfAdvance(const Ship &ship) = 0;
+    calc_SpeedOfAdvance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Retrieves the name of the resistance prediction method.
