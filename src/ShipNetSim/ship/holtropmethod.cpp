@@ -191,14 +191,25 @@ double HoltropMethod::calc_m_1(const Ship &ship)
         );
 }
 
-double HoltropMethod::calc_m_4(const Ship &ship)
+double HoltropMethod::calc_m_4(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    double fn = 0.0;
+    if (std::isnan(customSpeed.value()))
+    {
+        fn = hydrology::F_n(ship.getSpeed(),
+                            ship.getLengthInWaterline());
+    }
+    else
+    {
+        fn = hydrology::F_n(customSpeed,
+                            ship.getLengthInWaterline());
+    }
     return (
         get_C15(ship)
         * (double)0.4
-        * exp((double)-0.034 * pow(
-                  hydrology::F_n(ship.getSpeed(),
-                                 ship.getLengthInWaterline()), (double)-3.29))
+        * exp((double)-0.034 * pow(fn, (double)-3.29))
         );
 }
 
@@ -254,7 +265,7 @@ units::force::newton_t HoltropMethod::calc_R_Wa(
                     pow(fn, d)
                     ) +
                 (
-                    calc_m_4(ship) *
+                    calc_m_4(ship, customSpeed) *
                     cos(get_lambda(ship) *
                         pow(fn, (double)-2.0)
                         )
@@ -292,11 +303,23 @@ units::force::newton_t HoltropMethod::calc_R_Wb(
         );
 }
 
-double HoltropMethod::calc_C_F(const Ship &ship)
+double HoltropMethod::calc_C_F(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    double Rn = 0.0;
+    if (std::isnan(customSpeed.value()))
+    {
+        Rn = hydrology::R_n(ship.getSpeed(),
+                            ship.getLengthInWaterline());
+    }
+    else
+    {
+        Rn = hydrology::R_n(customSpeed,
+                            ship.getLengthInWaterline());
+    }
     return (double)0.075 /
-           pow((log10(hydrology::R_n(ship.getSpeed(),
-                                     ship.getLengthInWaterline()))
+           pow((log10(Rn)
                 - (double)2.0), (double)2.0);
 }
 
@@ -373,9 +396,22 @@ double HoltropMethod::calc_c_A(const Ship &ship)
             );
 }
 
-double HoltropMethod::calc_F_n_T(const Ship &ship)
+double HoltropMethod::calc_F_n_T(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    return (ship.getSpeed().value() /
+    units::velocity::meters_per_second_t s;
+
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
+
+    return (s.value() /
             sqrt(
                 (double)2.0 *
                 hydrology::G.value() *
@@ -393,9 +429,11 @@ double HoltropMethod::calc_F_n_T(const Ship &ship)
             );
 }
 
-double HoltropMethod::calc_c_6(const Ship &ship)
+double HoltropMethod::calc_c_6(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    double FrT = calc_F_n_T(ship);
+    double FrT = calc_F_n_T(ship, customSpeed);
     if (FrT < 5.0){
         return (double)0.2 * ((double)1.0 - (double)0.2 * FrT);
     }
@@ -405,9 +443,19 @@ double HoltropMethod::calc_c_6(const Ship &ship)
     }
 }
 
-units::length::meter_t HoltropMethod::calc_h_F(const Ship &ship)
+units::length::meter_t HoltropMethod::calc_h_F(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    double fr = hydrology::F_n(ship.getSpeed(), ship.getLengthInWaterline());
+    double fr = 0.0;
+    if (std::isnan(customSpeed.value()))
+    {
+        fr = hydrology::F_n(ship.getSpeed(), ship.getLengthInWaterline());
+    }
+    else
+    {
+        fr = hydrology::F_n(customSpeed, ship.getLengthInWaterline());
+    }
 
     units::length::meter_t hf =  ship.getPrismaticCoef() *
                                 ship.getMidshipSectionCoef() *
@@ -423,12 +471,25 @@ units::length::meter_t HoltropMethod::calc_h_F(const Ship &ship)
     return hf;
 }
 
-units::length::meter_t HoltropMethod::calc_h_W(const Ship &ship)
+units::length::meter_t HoltropMethod::calc_h_W(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    double s = 0.0L;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed().value();
+    }
+    else
+    {
+        s = customSpeed.value();
+    }
+
     units::length::meter_t hw = units::length::meter_t(
         ship.getHalfWaterlineEntranceAngle().value() *
-        pow(ship.getSpeed().value(), (double)2.0) /
+        pow(s, (double)2.0) /
         ((double) 400.0 * hydrology::G.value()));
+
     if (hw > 0.01 * ship.getLengthInWaterline())
     {
         return 0.01 * ship.getLengthInWaterline();
@@ -438,26 +499,40 @@ units::length::meter_t HoltropMethod::calc_h_W(const Ship &ship)
     }
 }
 
-double HoltropMethod::calc_F_n_i(const Ship &ship)
+double HoltropMethod::calc_F_n_i(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    return (ship.getSpeed().value() /
+    units::velocity::meters_per_second_t s;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
+
+    return (s.value() /
             (sqrt(hydrology::G.value() *
                   (ship.getDraftAtForward().value() -
                    ship.getBulbousBowTransverseAreaCenterHeight().value() -
                    ((double)0.25 *
                     sqrt(ship.getBulbousBowTransverseArea().value())) +
-                   calc_h_F(ship).value() +
-                   calc_h_W(ship).value()))));
+                   calc_h_F(ship, s).value() +
+                   calc_h_W(ship, s).value()))));
 }
 
-double HoltropMethod::calc_p_B(const Ship &ship)
+double HoltropMethod::calc_p_B(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
     return (double)0.56 *
            (sqrt(ship.getBulbousBowTransverseArea().value()) /
             (ship.getDraftAtForward().value() -
              (double)1.5 *
                  (ship.getBulbousBowTransverseAreaCenterHeight().value()) +
-             calc_h_F(ship).value()));
+             calc_h_F(ship, customSpeed).value()));
 }
 
 
@@ -542,8 +617,18 @@ double HoltropMethod::calc_c_p1(const Ship &ship)
 }
 
 double HoltropMethod::calc_C_V(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    double s = 0.0L;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed().value();
+    }
+    else
+    {
+        s = customSpeed.value();
+    }
     return (
         (
             getfrictionalResistance(ship).value() *
@@ -553,18 +638,20 @@ double HoltropMethod::calc_C_V(
         (
             (double)0.5 *
             hydrology::WATER_RHO.value() *
-            pow(ship.getSpeed().value(), (double)2.0) *
+            pow(s, (double)2.0) *
             (ship.getWettedHullSurface().value() +
              ship.getTotalAppendagesWettedSurfaces().value())
             )
         );
 }
 
-double HoltropMethod::calc_w_s(const Ship &ship)
+double HoltropMethod::calc_w_s(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
     if (ship.getScrewVesselType() == Ship::ScrewVesselType::Single)
     {
-        double CV = calc_C_V(ship);
+        double CV = calc_C_V(ship, customSpeed);
 
         return (get_C9(ship) * get_C20(ship) * CV *
                     (
@@ -595,7 +682,8 @@ double HoltropMethod::calc_w_s(const Ship &ship)
     else if (ship.getScrewVesselType() == Ship::ScrewVesselType::Twin)
     {
         return ((double)0.3095 * ship.getBlockCoef() +
-                (double)10.0 * calc_C_V(ship) * ship.getBlockCoef() -
+                (double)10.0 * calc_C_V(ship,customSpeed) *
+                    ship.getBlockCoef() -
                 (double)0.23 * (ship.getPropellerDiameter().value() /
                                  sqrt(ship.getBeam().value() *
                                       ship.getMeanDraft().value())));
@@ -782,11 +870,13 @@ double HoltropMethod::get_m3(const Ship &ship)
     return m3;
 }
 
-double HoltropMethod::get_PB(const Ship &ship)
+double HoltropMethod::get_PB(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
     if (std::isnan(PB))
     {
-        PB = calc_p_B(ship);
+        PB = calc_p_B(ship, customSpeed);
     }
     return PB;
 }
@@ -848,14 +938,24 @@ double HoltropMethod::get_CP1(const Ship &ship)
 
 units::force::newton_t
 HoltropMethod::getfrictionalResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    units::velocity::meters_per_second_t s;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
+
     return units::force::newton_t(
-        calc_C_F(ship) *
+        calc_C_F(ship, s) *
         (double)0.5 *
         hydrology::WATER_RHO.value() *
-        pow(ship.getSpeed().value(),
-            (double)2.0) *
+        pow(s.value(), (double)2.0) *
         ship.getWettedHullSurface().value() *
         calc_k_1(ship));
 }
@@ -863,25 +963,45 @@ HoltropMethod::getfrictionalResistance(
 
 units::force::newton_t
 HoltropMethod::getAppendageResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    units::velocity::meters_per_second_t s;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
     return units::force::newton_t(
         (double)0.5 * hydrology::WATER_RHO.value() *
-        pow(ship.getSpeed().value(), (double)2.0) *
+        pow(s.value(), (double)2.0) *
         calc_equivalentAppendageFormFactor(ship) *
         ship.getTotalAppendagesWettedSurfaces().value() *
-        calc_C_F(ship)
+        calc_C_F(ship, s)
         );
 }
 
 units::force::newton_t
 HoltropMethod::getModelShipCorrelationResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    units::velocity::meters_per_second_t s;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
     return units::force::newton_t(
         (double)0.5 *
         hydrology::WATER_RHO.value() *
-        pow(ship.getSpeed().value(), (double)2.0) *
+        pow(s.value(), (double)2.0) *
         (calc_c_A(ship) + calc_delta_c_A(ship)) *
         (ship.getWettedHullSurface() +
          ship.getTotalAppendagesWettedSurfaces()).value()
@@ -890,17 +1010,28 @@ HoltropMethod::getModelShipCorrelationResistance(
 
 units::force::newton_t
 HoltropMethod::getWaveResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    double fn = hydrology::F_n(ship.getSpeed(),
-                               ship.getLengthInWaterline());
+    double fn =  0.0;
+
+    if (std::isnan(customSpeed.value()))
+    {
+        fn = hydrology::F_n(ship.getSpeed(),
+                            ship.getLengthInWaterline());
+    }
+    else
+    {
+        fn = hydrology::F_n(customSpeed,
+                            ship.getLengthInWaterline());
+    }
     if (fn <= 0.4)
     {
-        return calc_R_Wa(ship);
+        return calc_R_Wa(ship, customSpeed);
     }
     else if (fn > 0.55)
     {
-        return calc_R_Wb(ship);
+        return calc_R_Wb(ship, customSpeed);
     }
     else{
         units::force::newton_t Rwa =
@@ -914,50 +1045,75 @@ HoltropMethod::getWaveResistance(
 
 units::force::newton_t
 HoltropMethod::getBulbousBowResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    double fri = calc_F_n_i(ship);
+    double fri = calc_F_n_i(ship, customSpeed);
     return units::force::newton_t(
         (double)0.11 *
         hydrology::WATER_RHO.value() *
         hydrology::G.value() *
         pow(sqrt(ship.getBulbousBowTransverseArea().value()),(double)3.0) *
         (pow(fri, (double)3.0)/((double)1.0 + pow(fri, (double)2.0)))
-        * exp((double)-3.0 * pow(get_PB(ship),(double)-2.0))
+        * exp((double)-3.0 * pow(get_PB(ship, customSpeed),(double)-2.0))
         );
 }
 
 units::force::newton_t
 HoltropMethod::getImmersedTransomPressureResistance(
-    const Ship &ship)
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    units::velocity::meters_per_second_t s =
+        units::velocity::meters_per_second_t(0.0L);
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
     return units::force::newton_t(
         (double)0.5 * hydrology::WATER_RHO.value() *
-        pow(ship.getSpeed().value(), (double)2.0) *
-        ship.getImmersedTransomArea().value() * calc_c_6(ship)
+        pow(s.value(), (double)2.0) *
+        ship.getImmersedTransomArea().value() * calc_c_6(ship, s)
         );
 }
 
 units::force::newton_t
-HoltropMethod::getAirResistance(const Ship &ship)
+HoltropMethod::getAirResistance(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
+    double s = 0.0L;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed().value();
+    }
+    else
+    {
+        s = customSpeed.value();
+    }
     return units::force::newton_t((double)0.5 *
                                   hydrology::AIR_RHO.value() *
                                   hydrology::AIR_DRAG_COEF *
                                   ship.getLengthInWaterline().value() *
-                                  pow(ship.getSpeed().value(),
+                                  pow(s,
                                       (double)2.0));
 }
 
 units::force::newton_t
-HoltropMethod::getTotalResistance(const Ship &ship)
+HoltropMethod::getTotalResistance(
+    const Ship &ship,
+    units::velocity::meters_per_second_t customSpeed)
 {
-    return getfrictionalResistance(ship) +
-           getAppendageResistance(ship) +
-           getModelShipCorrelationResistance(ship) +
-           getWaveResistance(ship) +
-           getBulbousBowResistance(ship) +
-           getAirResistance(ship);
+    return getfrictionalResistance(ship, customSpeed) +
+           getAppendageResistance(ship, customSpeed) +
+           getModelShipCorrelationResistance(ship, customSpeed) +
+           getWaveResistance(ship, customSpeed) +
+           getBulbousBowResistance(ship, customSpeed) +
+           getAirResistance(ship, customSpeed);
 }
 
 
@@ -967,9 +1123,20 @@ HoltropMethod::getTotalResistance(const Ship &ship)
 //}
 
 units::velocity::meters_per_second_t HoltropMethod::
-    calc_SpeedOfAdvance(const Ship &ship)
+    calc_SpeedOfAdvance(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed)
 {
-    return ((double)1.0 - calc_w_s(ship)) * ship.getSpeed();
+    units::velocity::meters_per_second_t s;
+    if (std::isnan(customSpeed.value()))
+    {
+        s = ship.getSpeed();
+    }
+    else
+    {
+        s = customSpeed;
+    }
+    return ((double)1.0 - calc_w_s(ship, s)) * s;
 }
 
 //units::force::newton_t HoltropMethod::getThrust(const Ship &ship)
