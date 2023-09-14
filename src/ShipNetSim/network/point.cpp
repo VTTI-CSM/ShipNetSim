@@ -4,7 +4,11 @@
 #include <sstream>
 #include <functional>
 
-Point::Point() {}
+Point::Point() :
+    x(std::nan("No Value")),
+    y(std::nan("No Value")),
+    userID(""),
+    index(0) {}
 
 Point::Point(long double xCoord, long double yCoord, std::string ID, int index)
     : x(xCoord), y(yCoord), userID(ID), index(index) {
@@ -14,6 +18,11 @@ Point::~Point() {
     // Destructor logic
 }
 
+bool Point::isValid()
+{
+    return (std::isnan(x) || std::isnan(y));
+}
+
 long double Point::distance(Point &endPoint)
 {
     return boost::geometry::distance(*this, endPoint);
@@ -21,8 +30,7 @@ long double Point::distance(Point &endPoint)
 
 std::string Point::toString() {
     std::ostringstream oss;
-    oss << "Point(" << x << ", " << y << "), UserID: "
-        << userID << ", Index: " << index;
+    oss << "Point " << userID << "(" << x << ", " << y << ")";
     return oss.str();
 }
 

@@ -1,13 +1,13 @@
 #ifndef POINT_H
 #define POINT_H
 
-#include "geometry.h"
+#include "basegeometry.h"
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/geometries/register/point.hpp>
 #include <functional>
 
-class Point : public Geometry
+class Point : public BaseGeometry
 {
 public:
     Point();
@@ -16,6 +16,7 @@ public:
           std::string ID,
           int index);
     ~Point();
+    bool isValid();
     long double distance(Point &endPoint);
     std::string toString() override;
     bool operator==(const Point& other) const;
