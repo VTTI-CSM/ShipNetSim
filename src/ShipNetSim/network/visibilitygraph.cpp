@@ -1,233 +1,207 @@
 #include "visibilitygraph.h"
+#include "VisibilityGraph.h"
+#include <boost/graph/dijkstra_shortest_paths.hpp>
+#include <map>
 #include "line.h"
-#include <queue>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-#include <limits>
-#include <algorithm>
 
-VisibilityGraph::VisibilityGraph(const Point& startNode,
-                                 const Point& endNode,
-                                 const Polygon& polygon)
+VisibilityGraph::VisibilityGraph(Point *startNode,
+                                 Point *endNode,
+                                 Polygon *polygon)
     : startNode(startNode), endNode(endNode), polygon(polygon)
 {
     // check if the start and end points are within the polygon boundaries
-    if (!boost::geometry::within(startNode, polygon.internal_polygon))
+    if (!boost::geometry::within(*startNode, polygon->internal_polygon))
     {
         throw std::invalid_argument("The start node is not within "
                                     "the boundary of the polygon.");
     }
 
-    if (!boost::geometry::within(endNode, polygon.internal_polygon))
+    if (!boost::geometry::within(*endNode, polygon->internal_polygon))
     {
         throw std::invalid_argument("The end node is not within "
                                     "the boundary of the polygon.");
     }
 }
 
+VisibilityGraph::VisibilityGraph(Polygon *polygon)
+    : startNode(nullptr), endNode(nullptr), polygon(polygon) {}
 
-void VisibilityGraph::buildGraph()
+
+void VisibilityGraph::setStartPoint(Point *startPoint)
 {
-    // make sure the segments are empty before proceeding
-    segments.clear();
-
-    // Add line segments from startNode to all points of the polygon
-    for (const auto& point : polygon.internal_polygon.outer()) {
-        Line segment(startNode, point);
-        if (!segment.intersects(polygon.internal_polygon)) {
-            segments.push_back(segment);
-        }
-    }
-
-    // Add line segments from all points of the polygon to endNode
-    for (const auto& point : polygon.internal_polygon.outer()) {
-        Line segment(point, endNode);
-        if (!segment.intersects(polygon.internal_polygon)) {
-            segments.push_back(segment);
-        }
-    }
-
-    // Add line segments between all pairs of points on the
-    // polygon's outer boundary
-    const auto& points = polygon.internal_polygon.outer();
-    for (size_t i = 0; i < points.size(); ++i) {
-        for (size_t j = i + 1; j < points.size(); ++j) {
-            Line segment(points[i], points[j]);
-            if (!segment.intersects(polygon.internal_polygon)) {
-                segments.push_back(segment);
-            }
-        }
-    }
-}
-
-std::vector<Point> VisibilityGraph::dijkstraShortestPath()
-{
-    // Define a custom comparison function for the priority queue.
-    // This is used to compare the pairs in the priority queue
-    // based on their distances.
-    auto comp = [](const std::pair<long double, Point>& a,
-                   const std::pair<long double, Point>& b) {
-        return a.first > b.first;
-    };
-
-    // Initialize a priority queue to store <distance, Point> pairs.
-    // The queue is sorted based on the distances.
-    std::priority_queue<std::pair<long double, Point>,
-                        std::vector<std::pair<long double, Point>>,
-                        decltype(comp)> pq(comp);
-
-    // Create a hash map to store the shortest distance from the
-    // startNode to each Point.
-    std::unordered_map<Point, long double> distances;
-
-    // Create a hash map to store the predecessor of each Point
-    // on the path.
-    std::unordered_map<Point, Point> predecessors;
-
-    // Create a hash set to store the visited Points.
-    std::unordered_set<Point> visited;
-
-
-    // Push the startNode into the priority queue with a distance of 0.
-    pq.push({0.0L, startNode});
-    distances[startNode] = 0.0L;
-
-    // Main loop of the Dijkstra's algorithm
-    while (!pq.empty())
+    if (!startPoint->isValid())
     {
-        // Pop the Point with the smallest distance.
-        long double currDist = pq.top().first;
-        Point currPoint = pq.top().second;
-        pq.pop();
-
-        // If the Point has already been visited, skip it.
-        if (visited.find(currPoint) != visited.end()) continue;
-        visited.insert(currPoint);
-
-        // If we reached the destination, break the loop.
-        if (currPoint == endNode) break; // Reached the destination
-
-
-        // Iterate through all connected segments to the current Point.
-        for (const Line& segment : segments)
-        {
-            Point neighbor;
-
-            // Determine the neighboring Point connected by the segment.
-            if (segment.startPoint() == currPoint) {
-                neighbor = segment.endPoint();
-            } else if (segment.endPoint() == currPoint) {
-                neighbor = segment.startPoint();
-            } else {
-                continue;
-            }
-
-            // If the neighbor has already been visited, skip it.
-            if (visited.find(neighbor) != visited.end()) continue;
-
-            // Calculate the new distance to the neighbor.
-            auto endp = segment.endPoint();
-            long double newDist = currDist +
-                                  segment.startPoint().distance(endp);
-
-            // If the new distance is shorter, update the
-            // distance and predecessor.
-            if (newDist < distances[neighbor] ||
-                distances.find(neighbor) == distances.end()) {
-                pq.push({newDist, neighbor});
-                distances[neighbor] = newDist;
-                predecessors[neighbor] = currPoint;
-            }
-        }
+        throw std::invalid_argument("The node is not a valid node!");
     }
 
-    // Reconstruct the shortest path from endNode to startNode.
-    std::vector<Point> path;
-    // If there is no path from startNode to endNode, return an empty path.
-    if (predecessors.find(endNode) == predecessors.end())
+    startNode = startPoint;
+
+    // check if the start point is within the polygon boundaries
+    if (!boost::geometry::within(startNode, polygon->internal_polygon))
     {
-        return path; // No path found
+        throw std::invalid_argument("The start node is not within "
+                                    "the boundary of the polygon.");
     }
-
-    // Build the path by backtracking from the endNode to the startNode.
-    for (Point at = endNode; at != startNode; at = predecessors[at]) {
-        path.push_back(at);
-    }
-    path.push_back(startNode);
-
-    // Reverse the path to go from startNode to endNode.
-    std::reverse(path.begin(), path.end());
-
-    return path;
 }
 
-std::vector<Point> VisibilityGraph::aStarShortestPath()
+void VisibilityGraph::setEndPoint(Point *endPoint)
 {
-    // Define a custom comparison function for the priority queue.
-    // This is used to compare the pairs in the priority queue
-    // based on their distances.
-    auto comp = [](const std::pair<long double, Point>& a, const std::pair<long double, Point>& b) {
-        return a.first > b.first;
-    };
-
-    std::priority_queue<std::pair<long double, Point>,
-                        std::vector<std::pair<long double, Point>>,
-                        decltype(comp)> pq(comp);
-
-    std::unordered_map<Point, long double> g_costs;
-    std::unordered_map<Point, long double> f_costs;
-    std::unordered_map<Point, Point> came_from;
-
-    g_costs[startNode] = 0.0L;
-    f_costs[startNode] = startNode.distance(endNode);
-    pq.push({f_costs[startNode], startNode});
-
-    while (!pq.empty()) {
-        Point current = pq.top().second;
-        pq.pop();
-
-        if (current == endNode) {
-            std::vector<Point> path;
-            while (current != startNode) {
-                path.push_back(current);
-                current = came_from[current];
-            }
-            path.push_back(startNode);
-            std::reverse(path.begin(), path.end());
-            return path;
-        }
-
-        for (const Line& segment : segments)
-        {
-            Point neighbor;
-            if (segment.startPoint() == current)
-            {
-                neighbor = segment.endPoint();
-            }
-            else if (segment.endPoint() == current)
-            {
-                neighbor = segment.startPoint();
-            }
-            else
-            {
-                continue;
-            }
-
-            long double tentative_g_cost =
-                g_costs[current] + current.distance(neighbor);
-            if (tentative_g_cost < g_costs[neighbor] ||
-                g_costs.find(neighbor) == g_costs.end()) {
-                came_from[neighbor] = current;
-                g_costs[neighbor] = tentative_g_cost;
-                f_costs[neighbor] =
-                    g_costs[neighbor] + neighbor.distance(endNode);
-                pq.push({f_costs[neighbor], neighbor});
-            }
-        }
+    if (!endPoint->isValid())
+    {
+        throw std::invalid_argument("The node is not a valid node!");
     }
 
-    return {};  // Empty path, if the end node is unreachable
+    endNode = endPoint;
+
+    // check if the end point is within the polygon boundaries
+    if (!boost::geometry::within(endNode, polygon->internal_polygon))
+    {
+        throw std::invalid_argument("The end node is not within "
+                                    "the boundary of the polygon.");
+    }
+}
+
+Point* VisibilityGraph::startPoint()
+{
+    return startNode;
+}
+
+Point* VisibilityGraph::endPoint()
+{
+    return endNode;
 }
 
 
+
+void VisibilityGraph::removeVerticesAndEdges(Point* nodeToRemove)
+{
+    // Find the vertex descriptor corresponding to
+    // the node you want to remove
+    auto it = pointToVertex.find(*nodeToRemove);
+    if (it == pointToVertex.end()) {
+        return;
+    }
+
+    // check if the point is in the polygon structure
+    // if yes, dont remove it
+    if (polygon->pointIsInPolygon(*nodeToRemove))
+    {
+        return;
+    }
+
+    boost::graph_traits<BoostGraph>::vertex_descriptor vertexToRemove =
+        it->second;
+
+    // Remove all edges associated with this vertex
+    boost::clear_vertex(vertexToRemove, boostGraph);
+
+    // Remove the vertex from the graph
+    boost::remove_vertex(vertexToRemove, boostGraph);
+
+    // Remove the vertex mapping from pointToVertex
+    pointToVertex.erase(it);
+}
+
+
+void VisibilityGraph::buildGraph(
+    units::velocity::meters_per_second_t maxSpeed)
+{
+    if (! startNode || ! endNode)
+    {
+        throw std::exception("Both start point and "
+                             "end point need to be defined"
+                             "to construct the visibility graph!");
+    }
+    removeVerticesAndEdges(startNode);
+    removeVerticesAndEdges(endNode);
+
+//    boostGraph.clear();
+//    pointToVertex.clear();
+
+    // Add start and end nodes to the graph and to the mapping
+    startVertex = add_vertex(boostGraph);
+    endVertex = add_vertex(boostGraph);
+    pointToVertex[*startNode] = startVertex;
+    pointToVertex[*endNode] = endVertex;
+
+    // Add vertices for all points in the polygon and populate the mapping
+    for (const auto& point : polygon->internal_polygon.outer())
+    {
+        if (pointToVertex.find(point) == pointToVertex.end())
+        {
+            auto vertex = add_vertex(boostGraph);
+            pointToVertex[point] = vertex;
+        }
+    }
+
+    // Create edges based on visibility.
+    for (const auto& srcPoint : pointToVertex)
+    {
+        for (const auto& destPoint : pointToVertex)
+        {
+            if (srcPoint.first == destPoint.first) continue; // Skip self-loops
+
+            std::shared_ptr<Line> segment =
+                std::make_shared<Line>(srcPoint.first,
+                                       destPoint.first, maxSpeed);
+
+            if (!segment->intersects(polygon->internal_polygon))
+            {
+                // Check if the edge already exists.
+                std::pair<boost::graph_traits<BoostGraph>::edge_descriptor,
+                          bool> edgeCheck =
+                    boost::edge(srcPoint.second,
+                                destPoint.second,
+                                boostGraph);
+
+                // Only add the edge if it doesn't already exist.
+                if (!edgeCheck.second)
+                {
+                    EdgeProperty edge_properties(segment->length(), segment);
+                    // Add an edge with this segment as a property.
+                    add_edge(srcPoint.second, destPoint.second,
+                             edge_properties, boostGraph);
+                }
+            }
+        }
+    }
+}
+
+std::vector<std::shared_ptr<Line>> VisibilityGraph::dijkstraShortestPath()
+{
+    std::vector<std::shared_ptr<Line>> result;
+
+    std::vector<boost::graph_traits<BoostGraph>::vertex_descriptor>
+        predecessors(num_vertices(boostGraph));
+
+    auto pred_map_var = boost::make_iterator_property_map(
+        predecessors.begin(),
+        get(boost::vertex_index, boostGraph)
+        );
+
+    // Run Dijkstra's algorithm
+    boost::dijkstra_shortest_paths(
+        boostGraph, startVertex,
+        predecessor_map(pred_map_var)
+            .weight_map(get(boost::edge_weight, boostGraph))
+        );
+
+    // Create the result vector based on predecessors
+    auto currentVertex = endVertex;
+    while (currentVertex != startVertex)
+    {
+        auto predVertex = predecessors[currentVertex];
+        auto edge_result = edge(predVertex, currentVertex, boostGraph);
+        if (edge_result.second)
+        { // check that the edge exists
+            boost::property_map<BoostGraph,
+                                boost::edge_name_t>::type edgeNameMap =
+                get(boost::edge_name, boostGraph);
+            result.push_back(edgeNameMap[edge_result.first]);
+        }
+        currentVertex = predVertex;
+    }
+    std::reverse(result.begin(), result.end());
+
+    return result;
+}
