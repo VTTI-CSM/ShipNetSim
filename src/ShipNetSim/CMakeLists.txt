@@ -48,6 +48,7 @@ add_executable(ShipNetSim
   ship/battery.h ship/battery.cpp
   ship/tank.h ship/tank.cpp
   network/network.h network/network.cpp
+  simulator.h simulator.cpp
 
 )
 
