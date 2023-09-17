@@ -6,52 +6,46 @@
 #include "Line.h"
 #include <vector>
 #include <unordered_map>
-#include <boost/graph/adjacency_list.hpp>
 #include "../../third_party/units/units.h"
 #include "VisibilityGraph.h"
 
-typedef boost::property<
-    boost::edge_weight_t,
-    double,
-    boost::property<
-        boost::edge_name_t, std::shared_ptr<Line>
-        >
-    > EdgeProperty;
-typedef boost::adjacency_list<boost::vecS, boost::vecS,
-                              boost::undirectedS, boost::no_property,
-                              EdgeProperty> BoostGraph;
-
-
+struct ShortestPathResult {
+    std::vector<std::shared_ptr<Line>> lines;
+    std::vector<std::shared_ptr<Point>> points;
+};
 
 class VisibilityGraph
 {
 private:
-    Point* startNode;
-    Point* endNode;
-    Polygon* polygon;
-    BoostGraph boostGraph;
-    std::unordered_map<Point,
-                       boost::graph_traits<BoostGraph>::vertex_descriptor>
-        pointToVertex;
-    boost::graph_traits<BoostGraph>::vertex_descriptor startVertex;
-    boost::graph_traits<BoostGraph>::vertex_descriptor endVertex;
+    std::shared_ptr<Point> startNode;
+    std::shared_ptr<Point> endNode;
+    std::shared_ptr<Polygon> polygon;
+    std::unordered_map<std::shared_ptr<Point>,
+                       std::vector<std::pair<std::shared_ptr<Line>,
+                                             units::length::meter_t>>> graph;
 
-    void removeVerticesAndEdges(Point* nodeToRemove);
+    void removeVerticesAndEdges(std::shared_ptr<Point> nodeToRemove);
+
 
 public:
-    VisibilityGraph(Point *startNode, Point *endNode, Polygon *polygon);
-    VisibilityGraph(Polygon *polygon);
+
+
+
+    VisibilityGraph(std::shared_ptr<Point> startNode,
+                    std::shared_ptr<Point> endNode,
+                    std::shared_ptr<Polygon> polygon);
+    VisibilityGraph(std::shared_ptr<Polygon> polygon);
     ~VisibilityGraph();
 
-    void setStartPoint(Point *startPoint);
-    void setEndPoint(Point *endPoint);
-    Point* startPoint();
-    Point* endPoint();
+    void setStartPoint(std::shared_ptr<Point> startPoint);
+    void setEndPoint(std::shared_ptr<Point> endPoint);
+    std::shared_ptr<Point> startPoint();
+    std::shared_ptr<Point> endPoint();
 
     void buildGraph(
         units::velocity::meters_per_second_t maxSpeed);
 
-    std::vector<std::shared_ptr<Line> > dijkstraShortestPath();
+    ShortestPathResult dijkstraShortestPath();
 };
 
 #endif // VISIBILITYGRAPH_H

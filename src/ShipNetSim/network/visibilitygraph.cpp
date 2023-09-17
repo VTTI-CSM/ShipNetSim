@@ -3,205 +3,277 @@
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <map>
 #include "line.h"
+#include <queue>
 
-VisibilityGraph::VisibilityGraph(Point *startNode,
-                                 Point *endNode,
-                                 Polygon *polygon)
+VisibilityGraph::VisibilityGraph(std::shared_ptr<Point> startNode,
+                                 std::shared_ptr<Point> endNode,
+                                 std::shared_ptr<Polygon> polygon)
     : startNode(startNode), endNode(endNode), polygon(polygon)
 {
-    // check if the start and end points are within the polygon boundaries
-    if (!boost::geometry::within(*startNode, polygon->internal_polygon))
+    // check if the start and end points are within
+    // the polygon boundaries
+    if (! polygon->pointIsInPolygon(*startNode))
     {
-        throw std::invalid_argument("The start node is not within "
+        throw std::invalid_argument("The start point is not within "
                                     "the boundary of the polygon.");
     }
 
-    if (!boost::geometry::within(*endNode, polygon->internal_polygon))
+    if (! polygon->pointIsInPolygon(*endNode))
     {
-        throw std::invalid_argument("The end node is not within "
+        throw std::invalid_argument("The end point is not within "
                                     "the boundary of the polygon.");
     }
 }
 
-VisibilityGraph::VisibilityGraph(Polygon *polygon)
-    : startNode(nullptr), endNode(nullptr), polygon(polygon) {}
+VisibilityGraph::VisibilityGraph(std::shared_ptr<Polygon> polygon)
+    : polygon(polygon) {}
+
+VisibilityGraph::~VisibilityGraph() {}
 
 
-void VisibilityGraph::setStartPoint(Point *startPoint)
+void VisibilityGraph::setStartPoint(std::shared_ptr<Point> startPoint)
 {
     if (!startPoint->isValid())
     {
-        throw std::invalid_argument("The node is not a valid node!");
+        throw std::invalid_argument("The point is not a valid point!");
+    }
+    // check if the start point is within the polygon boundaries
+    if (! polygon->pointIsInPolygon(*startNode))
+    {
+        throw std::invalid_argument("The start point is not within "
+                                    "the boundary of the polygon.");
     }
 
     startNode = startPoint;
 
-    // check if the start point is within the polygon boundaries
-    if (!boost::geometry::within(startNode, polygon->internal_polygon))
-    {
-        throw std::invalid_argument("The start node is not within "
-                                    "the boundary of the polygon.");
-    }
 }
 
-void VisibilityGraph::setEndPoint(Point *endPoint)
+void VisibilityGraph::setEndPoint(std::shared_ptr<Point> endPoint)
 {
+    if (!endPoint)
+    {
+        throw std::invalid_argument("The point is not a valid point!");
+    }
     if (!endPoint->isValid())
     {
-        throw std::invalid_argument("The node is not a valid node!");
+        throw std::invalid_argument("The point is not a valid point!");
     }
 
     endNode = endPoint;
 
     // check if the end point is within the polygon boundaries
-    if (!boost::geometry::within(endNode, polygon->internal_polygon))
+    if (! polygon->pointIsInPolygon(*endNode))
     {
-        throw std::invalid_argument("The end node is not within "
+        throw std::invalid_argument("The end point is not within "
                                     "the boundary of the polygon.");
     }
 }
 
-Point* VisibilityGraph::startPoint()
+std::shared_ptr<Point> VisibilityGraph::startPoint()
 {
     return startNode;
 }
 
-Point* VisibilityGraph::endPoint()
+std::shared_ptr<Point> VisibilityGraph::endPoint()
 {
     return endNode;
 }
 
 
 
-void VisibilityGraph::removeVerticesAndEdges(Point* nodeToRemove)
+void VisibilityGraph::
+    removeVerticesAndEdges(std::shared_ptr<Point> nodeToRemove)
 {
-    // Find the vertex descriptor corresponding to
-    // the node you want to remove
-    auto it = pointToVertex.find(*nodeToRemove);
-    if (it == pointToVertex.end()) {
-        return;
-    }
-
-    // check if the point is in the polygon structure
-    // if yes, dont remove it
-    if (polygon->pointIsInPolygon(*nodeToRemove))
+    // Check if the point exists in the graph
+    if (graph.find(nodeToRemove) == graph.end())
     {
         return;
     }
 
-    boost::graph_traits<BoostGraph>::vertex_descriptor vertexToRemove =
-        it->second;
+    // Check if the point is in the polygon structure
+    if (polygon->PointIsPolygonStructure(nodeToRemove))
+    {
+        return;
+    }
 
-    // Remove all edges associated with this vertex
-    boost::clear_vertex(vertexToRemove, boostGraph);
+    // Remove all edges that include this vertex from the graph
+    for (auto& kv : graph) {
+        kv.second.erase(
+            std::remove_if(
+                kv.second.begin(),
+                kv.second.end(),
+                [nodeToRemove]
+                (const std::pair<std::shared_ptr<Line>,
+                                 units::length::meter_t>& lineAndLength)
+                {
+                    return lineAndLength.first->startPoint() == nodeToRemove ||
+                           lineAndLength.first->endPoint() == nodeToRemove;
+                }),
+            kv.second.end());
+    }
 
     // Remove the vertex from the graph
-    boost::remove_vertex(vertexToRemove, boostGraph);
-
-    // Remove the vertex mapping from pointToVertex
-    pointToVertex.erase(it);
+    graph.erase(nodeToRemove);
 }
+
 
 
 void VisibilityGraph::buildGraph(
     units::velocity::meters_per_second_t maxSpeed)
 {
-    if (! startNode || ! endNode)
+    if (!startNode || !endNode)
     {
-        throw std::exception("Both start point and "
-                             "end point need to be defined"
-                             "to construct the visibility graph!");
+        throw std::runtime_error("Both start point and "
+                                 "end point need to be "
+                                 "defined to construct "
+                                 "the visibility graph!");
     }
+
+    // Clear the existing graph
     removeVerticesAndEdges(startNode);
     removeVerticesAndEdges(endNode);
 
-//    boostGraph.clear();
-//    pointToVertex.clear();
+    // Empty vector to hold all points
+    std::vector<std::shared_ptr<Point>> allPoints = {};
 
-    // Add start and end nodes to the graph and to the mapping
-    startVertex = add_vertex(boostGraph);
-    endVertex = add_vertex(boostGraph);
-    pointToVertex[*startNode] = startVertex;
-    pointToVertex[*endNode] = endVertex;
+    // Add points from the outer boundary of the polygon
+    const auto& outerPoints = polygon->outer();
+    allPoints.insert(allPoints.end(),
+                     outerPoints.begin(),
+                     outerPoints.end());
 
-    // Add vertices for all points in the polygon and populate the mapping
-    for (const auto& point : polygon->internal_polygon.outer())
+    // Add points from the inner holes of the polygon
+    const auto& holes = polygon->inners();
+    for (const auto& hole : holes)
     {
-        if (pointToVertex.find(point) == pointToVertex.end())
-        {
-            auto vertex = add_vertex(boostGraph);
-            pointToVertex[point] = vertex;
-        }
+        allPoints.insert(allPoints.end(),
+                         hole.begin(),
+                         hole.end());
     }
 
-    // Create edges based on visibility.
-    for (const auto& srcPoint : pointToVertex)
+    // Add the start and end points to the end; they have lower priority
+    allPoints.push_back(startNode);
+    allPoints.push_back(endNode);
+
+    // Create lines between every pair of points
+    for (const auto& pointA : allPoints)
     {
-        for (const auto& destPoint : pointToVertex)
+        std::vector<std::pair<std::shared_ptr<Line>,
+                              units::length::meter_t>> visibleLines;
+
+        for (const auto& pointB : allPoints)
         {
-            if (srcPoint.first == destPoint.first) continue; // Skip self-loops
+            if (pointA == pointB) continue;
 
-            std::shared_ptr<Line> segment =
-                std::make_shared<Line>(srcPoint.first,
-                                       destPoint.first, maxSpeed);
-
-            if (!segment->intersects(polygon->internal_polygon))
-            {
-                // Check if the edge already exists.
-                std::pair<boost::graph_traits<BoostGraph>::edge_descriptor,
-                          bool> edgeCheck =
-                    boost::edge(srcPoint.second,
-                                destPoint.second,
-                                boostGraph);
-
-                // Only add the edge if it doesn't already exist.
-                if (!edgeCheck.second)
+            // Find if a similar line already exists
+            auto it =
+                std::find_if(
+                    visibleLines.begin(), visibleLines.end(),
+                    [pointA, pointB](const auto& linePair)
                 {
-                    EdgeProperty edge_properties(segment->length(), segment);
-                    // Add an edge with this segment as a property.
-                    add_edge(srcPoint.second, destPoint.second,
-                             edge_properties, boostGraph);
-                }
+                        return (linePair.first->startPoint() == pointA &&
+                                linePair.first->endPoint() == pointB) ||
+                               (linePair.first->startPoint() == pointB &&
+                                linePair.first->endPoint() == pointA);
+                    });
+
+            std::shared_ptr<Line> line;
+
+            if (it != visibleLines.end())
+            {
+                // Use the existing line
+                line = it->first;
+            } else {
+                // Create a new line
+                line = std::make_shared<Line>(pointA, pointB, maxSpeed);
+            }
+
+            if (!polygon->intersects(line))
+            {
+                // Line is "visible"; add to the list of visible
+                // lines for pointA
+                visibleLines.emplace_back(line, line->length());
+
+                // Add the line to pointB's visibility list as well,
+                // to make it undirected
+                graph[pointB].emplace_back(line, line->length());
             }
         }
+
+        // Append the new visible lines to existing ones for pointA
+        graph[pointA].insert(graph[pointA].end(),
+                             visibleLines.begin(),
+                             visibleLines.end());
     }
 }
 
-std::vector<std::shared_ptr<Line>> VisibilityGraph::dijkstraShortestPath()
+ShortestPathResult VisibilityGraph::dijkstraShortestPath()
 {
-    std::vector<std::shared_ptr<Line>> result;
+    using Pair = std::pair<units::length::meter_t,
+                           std::shared_ptr<Point>>;
 
-    std::vector<boost::graph_traits<BoostGraph>::vertex_descriptor>
-        predecessors(num_vertices(boostGraph));
-
-    auto pred_map_var = boost::make_iterator_property_map(
-        predecessors.begin(),
-        get(boost::vertex_index, boostGraph)
-        );
-
-    // Run Dijkstra's algorithm
-    boost::dijkstra_shortest_paths(
-        boostGraph, startVertex,
-        predecessor_map(pred_map_var)
-            .weight_map(get(boost::edge_weight, boostGraph))
-        );
-
-    // Create the result vector based on predecessors
-    auto currentVertex = endVertex;
-    while (currentVertex != startVertex)
+    auto comp = [](const Pair& a, const Pair& b)
     {
-        auto predVertex = predecessors[currentVertex];
-        auto edge_result = edge(predVertex, currentVertex, boostGraph);
-        if (edge_result.second)
-        { // check that the edge exists
-            boost::property_map<BoostGraph,
-                                boost::edge_name_t>::type edgeNameMap =
-                get(boost::edge_name, boostGraph);
-            result.push_back(edgeNameMap[edge_result.first]);
+        return a.first > b.first;
+    };
+    std::priority_queue<Pair,
+                        std::vector<Pair>,
+                        decltype(comp)> pq(comp);
+    std::unordered_map<std::shared_ptr<Point>,
+                       units::length::meter_t> dist;
+    std::unordered_map<std::shared_ptr<Point>,
+                       std::shared_ptr<Line>> prevLine;
+
+    pq.emplace(0, startNode);
+    dist[startNode] = units::length::meter_t(0.0);
+
+    while (!pq.empty())
+    {
+        auto [currentDist, currentPoint] = pq.top();
+        pq.pop();
+
+        if (currentPoint == endNode)
+        {
+            break;
         }
-        currentVertex = predVertex;
+
+        for (auto& [nextLine, lineLength] : graph[currentPoint])
+        {
+            auto nextPoint =
+                (nextLine->startPoint() == currentPoint) ?
+                                 nextLine->endPoint() :
+                                 nextLine->startPoint();
+
+            units::length::meter_t newDist =
+                currentDist + lineLength;
+
+            if (newDist < dist[nextPoint] ||
+                dist.find(nextPoint) == dist.end())
+            {
+                pq.emplace(newDist, nextPoint);
+                dist[nextPoint] = newDist;
+                prevLine[nextPoint] = nextLine;
+            }
+        }
     }
-    std::reverse(result.begin(), result.end());
+
+    ShortestPathResult result;
+    if (dist.find(endNode) == dist.end())
+    {
+        return result;  // Empty result signifies no path exists
+    }
+
+    std::shared_ptr<Point> currentPoint = endNode;
+    while (currentPoint != startNode)
+    {
+        auto line = prevLine[currentPoint];
+        result.lines.insert(result.lines.begin(), line);
+        result.points.insert(result.points.begin(), currentPoint);
+
+        currentPoint = (line->startPoint() == currentPoint) ?
+                           line->endPoint() : line->startPoint();
+    }
+    result.points.insert(result.points.begin(), startNode);
 
     return result;
 }
