@@ -590,6 +590,19 @@ public:
     std::vector<std::shared_ptr<Line>> shipPath();
     void setShipPath(std::vector<std::shared_ptr<Line> > &path);
 
+    bool reachedDestination() const;
+    void setReachedDestination(bool newReachedDestination);
+
+    bool outOfEnergy() const;
+    void setOutOfEnergy(bool newOutOfEnergy);
+
+    bool loaded() const;
+    void setLoaded(bool newLoaded);
+
+    std::vector<units::length::meter_t> linksCumLengths() const;
+    void setLinksCumLengths(
+        const std::vector<units::length::meter_t> &newLinksCumLengths);
+
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -761,12 +774,17 @@ private:
     bool mOutOfEnergy;
 
     bool mLoaded;
+    std::vector<units::length::meter_t> mLinksCumLengths;
+    Point mCurrentCoordinates;
+    Point mStartCoordinates;
+
 
     QVector<IShipPropeller*> mPropellers;
     QVector<Ship*> mDraggedVessels;
     Battery *mBattery;
     Tank *mTank;
     std::vector<std::shared_ptr<Line>> mPath;
+    std::shared_ptr<Line> currentLink;
 
     bool mShowNoPowerMessage;
     units::time::second_t mT_s = units::time::second_t(2.0);
@@ -1027,7 +1045,6 @@ private:
 
     void kickForwardADistance(units::length::meter_t &distance);
 
-public:
 signals:
 
     /**

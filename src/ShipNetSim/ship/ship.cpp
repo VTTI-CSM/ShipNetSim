@@ -1312,6 +1312,8 @@ void Ship::initializeDefaults()
                                        getPropellerDiskArea().value();
     }
 
+    mCurrentCoordinates = mStartCoordinates;
+
 }
 
 std::vector<std::shared_ptr<Line>> Ship::shipPath()
@@ -1751,6 +1753,47 @@ void Ship::moveShip(
                          this->mAcceleration,
                          timeStep);
     mTraveledDistance += this->mSpeed * timeStep;
+}
+
+std::vector<units::length::meter_t> Ship::linksCumLengths() const
+{
+    return mLinksCumLengths;
+}
+
+void Ship::setLinksCumLengths(
+    const std::vector<units::length::meter_t> &newLinksCumLengths)
+{
+    mLinksCumLengths = newLinksCumLengths;
+}
+
+bool Ship::loaded() const
+{
+    return mLoaded;
+}
+
+void Ship::setLoaded(bool newLoaded)
+{
+    mLoaded = newLoaded;
+}
+
+bool Ship::outOfEnergy() const
+{
+    return mOutOfEnergy;
+}
+
+void Ship::setOutOfEnergy(bool newOutOfEnergy)
+{
+    mOutOfEnergy = newOutOfEnergy;
+}
+
+bool Ship::reachedDestination() const
+{
+    return mReachedDestination;
+}
+
+void Ship::setReachedDestination(bool newReachedDestination)
+{
+    mReachedDestination = newReachedDestination;
 }
 
 void Ship::immediateStop(units::time::second_t &timestep)
