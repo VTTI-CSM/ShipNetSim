@@ -2,48 +2,37 @@
 #define POINT_H
 
 #include "basegeometry.h"
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/geometries/register/point.hpp>
+#include <string>
 #include <functional>
+#include <cmath>
+#include "../../third_party/units/units.h"
 
-class Point : public BaseGeometry
-{
+class Point : public BaseGeometry {
 public:
     Point();
-    Point (long double xCoord,
-          long double yCoord,
-          std::string ID,
-          int index);
+    Point(units::length::meter_t xCoord, units::length::meter_t yCoord,
+          std::string ID, unsigned int index);
+    Point(units::length::meter_t xCoord, units::length::meter_t yCoord);
     ~Point();
     bool isValid();
-    long double distance(Point &endPoint);
+    units::length::meter_t distance(const Point &endPoint) const;
     std::string toString() override;
-    bool operator==(const Point& other) const;
-//    bool operator>(const Point& other) const;
-//    bool operator<(const Point& other) const;
+    bool operator==(const Point &other) const;
 
-    long double x;
-    long double y;
+    units::length::meter_t x() const;
+    units::length::meter_t y() const;
+
 
 private:
+    units::length::meter_t mx;
+    units::length::meter_t my;
     std::string userID;
-    int index;
-
+    unsigned int index;
 };
-
-BOOST_GEOMETRY_REGISTER_POINT_2D(Point, long double,
-                                 boost::geometry::cs::cartesian,
-                                 x,y)
-
 
 template <>
 struct std::hash<Point> {
     std::size_t operator()(const Point& p) const;
 };
-
-//struct PointEqual {
-//    bool operator()(const Point& lhs, const Point& rhs) const;
-//};
 
 #endif // POINT_H

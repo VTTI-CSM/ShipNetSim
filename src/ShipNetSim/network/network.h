@@ -2,31 +2,30 @@
 #define NETWORK_H
 
 
-#include "line.h"
 #include "polygon.h"
 #include "../ship/ship.h"
 #include "visibilitygraph.h"
 class Network
 {
 private:
-    Polygon *mWaterBoundries;
-    VisibilityGraph *mVisibilityGraph;
+    std::shared_ptr<Polygon> mWaterBoundries;
+    std::shared_ptr<VisibilityGraph> mVisibilityGraph;
     std::string mRegionName;
 public:
     Network();
-    Network(Polygon *waterBoundries,
+    Network(std::shared_ptr<Polygon> waterBoundries,
             std::string regionName = "");
     ~Network();
-    void seWaterBoundries(Polygon *waterBoundries);
+    void seWaterBoundries(std::shared_ptr<Polygon> waterBoundries);
     void setRegionName(std::string newName);
-    std::vector<std::shared_ptr<Line>> dijkstraShortestPath(Point *startPoint,
-                                             Point *endpoint);
+    ShortestPathResult dijkstraShortestPath(std::shared_ptr<Point> startPoint,
+                                             std::shared_ptr<Point> endpoint);
 
     std::vector<units::length::meter_t>
-    generateCumLinesLengths(Ship *ship);
+    generateCumLinesLengths(std::shared_ptr<Ship> ship);
 
-    long double getTotalPathLength(const Ship *ship);
-    Point getPositionByTravelledDistance(const Ship *ship);
+    long double getTotalPathLength(std::shared_ptr<Ship> ship);
+    Point getPositionByTravelledDistance(std::shared_ptr<Ship> ship);
 
 };
 
