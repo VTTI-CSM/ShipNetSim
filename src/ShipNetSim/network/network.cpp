@@ -5,18 +5,18 @@ Network::Network()
 
 }
 
-Network::Network(Polygon *waterBoundries,
+Network::Network(std::shared_ptr<Polygon> waterBoundries,
         std::string regionName)
 {
     mWaterBoundries = waterBoundries;
-    mVisibilityGraph = new VisibilityGraph(mWaterBoundries);
+    mVisibilityGraph = std::make_shared<VisibilityGraph>(mWaterBoundries);
     mRegionName = regionName;
 }
 
-void Network::seWaterBoundries(Polygon *waterBoundries)
+void Network::seWaterBoundries(std::shared_ptr<Polygon> waterBoundries)
 {
     mWaterBoundries = waterBoundries;
-    mVisibilityGraph = new VisibilityGraph(mWaterBoundries);
+    mVisibilityGraph = std::make_shared<VisibilityGraph>(mWaterBoundries);
 }
 
 void Network::setRegionName(std::string newName)
@@ -24,9 +24,9 @@ void Network::setRegionName(std::string newName)
     mRegionName = newName;
 }
 
-std::vector<std::shared_ptr<Line>> Network::dijkstraShortestPath(
-    Point *startPoint,
-    Point *endpoint)
+ShortestPathResult Network::dijkstraShortestPath(
+    std::shared_ptr<Point> startPoint,
+    std::shared_ptr<Point> endpoint)
 {
     if (!mWaterBoundries)
     {
@@ -41,7 +41,7 @@ std::vector<std::shared_ptr<Line>> Network::dijkstraShortestPath(
 }
 
 std::vector<units::length::meter_t>
-Network::generateCumLinesLengths(Ship *ship)
+Network::generateCumLinesLengths(std::shared_ptr<Ship> ship)
 {
     int n = ship->shipPath().size();
     std::vector<units::length::meter_t>
