@@ -3,10 +3,12 @@ cmake_minimum_required(VERSION 3.24)
 
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
-set(MY_PROJECT_VERSION "1.0.0" CACHE STRING "Project version")
+set(ShipNetSim_VERSION "0.0.1" CACHE STRING "Project version")
+set(SHIPNETSIM_NAME "ShipNetSim" CACHE STRING "Prohect name")
+set(SHIPNETSIM_VENDOR "(C) 2022-2023 Virginia Tech Transportation
+    Institute - Center for Sustainable Mobility." CACHE STRING "Project vendor")
 
-
-project(ShipNetSim VERSION ${MY_PROJECT_VERSION} LANGUAGES CXX)
+project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 
 # Add the project name as a compiler definition
 add_definitions(-DPROJECT_NAME="${PROJECT_NAME}")
