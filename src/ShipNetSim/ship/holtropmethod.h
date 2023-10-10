@@ -112,16 +112,25 @@ public:
         units::velocity::meters_per_second_t(
             std::nan("Unintialized"))) override;
 
-
-//    units::force::newton_t
-//    getThrust(const Ship &ship) override;
-
+    /**
+     * @copydoc IShipResistanceStrategy::calc_SpeedOfAdvance()
+     */
     units::velocity::meters_per_second_t
     calc_SpeedOfAdvance(
         const Ship &ship,
         units::velocity::meters_per_second_t customSpeed =
         units::velocity::meters_per_second_t(
             std::nan("Unintialized"))) override;
+
+    /**
+     * @copydoc IShipResistanceStrategy::getHullEffeciency()
+     */
+    double getHullEffeciency(const Ship &ship) override;
+
+    /**
+     * @copydoc IShipResistanceStrategy::getPropellerRotationEfficiency()
+     */
+    double getPropellerRotationEfficiency(const Ship &ship) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getMethodName()
@@ -437,7 +446,9 @@ private:
             std::nan("Unintialized")));
 
     double calc_t(const Ship &ship);
-//    double calc_rotEff(Ship &ship);
+
+    double calc_rotEff(Ship &ship);
+
 
     friend class HoltropResistanceMethodTest;
 
