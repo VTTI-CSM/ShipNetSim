@@ -118,8 +118,7 @@ void VisibilityGraph::
 
 
 
-void VisibilityGraph::buildGraph(
-    units::velocity::meters_per_second_t maxSpeed)
+void VisibilityGraph::buildGraph()
 {
     if (!startNode || !endNode)
     {
@@ -134,21 +133,18 @@ void VisibilityGraph::buildGraph(
     removeVerticesAndEdges(endNode);
 
     // Empty vector to hold all points
-    std::vector<std::shared_ptr<Point>> allPoints = {};
+    QVector<std::shared_ptr<Point>> allPoints = {};
 
     // Add points from the outer boundary of the polygon
     const auto& outerPoints = polygon->outer();
-    allPoints.insert(allPoints.end(),
-                     outerPoints.begin(),
-                     outerPoints.end());
+    // Appends the elements of outerPoints to allPoints
+    allPoints += outerPoints;
 
     // Add points from the inner holes of the polygon
     const auto& holes = polygon->inners();
     for (const auto& hole : holes)
     {
-        allPoints.insert(allPoints.end(),
-                         hole.begin(),
-                         hole.end());
+        allPoints += hole;
     }
 
     // Add the start and end points to the end; they have lower priority
@@ -158,8 +154,8 @@ void VisibilityGraph::buildGraph(
     // Create lines between every pair of points
     for (const auto& pointA : allPoints)
     {
-        std::vector<std::pair<std::shared_ptr<Line>,
-                              units::length::meter_t>> visibleLines;
+        QVector<std::pair<std::shared_ptr<Line>,
+                          units::length::meter_t>> visibleLines;
 
         for (const auto& pointB : allPoints)
         {
@@ -170,7 +166,7 @@ void VisibilityGraph::buildGraph(
                 std::find_if(
                     visibleLines.begin(), visibleLines.end(),
                     [pointA, pointB](const auto& linePair)
-                {
+                    {
                         return (linePair.first->startPoint() == pointA &&
                                 linePair.first->endPoint() == pointB) ||
                                (linePair.first->startPoint() == pointB &&
@@ -185,7 +181,11 @@ void VisibilityGraph::buildGraph(
                 line = it->first;
             } else {
                 // Create a new line
-                line = std::make_shared<Line>(pointA, pointB, maxSpeed);
+                line = std::make_shared<Line>(pointA,
+                                              pointB,
+                                              polygon->getMaxAllowedSpeed());
+                auto wdth = polygon->getMaxClearWidth(*line);
+                line->setTheoriticalWidth(wdth);
             }
 
             if (!polygon->intersects(line))
@@ -201,9 +201,7 @@ void VisibilityGraph::buildGraph(
         }
 
         // Append the new visible lines to existing ones for pointA
-        graph[pointA].insert(graph[pointA].end(),
-                             visibleLines.begin(),
-                             visibleLines.end());
+        graph[pointA] += visibleLines;
     }
 }
 
@@ -217,7 +215,7 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
         return a.first > b.first;
     };
     std::priority_queue<Pair,
-                        std::vector<Pair>,
+                        QVector<Pair>,
                         decltype(comp)> pq(comp);
     std::unordered_map<std::shared_ptr<Point>,
                        units::length::meter_t> dist;
@@ -241,8 +239,8 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
         {
             auto nextPoint =
                 (nextLine->startPoint() == currentPoint) ?
-                                 nextLine->endPoint() :
-                                 nextLine->startPoint();
+                    nextLine->endPoint() :
+                    nextLine->startPoint();
 
             units::length::meter_t newDist =
                 currentDist + lineLength;
@@ -267,13 +265,99 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
     while (currentPoint != startNode)
     {
         auto line = prevLine[currentPoint];
-        result.lines.insert(result.lines.begin(), line);
-        result.points.insert(result.points.begin(), currentPoint);
+        result.lines.prepend(line);
+        result.points.prepend(currentPoint);
 
         currentPoint = (line->startPoint() == currentPoint) ?
                            line->endPoint() : line->startPoint();
     }
-    result.points.insert(result.points.begin(), startNode);
+    result.points.prepend(startNode);
 
     return result;
 }
+
+QVector<std::shared_ptr<Point>>
+VisibilityGraph::getPointsFromLines(
+    const QVector<std::shared_ptr<Line>>& pathLines)
+{
+    if (pathLines.empty()) {
+        return {};
+    }
+
+    QVector<std::shared_ptr<Point>> points;
+
+    // Start with the provided startPoint
+    points.push_back(startPoint());
+
+    for (const auto& line : pathLines) {
+        const auto lastPoint = points.back();
+
+        if (*(line->startPoint()) == *lastPoint)
+        {
+            points.push_back(line->endPoint());
+        }
+        else if (*(line->endPoint()) == *lastPoint)
+        {
+            points.push_back(line->startPoint());
+        }
+        else
+        {
+            throw std::runtime_error("Non-contiguous lines in path.");
+        }
+    }
+
+    return points;
+}
+
+QVector<std::shared_ptr<Line>>
+VisibilityGraph::getLinesFromPoints(
+    const QVector<std::shared_ptr<Point>>& pathPoints)
+{
+    QVector<std::shared_ptr<Line>> lines;
+
+    for (size_t i = 0; i < pathPoints.size() - 1; ++i) {
+        auto& pointA = pathPoints[i];
+        auto& pointB = pathPoints[i + 1];
+
+        // Check if pointA is in the graph
+        auto it = graph.find(pointA);
+        if (it == graph.end())
+        {
+            // Point A not found in graph, so add it
+            graph[pointA] =
+                QVector<std::pair<std::shared_ptr<Line>,
+                                  units::length::meter_t>>();
+        }
+
+        // Try to find the line corresponding to
+        // pointA and pointB in the graph
+        bool lineFound = false;
+        for (const auto& [line, _] : graph[pointA]) {
+            if ((*(line->startPoint()) == *pointA &&
+                 *(line->endPoint()) == *pointB) ||
+                (*(line->startPoint()) == *pointB &&
+                                                                                         *(line->endPoint()) == *pointA))
+            {
+                lines.push_back(line);
+                lineFound = true;
+                break;
+            }
+        }
+
+        if (!lineFound) {
+            // Create new line, add to the vector, and add to the graph
+            auto newLine =
+                std::make_shared<Line>(pointA,
+                                       pointB,
+                                       polygon->getMaxAllowedSpeed());
+            lines.push_back(newLine);
+
+            // Add the new line to the graph for both pointA and pointB
+            graph[pointA].emplace_back(newLine, newLine->length());
+            graph[pointB].emplace_back(newLine, newLine->length());
+        }
+    }
+
+    return lines;
+}
+

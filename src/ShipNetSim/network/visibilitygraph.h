@@ -10,8 +10,8 @@
 #include "VisibilityGraph.h"
 
 struct ShortestPathResult {
-    std::vector<std::shared_ptr<Line>> lines;
-    std::vector<std::shared_ptr<Point>> points;
+    QVector<std::shared_ptr<Line>> lines;
+    QVector<std::shared_ptr<Point>> points;
 };
 
 class VisibilityGraph
@@ -21,7 +21,7 @@ private:
     std::shared_ptr<Point> endNode;
     std::shared_ptr<Polygon> polygon;
     std::unordered_map<std::shared_ptr<Point>,
-                       std::vector<std::pair<std::shared_ptr<Line>,
+                       QVector<std::pair<std::shared_ptr<Line>,
                                              units::length::meter_t>>> graph;
 
     void removeVerticesAndEdges(std::shared_ptr<Point> nodeToRemove);
@@ -42,10 +42,16 @@ public:
     std::shared_ptr<Point> startPoint();
     std::shared_ptr<Point> endPoint();
 
-    void buildGraph(
-        units::velocity::meters_per_second_t maxSpeed);
+    void buildGraph();
 
     ShortestPathResult dijkstraShortestPath();
+
+    QVector<std::shared_ptr<Point>>
+    getPointsFromLines(
+        const QVector<std::shared_ptr<Line>>& pathLines);
+    QVector<std::shared_ptr<Line>>
+    getLinesFromPoints(
+        const QVector<std::shared_ptr<Point>>& pathPoints);
 };
 
 #endif // VISIBILITYGRAPH_H
