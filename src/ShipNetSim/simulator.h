@@ -17,41 +17,55 @@ class Simulator : public QObject
     Q_OBJECT
 private:
     /** (Immutable) the default time step */
-    static constexpr double DefaultTimeStep = 1.0;
+    static constexpr units::time::second_t DefaultTimeStep =
+        units::time::second_t(1.0);
     /** (Immutable) the default end time */
-    static constexpr double DefaultEndTime = 0.0;
+    static constexpr units::time::second_t DefaultEndTime =
+        units::time::second_t(0.0);
     /** (Immutable) true to default export instantaneous trajectory */
     static constexpr bool
         DefaultExportInstantaneousTrajectory = true;
     /** (Immutable) the default instantaneous trajectory empty filename */
-    inline static const std::string
+    inline static const QString
         DefaultInstantaneousTrajectoryEmptyFilename = "";
     /** (Immutable) the default summary empty filename */
-    inline static const std::string DefaultSummaryEmptyFilename = "";
+    inline static const QString DefaultSummaryEmptyFilename = "";
     /** (Immutable) the default instantaneous trajectory filename */
-    inline static const std::string
+    inline static const QString
         DefaultInstantaneousTrajectoryFilename = "trainTrajectory_";
     /** (Immutable) the default summary filename */
-    inline static const std::string
+    inline static const QString
         DefaultSummaryFilename =  "trainSummary_";
 
+    struct shipLinksSpeedResults
+    {
+        QVector<units::velocity::meters_per_second_t> freeFlowSpeeds;
+        QVector<std::shared_ptr<Line>> pathLines;
+    };
+
+    struct criticalPoints
+    {
+        QVector<units::length::meter_t> gapToCriticalPoint;
+        QVector<units::velocity::meters_per_second_t> speedAtCriticalPoint;
+        QVector<bool> isFollowingAnotherShip;
+    };
 
     /** The trains */
-    std::vector<std::shared_ptr<Ship>> mShips;
+    QVector<std::shared_ptr<Ship>> mShips;
     /** The simulation time */
-    double mSimulationTime;
+    units::time::second_t mSimulationTime;
     /** The simulation end time */
-    double mSimulationEndTime;
+    units::time::second_t mSimulationEndTime;
     /** The time step */
-    double mTimeStep;
+    units::time::second_t mTimeStep;
     /** The frequency of plotting the trains */
     int mPlotFrequency;
     /** The output location */
     QString mOutputLocation;
     /** Filename of the summary file */
-    std::string mSummaryFileName;
+    QString mSummaryFileName;
     /** Filename of the trajectory file */
-    std::string mTrajectoryFilename;
+    QString mTrajectoryFilename;
     /** The network */
     std::shared_ptr<Network> mNetwork;
     /** The progress */
@@ -88,32 +102,36 @@ private:
     void playShipOneTimeStep(std::shared_ptr <Ship> ship);
 
     /**
-     * Loads a ship
-     *
-     * @author	Ahmed Aredah
-     * @date	2/28/2023
-     *
-     * @param 	train	The train.
-     */
-    void loadShip(std::shared_ptr<Ship> ship);
-
-
-    /**
      * Progress bar
      *
      * @author	Ahmed Aredah
      * @date	2/28/2023
      *
-     * @param 	current   	The current.
-     * @param 	total	  	Number of.
+     * @param 	ships   	All ships in the simulator..
      * @param 	bar_length	(Optional) Length of the bar.
      */
-    void ProgressBar(double current, double total, int bar_length = 100);
+    void ProgressBar(QVector<std::shared_ptr<Ship>> ships,
+                     int bar_length = 100);
+
+    void initializeAllShips();
+
+    /**
+     * @brief checkNoShipIsOnNetwork
+     * @return
+     */
+    bool checkNoShipIsOnNetwork();
+
+    /**
+     * @brief getNotLoadedShipsMinStartTime
+     * @return
+     */
+    units::time::second_t getNotLoadedShipsMinStartTime();
 
 public:
     explicit Simulator(std::shared_ptr<Network> network,
-                       std::vector<std::shared_ptr<Ship>> shipList,
-                       double simulatorTimeStep = DefaultTimeStep,
+                       QVector<std::shared_ptr<Ship>> shipList,
+                       units::time::second_t simulatorTimeStep =
+                       DefaultTimeStep,
                        QObject *parent = nullptr);
 
 
@@ -125,7 +143,7 @@ public:
      *
      * @param newTimeStep
      */
-    void setTimeStep(double newTimeStep);
+    void setTimeStep(units::time::second_t newTimeStep);
 
     /**
      * @brief Get the output folder directory.
@@ -135,7 +153,7 @@ public:
      *
      * @return the directory.
      */
-    std::string getOutputFolder();
+    QString getOutputFolder();
     /**
      * @brief set simulator end time.
      *
@@ -146,7 +164,7 @@ public:
      *                      Zero means do not stop untill all trains
      *                      reach destination.
      */
-    void setEndTime(double newEndTime);
+    void setEndTime(units::time::second_t newEndTime);
 
     /**
      * @brief set the plot frequency of trains, this only works in the gui
@@ -163,13 +181,13 @@ public:
      * @param newOutputFolderLocation   the new output folder location
      *                                  on the disk.
      */
-    void setOutputFolderLocation(std::string newOutputFolderLocation);
+    void setOutputFolderLocation(QString newOutputFolderLocation);
 
     /**
      * @brief set summary filename.
      * @param newfilename           the new file name of the summary file.
      */
-    void setSummaryFilename(std::string newfilename =
+    void setSummaryFilename(QString newfilename =
                             DefaultSummaryEmptyFilename);
 
     /**
@@ -183,7 +201,7 @@ public:
      */
     void setExportInstantaneousTrajectory(
         bool exportInstaTraject,
-        std::string newInstaTrajectFilename =
+        QString newInstaTrajectFilename =
         DefaultInstantaneousTrajectoryEmptyFilename);
 
 
@@ -204,9 +222,7 @@ signals:
      *                            along with their start and end points.
      */
     void plotShipsUpdated(
-        std::vector<std::pair<std::string,
-                         std::vector<std::pair<double,
-                                          double>>>> trainsStartEndPoints);
+        QVector<std::pair<QString, Point>> shipsPoints);
 
     /**
      * @brief Signals that the simulation has finished.
@@ -217,9 +233,9 @@ signals:
      *                          trajectory file.
      */
     void finishedSimulation(
-        const std::vector<std::pair<std::string,
-                               std::string>>& summaryData,
-        const std::string& trajectoryFile);
+        const QVector<std::pair<QString,
+                                QString>>& summaryData,
+        const QString& trajectoryFile);
 
 public slots:
     /**
@@ -243,7 +259,7 @@ public slots:
 private:
     QMutex mutex;
     QWaitCondition pauseCond;
-    bool pauseFlag;
+    bool mPauseFlag;
 
 };
 
