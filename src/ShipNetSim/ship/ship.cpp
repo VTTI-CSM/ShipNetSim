@@ -6,137 +6,10 @@
 #include <QDebug>
 #include "../../third_party/units/units.h"
 #include "../utils/utils.h"
+#include "ishippropeller.h"
 
-Ship::Ship(units::length::meter_t lengthInWaterline,
-           units::length::meter_t moldedBeam,
-           double midshipCoef,
-           double LongitudinalBuoyancyCenter,
-           units::length::nanometer_t roughness,
-           units::area::square_meter_t bulbousBowTransverseArea,
-           units::length::meter_t bulbousBowTransverseAreaCenterHeight,
-           units::area::square_meter_t immersedTransomArea,
-           units::length::meter_t moldedMeanDraft,
-           units::length::meter_t moldedDraftAtAft,
-           units::length::meter_t moldedDraftAtForward,
-           double blockCoef,
-           BlockCoefficientMethod blockCoefMethod,
-           double prismaticCoef,
-           units::length::meter_t runLength,
-           double waterplaneAreaCoef,
-           WaterPlaneCoefficientMethod waterplaneCoefMethod,
-           units::volume::cubic_meter_t volumetricDisplacement,
-           units::area::square_meter_t wettedHullSurface,
-           WetSurfaceAreaCalculationMethod wetSurfaceAreaMethod,
-           units::angle::degree_t halfWaterlineEntranceAngle,
-           IShipResistancePropulsionStrategy* initialStrategy) :
-    mStrategy(initialStrategy),
-    mWaterlineLength(lengthInWaterline),
-    mBeam(moldedBeam),
-    mMeanDraft(moldedMeanDraft),
-    mDraftAtForward(moldedDraftAtForward),
-    mDraftAtAft(moldedDraftAtAft),
-    mVolumetricDisplacement(volumetricDisplacement),
-    mWettedHullSurface(wettedHullSurface),
-    mWetSurfaceAreaMethod(wetSurfaceAreaMethod),
-    mBulbousBowTransverseAreaCenterHeight(bulbousBowTransverseAreaCenterHeight),
-    mAppendagesWettedSurfaces(),
-    mBulbousBowTransverseArea(bulbousBowTransverseArea),
-    mImmersedTransomArea(immersedTransomArea),
-    mHalfWaterlineEntranceAngle(halfWaterlineEntranceAngle),
-    mSpeed(units::velocity::meters_per_second_t(0.0)),
-    mSurfaceRoughness(roughness),
-    mRunLength(runLength),
-    mLongitudinalBuoyancyCenter(LongitudinalBuoyancyCenter),
-    mSternShapeParam(CStern::NormalSections),
-    mMidshipSectionCoef(midshipCoef),
-    mWaterplaneAreaCoef(waterplaneAreaCoef),
-    mWaterplaneCoefMethod(waterplaneCoefMethod),
-    mPrismaticCoef(prismaticCoef),
-    mBlockCoef(blockCoef),
-    mBlockCoefMethod(blockCoefMethod)
-{
-    initializeDefaults();
-}
-
-Ship::Ship(units::length::meter_t lengthInWaterline,
-           units::length::meter_t moldedBeam,
-           units::length::meter_t moldedMeanDraft) :
-    mStrategy(nullptr),
-    mWaterlineLength(lengthInWaterline),
-    mBeam(moldedBeam),
-    mMeanDraft(moldedMeanDraft),
-    mDraftAtForward(units::length::meter_t(std::nan("uninitialized"))),
-    mDraftAtAft(units::length::meter_t(std::nan("uninitialized"))),
-    mVolumetricDisplacement(
-        units::volume::cubic_meter_t(std::nan("uninitialized"))),
-    mWettedHullSurface(units::area::square_meter_t(std::nan("uninitialized"))),
-    mWetSurfaceAreaMethod(WetSurfaceAreaCalculationMethod::None),
-    mBulbousBowTransverseAreaCenterHeight(
-        units::length::meter_t(std::nan("uninitialized"))),
-    mAppendagesWettedSurfaces(),
-    mBulbousBowTransverseArea(
-        units::area::square_meter_t(std::nan("uninitialized"))),
-    mImmersedTransomArea(
-        units::area::square_meter_t(std::nan("uninitialized"))),
-    mHalfWaterlineEntranceAngle(
-        units::angle::degree_t(std::nan("uninitialized"))),
-    mSpeed(units::velocity::meters_per_second_t(0.0)),
-    mSurfaceRoughness(
-        units::length::nanometer_t(std::nan("uninitialized"))),
-    mRunLength(units::length::meter_t(std::nan("uninitialized"))),
-    mLongitudinalBuoyancyCenter(std::nan("uninitialized")),
-    mSternShapeParam(CStern::None),
-    mMidshipSectionCoef(std::nan("uninitialized")),
-    mWaterplaneAreaCoef(std::nan("uninitialized")),
-    mWaterplaneCoefMethod(WaterPlaneCoefficientMethod::None),
-    mPrismaticCoef(std::nan("uninitialized")),
-    mBlockCoef(std::nan("uninitialized")),
-    mBlockCoefMethod(BlockCoefficientMethod::None)
-{
-    initializeDefaults();
-}
-
-Ship::Ship(units::length::meter_t lengthInWaterline,
-           units::length::meter_t moldedBeam,
-           units::length::meter_t moldedDraftAtAft,
-           units::length::meter_t moldedDraftAtForward) :
-    mStrategy(nullptr),
-    mWaterlineLength(lengthInWaterline),
-    mBeam(moldedBeam),
-    mMeanDraft(std::nan("uninitialized")),
-    mDraftAtForward(units::length::meter_t(moldedDraftAtForward)),
-    mDraftAtAft(units::length::meter_t(moldedDraftAtAft)),
-    mVolumetricDisplacement(
-        units::volume::cubic_meter_t(std::nan("uninitialized"))),
-    mWettedHullSurface(units::area::square_meter_t(std::nan("uninitialized"))),
-    mWetSurfaceAreaMethod(WetSurfaceAreaCalculationMethod::None),
-    mBulbousBowTransverseAreaCenterHeight(
-          units::length::meter_t(std::nan("uninitialized"))),
-    mAppendagesWettedSurfaces(),
-    mBulbousBowTransverseArea(
-        units::area::square_meter_t(std::nan("uninitialized"))),
-    mImmersedTransomArea(
-        units::area::square_meter_t(std::nan("uninitialized"))),
-    mHalfWaterlineEntranceAngle(
-        units::angle::degree_t(std::nan("uninitialized"))),
-    mSpeed(units::velocity::meters_per_second_t(0.0)),
-    mSurfaceRoughness(
-        units::length::nanometer_t(std::nan("uninitialized"))),
-    mRunLength(units::length::meter_t(std::nan("uninitialized"))),
-    mLongitudinalBuoyancyCenter(std::nan("uninitialized")),
-    mSternShapeParam(CStern::None),
-    mMidshipSectionCoef(std::nan("uninitialized")),
-    mWaterplaneAreaCoef(std::nan("uninitialized")),
-    mWaterplaneCoefMethod(WaterPlaneCoefficientMethod::None),
-    mPrismaticCoef(std::nan("uninitialized")),
-    mBlockCoef(std::nan("uninitialized")),
-    mBlockCoefMethod(BlockCoefficientMethod::None)
-
-{
-    initializeDefaults();
-}
-
-Ship::Ship(const QMap<QString, std::any>& parameters)
+Ship::Ship(const QMap<QString, std::any>& parameters,
+           QObject* parent) : QObject(parent)
 {
 //    mResistanceStrategy =
 //        getValueFromMap<IShipResistanceStrategy*>(
@@ -320,6 +193,9 @@ Ship::Ship(const QMap<QString, std::any>& parameters)
 
 
     initializeDefaults();
+
+    QObject::connect(this, &Ship::stepDistanceChanged,
+                     this, &Ship::handleStepDistanceChanged);
 }
 
 Ship::~Ship()
@@ -347,6 +223,11 @@ Ship::~Ship()
     {
         delete mTank;
     }
+}
+
+QString Ship::getUserID()
+{
+    return mShipUserID;
 }
 
 void Ship::setResistancePropulsionStrategy(
@@ -720,71 +601,12 @@ void Ship::setRunLength(const units::length::meter_t &newRunLength)
     mRunLength = newRunLength;
 }
 
-units::length::meter_t Ship::getPropellerDiameter() const
-{
-    if (std::isnan(mPropellerDiameter.value()))
-    {
-        throw ShipException("Ship propeller diameter is not set!");
-    }
-    return mPropellerDiameter;
-}
-
-void Ship::setPropellerDiameter(
-    const units::length::meter_t &newPropellerDiameter)
-{
-    mPropellerDiameter = newPropellerDiameter;
-}
-
-units::area::square_meter_t Ship::getExpandedBladeArea() const
-{
-    return mExpandedBladeArea;
-}
-
-void Ship::setExpandedBladeArea(
-    const units::area::square_meter_t &newExpandedBladeArea)
-{
-    mExpandedBladeArea = newExpandedBladeArea;
-}
-
-units::area::square_meter_t Ship::getPropellerDiskArea() const
-{
-    return mPropellerDiskArea;
-}
-
-void Ship::setPropellerDiskArea(
-    const units::area::square_meter_t &newPropellerDiskArea)
-{
-    mPropellerDiskArea = newPropellerDiskArea;
-}
-
-double Ship::getPropellerExpandedAreaRatio() const
-{
-
-    return mPropellerExpandedAreaRation;
-}
-
-void Ship::setPropellerExpandedAreaRation(
-    double newPropellerExpandedAreaRation)
-{
-    mPropellerExpandedAreaRation = newPropellerExpandedAreaRation;
-}
-
-Ship::ScrewVesselType Ship::getScrewVesselType() const
-{
-    return mScrewVesselType;
-}
-
-void Ship::setScrewVesselType(ScrewVesselType newScrewVesselType)
-{
-    mScrewVesselType = newScrewVesselType;
-}
-
 void Ship::addPropeller(IShipPropeller *newPropeller)
 {
     mPropellers.push_back(newPropeller);
 }
 
-QVector<IShipPropeller *> *Ship::propellers()
+const QVector<IShipPropeller *> *Ship::getPropellers() const
 {
     return &mPropellers;
 }
@@ -800,8 +622,7 @@ units::force::newton_t Ship::getTotalThrust() const
 
     for (const auto propeller: mPropellers)
     {
-        totalThrust += propeller->getThrust() *
-                       getHyperbolicThrottleCoef(mSpeed);
+        totalThrust += propeller->getThrust();
     }
 
     return totalThrust;
@@ -1083,6 +904,17 @@ void Ship::setSpeed(const units::velocity::meters_per_second_t &newSpeed)
     mSpeed = newSpeed;
 }
 
+units::acceleration::meters_per_second_squared_t
+Ship::getAcceleration() const
+{
+    return mAcceleration;
+}
+
+units::velocity::meters_per_second_t Ship::getPreviousSpeed() const
+{
+    return mPreviousSpeed;
+}
+
 double Ship::getLongitudinalBuoyancyCenter() const
 {
     if (std::isnan(mLongitudinalBuoyancyCenter))
@@ -1143,6 +975,15 @@ void Ship::setPrismaticCoef(const double newC_P)
     mPrismaticCoef = newC_P;
 }
 
+units::length::meter_t Ship::getTraveledDistance() const
+{
+    return mTraveledDistance;
+}
+
+units::length::meter_t Ship::getTotalPathLength() const
+{
+    return mTotalPathLength;
+}
 
 void Ship::initializeDefaults()
 {
@@ -1306,24 +1147,61 @@ void Ship::initializeDefaults()
         mSurfaceRoughness = units::length::nanometer_t(150.0);
     }
 
-    if (std::isnan(mPropellerExpandedAreaRation))
+}
+
+QVector<std::shared_ptr<Line>>* Ship::getShipPathLines()
+{
+    return &mPathLines;
+}
+
+QVector<std::shared_ptr<Point>>* Ship::getShipPathPoints()
+{
+    return &mPathPoints;
+}
+
+void Ship::setPath(const QVector<std::shared_ptr<Point>> points,
+                   const QVector<std::shared_ptr<Line>> lines)
+{
+    if (mTraveledDistance > units::length::meter_t(0.0) ||
+        isLoaded())
     {
-        mPropellerExpandedAreaRation = getExpandedBladeArea().value() /
-                                       getPropellerDiskArea().value();
+        throw ShipException("Cannot set the ship path "
+                            "in the middle of the trip!");
     }
 
-    mCurrentCoordinates = mStartCoordinates;
-
+    mPathPoints = points;
+    mPathLines = lines;
+    mLinksCumLengths = generateCumLinesLengths();
+    mTotalPathLength = mLinksCumLengths.back();
+    mCurrentState = AlgebraicVector(*(mPathPoints.at(0)),
+                                    *(mPathPoints.at(1)));
+    computeStoppingPointIndices();
 }
 
-std::vector<std::shared_ptr<Line>> Ship::shipPath()
+std::shared_ptr<Point> Ship::startPoint()
 {
-    return mPath;
+    return mStartCoordinates;
 }
 
-void Ship::setShipPath(std::vector<std::shared_ptr<Line>> &path)
+// this should be in the ship constructor only
+void Ship::setStartPoint(std::shared_ptr<Point> startPoint)
 {
-    mPath = path;
+    mStartCoordinates = startPoint;
+}
+
+std::shared_ptr<Point> Ship::endPoint()
+{
+    return mEndCoordinates;
+}
+
+void Ship::setEndPoint(std::shared_ptr<Point> endPoint)
+{
+    mEndCoordinates = endPoint;
+}
+
+Point Ship::getCurrentPosition()
+{
+    return mCurrentState.getCurrentPosition();
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1346,24 +1224,10 @@ Ship::calc_decelerationAtSpeed(
 }
 
 
-double Ship::getHyperbolicThrottleCoef(
-    const units::velocity::meters_per_second_t &ShipSpeed) const
+units::velocity::meters_per_second_t Ship::getMaxSpeed() const
 {
-    double dv, um;
-    // ratio of current train speed by the max loco speed
-    dv = (ShipSpeed / mMaxSpeed).value();
-    double lambda = (double)1.0 / (1.0 + exp(-7.82605 * (dv - 0.42606)));
-
-    if (lambda < 0.0){
-        return 0.0;
-    }
-    else if (lambda > 1.0) {
-        return 1.0;
-    }
-
-    return lambda;
-
-};
+    return mMaxSpeed;
+}
 
 
 
@@ -1666,22 +1530,22 @@ units::acceleration::meters_per_second_squared_t
 Ship::getStepAcceleration(
     units::time::second_t &timeStep,
     units::velocity::meters_per_second_t &freeFlowSpeed,
-    QVector<units::length::meter_t> *gapToNextCriticalPoint,
-    QVector<bool> *gapToNextCrticalPointType,
-    QVector<units::velocity::meters_per_second_t> *leaderSpeeds)
+    QVector<units::length::meter_t> &gapToNextCriticalPoint,
+    QVector<bool> &isFollowingAnotherShip,
+    QVector<units::velocity::meters_per_second_t> &leaderSpeeds)
 {
     units::length::meter_t minGap = units::length::meter_t(0.0);
 
     QVector<units::acceleration::meters_per_second_squared_t>
         allAccelerations;
 
-    for (int i = 0; i < gapToNextCriticalPoint->size(); i++) {
-        if (! gapToNextCrticalPointType->at(i)) {
+    for (int i = 0; i < gapToNextCriticalPoint.size(); i++) {
+        if (! isFollowingAnotherShip.at(i)) {
             allAccelerations.push_back(
-                this->accelerate(gapToNextCriticalPoint->at(i),
+                this->accelerate(gapToNextCriticalPoint.at(i),
                                  minGap, mSpeed,
                                  mAcceleration,
-                                 leaderSpeeds->at(i),
+                                 leaderSpeeds.at(i),
                                  freeFlowSpeed,
                                  timeStep));
         }
@@ -1692,16 +1556,17 @@ Ship::getStepAcceleration(
 
     if (nonSmoothedAcceleration.value() < 0.0 &&
         mSpeed.value() <= 0.001 &&
-        gapToNextCriticalPoint->back().value() > 50.0)
+        gapToNextCriticalPoint.back().value() > 50.0)
     {
         if (!mShowNoPowerMessage)
         {
-            std::stringstream message;
-            message << "Ship " << mShipUserID.toStdString()
+            QString message;
+            QTextStream stream(&message);
+            stream << "Ship " << mShipUserID
                     << " Resistance is "
                     << "larger than train tractive force at distance "
                     << mTraveledDistance.value() << "(m)\n";
-            emit slowSpeedOrStopped(message.str());
+            emit slowSpeedOrStopped(message);
             mShowNoPowerMessage = true;
         }
 
@@ -1726,19 +1591,18 @@ Ship::getStepAcceleration(
 
 }
 
-void Ship::moveShip(
-    units::time::second_t &timeStep,
+void Ship::moveShip(units::time::second_t &timeStep,
     units::velocity::meters_per_second_t &freeFlowSpeed,
-    QVector<units::length::meter_t> *gapToNextCriticalPoint,
-    QVector<bool> *gapToNextCrticalPointType,
-    QVector<units::velocity::meters_per_second_t> *leaderSpeeds)
+    QVector<units::length::meter_t> &gapToNextCriticalPoint,
+    QVector<bool> &isFollowingAnotherShip,
+    QVector<units::velocity::meters_per_second_t> &leaderSpeeds)
 {
 
     units::acceleration::meters_per_second_squared_t jerkedAcceleration =
         this->getStepAcceleration(timeStep,
                                   freeFlowSpeed,
                                   gapToNextCriticalPoint,
-                                  gapToNextCrticalPointType,
+                                  isFollowingAnotherShip,
                                   leaderSpeeds);
 
     mAcceleration = jerkedAcceleration;
@@ -1752,48 +1616,227 @@ void Ship::moveShip(
     checkSuddenAccChange(this->mPreviousAcceleration,
                          this->mAcceleration,
                          timeStep);
-    mTraveledDistance += this->mSpeed * timeStep;
+    setStepTravelledDistance(this->mSpeed * timeStep, timeStep);
+
+    for (auto propeller : mPropellers)
+    {
+        auto engines = propeller->getGearBox()->getEngines();
+        for (auto engine: engines)
+        {
+            mCumConsumedEnergy +=
+                engine->energyConsumed(timeStep).energyConsumed;
+        }
+    }
 }
 
-std::vector<units::length::meter_t> Ship::linksCumLengths() const
+QVector<units::length::meter_t> Ship::getLinksCumLengths() const
 {
     return mLinksCumLengths;
 }
 
-void Ship::setLinksCumLengths(
-    const std::vector<units::length::meter_t> &newLinksCumLengths)
-{
-    mLinksCumLengths = newLinksCumLengths;
-}
 
-bool Ship::loaded() const
+bool Ship::isLoaded() const
 {
     return mLoaded;
 }
 
-void Ship::setLoaded(bool newLoaded)
+void Ship::load()
 {
-    mLoaded = newLoaded;
+    reset();
+    mLoaded = true;
 }
 
-bool Ship::outOfEnergy() const
+void Ship::reset()
+{
+    mTraveledDistance = units::length::meter_t(0.0);
+}
+
+std::size_t Ship::getPreviousPathPointIndex() const
+{
+    return mPreviousPathPointIndex;
+}
+
+units::time::second_t Ship::getStartTime() const
+{
+    return mStartTime;
+}
+
+void Ship::setStartTime(const units::time::second_t &newStartTime)
+{
+    mStartTime = newStartTime;
+}
+
+units::energy::kilowatt_hour_t Ship::getConsumedEnergy()
+{
+    return mCumConsumedEnergy;
+}
+
+QVector<units::length::meter_t> Ship::generateCumLinesLengths()
+{
+    qsizetype n = mPathLines.size();
+
+    if (n < 1)
+    {
+        throw ShipException("Ship number of links should "
+                            "be greater than zero!");
+    }
+
+    QVector<units::length::meter_t>
+        linksCumLengths(n, units::length::meter_t(0.0));
+
+    linksCumLengths[0] =
+        units::length::meter_t(
+            mPathLines.at(0)->length());
+
+    for (std::size_t i = 1; i < n; i++)
+    {
+        linksCumLengths[i] = linksCumLengths[i-1] +
+                             units::length::meter_t(
+                                 mPathLines.at(i)->length());
+    }
+
+    return linksCumLengths;
+}
+
+units::length::meter_t Ship::distanceToFinishFromPathNodeIndex(qsizetype i)
+{
+    if (i < 0 || i >= mLinksCumLengths.size())
+    {
+        throw ShipException("Node index should "
+                            "be within zero and node path size!");
+    }
+
+    auto passedLength =
+        (i > 0) ? mLinksCumLengths[i-1] : units::length::meter_t(0);
+    return mLinksCumLengths.back() - passedLength;
+}
+
+units::length::meter_t
+Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
+                                               qsizetype endIndex)
+{
+    if (endIndex < startIndex)
+    {
+        throw ShipException("Start index is greater than end index");
+    }
+    if (startIndex < 0 || endIndex >= mLinksCumLengths.size())
+    {
+        throw ShipException("Node indices should "
+                            "be within zero and node path size!");
+    }
+
+    if (startIndex == endIndex) { return units::length::meter_t(0.0); }
+
+    auto passedLength =
+        (startIndex > 0) ? mLinksCumLengths[startIndex-1] :
+                            units::length::meter_t(0);
+    return mLinksCumLengths[endIndex] - passedLength;
+}
+
+units::length::meter_t Ship::distanceFromCurrentPositionToNodePathIndex(
+    qsizetype endIndex)
+{
+    if (endIndex > mLinksCumLengths.size() - 1 || endIndex < 0)
+    {
+        throw ShipException("End index should be between "
+                            "zero and node path size!");
+    }
+    qsizetype nextIndex = mPreviousPathPointIndex + 1;
+    auto rest =
+        (nextIndex == endIndex) ? units::length::meter_t(0.0) :
+            distanceToNodePathIndexFromPathNodeIndex(nextIndex, endIndex);
+    return rest +
+           mCurrentState.getCurrentPosition().
+           distance(*mPathPoints[mPreviousPathPointIndex+1]);
+
+}
+
+double Ship::progress()
+{
+    if (! mLoaded) return 0.0;
+
+    auto cumToFinish =
+        distanceToFinishFromPathNodeIndex(mPreviousPathPointIndex + 1);
+    cumToFinish +=
+        mCurrentState.getCurrentPosition().
+                   distance(*mPathPoints[mPreviousPathPointIndex + 1]);
+
+    return cumToFinish.value() / mLinksCumLengths.back().value();
+}
+
+units::velocity::meters_per_second_t Ship::getCurrentMaxSpeed()
+{
+    return mPathLines[mPreviousPathPointIndex]->getMaxSpeed();
+}
+
+QHash<qsizetype, units::velocity::meters_per_second_t>
+Ship::getAheadLowerSpeeds(qsizetype nextStopIndex)
+{
+    if (mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex].empty())
+    {
+        QHash<qsizetype, units::velocity::meters_per_second_t>
+            lowerSpeedMapping;
+
+        for(int i = mPreviousPathPointIndex + 1; i < mPathLines.size(); ++i)
+        {
+            const auto& currentLine = mPathLines[i];
+            const auto& previousLine = mPathLines[i - 1];
+
+            if(currentLine->getMaxSpeed() < previousLine->getMaxSpeed())
+            {
+                lowerSpeedMapping.insert(i, currentLine->getMaxSpeed());
+            }
+        }
+        mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex] =
+            lowerSpeedMapping;
+        return lowerSpeedMapping;
+    }
+    else
+    {
+        return mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex];
+    }
+
+}
+
+void Ship::computeStoppingPointIndices()
+{
+    mStoppingPointIndices.clear();
+    for (qsizetype i = 0; i < mPathPoints.size(); ++i)
+    {
+        if (mPathPoints[i]->isPort())
+        {
+            mStoppingPointIndices.append(i);
+        }
+    }
+}
+
+QPair<qsizetype, std::shared_ptr<Point>> Ship::getNextStoppingPoint()
+{
+    auto it = std::lower_bound(mStoppingPointIndices.begin(),
+                               mStoppingPointIndices.end(),
+                               mPreviousPathPointIndex);
+    if(it != mStoppingPointIndices.end())
+    {
+        return { *it, mPathPoints[*it] };
+    }
+    return { mPathPoints.size() - 1, mPathPoints.back() };
+}
+
+
+void Ship::unload()
+{
+    mLoaded = false;
+}
+
+
+bool Ship::isOutOfEnergy() const
 {
     return mOutOfEnergy;
 }
 
-void Ship::setOutOfEnergy(bool newOutOfEnergy)
-{
-    mOutOfEnergy = newOutOfEnergy;
-}
-
-bool Ship::reachedDestination() const
+bool Ship::isReachedDestination() const
 {
     return mReachedDestination;
-}
-
-void Ship::setReachedDestination(bool newReachedDestination)
-{
-    mReachedDestination = newReachedDestination;
 }
 
 void Ship::immediateStop(units::time::second_t &timestep)
@@ -1807,7 +1850,8 @@ void Ship::immediateStop(units::time::second_t &timestep)
 }
 
 void Ship::kickForwardADistance(
-    units::length::meter_t &distance)
+    units::length::meter_t &distance,
+    units::time::second_t timeStep)
 {
     this->mPreviousAcceleration =
         units::acceleration::meters_per_second_squared_t(0.0);
@@ -1815,7 +1859,332 @@ void Ship::kickForwardADistance(
         units::acceleration::meters_per_second_squared_t(0.0);
     this->mPreviousSpeed = units::velocity::meters_per_second_t(0.0);
     this->mSpeed = units::velocity::meters_per_second_t(0.0);
-    this->mTraveledDistance += distance;
+    setStepTravelledDistance(distance,
+                             timeStep);
 }
 
+void Ship::setStepTravelledDistance(units::length::meter_t distance,
+                                    units::time::second_t timeStep)
+{
+
+    if(distance != units::length::meter_t(0.0))
+    {
+        mTraveledDistance += distance;
+        emit stepDistanceChanged(distance, timeStep);
+    }
+}
+
+Point Ship::getPositionByTravelledDistance(
+    units::length::meter_t newTotalDistance)
+{
+    if (newTotalDistance >= mTotalPathLength)
+    {
+        return *(mPathPoints.back());
+    }
+    // Initialize a Point object, assuming Point is default-constructible.
+    Point result;
+
+    for (std::size_t i = mPreviousPathPointIndex;
+         i < mLinksCumLengths.size();
+         ++i)
+    {
+        if (mLinksCumLengths[i] >= newTotalDistance)
+        {
+            // Update previousPathPointIndex to the index of the highest value
+            // that is lower than newTotalDistance.
+            mPreviousPathPointIndex = (i == 0) ? 0 : i - 1;
+            break;
+        }
+    }
+
+    if (mPreviousPathPointIndex >= mLinksCumLengths.size())
+    {
+        // If no such value exists, then all elements in
+        // mLinksCumLengths are lower than newTotalDistance.
+        // In this case, set previousPathPointIndex to the
+        // last index in mLinksCumLengths.
+        if (!mLinksCumLengths.empty())
+        {
+            mPreviousPathPointIndex = mLinksCumLengths.size() - 1;
+        }
+    }
+
+    units::length::meter_t remainingDistance;
+    if (mPreviousPathPointIndex == 0)
+    {
+        remainingDistance = mTraveledDistance;
+    }
+    else
+    {
+        remainingDistance =
+            mTraveledDistance - mLinksCumLengths[mPreviousPathPointIndex - 1];
+    }
+
+    // Calculate the current coordinates based on the
+    // line and traveled distance. This assumes that
+    // getPointByDistance returns a Point when provided with
+    // the remaining distance and a starting point.
+    result = mPathLines[mPreviousPathPointIndex]->getPointByDistance(
+        remainingDistance,
+        mPathPoints[mPreviousPathPointIndex]
+        );
+
+    return result;
+}
+
+bool Ship::isShipOnCorrectPath()
+{
+    // No path or single point path, consider it on path
+    if (mPathPoints.size() < 2) return true;
+
+    units::length::meter_t positionTolerance = units::length::meter_t(10.0);
+    units::angle::degree_t orientationTolerance = units::angle::degree_t(5.0);
+    auto currentPosition = mCurrentState.getCurrentPosition();
+    auto currentOrientation = mCurrentState.orientation();
+
+    for(int i = 0; i < mPathPoints.size() - 1; i++)
+    {
+        auto startPoint = mPathPoints[i];
+        auto endPoint = mPathPoints[i + 1];
+
+        auto l = Line(startPoint, endPoint);
+        // Check Positional Deviation
+        auto distance = l.getPerpendicularDistance(currentPosition);
+
+
+        if (distance > positionTolerance) {
+            return false; // Positional deviation is too high
+        }
+
+        // Check Orientation Deviation
+        auto pathSegmentOrientation =
+            l.toAlgebraicVector(startPoint).orientation();
+        auto orientationDifference =
+            units::math::abs((currentOrientation - pathSegmentOrientation));
+        if (orientationDifference > orientationTolerance) {
+            return false; // Orientation deviation is too high
+        }
+    }
+
+    return true; // The ship is on path
+}
+
+
+// this has a problem here. if the ship needs to turn in
+// raduis that is large and the line length is very short,
+// the ship may not be able to rotate appropiately
+void Ship::handleStepDistanceChanged(units::length::meter_t newTotalDistance,
+                                     units::time::second_t timeStep)
+{
+    // Check if the path has less than two points,
+    // if so, the ship cannot move.
+    if (mPathPoints.size() < 2) {
+        qWarning() << "Path is empty or has only one point."
+                      " No movement will occur.";
+        return;
+    }
+
+
+    // Obtain the current target point from the path.
+    std::shared_ptr<Point> currentTarget =
+        mPathPoints[mPreviousPathPointIndex + 1];
+    std::shared_ptr<Point> nextTarget =
+        mPathPoints[mPreviousPathPointIndex + 2];
+
+    // Calculate the remaining distance to the target point.
+    units::length::meter_t distanceToTarget =
+        mCurrentState.getCurrentPosition().distance(*currentTarget);
+
+    // Calculate the distance at which the ship should start turning
+    auto r = calcTurningRadius();
+
+    // calculate the angle between the ship orientation and next target
+    units::angle::degree_t turningAngleInDegrees =
+        mCurrentState.angleTo(*nextTarget);
+    while (turningAngleInDegrees.value() > 180.0)
+    {
+        turningAngleInDegrees =
+            turningAngleInDegrees - units::angle::degree_t(180);
+    }
+    while (turningAngleInDegrees.value() < 0.0)
+    {
+        turningAngleInDegrees =
+            turningAngleInDegrees + units::angle::degree_t(180);
+    }
+    auto turningAngleInRad =
+        turningAngleInDegrees.convert<units::angle::radian>();
+
+    // Check if turningAngleInDegrees is within [150, 210] degrees range
+    if(turningAngleInDegrees.value() > (180.0 - mRudderAngle.value()) &&
+        turningAngleInDegrees.value() < (180.0 + mRudderAngle.value()))
+    {
+        // If ship is moving almost in straight line,
+        // set turning radius to zero
+        r = units::length::meter_t(0.0);
+    }
+
+    auto distanceToStartTurning =
+        r * std::tan(turningAngleInRad.value() / 2.0);
+
+
+    // if the distance to target is less than
+    // the required distance to turn, do the turn immediately
+    if (distanceToTarget <= distanceToStartTurning)
+    {
+        // Move to the next segment
+        mPreviousPathPointIndex++;
+
+        // If there are more points in the path,
+        // update the orientation before moving to the next segment
+        if (mPreviousPathPointIndex < mPathPoints.size() - 2)
+        {
+            std::shared_ptr<Point> newTarget =
+                mPathPoints[mPreviousPathPointIndex + 1];
+            auto maxROT = calcMaxROT(r);
+            mCurrentState.setTargetAndMaxROT(*newTarget, maxROT);
+        }
+
+        // If there is enough distance remaining to reach the target,
+        // update orientation and move the ship to the target
+        mCurrentState.moveByDistance(newTotalDistance, timeStep);
+
+    }
+    else
+    {
+        // Move only by the remaining distance,
+        // and adjust the position and orientation accordingly
+        mCurrentState.moveByDistance(newTotalDistance, timeStep);
+        newTotalDistance = units::length::meter_t(0.0);
+    }
+
+
+    // Similar logic applies for the last point in the path
+    if (mPreviousPathPointIndex == mPathPoints.size() - 2)
+    {
+        std::shared_ptr<Point> lastPoint = mPathPoints.last();
+        units::length::meter_t distanceToLast =
+            mCurrentState.getCurrentPosition().distance(*lastPoint);
+
+        if (newTotalDistance >= distanceToLast)
+        {
+            mCurrentState.moveByDistance(distanceToLast, timeStep);
+        }
+        else
+        {
+            mCurrentState.moveByDistance(newTotalDistance, timeStep);
+        }
+    }
+
+    // Emit a signal if the ship is deviating from the correct path
+    if (!isShipOnCorrectPath())
+    {
+        emit pathDeviation("Ship is deviating from Path");
+    }
+}
+
+
+
+
+//void Ship::handleStepDistanceChanged(units::length::meter_t newTotalDistance,
+//                                     units::time::second_t timeStep)
+//{
+//    // Check for empty path or single-point path
+//    if (mPathPoints.size() < 2) {
+//        qWarning() << "Path is empty or has only one point. "
+//                      "No movement will occur.";
+//        return;
+//    }
+
+//    while (newTotalDistance > units::length::meter_t(0.0) &&
+//           mPreviousPathPointIndex < mPathPoints.size() - 2)
+//    {
+//        // Calculate remaining distance to the target
+//        std::shared_ptr<Point> currentTarget =
+//            mPathPoints[mPreviousPathPointIndex + 1];
+
+//        units::length::meter_t distanceToTarget =
+//            mCurrentState.getCurrentPosition().distance(*currentTarget);
+
+//        if (newTotalDistance >= distanceToTarget) {
+//            // Move to the current target point
+//            mCurrentState.moveByDistance(distanceToTarget, timeStep);
+
+//            // Update to next point in path
+//            mPreviousPathPointIndex++;
+
+//            // Deduct the distance to current target from remaining distance
+//            newTotalDistance -= distanceToTarget;
+
+//            // Update orientation before moving, if there is another target
+//            if (mPreviousPathPointIndex < mPathPoints.size() - 2)
+//            {
+//                std::shared_ptr<Point> newTarget =
+//                    mPathPoints[mPreviousPathPointIndex + 1];
+//                // assuming the ship does not reduce speed while turning
+//                auto r = calcTurningRaduis();
+//                auto maxROT = calcMaxROT(r);
+//                mCurrentState.setTargetAndMaxROT(*newTarget, maxROT);
+//            }
+//        }
+//        else
+//        {
+//            // If remaining distance is less than the distance to the target,
+//            // move only by the remaining distance
+//            mCurrentState.moveByDistance(newTotalDistance, timeStep);
+//            newTotalDistance = units::length::meter_t(0.0);
+//        }
+//    }
+
+//    // If mPreviousPathPointIndex is size() - 2,
+//    // then simply move to the last point
+//    if (mPreviousPathPointIndex == mPathPoints.size() - 2)
+//    {
+//        std::shared_ptr<Point> lastPoint = mPathPoints.last();
+//        units::length::meter_t distanceToLast =
+//            mCurrentState.getCurrentPosition().distance(*lastPoint);
+
+//        if (newTotalDistance >= distanceToLast)
+//        {
+//            mCurrentState.moveByDistance(distanceToLast, timeStep);
+//        }
+//        else
+//        {
+//            // In this scenario, we shouldn't be here but just to be safe.
+//            mCurrentState.moveByDistance(newTotalDistance, timeStep);
+//        }
+//    }
+
+//    if (!isShipOnCorrectPath())
+//    {
+//        emit pathDeviation("Ship is deviating from Path");
+//    }
+//}
+
+//units::velocity::meters_per_second_t
+//Ship::calc_shallowWaterSpeedReduction(
+//    units::velocity::meters_per_second_t speed,
+//    units::length::meter_t waterDepth)
+//{
+//    return units::velocity::meters_per_second_t(
+//        ((0.1242 *
+//              (mMidshipSectionCoef /
+//               std::pow(waterDepth.value(),2.0) ) -
+//          0.05) +
+//         1.0 -
+//         std::sqrt(
+//             std::tanh(mCurrentLink->depth().value() *
+//                       hydrology::G.value() /
+//                       std::pow(speed.value(),2.0)))) * speed.value());
+//}
+
+units::angle::degree_t Ship::calcMaxROT(units::length::meter_t turnRaduis)
+{
+    return units::angle::degree_t(mSpeed.value()/turnRaduis.value()/60.0);
+}
+units::length::meter_t Ship::calcTurningRadius()
+{
+    return getLengthInWaterline() /
+           units::math::tan(
+               mRudderAngle.convert<units::angle::radian>()).value();
+}
 
