@@ -19,12 +19,13 @@
 #ifndef TANK_H
 #define TANK_H
 
+#include "shipfuel.h"
+#include "IEnergySource.h"
 #include "../../third_party/units/units.h"
 
-class Tank {
+class Tank : IEnergySource
+{
 private:
-    /** Fuel cell variables if other fuel types and
-     *  battery tender max capacity */
 
     // Maximum capacity of the tank in liters
     units::volume::liter_t tankMaxCapacity;
@@ -39,6 +40,9 @@ private:
     // Total consumed amount of fuel in liters
     units::volume::liter_t tankCumConsumedFuel =
         units::volume::liter_t(0.0);
+    ShipFuel::FuelType fuelType;
+    // Weight of the fuel inside the tank
+    units::mass::kilogram_t fuelWeight;
 
 public:
     /**
@@ -52,7 +56,8 @@ public:
      *                      The allowable depth of discharge, the tank
      *                      can drain to.
      */
-    void SetTankCharacteristics(units::volume::liter_t maxCapacity,
+    void SetTankCharacteristics(ShipFuel::FuelType fuelType,
+                                units::volume::liter_t maxCapacity,
                                 double initialCapacityPercentage,
                                 double depthOfDischarge);
 
@@ -99,7 +104,16 @@ public:
      *                          from the tank in liters.
      * @returns The actual amount of fuel consumed from the tank in liters.
      */
-    units::volume::liter_t consumeTank(units::volume::liter_t consumedAmount);
+    EnergyConsumptionData consume(
+        units::time::second_t timeStep,
+        units::energy::kilowatt_hour_t consumedkWh) override;
+
+    /**
+     * @brief refuel the tank
+     * @param refuelAmount  The amount of fuel to refuel the tank with.
+     * @return true if refueled.
+     */
+    bool refuel(units::volume::liter_t refuelAmount);
 
     /**
      * Gets the state of capacity of the tank
@@ -145,6 +159,10 @@ public:
      * @returns The cumulative consumed fuel from the tank in liters.
      */
     units::volume::liter_t getTankCumConsumedFuel() const;
+
+    ShipFuel::FuelType getFuelType();
+    // IEnergySource interface
+    units::energy::kilowatt_hour_t getTotalEnergyConsumed() override;
 };
 
 #endif // TANK_H

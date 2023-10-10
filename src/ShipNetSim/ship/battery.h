@@ -21,8 +21,10 @@
 
 #include <iostream>
 #include "../../third_party/units/units.h"
+#include "ienergysource.h"
 
-class Battery {
+class Battery : IEnergySource
+{
 private:
     // Battery max capacity
     units::energy::kilowatt_hour_t batteryMaxCapacity;
@@ -113,9 +115,9 @@ public:
      *         the consumption was successful
      *         and the actual amount of charge consumed.
      */
-    std::pair<bool, units::energy::kilowatt_hour_t> consumeBattery(
+    EnergyConsumptionData consume(
         units::time::second_t timeStep,
-        units::energy::kilowatt_hour_t consumedCharge);
+        units::energy::kilowatt_hour_t consumedCharge) override;
 
     /**
      * @brief Recharges the battery for hybrid vehicles.

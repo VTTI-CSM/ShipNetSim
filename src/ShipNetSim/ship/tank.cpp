@@ -19,6 +19,7 @@ units::volume::liter_t Tank::getTankInitialCapacity() const
 void Tank::setTankInitialCapacity(double newInitialCapacityPercentage)
 {
     tankInitialCapacity = tankMaxCapacity * newInitialCapacityPercentage;
+    fuelWeight = ShipFuel::getWeight(tankInitialCapacity, fuelType);
 }
 
 units::volume::liter_t Tank::getTankCurrentCapacity() const
@@ -26,17 +27,32 @@ units::volume::liter_t Tank::getTankCurrentCapacity() const
     return tankCurrentCapacity;
 }
 
-units::volume::liter_t Tank::consumeTank(
-    units::volume::liter_t consumedAmount)
+EnergyConsumptionData Tank::consume(
+    units::time::second_t timeStep,
+    units::energy::kilowatt_hour_t consumedkWh)
 {
-    if (! isTankDrainable(consumedAmount))
+    EnergyConsumptionData result;
+
+    (void) timeStep;
+    auto consumedAmount =
+        ShipFuel::convertKwhToLiters(consumedkWh, fuelType);
+    if (! isTankDrainable(consumedAmount) &&
+        consumedAmount > tankCurrentCapacity)
     {
-        return consumedAmount;
+        result.isEnergySupplied = false;
+        result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
+        result.energyNotConsumed = consumedkWh;
+        return result;
     }
     tankCumConsumedFuel += consumedAmount;
     tankCurrentCapacity -= consumedAmount;
+    fuelWeight = ShipFuel::getWeight(tankCurrentCapacity, fuelType);
     tankStateOfCapacity = tankCurrentCapacity / tankMaxCapacity;
-    return units::volume::liter_t(0.0);
+
+    result.isEnergySupplied = true;
+    result.energyConsumed = consumedkWh;
+    result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    return result;
 }
 
 double Tank::getTankStateOfCapacity() const
@@ -70,14 +86,26 @@ units::volume::liter_t Tank::getTankCumConsumedFuel() const
     return tankCumConsumedFuel;
 }
 
+units::energy::kilowatt_hour_t Tank::getTotalEnergyConsumed()
+{
+    return ShipFuel::convertLitersToKwh(tankCumConsumedFuel, fuelType);
+}
+
+ShipFuel::FuelType Tank::getFuelType()
+{
+    return fuelType;
+}
+
 bool Tank::tankHasFuel(){
     return tankStateOfCapacity > (1.0- tankDOD);
 }
 
-void Tank::SetTankCharacteristics(units::volume::liter_t maxCapacity,
+void Tank::SetTankCharacteristics(ShipFuel::FuelType storedFuelType,
+                                  units::volume::liter_t maxCapacity,
                                   double initialCapacityPercentage,
                                   double depthOfDischarge)
 {
+    this->fuelType = storedFuelType;
     this->setTankMaxCapacity(maxCapacity);
     this->setTankInitialCapacity(initialCapacityPercentage);
     tankCurrentCapacity = tankInitialCapacity;

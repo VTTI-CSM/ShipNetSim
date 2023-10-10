@@ -28,14 +28,18 @@ units::energy::kilowatt_hour_t Battery::getBatteryCurrentCharge() const
     return this->batteryCurrentCharge;
 }
 
-std::pair<bool, units::energy::kilowatt_hour_t> Battery::consumeBattery(
+EnergyConsumptionData Battery::consume(
     units::time::second_t timeStep,
     units::energy::kilowatt_hour_t consumedCharge)
 {
+    EnergyConsumptionData result;
     // check if the battery is drainable,
     if (! isBatteryDrainable(consumedCharge))
     {
-        return std::make_pair(false, consumedCharge);
+        result.isEnergySupplied = false;
+        result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
+        result.energyNotConsumed = consumedCharge;
+        return result;
     }
     units::energy::kilowatt_hour_t batteryMax_kwh =
         getBatteryMaxDischarge(timeStep);
@@ -47,13 +51,19 @@ std::pair<bool, units::energy::kilowatt_hour_t> Battery::consumeBattery(
         this->batteryCumNetEnergyConsumed += batteryMax_kwh;
         batteryCurrentCharge -= batteryMax_kwh;
         batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
-        return std::make_pair(true, EC_extra_kwh);
+        result.isEnergySupplied = true;
+        result.energyConsumed = batteryMax_kwh;
+        result.energyNotConsumed = EC_extra_kwh;
+        return result;
     }
     this->batteryCumEnergyConsumed += consumedCharge;
     this->batteryCumNetEnergyConsumed += consumedCharge;
     batteryCurrentCharge -= consumedCharge;
     batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
-    return std::make_pair(true, units::energy::kilowatt_hour_t(0.0));
+    result.isEnergySupplied = true;
+    result.energyConsumed = consumedCharge;
+    result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    return result;
 }
 
 units::energy::kilowatt_hour_t Battery::rechargeBatteryForHybrids(
