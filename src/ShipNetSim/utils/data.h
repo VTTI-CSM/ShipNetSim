@@ -1,6 +1,15 @@
 #ifndef DATA_H
 #define DATA_H
 
+#include <QMap>
+#include <QVariant>
+#include <QString>
+#include <QVector>
+#include <QList>
+#include <QPair>
+#include <functional>
+
+
 #include <fstream>
 #include <vector>
 #include <map>
@@ -11,7 +20,7 @@
 #include <QFile>
 #include <QTextStream>
 
-using Cell = std::variant<int, double, std::string>;
+using Cell = QVariant;
 
 namespace Data
 {
@@ -19,14 +28,14 @@ namespace Data
 class Table
 {
 public:
-    std::vector<std::string> headers;
+    QVector<QString> headers;
     // this is effecient since i will need to loop over the whole ds anyways
     // and we do not know the size of the table
-    std::map<std::string, std::vector<Cell>> tableMap;
+    QMap<QString, QVector<Cell>> tableMap;
 
     // Templated function to access a column by its header name
     template <typename T>
-    std::vector<T> getColumn(const std::string& headerName) const;
+    QVector<T> getColumn(const QString& headerName) const;
 
     /**
      * @brief CsvReader::filterTable
@@ -43,15 +52,13 @@ public:
      *      return false;
      *  });
      */
-    inline Table filterTable(const std::string& columnName,
+    inline Table filterTable(const QString& columnName,
                              std::function<bool(const Cell&)> filterFunction);
 
-    // Nested iterator class
     class iterator
     {
     public:
-        using inner_iterator = std::map<std::string,
-                                        std::vector<Cell>>::iterator;
+        using inner_iterator = QMap<QString, QVector<Cell>>::iterator;
 
         iterator(inner_iterator it) : it_(it) {}
 
@@ -60,7 +67,7 @@ public:
             return *this;
         }
 
-        std::pair<const std::string, std::vector<Cell>>& operator*()
+        QList<Cell>& operator*()
         {
             return *it_;
         }
@@ -79,12 +86,10 @@ public:
         inner_iterator it_;
     };
 
-    // Nested const_iterator class
-    class const_iterator {
+    class const_iterator
+    {
     public:
-        using inner_const_iterator =
-            std::map<std::string,
-                     std::vector<Cell>>::const_iterator;
+        using inner_const_iterator = QMap<QString, QVector<Cell>>::const_iterator;
 
         const_iterator(inner_const_iterator it) : it_(it) {}
 
@@ -94,8 +99,7 @@ public:
             return *this;
         }
 
-        const std::pair<const std::string,
-                        std::vector<Cell>>& operator*() const
+        const QList<Cell>& operator*() const
         {
             return *it_;
         }
@@ -142,7 +146,6 @@ public:
     {
         return const_iterator(tableMap.cend());
     }
-
 };
 
 class CSV {
@@ -156,10 +159,10 @@ public:
     CSV(const QString &filePath);
     ~CSV(); // Destructor
     void initCSV(const QString &filePath);
-    Table read(const std::vector<std::string>& typeSequence,
+    Table read(const QVector<QString>& typeSequence,
                const bool hasHeaders = false,
-               const std::string& separator = ",");
-    bool writeLine(const std::string &line);
+               const QString& separator = ",");
+    bool writeLine(const QString &line);
 };
 
 class TXT
@@ -174,9 +177,9 @@ public:
     TXT(const QString &filePath);
     ~TXT(); // Destructor to close the file
     void initTXT(const QString &filePath);
-    inline Table read(const std::vector<std::string>& typeSequence,
-                      const std::string& separator = ",");
-    inline bool writeFile(std::string &data);
+    Table read(const QVector<QString>& typeSequence,
+                      const QString& separator = ",");
+    bool writeFile(QString &data);
 };
 
 }

@@ -4,22 +4,22 @@
 #include <boost/algorithm/string.hpp>
 
 template <typename T>
-std::vector<T> Data::Table::getColumn(const std::string& headerName) const
+QVector<T> Data::Table::getColumn(const QString& headerName) const
 {
     auto it = tableMap.find(headerName);
     if (it != tableMap.end()) {
-        std::vector<T> column;
-        for (const auto& cell : it->second) {
+        QVector<T> column;
+        for (const auto& cell : it.value()) {
             if (std::holds_alternative<T>(cell)) {
                 column.push_back(std::get<T>(cell));
             } else {
                 throw std::runtime_error("Type mismatch in column: " +
-                                         headerName);
+                                         headerName.toStdString());
             }
         }
         return column;
     }
-    throw std::runtime_error("Header not found: " + headerName);
+    throw std::runtime_error("Header not found: " + headerName.toStdString());
 }
 
 Data::CSV::CSV() : mFilePath("") {}
@@ -38,7 +38,7 @@ void Data::CSV::initCSV(const QString &filePath) {
     mFile.setFileName(mFilePath);
 }
 
-bool Data::CSV::writeLine(const std::string &line) {
+bool Data::CSV::writeLine(const QString &line) {
     if(!mFile.isOpen()) {
         if (!mFile.open(QIODevice::WriteOnly |
                         QIODevice::Text |
@@ -48,13 +48,19 @@ bool Data::CSV::writeLine(const std::string &line) {
         mOutStream.setDevice(&mFile);
     }
 
-    mOutStream << QString::fromStdString(line) << "\n";
+    mOutStream << line << Qt::endl;  // Use Qt::endl to flush the stream
+    mOutStream.flush();  // Explicitly flush the stream
+
+    if (mOutStream.status() != QTextStream::Ok) {
+        return false;
+    }
+
     return true;
 }
 
-Data::Table Data::CSV::read(const std::vector<std::string>& typeSequence,
+Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
                             const bool hasHeaders,
-                            const std::string& separator)
+                            const QString& separator)
 {
     Table table;
 
@@ -68,33 +74,28 @@ Data::Table Data::CSV::read(const std::vector<std::string>& typeSequence,
 
     if (hasHeaders) {
         QString headerLine = in.readLine();
-        std::string headerStr = headerLine.toStdString();
 
-        boost::split(table.headers,
-                     headerStr,
-                     boost::is_any_of(separator));
+        headerLine.split(separator).toVector();
 
         for (const auto& header : table.headers) {
-            table.tableMap[header] = std::vector<Cell>();
+            table.tableMap[header] = QVector<Cell>();
         }
     }
     else
     {
-        for (std::size_t i = 0; i < typeSequence.size(); ++i) {
-            std::string header = "Column" + std::to_string(i);
+        for (std::size_t i = 0; i < typeSequence.size(); ++i)
+        {
+            QString header = "Column" + QString::number(i);
             table.headers.push_back(header);
-            table.tableMap[header] = std::vector<Cell>();
+            table.tableMap[header] = QVector<Cell>();
         }
     }
 
     while (!in.atEnd()) {
         QString line = in.readLine();
-        std::string lineStr = line.toStdString();
 
-        std::vector<std::string> rowStr;
-        boost::split(rowStr,
-                     lineStr,
-                     boost::is_any_of(separator));
+        QVector<QString> rowStr;
+        rowStr = line.split(separator).toVector();
 
         if (rowStr.size() != typeSequence.size()) {
             throw std::runtime_error(
@@ -103,24 +104,36 @@ Data::Table Data::CSV::read(const std::vector<std::string>& typeSequence,
         }
 
         for (std::size_t i = 0; i < table.headers.size(); ++i) {
+            bool conversionSuccessful = false;
+
             if (typeSequence[i] == "int") {
-                table.tableMap[table.headers[i]].
-                    push_back(std::stoi(rowStr[i]));
+                int value = rowStr[i].toInt(&conversionSuccessful);
+                if (conversionSuccessful) {
+                    table.tableMap[table.headers[i]].push_back(value);
+                } else {
+                    throw std::runtime_error("Failed to convert to int: " +
+                                             rowStr[i].toStdString());
+                }
             }
             else if (typeSequence[i] == "double") {
-                table.tableMap[table.headers[i]].
-                    push_back(std::stod(rowStr[i]));
+                double value = rowStr[i].toDouble(&conversionSuccessful);
+                if (conversionSuccessful) {
+                    table.tableMap[table.headers[i]].push_back(value);
+                } else {
+                    throw std::runtime_error("Failed to convert to double: " +
+                                             rowStr[i].toStdString());
+                }
             }
             else if (typeSequence[i] == "string") {
-                table.tableMap[table.headers[i]].
-                    push_back(rowStr[i]);
+                table.tableMap[table.headers[i]].push_back(rowStr[i]);
             }
             else {
                 throw std::runtime_error(
                     "Unknown data type in type sequence: " +
-                    typeSequence[i]);
+                    typeSequence[i].toStdString());
             }
         }
+
     }
 
     // Close the file after reading
@@ -131,7 +144,7 @@ Data::Table Data::CSV::read(const std::vector<std::string>& typeSequence,
 
 
 Data::Table Data::Table::filterTable(
-    const std::string& columnName,
+    const QString& columnName,
     std::function<bool(const Cell&)> filterFunction)
 {
     Table filteredTable;
@@ -141,29 +154,29 @@ Data::Table Data::Table::filterTable(
 
     // Initialize the columns in filteredTable
     for (const auto& header : filteredTable.headers) {
-        filteredTable.tableMap[header] = std::vector<Cell>();
+        filteredTable.tableMap[header] = QVector<Cell>();
     }
 
     // Check if column exists in the original table
     if (tableMap.find(columnName) == tableMap.end())
     {
         throw std::runtime_error("Column not found: "
-                                 + columnName);
+                                 + columnName.toStdString());
     }
 
     // Loop through rows to apply the filter
-    std::size_t numRows = tableMap.begin()->second.size();
+    std::size_t numRows = tableMap[columnName].size();
 
     for (std::size_t i = 0; i < numRows; ++i)
     {
         // Apply filter function
-        if (filterFunction(tableMap.at(columnName)[i]))
+        if (filterFunction(tableMap[columnName][i]))
         {
             // Copy this row to filteredTable
             for (const auto& header : filteredTable.headers)
             {
                 filteredTable.tableMap[header].
-                    push_back(tableMap.at(header)[i]);
+                    push_back(tableMap[header][i]);
             }
         }
     }
@@ -187,8 +200,8 @@ void Data::TXT::initTXT(const QString &filePath) {
     mFile.setFileName(mFilePath);
 }
 
-Data::Table Data::TXT::read(const std::vector<std::string>& typeSequence,
-                            const std::string& separator)
+Data::Table Data::TXT::read(const QVector<QString>& typeSequence,
+                            const QString& separator)
 {
     Table table;
 
@@ -201,20 +214,17 @@ Data::Table Data::TXT::read(const std::vector<std::string>& typeSequence,
     QTextStream in(&mFile);
 
     for (std::size_t i = 0; i < typeSequence.size(); ++i) {
-        std::string header = "Column" + std::to_string(i);
+        QString header = "Column" + QString::number(i);
         table.headers.push_back(header);
-        table.tableMap[header] = std::vector<Cell>();
+        table.tableMap[header] = QVector<Cell>();
     }
 
 
     while (!in.atEnd()) {
         QString line = in.readLine();
-        std::string lineStr = line.toStdString();
 
-        std::vector<std::string> rowStr;
-        boost::split(rowStr,
-                     lineStr,
-                     boost::is_any_of(separator));
+        QVector<QString> rowStr;
+        rowStr = line.split(separator).toVector();
 
         if (rowStr.size() != typeSequence.size()) {
             throw std::runtime_error(
@@ -223,22 +233,33 @@ Data::Table Data::TXT::read(const std::vector<std::string>& typeSequence,
         }
 
         for (std::size_t i = 0; i < table.headers.size(); ++i) {
+            bool conversionSuccessful = false;
+
             if (typeSequence[i] == "int") {
-                table.tableMap[table.headers[i]].
-                    push_back(std::stoi(rowStr[i]));
+                int value = rowStr[i].toInt(&conversionSuccessful);
+                if (conversionSuccessful) {
+                    table.tableMap[table.headers[i]].push_back(value);
+                } else {
+                    throw std::runtime_error("Failed to convert to int: " +
+                                             rowStr[i].toStdString());
+                }
             }
             else if (typeSequence[i] == "double") {
-                table.tableMap[table.headers[i]].
-                    push_back(std::stod(rowStr[i]));
+                double value = rowStr[i].toDouble(&conversionSuccessful);
+                if (conversionSuccessful) {
+                    table.tableMap[table.headers[i]].push_back(value);
+                } else {
+                    throw std::runtime_error("Failed to convert to double: " +
+                                             rowStr[i].toStdString());
+                }
             }
             else if (typeSequence[i] == "string") {
-                table.tableMap[table.headers[i]].
-                    push_back(rowStr[i]);
+                table.tableMap[table.headers[i]].push_back(rowStr[i]);
             }
             else {
                 throw std::runtime_error(
                     "Unknown data type in type sequence: " +
-                    typeSequence[i]);
+                    typeSequence[i].toStdString());
             }
         }
     }
@@ -249,7 +270,7 @@ Data::Table Data::TXT::read(const std::vector<std::string>& typeSequence,
     return table;
 }
 
-bool Data::TXT::writeFile(std::string &data)
+bool Data::TXT::writeFile(QString &data)
 {
     if(!mFile.isOpen()) {
         if (!mFile.open(QIODevice::WriteOnly |
@@ -260,8 +281,13 @@ bool Data::TXT::writeFile(std::string &data)
         mOutStream.setDevice(&mFile);
     }
 
-    mOutStream << QString::fromStdString(data) << "\n";
-    mFile.close();
+    mOutStream << data << Qt::endl;  // Use Qt::endl to flush the stream
+    mOutStream.flush();  // Explicitly flush the stream
+
+    if (mOutStream.status() != QTextStream::Ok) {
+        return false;
+    }
 
     return true;
+
 }
