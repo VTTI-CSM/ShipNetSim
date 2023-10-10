@@ -3,19 +3,20 @@
 #include <sstream>
 #include <cmath>
 #include <limits>
+#include <QVector>
 
 Polygon::Polygon() {}
 
-Polygon::Polygon(const std::vector<std::shared_ptr<Point>>& boundary,
-                 const std::vector<std::vector<std::shared_ptr<Point>>>& holes)
+Polygon::Polygon(const QVector<std::shared_ptr<Point>>& boundary,
+                 const QVector<QVector<std::shared_ptr<Point>>>& holes)
     : outer_boundary(boundary), inner_holes(holes) {}
 
-std::vector<std::shared_ptr<Point>> Polygon::outer() const
+QVector<std::shared_ptr<Point>> Polygon::outer() const
 {
     return outer_boundary;
 }
 
-std::vector<std::vector<std::shared_ptr<Point>>> Polygon::inners() const
+QVector<QVector<std::shared_ptr<Point>>> Polygon::inners() const
 {
     return inner_holes;
 }
@@ -178,7 +179,7 @@ units::length::meter_t Polygon::perimeter() const {
     return p;
 }
 
-bool Polygon::intersects(std::shared_ptr<Line> line)
+bool Polygon::intersects(const std::shared_ptr<Line> line)
 {
     // Check the outer boundary
     for (size_t i = 0; i < outer_boundary.size(); ++i)
@@ -211,12 +212,12 @@ bool Polygon::intersects(std::shared_ptr<Line> line)
     return false;
 }
 
-std::vector<std::shared_ptr<Point>> Polygon::offsetBoundary(
-    const std::vector<std::shared_ptr<Point>>& boundary,
+QVector<std::shared_ptr<Point>> Polygon::offsetBoundary(
+    const QVector<std::shared_ptr<Point>>& boundary,
     bool inward,
     units::length::meter_t offset
     ) const {
-    std::vector<std::shared_ptr<Point>> new_boundary;
+    QVector<std::shared_ptr<Point>> new_boundary;
     for (size_t i = 0; i < boundary.size(); ++i) {
         auto& p1 = boundary[i];
         auto& p2 = boundary[(i + 1) % boundary.size()];
@@ -265,70 +266,75 @@ std::vector<std::shared_ptr<Point>> Polygon::offsetBoundary(
 
 units::length::meter_t Polygon::getMaxClearWidth(const Line& line) const
 {
-    // Check if the line intersects with any inner hole edge
-    for (const std::vector<std::shared_ptr<Point>>& hole : inner_holes) {
-        for (size_t i = 0; i < hole.size(); ++i)
-        {
-            size_t nextIndex = (i + 1) % hole.size();
-            Line holeEdge(hole[i], hole[nextIndex]);
-
-            if (line.intersects(holeEdge)) {
-                // Line intersects with an inner hole edge,
-                // return an error value
-                throw std::invalid_argument("Line is intersecting "
-                                            "polygon holes!");
-            }
-        }
-    }
-
-    // Initialize to a large value
     units::length::meter_t leftClearWidth =
         std::numeric_limits<units::length::meter_t>::max();
     units::length::meter_t rightClearWidth =
         std::numeric_limits<units::length::meter_t>::max();
 
-    // Helper function to iterate over boundary and update clear width
-    auto updateClearWidth =
-        [&](const std::vector<std::shared_ptr<Point>>& boundary,
-            bool isLeft) -> void
+    auto calculateClearWidths =
+        [&leftClearWidth, &rightClearWidth, &line]
+        (const QVector<std::shared_ptr<Point>>& vertices)
     {
-        for (const std::shared_ptr<Point>& point : boundary)
-        {
-            units::length::meter_t distance =
-                line.getPerpendicularDistance(point);
+        for (size_t i = 0; i < vertices.size(); ++i)
+            {
+            std::shared_ptr<Point> vertexA =
+                vertices[i];
+            std::shared_ptr<Point> vertexB =
+                vertices[(i + 1) % vertices.size()];
 
-            if (isLeft && distance < leftClearWidth)
+            Line edge(vertexA, vertexB);
+
+            units::length::meter_t dist1 =
+                edge.getPerpendicularDistance(*(line.startPoint()));
+            units::length::meter_t dist2 =
+                edge.getPerpendicularDistance(*(line.endPoint()));
+
+            Line::LocationToLine isLeft1 = line.getlocationToLine(vertexA);
+            Line::LocationToLine isLeft2 = line.getlocationToLine(vertexB);
+
+            if (isLeft1 == Line::LocationToLine::left)
             {
-                leftClearWidth = distance;
+                leftClearWidth = std::min(leftClearWidth, dist1);
             }
-            else if (!isLeft && distance < rightClearWidth)
+            else if (isLeft1 == Line::LocationToLine::right)
             {
-                rightClearWidth = distance;
+                rightClearWidth = std::min(rightClearWidth, dist1);
             }
+
+            if (isLeft2 == Line::LocationToLine::left)
+            {
+                leftClearWidth = std::min(leftClearWidth, dist2);
+            }
+            else if (isLeft2 == Line::LocationToLine::right)
+            {
+                rightClearWidth = std::min(rightClearWidth, dist2);
+            }
+
         }
     };
 
-    // Calculate for the outer boundary
-    updateClearWidth(outer_boundary, true);
-    updateClearWidth(outer_boundary, false);
+    // Invoke the lambda function
+    calculateClearWidths(outer_boundary);
 
-    // Calculate for inner holes
-    for (const auto& hole : inner_holes)
+    for (auto& hole: inner_holes)
     {
-        updateClearWidth(hole, true);
-        updateClearWidth(hole, false);
+        calculateClearWidths(hole);
     }
 
-    return leftClearWidth + rightClearWidth;
+    return rightClearWidth + leftClearWidth;
 }
 
 
 
-std::string Polygon::toString()
+QString Polygon::toString()
 {
-    std::stringstream ss;
-    ss << "Polygon Perimeter: " << perimeter() << " Area: " << area() <<
-        " # of points: " << outer_boundary.size() <<
-        " # of holes: " << inner_holes.size();
-    return ss.str();
+    QString str =
+        QString("Polygon Perimeter: %1 || Area: %2 || "
+                "# of Points: %3 || # of holes")
+            .arg(perimeter().value())
+            .arg(area().value())
+            .arg(outer_boundary.size())
+            .arg(inner_holes.size());
+
+    return str;
 }
