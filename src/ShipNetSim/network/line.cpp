@@ -26,6 +26,11 @@ Line::~Line()
 
 }
 
+units::velocity::meters_per_second_t Line::getMaxSpeed() const
+{
+    return mMaxSpeed;
+}
+
 units::length::meter_t Line::length() const
 {
     return mLength;
@@ -103,18 +108,18 @@ bool Line::intersects(Line &other) const
 
 units::angle::radian_t Line::angleWith(Line& other) const
 {
-    Point commonPoint;
+    std::shared_ptr<Point> commonPoint;
 
     // Identify the common point
     if (*(this->startPoint()) == *(other.startPoint()) ||
         this->startPoint() == other.endPoint())
     {
-        commonPoint = *(this->startPoint());
+        commonPoint = this->startPoint();
     }
     else if (this->endPoint() == other.startPoint() ||
                this->endPoint() == other.endPoint())
     {
-        commonPoint = *(this->endPoint());
+        commonPoint = this->endPoint();
     }
     else
     {
@@ -122,30 +127,30 @@ units::angle::radian_t Line::angleWith(Line& other) const
             "The lines do not share a common point.");
     }
 
-    Point a, c;
+    std::shared_ptr<Point> a, c;
 
-    if (*(this->startPoint()) == commonPoint)
+    if (*(this->startPoint()) == *commonPoint)
     {
-        a = *(this->endPoint());
+        a = this->endPoint();
     }
     else
     {
-        a = *(this->startPoint());
+        a = this->startPoint();
     }
 
-    if (*(other.startPoint()) == commonPoint)
+    if (*(other.startPoint()) == *commonPoint)
     {
-        c = *(other.endPoint());
+        c = other.endPoint();
     }
     else
     {
-        c = *(other.startPoint());
+        c = other.startPoint();
     }
 
-    long double ax = a.x().value() - commonPoint.x().value();
-    long double ay = a.y().value() - commonPoint.y().value();
-    long double cx = c.x().value() - commonPoint.x().value();
-    long double cy = c.y().value() - commonPoint.y().value();
+    long double ax = a->x().value() - commonPoint->x().value();
+    long double ay = a->y().value() - commonPoint->y().value();
+    long double cx = c->x().value() - commonPoint->x().value();
+    long double cy = c->y().value() - commonPoint->y().value();
 
     long double dotProduct = ax * cx + ay * cy;
     long double magA = std::sqrt(ax * ax + ay * ay);
@@ -166,39 +171,44 @@ units::angle::radian_t Line::angleWith(Line& other) const
 Point Line::getPointByDistance(units::length::meter_t distance,
                                LineEnd from) const
 {
-    if (distance.value() < 0 || distance > mLength) {
+    if (distance.value() < 0 || distance > mLength)
+    {
         throw std::out_of_range("Distance is outside of the line segment.");
     }
 
-    Point origin;
-    Point destination;
+    std::shared_ptr<Point> origin;
+    std::shared_ptr<Point> destination;
 
-    if (from == LineEnd::Start) {
-        origin = *(startPoint());
-        destination = *(endPoint());
-    } else {  // LineEnd::End
-        origin = *(endPoint());
-        destination = *(startPoint());
+    if (from == LineEnd::Start)
+    {
+        origin = startPoint();
+        destination = endPoint();
+    }
+    else
+    {  // LineEnd::End
+        origin = endPoint();
+        destination = startPoint();
     }
 
     // Calculate the direction vector (dx, dy)
-    units::length::meter_t dx = destination.x() - origin.x();
-    units::length::meter_t dy = destination.y() - origin.y();
+    units::length::meter_t dx = destination->x() - origin->x();
+    units::length::meter_t dy = destination->y() - origin->y();
 
     // Normalize the vector
-    units::length::meter_t len = origin.distance(destination);
+    units::length::meter_t len = origin->distance(*destination);
 
     // Handle the case when the line length is zero
-    if (len.value() == 0) {
-        return origin;  // Both start and end points are the same
+    if (len.value() == 0)
+    {
+        return *origin;  // Both start and end points are the same
     }
 
     long double unit_dx = (dx / len).value();
     long double unit_dy = (dy / len).value();
 
     // Scale the unit vector and add it to the origin point
-    units::length::meter_t new_x = origin.x() + unit_dx * distance;
-    units::length::meter_t new_y = origin.y() + unit_dy * distance;
+    units::length::meter_t new_x = origin->x() + unit_dx * distance;
+    units::length::meter_t new_y = origin->y() + unit_dy * distance;
 
     Point result(new_x, new_y);
 
@@ -226,17 +236,70 @@ Point Line::getPointByDistance(units::length::meter_t distance,
 }
 
 units::length::meter_t
-Line::getPerpendicularDistance(const std::shared_ptr<Point>& point) const
+Line::getPerpendicularDistance(const Point& point) const
 {
-    units::length::meter_t dirX = endPoint()->x() - startPoint()->x();
-    units::length::meter_t dirY = endPoint()->y() - startPoint()->y();
-    units::length::meter_t magnitude =
-        units::math::sqrt(dirX * dirX + dirY * dirY);
+    auto A = (end->y() - start->y()).value();
+    auto B = (start->x() - end->x()).value();
+    auto C = (end->x() * start->y() -
+              start->x() * end->y()).value();
 
-    units::length::meter_t relativeX = point->x() - startPoint()->x();
-    units::length::meter_t relativeY = point->y() - startPoint()->y();
+    auto denominator = std::sqrt(A * A + B * B);
+    return units::length::meter_t(
+        std::abs(A * point.x().value() +
+                 B * point.y().value() + C) / denominator);
+}
 
-    return units::math::abs(relativeX * dirY - relativeY * dirX) / magnitude;
+units::length::meter_t Line::getTheoriticalWidth() const
+{
+    return mWidth;
+}
+
+// This is a simple example, and you might need a more robust version
+Line::LocationToLine Line::getlocationToLine(
+    const std::shared_ptr<Point>& point) const
+{
+    units::length::meter_t relX = point->x() - start->x();
+    units::length::meter_t relY = point->y() - start->y();
+    units::length::meter_t dirX = end->x() - start->x();
+    units::length::meter_t dirY = end->y() - start->y();
+
+    auto result = dirX.value() * relY.value() -
+                  dirY.value() * relX.value();
+    if (result > 0.0)
+    {
+        return LocationToLine::left;
+    }
+    else if (result < 0.0)
+    {
+        return LocationToLine::right;
+    }
+    else
+    {
+        return LocationToLine::onLine;
+    }
+}
+
+void Line::setTheoriticalWidth(const units::length::meter_t newWidth)
+{
+    mWidth = newWidth;
+}
+
+AlgebraicVector Line::toAlgebraicVector(
+    const std::shared_ptr<Point> startPoint) const
+{
+    Point begin, finish;
+    if (*startPoint == *start)
+    {
+        begin = *start;
+        finish = *end;
+    }
+    else
+    {
+        begin = *end;
+        finish = *start;
+    }
+    AlgebraicVector result(begin, finish);
+    return result;
 }
 
 bool Line::operator==(const Line& other) const
@@ -244,11 +307,11 @@ bool Line::operator==(const Line& other) const
     return start == other.start && end == other.end;
 }
 
-std::string Line::toString()
+QString Line::toString()
 {
-    std::stringstream ss;
-    ss << "Start Point: " << start->toString() <<
-        " || End Point: " << end->toString();
+    QString str = QString("Start Point %1 || End Point %2")
+                      .arg(start->toString())
+                      .arg(end->toString());
 
-    return ss.str();
+    return str;
 }
