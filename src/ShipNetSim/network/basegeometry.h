@@ -1,13 +1,16 @@
 #ifndef BASEGEOMETRY_H
 #define BASEGEOMETRY_H
 
-#include <stdlib.h>
+#include <QString>
 #include <string>
 
 class BaseGeometry
 {
+
 public:
-    virtual std::string toString() = 0;
+    virtual ~BaseGeometry() = default; // Virtual destructor
+
+    virtual QString toString() = 0;
 };
 
 #endif // BASEGEOMETRY_H
