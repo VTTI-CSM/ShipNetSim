@@ -171,6 +171,20 @@ public:
             std::nan("Unintialized"))) = 0;
 
     /**
+     * @brief getHullEffeciency
+     * @param ship
+     * @return
+     */
+    virtual double getHullEffeciency(const Ship &ship) = 0;
+
+    /**
+     * @brief getPropellerRotationEfficiency
+     * @param ship
+     * @return
+     */
+    virtual double getPropellerRotationEfficiency(const Ship &ship) = 0;
+
+    /**
      * @brief Retrieves the name of the resistance prediction method.
      *
      * This function returns the name of the resistance prediction
