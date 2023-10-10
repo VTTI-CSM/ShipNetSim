@@ -10,14 +10,19 @@ Point::Point()
 
 Point::Point(units::length::meter_t xCoord,
              units::length::meter_t yCoord,
-             std::string ID, unsigned int index)
-    : mx(xCoord), my(yCoord), userID(ID), index(index)
+             QString ID, unsigned int index)
+    : mx(xCoord), my(yCoord),
+    mIsPort(false),
+    mDwellTime(units::time::second_t(0.0)),
+    userID(ID), index(index)
 {
 }
 
 Point::Point(units::length::meter_t xCoord,
-      units::length::meter_t yCoord)
+             units::length::meter_t yCoord)
     : mx(xCoord), my(yCoord),
+    mIsPort(false),
+    mDwellTime(units::time::second_t(0.0)),
     userID("temporary point"),
     index(std::numeric_limits<unsigned int>::min())
 {
@@ -52,12 +57,38 @@ units::length::meter_t Point::distance(const Point &endPoint) const
                              units::math::pow<2>(dy));
 }
 
-std::string Point::toString()
+QString Point::toString()
 {
-    std::ostringstream oss;
-    oss << "Point " << userID << "(" << mx.value() <<
-        ", " << my.value() << ")";
-    return oss.str();
+    QString str = QString("Point %1(%2, %3)")
+                      .arg(userID)
+                      .arg(mx.value())
+                      .arg(my.value());
+    return str;
+}
+
+bool Point::isPort()
+{
+    return mIsPort;
+}
+
+units::time::second_t Point::getDwellTime()
+{
+    return mDwellTime;
+}
+
+void Point::MarkAsPort(units::time::second_t dwellTime)
+{
+    mIsPort = true;
+    mDwellTime = dwellTime;
+}
+
+void Point::setX(units::length::meter_t newX)
+{
+    mx = newX;
+}
+void Point::setY(units::length::meter_t newY)
+{
+    my = newY;
 }
 
 bool Point::operator==(const Point &other) const

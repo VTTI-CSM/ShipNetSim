@@ -7,27 +7,37 @@
 #include <cmath>
 #include "../../third_party/units/units.h"
 
-class Point : public BaseGeometry {
+class Point : public BaseGeometry
+{
+
 public:
     Point();
     Point(units::length::meter_t xCoord, units::length::meter_t yCoord,
-          std::string ID, unsigned int index);
+          QString ID, unsigned int index);
     Point(units::length::meter_t xCoord, units::length::meter_t yCoord);
+
     ~Point();
-    bool isValid();
-    units::length::meter_t distance(const Point &endPoint) const;
-    std::string toString() override;
-    bool operator==(const Point &other) const;
+    [[nodiscard]] bool isValid();
+    [[nodiscard]] units::length::meter_t distance(const Point &endPoint) const;
+    [[nodiscard]] QString toString() override;
+    [[nodiscard]] bool operator==(const Point &other) const;
 
-    units::length::meter_t x() const;
-    units::length::meter_t y() const;
+    [[nodiscard]] units::length::meter_t x() const;
+    [[nodiscard]] units::length::meter_t y() const;
+    [[nodiscard]] bool isPort();
+    [[nodiscard]] units::time::second_t getDwellTime();
+    void MarkAsPort(units::time::second_t dwellTime);
 
+    void setX(units::length::meter_t newX);
+    void setY(units::length::meter_t newY);
 
 private:
     units::length::meter_t mx;
     units::length::meter_t my;
-    std::string userID;
+    QString userID;
     unsigned int index;
+    bool mIsPort;
+    units::time::second_t mDwellTime;
 };
 
 template <>
