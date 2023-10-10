@@ -1,3 +1,84 @@
 #include "ishippropeller.h"
+#include "ishipgearbox.h"
+#include "ship.h"
 
-IShipPropeller::~IShipPropeller() {}
+IShipPropeller::IShipPropeller()
+{
+    mHost = nullptr;
+    mGearBox = nullptr;
+}
+
+IShipPropeller::~IShipPropeller()
+{
+    if (mHost) delete mHost;
+    if (mGearBox) delete mGearBox;
+}
+
+
+
+
+void IShipPropeller::setHost(Ship *host)
+{
+    mHost = host;
+}
+
+void IShipPropeller::setGearBox(IShipGearBox *gearbox)
+{
+    mGearBox = gearbox;
+}
+
+const Ship *IShipPropeller::getHost() const
+{
+    return mHost;
+}
+
+const IShipGearBox *IShipPropeller::getGearBox() const
+{
+    return mGearBox;
+}
+
+
+units::length::meter_t IShipPropeller::getPropellerDiameter() const
+{
+    return mPropellerDiameter;
+}
+
+void IShipPropeller::setPropellerDiameter(
+    const units::length::meter_t &newPropellerDiameter)
+{
+    mPropellerDiameter = newPropellerDiameter;
+}
+
+units::area::square_meter_t IShipPropeller::getPropellerExpandedBladeArea() const
+{
+    return mExpandedBladeArea;
+}
+
+void IShipPropeller::setPropellerExpandedBladeArea(
+    const units::area::square_meter_t &newExpandedBladeArea)
+{
+    mExpandedBladeArea = newExpandedBladeArea;
+}
+
+units::area::square_meter_t IShipPropeller::getPropellerDiskArea() const
+{
+    return mPropellerDiskArea;
+}
+
+void IShipPropeller::setPropellerDiskArea(
+    const units::area::square_meter_t &newPropellerDiskArea)
+{
+    mPropellerDiskArea = newPropellerDiskArea;
+}
+
+double IShipPropeller::getPropellerExpandedAreaRatio() const
+{
+
+    return mPropellerExpandedAreaRatio;
+}
+
+void IShipPropeller::setPropellerExpandedAreaRation(
+    double newPropellerExpandedAreaRation)
+{
+    mPropellerExpandedAreaRatio = newPropellerExpandedAreaRation;
+}
