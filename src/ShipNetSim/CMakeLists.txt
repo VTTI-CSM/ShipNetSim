@@ -1,7 +1,6 @@
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
-project(ShipNetSim VERSION ${MY_PROJECT_VERSION} LANGUAGES CXX)
-
+project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 # Add the units library target
 add_library(${units_LIB_TARGET_NAME})
 
@@ -29,7 +28,7 @@ endif()
 
 # Define the executable target for the project,
 # listing the required source and header files
-add_executable(ShipNetSim
+add_executable(${SHIPNETSIM_NAME}
   main.cpp
   ship/ship.h ship/ship.cpp
   ship/hydrology.h
@@ -45,18 +44,32 @@ add_executable(ShipNetSim
   ship/shippropeller.h ship/shippropeller.cpp
   utils/utils.h
   utils/data.h utils/data.cpp
+  ship/ienergysource.h
   ship/battery.h ship/battery.cpp
   ship/tank.h ship/tank.cpp
   network/network.h network/network.cpp
   simulator.h simulator.cpp
+  network/algebraicvector.h network/algebraicvector.cpp
+  ship/shipfuel.h ship/shipfuel.cpp
+  ship/ienergyConsumer.h ship/ienergyconsumer.cpp
+  ship/ishipengine.h
+  ship/shipengine.h ship/shipengine.cpp
+  ship/ishipgearbox.h ship/ishipgearbox.cpp
+  ship/shipgearbox.h ship/shipgearbox.cpp
+  ship/ishipengine.cpp
+
+
 
 )
 
+# set configuration file
+configure_file(VersionConfig.h.in VersionConfig.h)
+target_include_directories(${SHIPNETSIM_NAME} PRIVATE ${CMAKE_BINARY_DIR})
 
-target_include_directories(ShipNetSim PRIVATE ${Boost_INCLUDE_DIR})
+target_include_directories(${SHIPNETSIM_NAME} PRIVATE ${Boost_INCLUDE_DIR})
 
 # Link the Boost and Qt libraries to the executable target
-target_link_libraries(ShipNetSim
+target_link_libraries(${SHIPNETSIM_NAME}
     ${Boost_LIBRARIES}
     Qt${QT_VERSION_MAJOR}::Core)
 
@@ -66,7 +79,7 @@ include(GNUInstallDirs)
 
 # Install the compiled target (the executable)
 # to the specified directories
-install(TARGETS ShipNetSim
+install(TARGETS ${SHIPNETSIM_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
