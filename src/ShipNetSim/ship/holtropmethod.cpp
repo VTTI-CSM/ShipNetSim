@@ -541,7 +541,8 @@ double HoltropMethod::calc_c_8(const Ship &ship)
     if ((ship.getBeam() / ship.getDraftAtAft()).value() <= (double)5.0)
     {
         return ((ship.getWettedHullSurface() /
-                 ship.getLengthInWaterline() * ship.getPropellerDiameter()) *
+                 ship.getLengthInWaterline() * ship.getPropellers()->front()->
+                                               getPropellerDiameter()) *
                 (ship.getBeam() / ship.getDraftAtAft())).value();
     }
     else
@@ -550,7 +551,8 @@ double HoltropMethod::calc_c_8(const Ship &ship)
                  ((double)7.0 *
                       (ship.getBeam()/ship.getDraftAtAft()) - (double)25.0))
                 /
-                (ship.getLengthInWaterline() * ship.getPropellerDiameter() *
+                (ship.getLengthInWaterline() * ship.getPropellers()->front()->
+                                               getPropellerDiameter() *
                  ((ship.getBeam()/ship.getDraftAtAft()) - (double)3.0)));
 
     }
@@ -573,15 +575,18 @@ double HoltropMethod::calc_c_9(const Ship &ship)
 double HoltropMethod::calc_c_11(const Ship &ship)
 {
     if ((ship.getDraftAtAft() /
-         ship.getPropellerDiameter()).value() <= (double)2.0)
+         ship.getPropellers()->front()->
+         getPropellerDiameter()).value() <= (double)2.0)
     {
-        return ((ship.getDraftAtAft() / ship.getPropellerDiameter()).value());
+        return ((ship.getDraftAtAft() / ship.getPropellers()->front()->
+                                        getPropellerDiameter()).value());
     }
     else
     {
         return ((double)0.0833333 *
                     pow((ship.getDraftAtAft() /
-                         ship.getPropellerDiameter()).value(), (double)3.0) +
+                         ship.getPropellers()->front()->
+                         getPropellerDiameter()).value(), (double)3.0) +
                 (double)1.33333);
     }
 }
@@ -649,7 +654,7 @@ double HoltropMethod::calc_w_s(
     const Ship &ship,
     units::velocity::meters_per_second_t customSpeed)
 {
-    if (ship.getScrewVesselType() == Ship::ScrewVesselType::Single)
+    if (ship.getPropellers()->size() == 1)
     {
         double CV = calc_C_V(ship, customSpeed);
 
@@ -679,12 +684,13 @@ double HoltropMethod::calc_w_s(
                 );
     }
 
-    else if (ship.getScrewVesselType() == Ship::ScrewVesselType::Twin)
+    else if (ship.getPropellers()->size() == 2)
     {
         return ((double)0.3095 * ship.getBlockCoef() +
                 (double)10.0 * calc_C_V(ship,customSpeed) *
                     ship.getBlockCoef() -
-                (double)0.23 * (ship.getPropellerDiameter().value() /
+                (double)0.23 * (ship.getPropellers()->front()->
+                                 getPropellerDiameter().value() /
                                  sqrt(ship.getBeam().value() *
                                       ship.getMeanDraft().value())));
     }
@@ -698,7 +704,7 @@ double HoltropMethod::calc_w_s(
 
 double HoltropMethod::calc_t(const Ship &ship)
 {
-    if (ship.getScrewVesselType() == Ship::ScrewVesselType::Single)
+    if (ship.getPropellers()->size() == 1)
     {
         return ((((double)0.25014 *
                   pow(((ship.getBeam()) /
@@ -706,7 +712,8 @@ double HoltropMethod::calc_t(const Ship &ship)
                       (double)0.28956) *
                   pow(((sqrt(ship.getBeam().value() *
                              ship.getMeanDraft().value())) /
-                       (ship.getPropellerDiameter().value())),
+                       (ship.getPropellers()->front()->
+                        getPropellerDiameter().value())),
                       (double)0.2624)) /
                  pow(((double)1.0 - ship.getPrismaticCoef() +
                       (double)0.0225 * ship.getLongitudinalBuoyancyCenter()),
@@ -714,11 +721,12 @@ double HoltropMethod::calc_t(const Ship &ship)
                 (double)0.0015 *
                     get_C_SternMap().value(ship.getSternShapeParam()));
     }
-    else if (ship.getScrewVesselType() == Ship::ScrewVesselType::Twin)
+    else if (ship.getPropellers()->size() > 1)
     {
         return ((double)0.325 * ship.getBlockCoef() -
                 (double)0.1885 *
-                    (ship.getPropellerDiameter().value() /
+                    (ship.getPropellers()->front()->
+                     getPropellerDiameter().value() /
                      (ship.getBeam().value() * ship.getMeanDraft().value())));
     }
     return 0.0;
@@ -1144,33 +1152,37 @@ units::velocity::meters_per_second_t HoltropMethod::
 //    return (ship.getThrustPower() / calc_SpeedOfAdvance(ship));
 //}
 
-//double HoltropMethod::calc_rotEff(Ship &ship)
-//{
-//    if (ship.getScrewVesselType() == Ship::ScrewVesselType::Single)
-//    {
-//        return ((double)0.9922 -
-//                (double)0.05908 * (ship.getPropellerExpandedAreaRatio()) +
-//                (double)0.07424 * (
-//                    ship.getPrismaticCoef() -
-//                    (double)0.02225 * ship.getLongitudinalBuoyancyCenter())
-//                );
-//    }
-//    else if (ship.getScrewVesselType() == Ship::ScrewVesselType::Twin)
-//    {
-//        return ((double)0.9737  +
-//                (double)0.111 * (
-//                    ship.getPrismaticCoef() -
-//                    (double)0.02225 * ship.getLongitudinalBuoyancyCenter()) -
-//                (double)0.06325 * (power / ship.getPropellerDiameter()));
-//    }
-//}
+double HoltropMethod::getPropellerRotationEfficiency(const Ship &ship)
+{
+    if (ship.getPropellers()->size() == 1)
+    {
+        return ((double)0.9922 -
+                (double)0.05908 * (ship.getPropellers()->front()->
+                                    getPropellerExpandedAreaRatio()) +
+                (double)0.07424 * (
+                    ship.getPrismaticCoef() -
+                    (double)0.02225 * ship.getLongitudinalBuoyancyCenter())
+                );
+    }
+    else if (ship.getPropellers()->size() == 2)
+    {
+        // get previous power as an Euler first approximation
+        return ((double)0.9737  +
+                (double)0.111 * (
+                    ship.getPrismaticCoef() -
+                    (double)0.02225 * ship.getLongitudinalBuoyancyCenter()) -
+                (double)0.06325 * (ship.getPropellers()->front()->
+                                    getPreviousEffectivePower().value() /
+                                    ship.getPropellers()->front()->
+                                    getPropellerDiameter().value()));
+    }
+    throw std::exception("not implemented!");
+}
 
-//double HoltropMethod::calc_hullEff(const Ship &ship)
-//{
-//    return (((double)1.0 - calc_t(ship))/ ((double)1.0 - calc_w_s(ship)));
-//}
-
-
+double HoltropMethod::getHullEffeciency(const Ship &ship)
+{
+    return (((double)1.0 - calc_t(ship))/ ((double)1.0 - calc_w_s(ship)));
+}
 
 std::string HoltropMethod::getMethodName()
 {
