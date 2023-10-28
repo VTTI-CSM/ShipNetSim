@@ -57,6 +57,7 @@ add_executable(${SHIPNETSIM_NAME}
   ship/ishipgearbox.h ship/ishipgearbox.cpp
   ship/shipgearbox.h ship/shipgearbox.cpp
   ship/ishipengine.cpp
+  ship/readships.h
 
 
 
