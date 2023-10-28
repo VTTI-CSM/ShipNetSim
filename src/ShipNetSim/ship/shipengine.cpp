@@ -13,10 +13,8 @@ ShipEngine::ShipEngine()
     mEnergySource = nullptr;
 }
 
-
-
 void ShipEngine::initialize(Ship *host, IEnergySource *energySource,
-                QMap<QString, std::any> &parameters)
+                const QMap<QString, std::any> &parameters)
 {
     mHost = host;
 
@@ -28,35 +26,34 @@ void ShipEngine::initialize(Ship *host, IEnergySource *energySource,
     counter++; // increment the counter
 }
 
-void ShipEngine::setParameters(QMap<QString, std::any> &parameters)
+void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
 {
-    for (auto pv: parameters.keys())
+    mId =
+        Utils::getValueFromMap<unsigned int>(parameters,
+                                             "EngineID",
+                                             counter);
+    mBrakePowerToRPMMap =
+        Utils::getValueFromMap<
+            QMap<units::power::kilowatt_t,
+                 units::angular_velocity::revolutions_per_minute_t>>(
+            parameters, "BrakePowerToRPM",
+            QMap<units::power::kilowatt_t,
+                 units::angular_velocity::revolutions_per_minute_t>());
+
+    mBrakePowerToEfficiencyMap =
+        Utils::getValueFromMap<QMap<units::power::kilowatt_t,
+                                    double>>(
+            parameters, "BrakePowerToEfficiency",
+            QMap<units::power::kilowatt_t, double>());
+
+    if (mBrakePowerToRPMMap.size() < 1)
     {
-        if (pv.toLower() == "id")
-        {
-            mId =
-                Utils::getValueFromMap<unsigned int>(parameters,
-                                                       pv.toLower(),
-                                                       counter);
-        }
-        if (pv.toLower() == "brakepowertorpm")
-        {
-            mBrakePowerToRPMMap =
-                Utils::getValueFromMap<
-                    QMap<units::power::kilowatt_t,
-                         units::angular_velocity::revolutions_per_minute_t>>(
-                    parameters, pv.toLower(),
-                    QMap<units::power::kilowatt_t,
-                     units::angular_velocity::revolutions_per_minute_t>());
-        }
-        if (pv.toLower() == "brakepowertoefficiency")
-        {
-            mBrakePowerToEfficiencyMap =
-                Utils::getValueFromMap<QMap<units::power::kilowatt_t,
-                                            double>>(
-                    parameters, pv.toLower(),
-                    QMap<units::power::kilowatt_t, double>());
-        }
+        qCritical() << "Power-To-RPM Mapping is not defined!";
+    }
+
+    if (mBrakePowerToEfficiencyMap.size() < 1)
+    {
+        qCritical() << "Power-To-Efficiency Mapping is not defined!";
     }
 }
 
@@ -221,7 +218,12 @@ double ShipEngine::getHyperbolicThrottleCoef(
 
     return lambda;
 
-};
+}
+
+//void ShipEngine::setBrakePowerFractionToFullPower(double fractionToFullPower)
+//{
+
+//};
 
 units::power::kilowatt_t ShipEngine::getPreviousBrakePower()
 {
