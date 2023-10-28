@@ -26,8 +26,6 @@ static constexpr double AIR_DRAG_COEF = (double)0.8;
 inline units::velocity::meters_per_second_t get_nue(
     double salinity, units::temperature::celsius_t temp)
 {
-    qDebug() << "Temp is :" << temp.value();
-    qDebug() << "Salin is :" << salinity;
 
     if (salinity < 0.0)
     {
@@ -66,11 +64,6 @@ inline double F_n(units::velocity::meters_per_second_t ship_speed,
         qCritical() << "Ship Length must be greater than 0!";
         return 0.0;
     }
-    qDebug() << "Ship Speed is :" <<
-        QString::number(ship_speed.value(), 'f', 10);
-    qDebug() << "G Value is :" << QString::number(G.value(), 'f', 10);
-    qDebug() << "Ship Length is (m): " <<
-        QString::number(ship_length.value(), 'f', 10);
 
     return ship_speed.value() /
            sqrt(ship_length.value() * G.value());
@@ -102,13 +95,6 @@ inline double R_n(units::velocity::meters_per_second_t ship_speed,
         qCritical() << "temperature must be greater than 0 celcuis!";
         return 0.0;
     }
-
-    qDebug() << "Ship Speed is :" <<
-        QString::number(ship_speed.value(), 'f', 10);
-    qDebug() << "Ship Length is (m): " <<
-        QString::number(ship_length.value(), 'f', 10);
-    qDebug() << "nue value is: " <<
-        QString::number(get_nue(salinity, temp).value(), 'f', 10);
 
     return (ship_speed.value() * ship_length.value()) /
            get_nue(salinity, temp).value();
