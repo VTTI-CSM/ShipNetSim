@@ -1,51 +1,73 @@
-#include "line.h"
-#include <sstream>
-#include <cmath>
+/** @file line.cpp
+ * @brief Implementation of Line class.
+ *
+ * File contains definitions and implementations of Line class which
+ * represents a line segment defined by two points. The class provides
+ * utility functions to work with line segments.
+ *
+ * @author Ahmed Aredah
+ * @date 10.12.2023
+ */
 
+#include "line.h"  // Include line header file.
+#include <sstream>  // Include stringstream class for string manipulation.
+#include <cmath>    // Include cmath for mathematical operations.
+
+// Define a small value for floating-point comparisons.
 const double EPSILON = 1e-9;
 
+// Constructor with start, end points and maximum speed specified.
 Line::Line(std::shared_ptr<Point> start, std::shared_ptr<Point> end,
            units::velocity::meters_per_second_t maxSpeed) :
-    start(start),
-    end(end),
-    mMaxSpeed(maxSpeed)
+    start(start),   // Initialize start point.
+    end(end),       // Initialize end point.
+    mMaxSpeed(maxSpeed)  // Initialize maximum speed.
 {
-    mLength = start->distance(*end);
+    mLength = start->distance(*end);  // Calculate line segment length.
 }
 
+// Constructor with start and end points. Maximum speed is NaN.
 Line::Line(std::shared_ptr<Point> start,
            std::shared_ptr<Point> end) :
-    start(start),
-    end(end),
-    mMaxSpeed(units::velocity::meters_per_second_t(std::nan("no value")))
+    start(start),  // Initialize start point.
+    end(end),      // Initialize end point.
+    mMaxSpeed(
+        units::velocity::meters_per_second_t(
+            std::nan("no value")))  // NaN speed.
 {
-    mLength = start->distance(*end);
+    mLength = start->distance(*end);  // Calculate line segment length.
 }
+
+// Destructor.
 Line::~Line()
 {
-
+    // No dynamic memory to free.
 }
 
+// Get maximum speed allowed on this line segment.
 units::velocity::meters_per_second_t Line::getMaxSpeed() const
 {
-    return mMaxSpeed;
+    return mMaxSpeed;  // Return maximum speed.
 }
 
+// Get length of the line segment.
 units::length::meter_t Line::length() const
 {
-    return mLength;
+    return mLength;  // Return length of the line segment.
 }
 
-
+// Get starting point of the line segment.
 std::shared_ptr<Point> Line::startPoint() const
 {
-    return start;
+    return start;  // Return start point.
 }
 
+// Get ending point of the line segment.
 std::shared_ptr<Point> Line::endPoint() const
 {
-    return end;
+    return end;  // Return end point.
 }
+
 
 // Utility function to check if q lies on the
 // line segment defined by p and r
@@ -53,13 +75,14 @@ bool onSegment(std::shared_ptr<Point> p,
                std::shared_ptr<Point> q,
                std::shared_ptr<Point> r)
 {
+    // Check if q is within the bounding box defined by p and r.
     return (q->x().value() <= std::max(p->x().value(), r->x().value()) &&
             q->x().value() >= std::min(p->x().value(), r->x().value()) &&
             q->y().value() <= std::max(p->y().value(), r->y().value()) &&
             q->y().value() >= std::min(p->y().value(), r->y().value()));
 }
 
-
+// Determine orientation of three points.
 Line::Orientation orientation(std::shared_ptr<Point> p,
                               std::shared_ptr<Point> q,
                               std::shared_ptr<Point> r)
@@ -69,21 +92,24 @@ Line::Orientation orientation(std::shared_ptr<Point> p,
     double qx = q->x().value(), qy = q->y().value();
     double rx = r->x().value(), ry = r->y().value();
 
+    // Calculate determinant of orientation matrix.
     double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
 
+    // Check if points are collinear, clockwise, or counterclockwise.
     if (std::abs(val) < EPSILON) return Line::Collinear;
     return (val > 0) ? Line::Clockwise : Line::CounterClockwise;
 }
 
+// Check if two line segments intersect.
 bool Line::intersects(Line &other) const
 {
-    // Get points of both lines
+    // Get start and end points of both line segments.
     std::shared_ptr<Point> p1 = this->start;
     std::shared_ptr<Point> q1 = this->end;
     std::shared_ptr<Point> p2 = other.start;
     std::shared_ptr<Point> q2 = other.end;
 
-    // Calculate the four orientations
+    // Calculate orientations for the line segment pairs.
     Line::Orientation o1 = orientation(p1, q1, p2);
     Line::Orientation o2 = orientation(p1, q1, q2);
     Line::Orientation o3 = orientation(p2, q2, p1);
@@ -106,8 +132,10 @@ bool Line::intersects(Line &other) const
     return false; // The line segments do not intersect
 }
 
+// Calculate angle between two line segments.
 units::angle::radian_t Line::angleWith(Line& other) const
 {
+    // Identify common point between line segments.
     std::shared_ptr<Point> commonPoint;
 
     // Identify the common point
@@ -123,12 +151,16 @@ units::angle::radian_t Line::angleWith(Line& other) const
     }
     else
     {
+        // Line segments do not share a common point.
+        // TODO: Solve this to not throw error in the middle of a simulation.
         throw std::invalid_argument(
             "The lines do not share a common point.");
     }
 
+    // Identify non-common points for line segments.
     std::shared_ptr<Point> a, c;
 
+    // Get non-common points for both line segments.
     if (*(this->startPoint()) == *commonPoint)
     {
         a = this->endPoint();
@@ -173,7 +205,8 @@ Point Line::getPointByDistance(units::length::meter_t distance,
 {
     if (distance.value() < 0 || distance > mLength)
     {
-        throw std::out_of_range("Distance is outside of the line segment.");
+        throw std::out_of_range("Distance is "
+                                "outside of the line segment.");
     }
 
     std::shared_ptr<Point> origin;
@@ -215,103 +248,138 @@ Point Line::getPointByDistance(units::length::meter_t distance,
     return result;
 }
 
-Point Line::getPointByDistance(units::length::meter_t distance,
-                               std::shared_ptr<Point> from) const
+// Function to get a point on the line at a certain distance
+// from another point 'from'.
+Point Line::getPointByDistance(
+    units::length::meter_t distance,  // Distance from the 'from' point.
+    std::shared_ptr<Point> from) const  // Starting point for measurement.
 {
+    // Enum to represent which end of line 'from' point is closer to.
     LineEnd le;
+    // If 'from' is at the starting point of the line.
     if (*(from) == *(startPoint()))
     {
-        le = LineEnd::Start;
+        le = LineEnd::Start;  // 'from' is at the start of the line.
     }
+    // If 'from' is at the ending point of the line.
     else if (*(from) == *(endPoint()))
     {
-        le = LineEnd::End;
+        le = LineEnd::End;  // 'from' is at the end of the line.
     }
+    // If 'from' is neither at the start nor at the end of the line.
     else
     {
-        throw std::out_of_range("Point is neight "
-                                "the start nor the end point.");
+        // Throw an out_of_range exception.
+        throw std::out_of_range("Point is neither the start "
+                                "nor the end point.");
     }
+    // Call the overloaded getPointByDistance function with
+    // distance and LineEnd.
     return getPointByDistance(distance, le);
 }
 
-units::length::meter_t
-Line::getPerpendicularDistance(const Point& point) const
+// Function to calculate the perpendicular distance from a point to the line.
+units::length::meter_t Line::getPerpendicularDistance(
+    const Point& point) const  // Point from which distance is to be measured.
 {
+    // Calculate the coefficients of the line equation Ax + By + C = 0.
     auto A = (end->y() - start->y()).value();
     auto B = (start->x() - end->x()).value();
-    auto C = (end->x() * start->y() -
-              start->x() * end->y()).value();
+    auto C = (end->x() * start->y() - start->x() * end->y()).value();
 
+    // Calculate the denominator of the distance formula.
     auto denominator = std::sqrt(A * A + B * B);
+    // Calculate and return the perpendicular distance from
+    // the point to the line.
     return units::length::meter_t(
         std::abs(A * point.x().value() +
                  B * point.y().value() + C) / denominator);
 }
 
+// Function to get the theoretical width of the line.
 units::length::meter_t Line::getTheoriticalWidth() const
 {
-    return mWidth;
+    return mWidth;  // Return the value of mWidth.
 }
 
-// This is a simple example, and you might need a more robust version
+// Function to check the location of a point relative to the line.
 Line::LocationToLine Line::getlocationToLine(
-    const std::shared_ptr<Point>& point) const
+    const std::shared_ptr<Point>& point) const  // Point to be checked.
 {
+    // Calculate relative x and y coordinates of the
+    // point from the starting point of the line.
     units::length::meter_t relX = point->x() - start->x();
     units::length::meter_t relY = point->y() - start->y();
+    // Calculate the x and y coordinates of the line's direction vector.
     units::length::meter_t dirX = end->x() - start->x();
     units::length::meter_t dirY = end->y() - start->y();
 
-    auto result = dirX.value() * relY.value() -
-                  dirY.value() * relX.value();
+    // Calculate the cross product of the direction vector
+    // and relative position vector.
+    auto result = dirX.value() * relY.value() - dirY.value() * relX.value();
+    // Check if the point is to the left of the line.
     if (result > 0.0)
     {
         return LocationToLine::left;
     }
+    // Check if the point is to the right of the line.
     else if (result < 0.0)
     {
         return LocationToLine::right;
     }
+    // If neither, then the point is on the line.
     else
     {
         return LocationToLine::onLine;
     }
 }
 
+
+// Function to set the theoretical width of the line.
 void Line::setTheoriticalWidth(const units::length::meter_t newWidth)
 {
-    mWidth = newWidth;
+    mWidth = newWidth;  // Set the value of mWidth to newWidth.
 }
 
+// Function to convert the line to an algebraic vector.
 AlgebraicVector Line::toAlgebraicVector(
     const std::shared_ptr<Point> startPoint) const
 {
-    Point begin, finish;
+    Point begin, finish;  // Declare start and end points of the vector.
+    // Check if startPoint is the same as the starting point of the line.
     if (*startPoint == *start)
     {
-        begin = *start;
-        finish = *end;
+        begin = *start;  // Set begin to start.
+        finish = *end;   // Set finish to end.
     }
+    // If startPoint is not the starting point of the line.
     else
     {
-        begin = *end;
-        finish = *start;
+        begin = *end;     // Set begin to end.
+        finish = *start;  // Set finish to start.
     }
+    // Create an algebraic vector from begin to finish and return it.
     AlgebraicVector result(begin, finish);
     return result;
 }
 
+// Overloaded equality operator to compare two lines.
 bool Line::operator==(const Line& other) const
 {
+    // Return true if the starting and ending points
+    // of both lines are the same.
     return start == other.start && end == other.end;
 }
 
+// Function to convert the line to a string representation.
 QString Line::toString()
 {
-    QString str = QString("Start Point %1 || End Point %2")
-                      .arg(start->toString())
-                      .arg(end->toString());
-
+    // Create a string representation of the line in the
+    // format "Start Point || End Point".
+    QString str =
+        QString("Start Point %1 || End Point %2")
+            .arg(start->toString()) // Add the string repr of the start point.
+            .arg(end->toString());  // Add the string repr of the end point.
+    // Return the created string.
     return str;
 }
