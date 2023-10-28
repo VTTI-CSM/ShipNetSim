@@ -10,7 +10,7 @@ IShipPropeller::IShipPropeller()
 
 IShipPropeller::~IShipPropeller()
 {
-    if (mHost) delete mHost;
+    mHost = nullptr;
     if (mGearBox) delete mGearBox;
 }
 
