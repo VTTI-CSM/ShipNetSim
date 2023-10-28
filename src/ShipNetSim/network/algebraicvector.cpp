@@ -1,88 +1,90 @@
-#include "algebraicvector.h"
-#include <cmath>
-#include <QDebug>
+/**
+ * @file algebraicvector.cpp
+ *
+ * @brief Implementation of the AlgebraicVector class.
+ *
+ * This file contains the implementation of the AlgebraicVector class,
+ * which is used to represent a vector in a 2D space with additional
+ * functionalities such as rotation and translation.
+ *
+ * @author Ahmed Aredah
+ * @date 10.12.2023
+ */
 
+#include "algebraicvector.h"  // Include AlgebraicVector class definition
+#include <cmath>  // Include mathematical functions
+#include <QDebug>  // Include debugging utilities
+
+// Default constructor
 AlgebraicVector::AlgebraicVector()
 {
-    // Initialize with a default position
+    // Initialize position with default value (0.0, 0.0)
     mPosition_ = Point(units::length::meter_t(0.0),
                        units::length::meter_t(0.0));
-    // Initialize with a default orientation (along the x-axis)
-    // Already normalized.
+    // Initialize orientation with default value (1, 0)
+    // This represents a vector pointing along the x-axis.
     mOrientation.append(units::length::meter_t(1));
     mOrientation.append(units::length::meter_t(0));
-    mIsRotating = false;  // Initialize mIsRotating to false
+    // Initialize rotation status to false
+    mIsRotating = false;
 }
 
-AlgebraicVector::AlgebraicVector(const Point startPoint, const Point& endPoint)
+// Constructor with start and end points
+AlgebraicVector::AlgebraicVector(const Point startPoint,
+                                 const Point& endPoint)
 {
+    // Set position to startPoint
     mPosition_ = startPoint;
+    // Set orientation based on endPoint
     setOrientationByEndPoint(endPoint);
-    mIsRotating = false;  // Initialize mIsRotating to false
+    // Initialize rotation status to false
+    mIsRotating = false;
 }
 
-bool AlgebraicVector::isRotating() const { return mIsRotating; }
+// Check if the vector is rotating
+bool AlgebraicVector::isRotating() const
+{
+    return mIsRotating;  // Return rotation status
+}
 
-//AlgebraicVector::AlgebraicVector(const Point startPoint)
-//{
-//    mPosition_ = startPoint;
-//    // Initialize with a default orientation (along the x-axis)
-//    // Already normalized.
-//    mOrientation.append(units::length::meter_t(1));
-//    mOrientation.append(units::length::meter_t(0));
-//}
-
+// Get orientation angle in degrees
 units::angle::degree_t AlgebraicVector::orientation() const
 {
+    // Calculate orientation angle based on orientation vector
     double x = mOrientation[0].value();
     double y = mOrientation[1].value();
     return units::angle::degree_t(std::atan2(y, x) * 180.0 / M_PI);
 }
 
-//void AlgebraicVector::changeHeading(units::angle::degree_t deltaThetaDegrees)
-//{
-//    double deltaThetaRadians = deltaThetaDegrees.value() * M_PI / 180.0;
-
-//    units::length::meter_t newX =
-//        mOrientation[0] * std::cos(deltaThetaRadians) -
-//        mOrientation[1] * std::sin(deltaThetaRadians);
-//    units::length::meter_t newY =
-//        mOrientation[0] * std::sin(deltaThetaRadians) +
-//        mOrientation[1] * std::cos(deltaThetaRadians);
-
-//    // Normalize the new orientation
-//    double magnitude =
-//        std::sqrt(newX.value() * newX.value() +
-//                  newY.value() * newY.value());
-//    mOrientation[0] = newX / magnitude;
-//    mOrientation[1] = newY / magnitude;
-//}
-
+// Set target point and maximum rate of turn
 void AlgebraicVector::setTargetAndMaxROT(const Point& target,
                                          units::angle::degree_t maxROTPerSec)
 {
+    // Set target point
     mTargetPoint_ = target;
+    // Set maximum rate of turn
     mMaxROTPerSec_ = maxROTPerSec;
 }
 
+// Set orientation based on end point
 void AlgebraicVector::setOrientationByEndPoint(const Point& endPoint)
 {
+    // Calculate direction vector components
     double dx = endPoint.x().value() - mPosition_.x().value();
     double dy = endPoint.y().value() - mPosition_.y().value();
 
-    // Normalize
+    // Calculate magnitude of direction vector
     double magnitude = std::sqrt(dx * dx + dy * dy);
 
-    if (magnitude == 0) {
-        // Handle zero magnitude vector as per your application's requirements.
-        return;
-    }
+    // Handle zero magnitude vector as per application requirements
+    if (magnitude == 0) return;
 
+    // Normalize direction vector
     mOrientation[0] = units::length::meter_t(dx / magnitude);
     mOrientation[1] = units::length::meter_t(dy / magnitude);
 }
 
-
+// Move by a specified distance
 void AlgebraicVector::moveByDistance(units::length::meter_t distance,
                                      units::time::second_t timeStep)
 {
@@ -98,47 +100,45 @@ void AlgebraicVector::moveByDistance(units::length::meter_t distance,
     mPosition_.setY(mPosition_.y() + y * distance);
 }
 
+// Get current position
 Point AlgebraicVector::getCurrentPosition()
 {
-    return mPosition_;
+    return mPosition_;  // Return current position
 }
 
-void AlgebraicVector::
-    rotateToTargetByMaxROT(const Point& target,
-                           units::angle::degree_t maxROTPerSec,
-                           units::time::second_t deltaTime)
+// Rotate to target point within maximum allowable rate of turn
+void AlgebraicVector::rotateToTargetByMaxROT(
+    const Point& target,
+    units::angle::degree_t maxROTPerSec,
+    units::time::second_t deltaTime)
 {
-    // Get the target orientation
+    // Calculate target orientation angle
     double dx = target.x().value() - mPosition_.x().value();
     double dy = target.y().value() - mPosition_.y().value();
     auto targetOrientation =
         units::angle::degree_t(std::atan2(dy, dx) * 180.0 / M_PI);
 
-    // Find the difference between the current and target orientation
+    // Calculate difference between current and target orientations
     auto currentOrientation = orientation();
     auto diff = targetOrientation - currentOrientation;
 
-    // Keep the difference between -180 and 180 degrees
+    // Normalize difference to be within [-180, 180] degrees
     while (diff.value() < -180) diff += units::angle::degree_t(360);
     while (diff.value() > 180) diff -= units::angle::degree_t(360);
 
-    // Calculate the orientation change allowed by max ROT
+    // Calculate allowable change in orientation
     auto orientationChange = maxROTPerSec * deltaTime.value();
 
-    // If the difference in orientation is less
-    // than the allowable change, set to the target orientation
+    // Check if difference is within allowable change
     if (std::abs(diff.value()) < orientationChange.value())
     {
         setOrientationByEndPoint(target);
-        // Not rotating as the target orientation is achieved
-        mIsRotating = false;
+        mIsRotating = false;  // No longer rotating
         return;
     }
 
-    // Otherwise, rotate by the maximum allowable amount
-    // in the direction of the target orientation
-    // --> Still rotating as the target orientation is not yet achieved
-     mIsRotating = true;
+    // Otherwise, rotate by maximum allowable amount
+    mIsRotating = true;  // Still rotating
     if (diff.value() > 0)
     {
         currentOrientation += orientationChange;
@@ -148,36 +148,33 @@ void AlgebraicVector::
         currentOrientation -= orientationChange;
     }
 
-    // Set the new orientation
+    // Update orientation vector
     double radian = currentOrientation.value() * M_PI / 180.0;
     mOrientation[0] = units::length::meter_t(std::cos(radian));
     mOrientation[1] = units::length::meter_t(std::sin(radian));
 }
 
+// Calculate angle to another point
 units::angle::degree_t AlgebraicVector::angleTo(const Point& otherPoint) const
 {
-    // Calculate the direction vector from the
-    // current position to the other point
+    // Calculate direction vector components
     double dx = otherPoint.x().value() - mPosition_.x().value();
     double dy = otherPoint.y().value() - mPosition_.y().value();
 
-    // Handle case when otherPoint is the same as mPosition_
+    // Handle case where otherPoint is same as current position
     double magnitude = std::sqrt(dx * dx + dy * dy);
     if (magnitude == 0) return units::angle::degree_t(0);
 
-    // Calculate the angles between the direction
-    // vector and the current orientation vector
+    // Calculate angles between direction vector and current orientation
     double targetAngle = std::atan2(dy, dx) * 180.0 / M_PI;
     double currentAngle = std::atan2(mOrientation[1].value(),
                                      mOrientation[0].value()) * 180.0 / M_PI;
 
     double angleDifference = targetAngle - currentAngle;
 
-    // Normalize angle to be between -180 and 180 degrees
+    // Normalize angle to be within [-180, 180] degrees
     while (angleDifference > 180.0) angleDifference -= 360.0;
     while (angleDifference < -180.0) angleDifference += 360.0;
 
     return units::angle::degree_t(angleDifference);
 }
-
-
