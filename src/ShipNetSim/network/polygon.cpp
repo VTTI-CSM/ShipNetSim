@@ -1,15 +1,35 @@
-#include "Polygon.h"
-#include "line.h"
-#include <sstream>
-#include <cmath>
-#include <limits>
-#include <QVector>
+/**
+ * @file polygon.cpp
+ * @brief Implementation of the polygon class and its utilities.
+ *
+ * This file contains the implementation for the Polygon class, which
+ * defines a polygon with an outer boundary and an optional set of
+ * inner holes. The class provides methods for calculating the
+ * perimeter, area, and for checking if a point is inside the polygon
+ * or is part of its structure (either on the boundary or in the holes).
+ *
+ * Author: Ahmed Aredah
+ * Date: 10.12.2023
+ */
 
+#include "Polygon.h" // Include the definition of the Polygon class.
+#include "line.h"    // Include the definition of the Line class.
+#include <sstream>   // Include the sstream library for string stream operations.
+#include <cmath>     // Include the cmath library for mathematical operations.
+#include <limits>    // Include the limits library for numeric limits.
+#include <QVector>   // Include the QVector class from the Qt framework.
+
+// Default constructor
 Polygon::Polygon() {}
 
-Polygon::Polygon(const QVector<std::shared_ptr<Point>>& boundary,
-                 const QVector<QVector<std::shared_ptr<Point>>>& holes)
-    : outer_boundary(boundary), inner_holes(holes) {}
+// Parameterized constructor to initialize the outer boundary and inner holes
+Polygon::Polygon(
+    const QVector<std::shared_ptr<Point>>&
+        boundary, // points defining outer boundary
+    const QVector<QVector<std::shared_ptr<Point>>>&
+        holes) // vector of vectors of points defining holes
+    : outer_boundary(boundary),
+    inner_holes(holes) {}
 
 QVector<std::shared_ptr<Point>> Polygon::outer() const
 {
