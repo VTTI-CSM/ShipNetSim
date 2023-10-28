@@ -8,7 +8,7 @@ IEnergyConsumer::IEnergyConsumer()
 
 IEnergyConsumer::~IEnergyConsumer()
 {
-    if (mHost) delete mHost;
+    mHost = nullptr;
     if (mEnergySource) delete mEnergySource;
 }
 
@@ -27,7 +27,7 @@ const Ship* IEnergyConsumer::getHost() const
     return mHost;
 }
 
-const IEnergySource* IEnergyConsumer::getEnergySource() const
+IEnergySource *IEnergyConsumer::getEnergySource() const
 {
     return mEnergySource;
 }
