@@ -6,7 +6,7 @@
 
 
 void ShipPropeller::initialize(Ship *ship, IShipGearBox *gearbox,
-                               QMap<QString, std::any> &parameters)
+                               const QMap<QString, std::any> &parameters)
 {
     mHost = ship;
     mGearBox = gearbox;
@@ -15,43 +15,48 @@ void ShipPropeller::initialize(Ship *ship, IShipGearBox *gearbox,
 }
 
 
-void ShipPropeller::setParameters(QMap<QString, std::any> &parameters)
+void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
 {
     // Process Shaft Efficiency
-    auto it = parameters.find("shaftefficiency");
-    if (it != parameters.end())
+    mShaftEfficiency =
+        Utils::getValueFromMap<double>(parameters, "ShaftEfficiency", -1.0);
+    if (mShaftEfficiency < 0.0)
     {
-        mShaftEfficiency = std::any_cast<double>(it.value());
+        qFatal("Shaft efficiency is not defined!");
     }
 
     // Process Open Water Efficiency
-    it = parameters.find("openwaterefficiency");
-    if (it != parameters.end())
-    {
-        mPropellerOpenWaterEfficiencyToJ =
-            std::any_cast<QMap<double, double>>(it.value());
+    mPropellerOpenWaterEfficiencyToJ =
+        Utils::getValueFromMap<QMap<double, double>>(
+        parameters, "OpenWaterPropellerEfficiency", QMap<double, double>());
+    if (mPropellerOpenWaterEfficiencyToJ.isEmpty()) {
+        qFatal("Propeller open water efficiency to j is not defined!");
     }
 
     // Process Propeller Diameter & Disk Area
-    it = parameters.find("propellerdiameter");
-    if (it != parameters.end())
+    mPropellerDiameter =
+        Utils::getValueFromMap<units::length::meter_t>(
+        parameters, "PropellerDiameter", units::length::meter_t(-1.0));
+    if (mPropellerDiameter.value() < 0.0)
     {
-        mPropellerDiameter =
-            std::any_cast<units::length::meter_t>(it.value());
-        mPropellerDiskArea =
-            units::constants::pi *
-                             units::math::pow<2>(mPropellerDiameter) / 4.0;
+        qFatal("Propeller diameter is not defined!");
     }
 
+    mPropellerDiskArea =
+        units::constants::pi *
+        units::math::pow<2>(mPropellerDiameter) / 4.0;
+
     // Process Expanded Area Ratio & Blade Area
-    it = parameters.find("propellerExpandedAreaRatio");
-    if (it != parameters.end())
+    mPropellerExpandedAreaRatio =
+        Utils::getValueFromMap<double>(parameters,
+                                       "PropellerExpandedAreaRatio", -1.0);
+    if (mPropellerExpandedAreaRatio < 0.0)
     {
-        mPropellerExpandedAreaRatio =
-            std::any_cast<double>(it.value());
-        mExpandedBladeArea =
-            mPropellerExpandedAreaRatio * mPropellerDiskArea;
+        qFatal("Propeller expanded area ratio is not defined!");
     }
+    mExpandedBladeArea =
+        mPropellerExpandedAreaRatio * mPropellerDiskArea;
+
 }
 
 
