@@ -7,17 +7,16 @@
 #include "../../third_party/units/units.h"
 #include "../utils/utils.h"
 #include "ishippropeller.h"
+#include "shipgearbox.h"
+#include "shippropeller.h"
+#include "shipengine.h"
+
 
 Ship::Ship(const QMap<QString, std::any>& parameters,
            QObject* parent) : QObject(parent)
 {
-//    mResistanceStrategy =
-//        getValueFromMap<IShipResistanceStrategy*>(
-//            parameters,
-//            "ResistanceStrategy",
-//            nullptr);
-
-    if (parameters.contains("ResistanceStrategy")) {
+    if (parameters.contains("ResistanceStrategy"))
+    {
         try {
             // Try casting the std::any to the base type first
             if (parameters["ResistanceStrategy"].type() ==
@@ -39,6 +38,12 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
             mStrategy = nullptr;
         }
     }
+
+    mShipUserID =
+        Utils::getValueFromMap<QString>(
+        parameters,
+        "ID",
+        "Not Defined");
 
     mWaterlineLength =
         Utils::getValueFromMap<units::length::meter_t>(
@@ -119,11 +124,11 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
             "HalfWaterlineEntranceAngle",
             units::angle::degree_t(std::nan("uninitialized")));
 
-    mSpeed =
-        Utils::getValueFromMap<units::velocity::meters_per_second_t>(
-            parameters,
-            "Speed",
-            units::velocity::meters_per_second_t(0.0));
+    mSpeed = units::velocity::meters_per_second_t(0.0);
+//        Utils::getValueFromMap<units::velocity::meters_per_second_t>(
+//            parameters,
+//            "Speed",
+//            units::velocity::meters_per_second_t(0.0));
 
     mSurfaceRoughness =
         Utils::getValueFromMap<units::length::nanometer_t>(
@@ -188,11 +193,114 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
     mPropellers =
         Utils::getValueFromMap<QVector<IShipPropeller*>>(
         parameters,
-        "propellers",
+        "Propellers",
         QVector<IShipPropeller*>());
+
+// Engine properties
+    int engineCountPerPropeller =
+        Utils::getValueFromMap<int>(parameters,
+                                    "EnginesCountPerPropeller",
+                                    1);
+
+    // Propeller Properties
+    int propellerCount =
+        Utils::getValueFromMap<int>(
+        parameters,
+        "PropellerCount",
+        1);
+
+
+
+    std::shared_ptr<IEnergySource> energySource =
+        Utils::getValueFromMap<std::shared_ptr<IEnergySource>>(
+        parameters,
+        "EnergySource",
+        nullptr);
+    if (energySource == nullptr)
+    {
+        std::shared_ptr<Tank> tank = std::make_shared<Tank>();
+        QMap<QString, std::any> tankProperties;
+        tankProperties = {
+            {"FuelType", ShipFuel::FuelType::HFO},
+            {"MaxCapacity", units::volume::liter_t(11356235.35)},
+            {"InitialCapacityPercentage", 0.9},
+            {"DepthOfDischarge", 0.9}
+        };
+        tank->setCharacteristics(tankProperties);
+        energySource = std::static_pointer_cast<IEnergySource>(tank);
+    }
+
+    for (int i = 0; i < propellerCount; i++)
+    {
+
+        ShipGearBox gearbox = ShipGearBox();
+        QVector<IShipEngine *> engines;
+        for (int j = 0; j < engineCountPerPropeller; j++)
+        {
+            ShipEngine engine = ShipEngine();
+            engine.initialize(this, energySource.get(), parameters);
+            engines.push_back(&engine);
+        }
+        gearbox.initialize(this, engines, parameters);
+
+        auto prop = ShipPropeller();
+        prop.initialize(this, &gearbox, parameters);
+    }
+
+    mStopIfNoEnergy =
+        Utils::getValueFromMap<bool>(
+        parameters,
+        "StopIfNoEnergy",
+        false);
+
+    mRudderAngle =
+        Utils::getValueFromMap<units::angle::degree_t>(
+        parameters,
+        "MaxRudderAngle",
+        units::angle::degree_t(30));
+
+    mVesselWeight =
+        Utils::getValueFromMap<units::mass::metric_ton_t>(
+        parameters,
+        "VesselWeight",
+        units::mass::metric_ton_t(0.0));
+
+    mCargoWeight =
+        Utils::getValueFromMap<units::mass::metric_ton_t>(
+        parameters,
+        "CargoWeight",
+        units::mass::metric_ton_t(0.0));
+
+    mDraggedVessels =
+        Utils::getValueFromMap<QVector<Ship*>>(
+        parameters,
+        "DraggedVessels",
+        QVector<Ship*>());
+
+    QVector<std::shared_ptr<Point>> points =
+        Utils::getValueFromMap<QVector<std::shared_ptr<Point>>>(
+        parameters,
+        "PathPoints",
+        QVector<std::shared_ptr<Point>>());
+
+    QVector<std::shared_ptr<Line>> lines =
+        Utils::getValueFromMap<QVector<std::shared_ptr<Line>>>(
+        parameters,
+        "PathLines",
+        QVector<std::shared_ptr<Line>>());
+
+    if (lines.empty() || points.empty() ||
+        lines.size() < 1 || points.size() < 2)
+    {
+        throw ShipException("Path Lines and Points are not defined");
+    }
+    setPath(points, lines);
+    setStartPoint(points.at(0));
+    setEndPoint(points.back());
 
 
     initializeDefaults();
+    reset();
 
     QObject::connect(this, &Ship::stepDistanceChanged,
                      this, &Ship::handleStepDistanceChanged);
@@ -213,15 +321,6 @@ Ship::~Ship()
     {
         if (vessel)
             delete vessel;
-    }
-    if (mBattery)
-    {
-        delete mBattery;
-    }
-
-    if (mTank)
-    {
-        delete mTank;
     }
 }
 
@@ -1648,7 +1747,45 @@ void Ship::load()
 
 void Ship::reset()
 {
+    mAcceleration = units::acceleration::meters_per_second_squared_t(0.0);
+    mPreviousAcceleration =
+        units::acceleration::meters_per_second_squared_t(0.0);
+    mSpeed = units::velocity::meters_per_second_t(0.0);
+    mPreviousSpeed = units::velocity::meters_per_second_t(0.0);
     mTraveledDistance = units::length::meter_t(0.0);
+    mTripTime = units::time::second_t(0.0);
+    mCumConsumedEnergy = units::energy::kilowatt_hour_t(0.0);
+
+    mIsOn = true;
+    mOffLoaded = false;
+    mReachedDestination = false;
+    mOutOfEnergy = false;
+    mLoaded = false;
+
+    Point sp = *(mPathPoints.at(0));
+    Point ep = *(mPathPoints.at(1));
+    mCurrentState = AlgebraicVector(sp, ep);
+
+    mPreviousPathPointIndex = 0;
+
+    mFrictionalResistance = units::force::newton_t(0.0);
+    mAppendageResistance = units::force::newton_t(0.0);
+    mWaveResistance = units::force::newton_t(0.0);
+    mBulbousBowResistance = units::force::newton_t(0.0);
+    mTransomResistance = units::force::newton_t(0.0);
+    mCorrelationAllowanceResistance = units::force::newton_t(0.0);
+    mAirResistance = units::force::newton_t(0.0);
+    mTotalResistance = units::force::newton_t(0.0);
+
+    // reset the energy source
+    for (auto const propeller: mPropellers)
+    {
+        for (auto const engine : propeller->getGearBox()->getEngines())
+        {
+            engine->getEnergySource()->reset();
+        }
+    }
+
 }
 
 std::size_t Ship::getPreviousPathPointIndex() const
