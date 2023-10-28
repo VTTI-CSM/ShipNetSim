@@ -335,7 +335,9 @@ public:
      *          area of the bulbous bow.
      * @return Center height in meters.
      */
-    [[nodiscard]] units::length::meter_t getBulbousBowTransverseAreaCenterHeight() const;
+    [[nodiscard]] units::length::meter_t
+    getBulbousBowTransverseAreaCenterHeight() const;
+
     /**
      * @brief Updates the center height of the transverse
      *          area of the bulbous bow.
@@ -658,7 +660,7 @@ private:
     units::length::meter_t mRunLength;
 
     //!< Map of Ship's appendages Areas.
-    QVector<QPair<units::area::square_meter_t, double>> App;
+    QVector<QPair<units::area::square_meter_t, double>> App; //TODO: init
 
     //!< Position along the ship's length where its buoyancy force acts.
     double mLongitudinalBuoyancyCenter;
@@ -749,6 +751,7 @@ private:
     bool mOutOfEnergy;
 
     bool mLoaded;
+
     QVector<units::length::meter_t> mLinksCumLengths;
     units::length::meter_t mTotalPathLength;
     AlgebraicVector mCurrentState;
@@ -759,8 +762,6 @@ private:
 
     QVector<IShipPropeller*> mPropellers;
     QVector<Ship*> mDraggedVessels;
-    Battery *mBattery;
-    Tank *mTank;
 
     QVector<std::shared_ptr<Line>> mPathLines;
     QVector<std::shared_ptr<Point>> mPathPoints;
