@@ -18,10 +18,19 @@ void ShipGearBox::initialize(Ship *host, QVector<IShipEngine *> engines,
 void ShipGearBox::setParameters(const QMap<QString, std::any> &parameters)
 {
     mGearRationTo1 =
-        Utils::getValueFromMap<double>(parameters, "GearboxRatio", 1.0);
+        Utils::getValueFromMap<double>(parameters, "GearboxRatio", -1.0);
+    if (mGearRationTo1 < 0)
+    {
+        qFatal("Gearbox ratio is not defined. "
+               "it should be a value of double in range [0,inf]!");
+    }
     mEfficiency =
-        Utils::getValueFromMap<double>(parameters, "gearboxEfficiency", 1.0);
-
+        Utils::getValueFromMap<double>(parameters, "gearboxEfficiency", -1.0);
+    if (mEfficiency < 0)
+    {
+        qFatal("Gearbox efficiency is not defined. "
+               "it should be a value of double in range [0,1]!");
+    }
 }
 
 units::angular_velocity::revolutions_per_minute_t ShipGearBox::getOutputRPM() const
