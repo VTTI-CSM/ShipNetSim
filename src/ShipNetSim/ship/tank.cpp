@@ -1,79 +1,123 @@
 #include "tank.h"
 #include <iostream>
+#include "../utils/utils.h"
 
+// Define the methods for the Tank class:
+
+// Getter for the maximum tank capacity.
 units::volume::liter_t Tank::getTankMaxCapacity() const
 {
+    // Return the maximum capacity of the tank.
     return this->tankMaxCapacity;
 }
 
+// Setter for the maximum tank capacity.
 void Tank::setTankMaxCapacity(units::volume::liter_t newMaxCapacity)
 {
+    // Set the tank's maximum capacity to the new value provided.
     this->tankMaxCapacity = newMaxCapacity;
 }
 
+// Getter for the initial tank capacity.
 units::volume::liter_t Tank::getTankInitialCapacity() const
 {
+    // Return the initial capacity of the tank.
     return tankInitialCapacity;
 }
 
+// Setter for the initial tank capacity.
 void Tank::setTankInitialCapacity(double newInitialCapacityPercentage)
 {
+    // Calculate the initial capacity based on
+    // the provided percentage and the maximum capacity.
     tankInitialCapacity = tankMaxCapacity * newInitialCapacityPercentage;
+
+    // Update the fuel weight based on the new initial capacity.
     fuelWeight = ShipFuel::getWeight(tankInitialCapacity, fuelType);
 }
 
+// Getter for the current tank capacity.
 units::volume::liter_t Tank::getTankCurrentCapacity() const
 {
+    // Return the current capacity of the tank.
     return tankCurrentCapacity;
 }
 
+// Consumes fuel based on provided energy usage.
+// Updates tank state and returns consumption results.
 EnergyConsumptionData Tank::consume(
     units::time::second_t timeStep,
     units::energy::kilowatt_hour_t consumedkWh)
 {
+    // ignore the time step parameter
+    (void) timeStep;
+
+    // Instantiate a result object to capture energy consumption details.
     EnergyConsumptionData result;
 
-    (void) timeStep;
+    // Convert the amount of energy in kWh to the equivalent volume in liters.
     auto consumedAmount =
         ShipFuel::convertKwhToLiters(consumedkWh, fuelType);
+
+    // Check if the tank has enough fuel to satisfy the consumption request.
     if (! isTankDrainable(consumedAmount) &&
         consumedAmount > tankCurrentCapacity)
     {
+        // If not, set the result to indicate unsuccessful energy supply.
         result.isEnergySupplied = false;
         result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
         result.energyNotConsumed = consumedkWh;
         return result;
     }
+    // Update tank state after fuel consumption.
     tankCumConsumedFuel += consumedAmount;
     tankCurrentCapacity -= consumedAmount;
     fuelWeight = ShipFuel::getWeight(tankCurrentCapacity, fuelType);
     tankStateOfCapacity = tankCurrentCapacity / tankMaxCapacity;
 
+    // Update the result to indicate successful energy supply.
     result.isEnergySupplied = true;
     result.energyConsumed = consumedkWh;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
     return result;
 }
 
+// Getter for the state of the tank's capacity.
 double Tank::getTankStateOfCapacity() const
 {
+    // Return the current state of capacity as a percentage.
     return tankStateOfCapacity;
 }
 
-bool Tank::isTankDrainable(units::volume::liter_t consumedAmount) {
+// Checks if it's possible to drain the specified
+// amount of fuel from the tank.
+bool Tank::isTankDrainable(units::volume::liter_t consumedAmount)
+{
+    // Ensure that the desired amount is less than or
+    // equal to the current capacity and the state of
+    // capacity exceeds the Depth of Discharge limit.
     return (consumedAmount <= this->tankCurrentCapacity &&
             tankStateOfCapacity > (1.0- tankDOD));
 }
 
-double Tank::getTankDOD() const {
+// Getter for the depth of discharge.
+double Tank::getTankDOD() const
+{
+    // Return the tank's depth of discharge value.
     return tankDOD;
 }
 
-void Tank::setTankDOD(double newTankDOD) {
+// Setter for the depth of discharge.
+void Tank::setTankDOD(double newTankDOD)
+{
+    // Ensure the provided depth of
+    // discharge value is within valid range.
     if (newTankDOD<=1 && newTankDOD>0.0){
         tankDOD = newTankDOD;
     }
-    else {
+    else
+    {
+        // If not, throw an exception with an explanatory message.
         throw std::invalid_argument(
             "the Depth of Discharge must be between 0.0 and "
             "1.0. 0.0: no discharge is allowed, 1.0: full "
@@ -81,36 +125,105 @@ void Tank::setTankDOD(double newTankDOD) {
     }
 }
 
+// Getter for the cumulative consumed fuel.
 units::volume::liter_t Tank::getTankCumConsumedFuel() const
 {
+    // Return the cumulative amount of fuel consumed from the tank.
     return tankCumConsumedFuel;
 }
 
+// Method to retrieve the total energy consumed in the tank.
 units::energy::kilowatt_hour_t Tank::getTotalEnergyConsumed()
 {
+    // Convert the cumulative consumed fuel
+    // volume to the equivalent energy in kWh.
     return ShipFuel::convertLitersToKwh(tankCumConsumedFuel, fuelType);
 }
 
+// Getter for the type of fuel stored in the tank.
 ShipFuel::FuelType Tank::getFuelType()
 {
+    // Return the tank's fuel type.
     return fuelType;
 }
 
-bool Tank::tankHasFuel(){
+// Check if the tank has any fuel left.
+bool Tank::tankHasFuel()
+{
+    // Return true if the state of
+    // capacity exceeds the Depth of Discharge limit.
     return tankStateOfCapacity > (1.0- tankDOD);
 }
 
+void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
+{
+    this->fuelType =
+        Utils::getValueFromMap<ShipFuel::FuelType>(parameters,
+                                                   "FuelType",
+                                                    ShipFuel::FuelType::HFO);
+    units::volume::liter_t maxCapacity =
+        Utils::getValueFromMap<units::volume::liter_t>(
+            parameters,
+            "MaxCapacity",
+            units::volume::liter_t(-1.0));
+    if (maxCapacity.value() < 0.0) {
+        qFatal("Tank max capacity is not defined!");
+    }
+
+    double initialCapacityPercentage =
+        Utils::getValueFromMap<double>(parameters,
+                                       "InitialCapacityPercentage",
+                                        -1.0);
+    if (initialCapacityPercentage < 0.0) {
+        qFatal("Tank initial capacity percentage is not defined!");
+    }
+
+    double depthOfDischarge =
+        Utils::getValueFromMap<double>(parameters,
+                                       "DepthOfDischarge",
+                                       -1.0);
+    if (depthOfDischarge < 0.0) {
+        qFatal("Tank depth of charge is not defined!");
+    }
+
+    SetTankCharacteristics(fuelType, maxCapacity,
+                           initialCapacityPercentage, depthOfDischarge);
+}
+
+// Method to set initial properties of the tank.
 void Tank::SetTankCharacteristics(ShipFuel::FuelType storedFuelType,
                                   units::volume::liter_t maxCapacity,
                                   double initialCapacityPercentage,
                                   double depthOfDischarge)
 {
+    // Set the tank's fuel type.
     this->fuelType = storedFuelType;
+
+    // Set the tank's maximum capacity.
     this->setTankMaxCapacity(maxCapacity);
+
+    // Set the tank's initial capacity.
     this->setTankInitialCapacity(initialCapacityPercentage);
     tankCurrentCapacity = tankInitialCapacity;
 
+    // Update the state of capacity based on
+    // the initial percentage provided.
     this->tankStateOfCapacity = initialCapacityPercentage;
+
+    // Set the tank's depth of discharge.
     this->setTankDOD(depthOfDischarge);
 }
 
+// Reset the tank to its initial state.
+void Tank::reset()
+{
+    // Reset the cumulative consumed fuel to zero.
+    tankCumConsumedFuel =
+        units::volume::liter_t(0.0);
+
+    // Reset the current capacity to its initial value.
+    tankCurrentCapacity = tankInitialCapacity;
+
+    // Recalculate the state of capacity.
+    tankStateOfCapacity = (tankCurrentCapacity/tankMaxCapacity).value();
+}
