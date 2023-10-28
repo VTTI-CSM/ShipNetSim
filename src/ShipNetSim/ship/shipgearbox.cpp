@@ -8,28 +8,20 @@ ShipGearBox::ShipGearBox()
     mHost = nullptr;
 }
 void ShipGearBox::initialize(Ship *host, QVector<IShipEngine *> engines,
-                             QMap<QString, std::any> &parameters)
+                             const QMap<QString, std::any> &parameters)
 {
     mHost = host;
     mEngines = engines;
     setParameters(parameters);
 }
 
-void ShipGearBox::setParameters(QMap<QString, std::any> &parameters)
+void ShipGearBox::setParameters(const QMap<QString, std::any> &parameters)
 {
-    for (auto pv: parameters.keys())
-    {
-        if (pv.toLower() == "gearratiotoone")
-        {
-            mGearRationTo1 =
-                Utils::getValueFromMap<double>(parameters, "gearratio", 1.0);
-        }
-        if (pv.toLower() == "efficiency")
-        {
-            mEfficiency =
-                Utils::getValueFromMap<double>(parameters, "efficiency", 1.0);
-        }
-    }
+    mGearRationTo1 =
+        Utils::getValueFromMap<double>(parameters, "GearboxRatio", 1.0);
+    mEfficiency =
+        Utils::getValueFromMap<double>(parameters, "gearboxEfficiency", 1.0);
+
 }
 
 units::angular_velocity::revolutions_per_minute_t ShipGearBox::getOutputRPM() const
