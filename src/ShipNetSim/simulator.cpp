@@ -225,7 +225,7 @@ void Simulator::runSimulation()
            << "Simulation Time: " << Utils::formatDuration(difTime) << " (dd:hh:mm:ss)\n"
            << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n\n"
            << "+ NETWORK STATISTICS:\n"
-           << "  |_ Region Name                                                                \x1D : " << this->mNetwork->getRegionkName() << "\n"
+           << "  |_ Region Name                                                                \x1D : " << this->mNetwork->getRegionName() << "\n"
            << "  |_ Total Number of Ships on Network                                           \x1D : " << Utils::thousandSeparator(this->mShips.size()) << "\n"
            << "....................................................\n\n"
            << "\n";
