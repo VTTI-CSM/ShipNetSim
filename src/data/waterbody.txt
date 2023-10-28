@@ -1,0 +1,36 @@
+[MAX_SPEED]
+15  # knots
+
+[DEPTH]
+50 # meters
+
+[WATER]
+id1, x1, y1
+id2, x2, y2
+id3, x3, y3
+...
+idN, xN, yN
+[END]
+
+[HOLE]
+id1, x1, y1
+id2, x2, y2
+...
+idN, xN, yN
+[END]
+
+[HOLE]
+id1, x1, y1
+id2, x2, y2
+...
+idN, xN, yN
+[END]
+
+...
+
+[HOLE]
+id1, x1, y1
+id2, x2, y2
+...
+idN, xN, yN
+[END]
