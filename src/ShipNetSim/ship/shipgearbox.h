@@ -1,31 +1,108 @@
+/**
+ * @file ShipGearbox.h
+ * @brief File containing the declaration of the ShipGearbox class.
+ *
+ * This file contains the declaration of the ShipGearbox class, which
+ * is a concrete implementation of the IShipGearbox interface.
+ *
+ * @author Ahmed Aredah
+ * @date 10.12.2023
+ */
 #ifndef SHIPGEARBOX_H
 #define SHIPGEARBOX_H
 
 #include "ishipgearbox.h"
 
 
-
-class ShipGearBox : IShipGearBox
+/**
+ * @class ShipGearBox
+ * @brief Implementation of the IShipGearBox interface for ship gearboxes.
+ *
+ * The ShipGearbox class is a concrete implementation of the
+ * IShipGearBox interface, which defines the behavior and properties
+ * of a gearbox in a ship's propulsion system. The gearbox is
+ * responsible for transmitting power from the ship's engine to its
+ * propellers, while also adjusting the rotation speed of the
+ * propellers to match the desired speed of the ship.
+ *
+ * The ShipGearBox class stores the gearbox's efficiency, gear ratio,
+ * and output power, and provides methods to initialize the gearbox,
+ * set its parameters, and retrieve its output rotation speed and
+ * power.
+ */
+class ShipGearBox : public IShipGearBox
 {
 public:
+    /**
+     * @brief Default constructor for the ShipGearbox class.
+     *
+     * Initializes the gearbox with default values.
+     */
     ShipGearBox();
 
     // IShipGearBox interface
-    void initialize(Ship *host, QVector<IShipEngine *> engines,
-                    QMap<QString, std::any> &parameters) override;
-    void setParameters(QMap<QString, std::any> &parameters) override;
 
+    /**
+     * @brief Initializes the gearbox with the given parameters.
+     *
+     * This method is used to initialize the gearbox with a reference
+     * to the ship it is part of, a list of engines connected to it,
+     * and a map of parameters that define its behavior and properties.
+     *
+     * @param host Pointer to the ship that the gearbox is part of.
+     * @param engines List of engines connected to the gearbox.
+     * @param parameters Map of parameters defining the gearbox's
+     * behavior and properties.
+     */
+    void initialize(Ship *host, QVector<IShipEngine *> engines,
+                    const QMap<QString, std::any> &parameters) override;
+
+    /**
+     * @brief Sets the gearbox's parameters.
+     *
+     * This method is used to update the gearbox's parameters with the
+     * values provided in the given map.
+     *
+     * @param parameters Map of parameters to update.
+     */
+    void setParameters(const QMap<QString, std::any> &parameters) override;
+
+    /**
+     * @brief Retrieves the gearbox's output rotation speed.
+     *
+     * This method returns the output rotation speed of the gearbox in
+     * revolutions per minute.
+     *
+     * @return The output rotation speed in revolutions per minute.
+     */
     units::angular_velocity::revolutions_per_minute_t
     getOutputRPM() const override;
 
+    /**
+     * @brief Retrieves the gearbox's output power.
+     *
+     * This method returns the output power of the gearbox in
+     * kilowatts.
+     *
+     * @return The output power in kilowatts.
+     */
     units::power::kilowatt_t getOutputPower() override;
+
+    /**
+     * @brief Retrieves the gearbox's output power in the previous step.
+     *
+     * This method returns the output power of the gearbox in the
+     * previous time step, in kilowatts.
+     *
+     * @return The output power in the previous time step, in kilowatts.
+     */
     units::power::kilowatt_t getPreviousOutputPower() const override;
 
 private:
 
-    double mEfficiency;// the efficiency of the gearbox in the range [0, 1].
-    double mGearRationTo1;
-    units::power::kilowatt_t mOutputPower;
+    double mEfficiency; // Gearbox efficiency in the range [0, 1].
+    double mGearRationTo1; // Gear ratio of the gearbox.
+    units::power::kilowatt_t mOutputPower; // Output power of the gearbox.
 };
 
 #endif // SHIPGEARBOX_H

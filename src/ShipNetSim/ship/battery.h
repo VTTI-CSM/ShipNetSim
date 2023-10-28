@@ -23,7 +23,7 @@
 #include "../../third_party/units/units.h"
 #include "ienergysource.h"
 
-class Battery : IEnergySource
+class Battery : public IEnergySource
 {
 private:
     // Battery max capacity
@@ -263,6 +263,22 @@ public:
      * @return True if the battery exceeds the thresholds, false otherwise.
      */
     bool IsBatteryExceedingThresholds();
+
+    // IEnergySource interface
+    /**
+     * @brief get the total energy consumed of the tank
+     * @return total energy consumed
+     */
+    units::energy::kilowatt_hour_t getTotalEnergyConsumed() override;
+
+    /**
+     * @brief reset consumed energy and revert the
+     * fuel level to initial condition
+     */
+    void reset() override;
+
+    // IEnergySource interface
+    void setCharacteristics(const QMap<QString, std::any> &parameters) override;
 };
 
 #endif // BATTERY_H

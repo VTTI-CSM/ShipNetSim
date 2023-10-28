@@ -23,9 +23,10 @@
 #include "IEnergySource.h"
 #include "../../third_party/units/units.h"
 
-class Tank : IEnergySource
+class Tank : public IEnergySource
 {
 private:
+    // Attributes related to the tank's capacity and fuel details
 
     // Maximum capacity of the tank in liters
     units::volume::liter_t tankMaxCapacity;
@@ -40,6 +41,7 @@ private:
     // Total consumed amount of fuel in liters
     units::volume::liter_t tankCumConsumedFuel =
         units::volume::liter_t(0.0);
+    // The type of fuel stored in the tank.
     ShipFuel::FuelType fuelType;
     // Weight of the fuel inside the tank
     units::mass::kilogram_t fuelWeight;
@@ -160,9 +162,28 @@ public:
      */
     units::volume::liter_t getTankCumConsumedFuel() const;
 
+    /**
+     * @brief get the fuel stored type
+     * @return FuelType
+     */
     ShipFuel::FuelType getFuelType();
+
     // IEnergySource interface
+    /**
+     * @brief get the total energy consumed of the tank
+     * @return total energy consumed
+     */
     units::energy::kilowatt_hour_t getTotalEnergyConsumed() override;
+
+    /**
+     * @brief reset consumed energy and revert the
+     * fuel level to initial condition
+     */
+    void reset() override;
+
+    // IEnergySource interface
+    void setCharacteristics(const QMap<QString, std::any> &parameters) override;
+
 };
 
 #endif // TANK_H

@@ -1,3 +1,19 @@
+/**
+ * @file IShipResistance.h
+ * @brief This file defines the IShipResistancePropulsionStrategy
+ * interface, which provides methods for calculating different
+ * types of resistance experienced by a ship, including frictional,
+ * appendage, wave, and air resistance, as well as the total resistance.
+ *
+ * This interface allows for the implementation of different
+ * resistance prediction methods, and includes functions to
+ * calculate the speed of advance, hull efficiency, and propeller
+ * rotation efficiency of the ship.
+ *
+ * @author Ahmed Aredah
+ * @date 09/12/2023
+ */
+
 #ifndef ISHIPRESISTANCE_H
 #define ISHIPRESISTANCE_H
 
@@ -159,10 +175,16 @@ public:
         units::velocity::meters_per_second_t(
             std::nan("Unintialized"))) = 0;
 
-
-//    virtual units::force::newton_t
-//    getThrust(const Ship &ship) = 0;
-
+    /**
+     * @brief Calculates the speed of advance of the ship.
+     *
+     * The speed of advance is the effective speed of the ship through water,
+     * accounting for factors like current and wind.
+     *
+     * @param ship A constant reference to the Ship object.
+     * @param customSpeed Optional custom speed parameter.
+     * @return The speed of advance in meters per second.
+     */
     virtual units::velocity::meters_per_second_t
     calc_SpeedOfAdvance(
         const Ship &ship,
@@ -171,16 +193,26 @@ public:
             std::nan("Unintialized"))) = 0;
 
     /**
-     * @brief getHullEffeciency
-     * @param ship
-     * @return
+     * @brief Calculates the hull efficiency of the ship.
+     *
+     * Hull efficiency is a measure of how effectively the ship's hull
+     * moves through water,
+     * with higher values indicating better performance.
+     *
+     * @param ship A constant reference to the Ship object.
+     * @return The hull efficiency, a dimensionless ratio.
      */
     virtual double getHullEffeciency(const Ship &ship) = 0;
 
     /**
-     * @brief getPropellerRotationEfficiency
-     * @param ship
-     * @return
+     * @brief Calculates the propeller rotation efficiency of the ship.
+     *
+     * Propeller rotation efficiency is a measure of how effectively
+     * the ship's propeller converts rotational energy into forward
+     * motion, with higher values indicating better performance.
+     *
+     * @param ship A constant reference to the Ship object.
+     * @return The propeller rotation efficiency, a dimensionless ratio.
      */
     virtual double getPropellerRotationEfficiency(const Ship &ship) = 0;
 
