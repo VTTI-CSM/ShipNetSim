@@ -13,6 +13,11 @@ ShipEngine::ShipEngine()
     mEnergySource = nullptr;
 }
 
+ShipEngine::~ShipEngine()
+{
+    // empty
+}
+
 void ShipEngine::initialize(Ship *host, IEnergySource *energySource,
                 const QMap<QString, std::any> &parameters)
 {
@@ -36,14 +41,14 @@ void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
         Utils::getValueFromMap<
             QMap<units::power::kilowatt_t,
                  units::angular_velocity::revolutions_per_minute_t>>(
-            parameters, "BrakePowerToRPM",
+            parameters, "EngineBrakePowerToRPMMap",
             QMap<units::power::kilowatt_t,
                  units::angular_velocity::revolutions_per_minute_t>());
 
     mBrakePowerToEfficiencyMap =
         Utils::getValueFromMap<QMap<units::power::kilowatt_t,
                                     double>>(
-            parameters, "BrakePowerToEfficiency",
+            parameters, "EngineBrakePowerToEfficiency",
             QMap<units::power::kilowatt_t, double>());
 
     if (mBrakePowerToRPMMap.size() < 1)
@@ -55,6 +60,26 @@ void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
     {
         qCritical() << "Power-To-Efficiency Mapping is not defined!";
     }
+
+    if (!mBrakePowerToEfficiencyMap.isEmpty()) {
+        auto smallestKey = mBrakePowerToEfficiencyMap.begin().key();
+        mEfficiency = mBrakePowerToEfficiencyMap[smallestKey];
+    }
+
+    if (!mBrakePowerToRPMMap.isEmpty()) {
+        auto smallestKey = mBrakePowerToRPMMap.begin().key();
+        mRPM = mBrakePowerToRPMMap[smallestKey];
+    }
+}
+
+void ShipEngine::setEngineMaxSpeedRatio(double maxSpeedRatio)
+{
+    mMaxSpeedRatio = maxSpeedRatio;
+}
+
+double ShipEngine::getEngineMaxSpeedRatio()
+{
+    return mMaxSpeedRatio;
 }
 
 EnergyConsumptionData
@@ -62,9 +87,13 @@ ShipEngine::energyConsumed(units::time::second_t timeStep)
 {
     // the brake power should be increased to consider the losses
     units::energy::kilowatt_hour_t energy =
-        mCurrentOutputPower * timeStep;
+        mCurrentOutputPower *  // TODO: Should consider efficiency
+        timeStep.convert<units::time::hour>();
+
     // consume the energy and return not consumed energy
     auto result = mEnergySource->consume(timeStep, energy);
+
+    // check there is enough energy
     if (!result.isEnergySupplied)
     {
         // no power is provided
@@ -154,8 +183,8 @@ void ShipEngine::updateCurrentStep()
 
     double lambda = getHyperbolicThrottleCoef(mHost->getSpeed());
 
-    units::power::kilowatt_t min_power = mBrakePowerToRPMMap.begin().key();
-    units::power::kilowatt_t max_power = mBrakePowerToRPMMap.end().key();
+    units::power::kilowatt_t min_power = mBrakePowerToRPMMap.firstKey();
+    units::power::kilowatt_t max_power = mBrakePowerToRPMMap.lastKey();
 
     // Calculating power without considering efficiency
     mRawPower = lambda * max_power * mIsWorking;
@@ -191,6 +220,19 @@ units::power::kilowatt_t ShipEngine::getBrakePower()
     return mCurrentOutputPower;
 }
 
+units::torque::newton_meter_t ShipEngine::getBrakeTorque()
+{
+    updateCurrentStep();
+
+    units::torque::newton_meter_t result =
+        units::torque::newton_meter_t(
+        (mCurrentOutputPower.convert<units::power::watt>().value()) /
+            mRPM.convert<
+                units::angular_velocity::radians_per_second>().value());
+
+    return result;
+}
+
 units::angular_velocity::revolutions_per_minute_t ShipEngine::getRPM()
 {
     return mRPM;
@@ -199,25 +241,34 @@ units::angular_velocity::revolutions_per_minute_t ShipEngine::getRPM()
 double ShipEngine::getHyperbolicThrottleCoef(
     units::velocity::meters_per_second_t ShipSpeed)
 {
-    double dv, um;
+    double dv;
     // ratio of current speed by the max speed
     dv = (ShipSpeed / mHost->getMaxSpeed()).value();
     double lambda = (double)1.0 / (1.0 + exp(-7.82605 * (dv - 0.42606)));
 
-    auto min = mBrakePowerToRPMMap.begin().key();
-    auto max = mBrakePowerToRPMMap.end().key();
+
 
     if (lambda < 0.0)
     {
-        return 0.0;
+        lambda = 0.0;
     }
     else if (lambda > 1.0)
     {
-        return 1.0;
+        lambda = 1.0;
+    }
+
+    if (lambda > mMaxSpeedRatio)
+    {
+        lambda = mMaxSpeedRatio;
     }
 
     return lambda;
 
+}
+
+int ShipEngine::getEngineID()
+{
+    return mId;
 }
 
 //void ShipEngine::setBrakePowerFractionToFullPower(double fractionToFullPower)
@@ -228,4 +279,9 @@ double ShipEngine::getHyperbolicThrottleCoef(
 units::power::kilowatt_t ShipEngine::getPreviousBrakePower()
 {
     return mPreviousOutputPower;
+}
+
+bool ShipEngine::isEngineWorking()
+{
+    return mIsWorking;
 }
