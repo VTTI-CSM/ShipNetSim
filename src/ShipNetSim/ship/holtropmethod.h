@@ -13,7 +13,7 @@
 #ifndef RESISTANCESTRATEGY_H
 #define RESISTANCESTRATEGY_H
 
-#include "ishipresistancepropulsionstrategy.h"
+#include "ishipcalmresistancestrategy.h"
 
 
 /**
@@ -29,10 +29,11 @@
  * appendage resistance, wave resistance, bulbous bow resistance,
  * and other resistance types.
  */
-class HoltropMethod : public IShipResistancePropulsionStrategy
+class HoltropMethod : public IShipCalmResistanceStrategy
 {
 public:
 
+    ~HoltropMethod();
 
     /**
      * @copydoc IShipResistanceStrategy::getfrictionalResistance()
@@ -123,6 +124,15 @@ public:
             std::nan("Unintialized"))) override;
 
     /**
+     * @copydoc IShipResistanceStrategy::getCoefficientOfResistance()
+     */
+    double getCoefficientOfResistance(
+        const Ship& ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) override;
+
+    /**
      * @copydoc IShipResistanceStrategy::getHullEffeciency()
      */
     double getHullEffeciency(const Ship &ship) override;
@@ -132,6 +142,10 @@ public:
      */
     double getPropellerRotationEfficiency(const Ship &ship) override;
 
+    /**
+     * @copydoc IShipResistanceStrategy::getThrustDeductionFraction()
+     */
+    double getThrustDeductionFraction(const Ship &ship) override;
     /**
      * @copydoc IShipResistanceStrategy::getMethodName()
      */
@@ -185,6 +199,8 @@ private:
         units::velocity::meters_per_second_t customSpeed =
         units::velocity::meters_per_second_t(
             std::nan("Unintialized")));
+
+    double mThrustDeductionFraction = std::nan("uninitialized");
 
     const double d = -0.9;
 
@@ -378,7 +394,7 @@ private:
         const Ship &ship,
         units::velocity::meters_per_second_t customSpeed =
         units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+            std::nan("Unintialized"))) override;
 
     /**
      * @brief Computes the p_B value.
