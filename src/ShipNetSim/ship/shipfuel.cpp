@@ -1,4 +1,4 @@
-#include "ShipFuel.h"
+#include "shipfuel.h"
 
 std::map<ShipFuel::FuelType,
          units::density::kilograms_per_liter_t> ShipFuel::fuelDensities =
