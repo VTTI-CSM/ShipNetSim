@@ -21,10 +21,13 @@
 #include "tank.h"
 #include <QObject>
 #include <QMap>
-#include "../network/line.h"
-#include "../network/algebraicvector.h"
+#include "../network/gline.h"
+#include "../network/galgebraicvector.h"
 
-class IShipResistancePropulsionStrategy; // Forward declaration of the Interface
+// Forward declaration of the cal water resistance Interface
+class IShipCalmResistanceStrategy;
+//Forward declaration of the dynamic resistance interface
+class IShipDynamicResistanceStrategy;
 
 /**
  * @class Ship
@@ -35,7 +38,11 @@ class Ship : public QObject
 {
     Q_OBJECT
 public:
-
+    struct stopPointDefinition
+    {
+        qsizetype pointIndex;
+        std::shared_ptr<GPoint> point;
+    };
 
     /**
      * @brief defines the Wet Surface Area Calculation Method
@@ -163,9 +170,13 @@ public:
 
     /**
      * @brief Calculates the total resistance experienced by the ship.
+     * @param customSpeed   The custom speed to calculate resistance at.
      * @return Total resistance in kilonewtons.
      */
-    [[nodiscard]] units::force::newton_t calculateTotalResistance() const;
+    [[nodiscard]] units::force::newton_t
+    calculateTotalResistance(units::velocity::meters_per_second_t customSpeed =
+                             units::velocity::meters_per_second_t(
+                                 std::nan("unintialized"))) const;
 
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -182,6 +193,17 @@ public:
      * @param newL New length to set in meters.
      */
     void setLengthInWaterline(const units::length::meter_t &newL);
+
+    /**
+     * @brief Retrieves the length between perpendiculars of the ship.
+     * @return Length in meters.
+     */
+    [[nodiscard]] units::length::meter_t getLengthBetweenPerpendiculars() const;
+    /**
+     * @brief Updates the length between perpendiculars of the ship.
+     * @param newL New length to set in meters.
+     */
+    void setLengthBetweenPerpendiculars(const units::length::meter_t &newL);
 
     /**
      * @brief Retrieves the breadth (width) of the ship.
@@ -439,38 +461,57 @@ public:
 
 
     /**
-     * @brief Sets the resistance strategy used by the
+     * @brief Sets the calm resistance strategy used by the
      *          ship for resistance calculations.
      * @param newStrategy Pointer to the new strategy to be used.
      */
-    void setResistancePropulsionStrategy(
-        IShipResistancePropulsionStrategy* newStrategy);
+    void setCalmResistanceStrategy(
+        IShipCalmResistanceStrategy* newStrategy);
     /**
-     * @brief Retrieves the current resistance strategy used by the ship.
+     * @brief Retrieves the current calm resistance strategy used by the ship.
      * @return Pointer to the current resistance strategy.
      */
-    [[nodiscard]] IShipResistancePropulsionStrategy
-        *getResistanceStrategy() const;
+    [[nodiscard]] IShipCalmResistanceStrategy
+        *getCalmResistanceStrategy() const;
+
+    /**
+     * @brief Sets the dynamic resistance strategy used by the
+     *          ship for resistance calculations.
+     * @param newStrategy Pointer to the new strategy to be used.
+     */
+    void setDynamicResistanceStrategy(
+        IShipDynamicResistanceStrategy* newStrategy);
+
+    /**
+     * @brief Retrieves the current dynamic resistance
+     *          strategy used by the ship.
+     * @return Pointer to the current resistance strategy.
+     */
+    [[nodiscard]] IShipDynamicResistanceStrategy
+        *getDynamicResistanceStrategy() const;
 
 
+    /**
+     * @brief get the main tank capacity state of the ship.
+     * @return the capacity state in percentage.
+     */
+    [[nodiscard]] double getMainTankCurrentCapacity();
 
 
-
-
-//    /**
-//     * @brief Retrieves the lengthwise projected area
-//     *          of the ship above the waterline.
-//     * @return Lengthwise projection area in square meters.
-//     */
-//    units::area::square_meter_t getLengthwiseProjectionArea() const;
-//    /**
-//     * @brief Sets the lengthwise projected area of the
-//     *          ship above the waterline.
-//     * @param newLengthwiseProjectionArea New lengthwise
-//     *          projection area value in square meters.
-//     */
-//    void setLengthwiseProjectionArea(
-//        const units::area::square_meter_t &newLengthwiseProjectionArea);
+   /**
+    * @brief Retrieves the lengthwise projected area
+    *          of the ship above the waterline.
+    * @return Lengthwise projection area in square meters.
+    */
+   units::area::square_meter_t getLengthwiseProjectionArea() const;
+   /**
+    * @brief Sets the lengthwise projected area of the
+    *          ship above the waterline.
+    * @param newLengthwiseProjectionArea New lengthwise
+    *          projection area value in square meters.
+    */
+   void setLengthwiseProjectionArea(
+       const units::area::square_meter_t &newLengthwiseProjectionArea);
 
     /**
      * @brief Retrieves the surface roughness of the ship's hull.
@@ -515,6 +556,8 @@ public:
     [[nodiscard]] units::mass::metric_ton_t getCargoWeight() const;
     void setCargoWeight(const units::mass::metric_ton_t &newCargoWeight);
 
+    units::mass::metric_ton_t calc_SurgeAddedMass() const;
+
     [[nodiscard]] units::mass::metric_ton_t getTotalVesselWeight() const;
 
     void addPropeller(IShipPropeller *newPropeller);
@@ -523,10 +566,10 @@ public:
 
     [[nodiscard]] QVector<Ship*> *draggedVessels();
 
-    [[nodiscard]] QVector<std::shared_ptr<Line>>* getShipPathLines();
-    [[nodiscard]] QVector<std::shared_ptr<Point>>* getShipPathPoints();
-    void setPath(const QVector<std::shared_ptr<Point>> points,
-                 const QVector<std::shared_ptr<Line>> lines);
+    [[nodiscard]] QVector<std::shared_ptr<GLine>>* getShipPathLines();
+    [[nodiscard]] QVector<std::shared_ptr<GPoint>>* getShipPathPoints();
+    void setPath(const QVector<std::shared_ptr<GPoint>> points,
+                 const QVector<std::shared_ptr<GLine>> lines);
 
 
     [[nodiscard]] bool isReachedDestination() const;
@@ -537,13 +580,17 @@ public:
     void load();
     void unload();
 
-    [[nodiscard]] std::shared_ptr<Point> startPoint();
-    void setStartPoint(std::shared_ptr<Point> startPoint);
+    [[nodiscard]] std::shared_ptr<GPoint> startPoint();
+    void setStartPoint(std::shared_ptr<GPoint> startPoint);
 
-    [[nodiscard]] std::shared_ptr<Point> endPoint();
-    void setEndPoint(std::shared_ptr<Point> endPoint);
+    [[nodiscard]] std::shared_ptr<GPoint> endPoint();
+    void setEndPoint(std::shared_ptr<GPoint> endPoint);
 
-    [[nodiscard]] Point getCurrentPosition();
+    [[nodiscard]] GPoint getCurrentPosition();
+    [[nodiscard]] units::angle::degree_t getCurrentHeading() const;
+    [[nodiscard]] GPoint getCurrentTarget();
+    [[nodiscard]] AlgebraicVector::Environment getCurrentEnvironment() const;
+    void setCurrentEnvironment(const AlgebraicVector::Environment newEnv);
 //    void setCurrentPosition(const Point& point);
 
     [[nodiscard]] QVector<units::length::meter_t> getLinksCumLengths() const;
@@ -551,8 +598,9 @@ public:
     void setStartTime(const units::time::second_t &newStartTime);
 
 
-
-    units::energy::kilowatt_hour_t getConsumedEnergy();
+    void addToCummulativeConsumedEnergy(
+        units::energy::kilowatt_hour_t consumedkWh);
+    units::energy::kilowatt_hour_t getCumConsumedEnergy();
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -562,7 +610,8 @@ public:
                   units::velocity::meters_per_second_t &freeFlowSpeed,
                   QVector<units::length::meter_t> &gapToNextCriticalPoint,
                   QVector<bool> &isFollowingAnotherShip,
-                  QVector<units::velocity::meters_per_second_t> &leaderSpeeds);
+                  QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
+                  AlgebraicVector::Environment currentEnvironment);
 
     [[nodiscard]] units::length::meter_t getTraveledDistance() const;
     [[nodiscard]] units::length::meter_t getTotalPathLength() const;
@@ -570,8 +619,7 @@ public:
     void reset();
 
     [[nodiscard]] size_t getPreviousPathPointIndex() const;
-    [[nodiscard]] QPair<qsizetype,
-                        std::shared_ptr<Point>> getNextStoppingPoint();
+    [[nodiscard]] stopPointDefinition getNextStoppingPoint();
     units::length::meter_t distanceToFinishFromPathNodeIndex(qsizetype i);
     [[nodiscard]] units::length::meter_t
     distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
@@ -582,9 +630,9 @@ public:
     [[nodiscard]] bool isShipOnCorrectPath();
     [[nodiscard]] double progress();
 
-    [[nodiscard]] units::velocity::meters_per_second_t getCurrentMaxSpeed();
-    [[nodiscard]] QHash<qsizetype, units::velocity::meters_per_second_t>
-    getAheadLowerSpeeds(qsizetype nextStopIndex);
+    // [[nodiscard]] units::velocity::meters_per_second_t getCurrentMaxSpeed();
+    // [[nodiscard]] QHash<qsizetype, units::velocity::meters_per_second_t>
+    // getAheadLowerSpeeds(qsizetype nextStopIndex);
 
     void kickForwardADistance(units::length::meter_t &distance,
                               units::time::second_t timeStep);
@@ -602,11 +650,16 @@ private:
     //!< The ship ID
     QString mShipUserID;
 
-    //!< Strategy used for calculating ship resistance.
-    IShipResistancePropulsionStrategy* mStrategy;
+    //!< Strategy used for calculating ship calm water resistance.
+    IShipCalmResistanceStrategy* mCalmResistanceStrategy;
+
+    IShipDynamicResistanceStrategy* mDynamicResistanceStrategy;
 
     //!< Length of the ship at the waterline.
     units::length::meter_t mWaterlineLength;
+
+    //!< Length between the perpendiculars of the ship
+    units::length::meter_t mLengthBetweenPerpendiculars;
 
     //!< Breadth or width of the ship at its widest point.
     units::length::meter_t mBeam;
@@ -631,9 +684,9 @@ private:
     /// The method used for calculating the wet surface area.
     WetSurfaceAreaCalculationMethod mWetSurfaceAreaMethod;
 
-//    /// The area projected by the ship onto a vertical
-//    /// plane in the direction of travel.
-//    units::area::square_meter_t mLengthwiseProjectionArea;
+   //!< The area projected by the ship onto a vertical
+   //! plane in the direction of travel.
+   units::area::square_meter_t mLengthwiseProjectionArea;
 
     /// Vertical position of the center of the bulbous bow's
     /// transverse area, also known as h_B.
@@ -674,6 +727,7 @@ private:
 
     //!< Coefficient representing the area of the ship's waterline plane.
     double mWaterplaneAreaCoef;
+
     /// Method of calculating the waterplanecoef
     WaterPlaneCoefficientMethod mWaterplaneCoefMethod;
 
@@ -684,7 +738,7 @@ private:
     double mBlockCoef;
 
     /// Method of calculating the block coef
-    BlockCoefficientMethod mBlockCoefMethod;
+    mutable BlockCoefficientMethod mBlockCoefMethod;
 
     /// Resistance due to friction between the ship's
     /// hull and the surrounding water.
@@ -709,83 +763,147 @@ private:
     //!< Resistance due to the ship's superstructure interaction with air.
     units::force::newton_t mAirResistance;
 
-
     //!< Total resistance faced by the ship.
     units::force::newton_t mTotalResistance;
 
+    //!< the start time this vessel enters the simulation
     units::time::second_t mStartTime;
+
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~ Dynamics Variables ~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+    //!< The max jerk the vessel can change in acceleration
     units::jerk::meters_per_second_cubed_t mMaxJerk =
         units::jerk::meters_per_second_cubed_t(2.0);
 
+    //!< The current acceleration of the vessel
     units::acceleration::meters_per_second_squared_t mAcceleration;
 
+    //!< The previous acceleration of the vessel
     units::acceleration::meters_per_second_squared_t mPreviousAcceleration;
 
+    //!< The max speed the vessel can go by.
+    //! this is required for the model to work.
+    //! if the vessel is a cargo ship, 25 knots is a typical value.
     units::velocity::meters_per_second_t mMaxSpeed;
+
     //!< Current speed of the ship.
     units::velocity::meters_per_second_t mSpeed;
 
+    //!< The previous speed of the vessel.
     units::velocity::meters_per_second_t mPreviousSpeed;
 
-    //!< The ship traveled distance
+    //!< The ship traveled distance.
     units::length::meter_t mTraveledDistance;
 
+    //!< The lightship weight (LWT) of the vessel.
     units::mass::metric_ton_t mVesselWeight;
 
+    //!< The weight of the cargo only on the ship.
     units::mass::metric_ton_t mCargoWeight;
 
-    units::mass::metric_ton_t mAddedWeight;
+    // //!< Any extra weight that is not counted in either
+    // //! the VesselWeight or the CargoWeight.
+    // units::mass::metric_ton_t mAddedWeight;
 
-    bool mStopIfNoEnergy;
+    //!< A bool to indicate the ship should stop
+    //! completely when it has no power.
+    bool mStopIfNoEnergy = false;
 
-    bool mIsOn;
+    //!< A bool to indicate the ship is still running.
+    //! The ship stops running when there is no power.
+    bool mIsOn = true;
 
-    bool mOffLoaded;
+    //!< A bool to indicate the ship has been offloaded
+    //! from the simulator.
+    bool mOffLoaded = false;
 
-    bool mReachedDestination;
+    //!< A bool to indicate the ship has reached its destination.
+    bool mReachedDestination = false;
 
-    bool mOutOfEnergy;
+    //!< A bool to indicate the ship is out of energy.
+    bool mOutOfEnergy = false;
 
-    bool mLoaded;
+    //!< A bool to indicate the ship is loaded to the simulator.
+    bool mLoaded = false;
 
+    //!< A vector to hold cum lengths of the links.
+    //! This variable is used to find the location of
+    //! the ship (macroscopically).
     QVector<units::length::meter_t> mLinksCumLengths;
+
+    //!< Holds the total length the ship is estimated to traverse.
     units::length::meter_t mTotalPathLength;
-    AlgebraicVector mCurrentState;
-    std::shared_ptr<Point> mStartCoordinates;
-    std::shared_ptr<Point> mEndCoordinates;
 
-    std::size_t mPreviousPathPointIndex;
+    //!< Holds the current position and course
+    GAlgebraicVector mCurrentState;
 
+    //!< the initial start point of the ship on its path
+    std::shared_ptr<GPoint> mStartCoordinates;
+
+    //!< the last point on the ship path
+    std::shared_ptr<GPoint> mEndCoordinates;
+
+    //!< The main energy source that is feeding the main
+    //! engine for the propulsion system.
+    std::shared_ptr<IEnergySource> mMainEnergySource;
+
+    //!< Holds all the propellers the ship has
     QVector<IShipPropeller*> mPropellers;
+
+    //!< Holds all ships the current ship is dragging.
+    //! If the dragged ships have propulsion system active,
+    //! they will move forward but not directed.
     QVector<Ship*> mDraggedVessels;
 
-    QVector<std::shared_ptr<Line>> mPathLines;
-    QVector<std::shared_ptr<Point>> mPathPoints;
+    //!< The Lines connecting path points.
+    QVector<std::shared_ptr<GLine>> mPathLines;
+
+    //!< The points on the path that define the path of the vessel.
+    QVector<std::shared_ptr<GPoint>> mPathPoints;
+
+    ///* a vector that has indices of port points
     QVector<qsizetype> mStoppingPointIndices;
-    std::shared_ptr<Line> mCurrentLink;
 
+    //!< Holds the current link.
+    std::shared_ptr<GLine> mCurrentLink;
+
+    //!< A boolean to disable showing warning messages for no power.
     bool mShowNoPowerMessage;
-    units::time::second_t mT_s = units::time::second_t(2.0);
 
+    //!< Holds the reaction time.
+    units::time::second_t mT_s = units::time::second_t(10.0);
+
+    //!< Holds the max deceleration level.
+    //! This is the upper bound of the decceleration.
+    //! Refer to calc_decelerationAtSpeed().
     units::acceleration::meters_per_second_squared_t mD_des =
         units::acceleration::meters_per_second_squared_t(0.2);
 
+    //!< The max angle the rudder can turn by
     units::angle::degree_t mRudderAngle = units::angle::degree_t(25.0);
-    units::length::meter_t mTurningRaduis;
 
+    bool mBrakingThrustAvailable = true;
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~ Ship Memorization ~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    QVector<QVector<QHash<qsizetype, units::velocity::meters_per_second_t>>>
+    //!< Holds the previous traversed point index.
+    //! This is important as a memorization variable
+    //! to make the search faster.
+    qsizetype mPreviousPathPointIndex;
+
+    //!< Hold the node index of the point (and its lower speed)
+    //!  where the following link has lower speed than the current
+    //! link speed of the ship.
+    QVector<QVector<QHash<qsizetype,
+                          units::velocity::meters_per_second_t>>>
         mLowerSpeedLinkIndex;
 
-
+    QMap<units::velocity::meters_per_second_t,
+         units::length::meter_t> mGapCache;
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~ Ship Statistics ~~~~~~~~~~~~~~~~~~~~~
@@ -794,7 +912,9 @@ private:
     //!< The ship total trip distance since loaded
     units::time::second_t mTripTime;
 
-    units::energy::kilowatt_hour_t mCumConsumedEnergy;
+    //!< The cum energy consuption to current time.
+    units::energy::kilowatt_hour_t mCumConsumedEnergy =
+        units::energy::kilowatt_hour_t(0.0);
 
 
 
@@ -888,6 +1008,8 @@ private:
      */
     double calc_PrismaticCoef() const;
 
+    double calc_SimpleBlockCoef() const;
+
     units::mass::metric_ton_t calc_addedWeight() const;
 
 
@@ -902,7 +1024,7 @@ private:
      * @return true if the strategy's assumptions are met, false otherwise.
      */
     bool checkSelectedMethodAssumptions(
-        IShipResistancePropulsionStrategy* strategy);
+        IShipCalmResistanceStrategy* strategy);
 
     void initializeDefaults();
 
@@ -919,14 +1041,29 @@ private:
     units::acceleration::meters_per_second_squared_t
     calc_decelerationAtSpeed(
         const units::velocity::meters_per_second_t customSpeed) const;
-
+    double calc_frictionCoef(
+        const units::velocity::meters_per_second_t customSpeed) const;
 
     units::length::meter_t getSafeGap(
         const units::length::meter_t initialGap,
         const units::velocity::meters_per_second_t speed,
         const units::velocity::meters_per_second_t freeFlowSpeed,
-        const units::time::second_t T_s, bool estimate);
+        const units::time::second_t T_s,
+        const units::time::second_t timeStep, bool estimate);
 
+    /**
+     * @brief Get the next time step prediction of the speed
+     * @param gap is the gap between the front tip of the ship
+     *              and the next object or back of ship
+     * @param minGap is the clearance between the two objects if
+     *              the ships to stop behind the leading object
+     * @param speed is the speed of the ship
+     * @param freeFlowSpeed is the max speed allowed
+     * @param aMax is the maximum acceleration
+     * @param T_s is the reaction perception time
+     * @param deltaT is the simulator time step
+     * @return
+     */
     units::velocity::meters_per_second_t
     getNextTimeStepSpeed(
         const units::length::meter_t gap,
@@ -1044,8 +1181,8 @@ private:
 
     void setStepTravelledDistance(units::length::meter_t distance,
                                   units::time::second_t timeStep);
-    Point getPositionByTravelledDistance(
-        units::length::meter_t newTotalDistance);
+    // Point getPositionByTravelledDistance(
+    //     units::length::meter_t newTotalDistance);
 
     units::length::meter_t calcTurningRadius();
     units::angle::degree_t calcMaxROT(units::length::meter_t turnRaduis);
@@ -1059,7 +1196,7 @@ signals:
 
     /**
      * @brief report a sudden acceleration.
-     * @details this is emitted when the train's acceleration is larger
+     * @details this is emitted when the ship's acceleration is larger
      * than the jerk
      * @param msg is the warning message
      */
