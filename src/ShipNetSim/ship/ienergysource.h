@@ -23,6 +23,8 @@
 #include <QString>
 #include <any>
 
+class Ship;  // Forward declaration of the class ship
+
 /**
  * @struct EnergyConsumptionData
  *
@@ -55,7 +57,19 @@ public:
     /**
      * @brief Virtual destructor for the IEnergySource interface.
      */
-    virtual ~IEnergySource() = default; // Virtual destructor
+    ~IEnergySource()
+    {
+        mHost = nullptr;
+    }
+
+    /**
+     * @brief Initialize the energy source.
+     * @param host
+     */
+    void initialize(Ship *host)
+    {
+        mHost = host;
+    }
 
     /**
      * @brief Set the characteristics of the energy source.
@@ -97,6 +111,18 @@ public:
      */
     virtual units::energy::kilowatt_hour_t getTotalEnergyConsumed() = 0;
 
+    virtual double getCurrentCapacityState() = 0;
+
+    /**
+     * @brief Get the updated current weight of the energy source.
+     *
+     * This method is called to get the total current weight in kilograms
+     * of the energy source and its content.
+     *
+     * @return The total current current weight in klograms.
+     */
+    virtual units::mass::kilogram_t getCurrentWeight() = 0;
+
     /**
      * @brief Reset the energy source.
      *
@@ -104,6 +130,9 @@ public:
      * its state back to its initial state.
      */
     virtual void reset() = 0;
+
+protected:
+     Ship *mHost;  ///< A pointer to the host ship.
 };
 
 #endif // IENERGYSOURCE_H
