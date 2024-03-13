@@ -1,8 +1,10 @@
 #include "ship.h"
 #include <cmath>
 #include "hydrology.h"
-#include "ishipresistancepropulsionstrategy.h"
+#include "ishipcalmresistancestrategy.h"
+#include "ishipdynamicresistancestrategy.h"
 #include "holtropmethod.h"
+#include "langmaomethod.h"
 #include <QDebug>
 #include "../../third_party/units/units.h"
 #include "../utils/utils.h"
@@ -10,45 +12,85 @@
 #include "shipgearbox.h"
 #include "shippropeller.h"
 #include "shipengine.h"
-
+#include "defaults.h"
+#include "../network/gpoint.h"
 
 Ship::Ship(const QMap<QString, std::any>& parameters,
            QObject* parent) : QObject(parent)
 {
-    if (parameters.contains("ResistanceStrategy"))
+    if (parameters.contains("CalmWaterResistanceStrategy"))
     {
         try {
             // Try casting the std::any to the base type first
-            if (parameters["ResistanceStrategy"].type() ==
+            if (parameters["CalmWaterResistanceStrategy"].type() ==
                 typeid(HoltropMethod*)) {
                 HoltropMethod* temp =
                     std::any_cast<HoltropMethod*>(
-                    parameters["ResistanceStrategy"]);
-                mStrategy = temp; // Upcast is implicit
+                        parameters["CalmWaterResistanceStrategy"]);
+                mCalmResistanceStrategy = temp; // Upcast is implicit
             }
-            else if (parameters["ResistanceStrategy"].type() !=
-                       typeid(nullptr))
+            else if (parameters["CalmWaterResistanceStrategy"].type() !=
+                     typeid(nullptr))
             {
-                throw ShipException("Resistance strategy does "
-                                    "not match recognized strategies!");
+                qFatal("Calm water resistance strategy does "
+                          "not match recognized strategies!");
             }
         }
         catch (const std::bad_any_cast&) {
             // Handle error: the std::any_cast didn't work
-            mStrategy = nullptr;
+            mCalmResistanceStrategy = nullptr;
         }
+    }
+    else
+    {
+        // Setting default strategies or configurations
+        mCalmResistanceStrategy = new HoltropMethod();
+
+    }
+
+    if (parameters.contains("DynamicResistanceStrategy"))
+    {
+        try {
+            if (parameters["DynamicResistanceStrategy"].type() ==
+                typeid(LangMaoMethod*)) {
+                LangMaoMethod* temp =
+                    std::any_cast<LangMaoMethod*>(
+                    parameters["DynamicResistanceStrategy"]);
+                mDynamicResistanceStrategy = temp;
+            }
+            else if (parameters["DynamicResistanceStrategy"].type() !=
+                   typeid(nullptr))
+            {
+                qFatal("Dynamic resistance strategy does "
+                       "not match recognized strategies!");
+            }
+        }
+        catch (const std::bad_any_cast&) {
+            // Handle error: the std::any_cast didn't work
+            mDynamicResistanceStrategy = nullptr;
+        }
+    }
+    else
+    {
+        mDynamicResistanceStrategy = new LangMaoMethod();
     }
 
     mShipUserID =
         Utils::getValueFromMap<QString>(
-        parameters,
-        "ID",
-        "Not Defined");
+            parameters,
+            "ID",
+            "Not Defined");
 
     mWaterlineLength =
         Utils::getValueFromMap<units::length::meter_t>(
             parameters,
             "WaterlineLength",
+            units::length::meter_t(std::nan("uninitialized")));
+
+    mLengthBetweenPerpendiculars =
+        Utils::getValueFromMap<units::length::meter_t>(
+            parameters,
+            "LengthBetweenPerpendiculars",
             units::length::meter_t(std::nan("uninitialized")));
 
     mBeam =
@@ -124,11 +166,18 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
             "HalfWaterlineEntranceAngle",
             units::angle::degree_t(std::nan("uninitialized")));
 
+    if (std::isnan(mHalfWaterlineEntranceAngle.value()))
+    {
+        mHalfWaterlineEntranceAngle = calc_i_E();
+    }
+
     mSpeed = units::velocity::meters_per_second_t(0.0);
-//        Utils::getValueFromMap<units::velocity::meters_per_second_t>(
-//            parameters,
-//            "Speed",
-//            units::velocity::meters_per_second_t(0.0));
+
+    mMaxSpeed =
+        Utils::getValueFromMap<units::velocity::meters_per_second_t>(
+            parameters, "MaxSpeed",
+            units::velocity::knot_t(25.0)).    // if not defined, use 25 knts
+        convert<units::velocity::meters_per_second>();
 
     mSurfaceRoughness =
         Utils::getValueFromMap<units::length::nanometer_t>(
@@ -170,7 +219,7 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
         Utils::getValueFromMap<WaterPlaneCoefficientMethod>(
             parameters,
             "WaterplaneCoefMethod",
-            WaterPlaneCoefficientMethod::None);
+            WaterPlaneCoefficientMethod::General_Cargo);
 
     mPrismaticCoef =
         Utils::getValueFromMap<double>(
@@ -190,109 +239,140 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
             "BlockCoefMethod",
             BlockCoefficientMethod::None);
 
+    if ((std::isnan(mBlockCoef) && std::isnan(mPrismaticCoef)) ||
+        (std::isnan(mBlockCoef) && std::isnan(mMidshipSectionCoef)) ||
+        (std::isnan(mPrismaticCoef) && std::isnan(mMidshipSectionCoef)))
+    {
+        qFatal("More than one of these coefficients are not passed: "
+               "Block, Prismatic, Midship Coefficients! "
+               "Make sure at least two coefficients are defined!");
+    }
+
+    mLengthwiseProjectionArea =
+        Utils::getValueFromMap<units::area::square_meter_t>(
+        parameters,
+        "ShipAndCargoAreaAboveWaterline",
+        units::area::square_meter_t(0.0));
+
     mPropellers =
         Utils::getValueFromMap<QVector<IShipPropeller*>>(
-        parameters,
-        "Propellers",
-        QVector<IShipPropeller*>());
+            parameters,
+            "Propellers",
+            QVector<IShipPropeller*>());
 
-// Engine properties
+    // Engine properties
     int engineCountPerPropeller =
         Utils::getValueFromMap<int>(parameters,
                                     "EnginesCountPerPropeller",
-                                    1);
+                                    Defaults::EngineCountPerPropeller);
 
     // Propeller Properties
     int propellerCount =
         Utils::getValueFromMap<int>(
-        parameters,
-        "PropellerCount",
-        1);
+            parameters,
+            "PropellerCount",
+            Defaults::PropellerCountPerShip);
 
 
 
-    std::shared_ptr<IEnergySource> energySource =
+    mMainEnergySource =
         Utils::getValueFromMap<std::shared_ptr<IEnergySource>>(
-        parameters,
-        "EnergySource",
-        nullptr);
-    if (energySource == nullptr)
+            parameters,
+            "EnergySource",
+            nullptr);
+    if (mMainEnergySource == nullptr)
     {
         std::shared_ptr<Tank> tank = std::make_shared<Tank>();
+        tank->initialize(this);
         QMap<QString, std::any> tankProperties;
         tankProperties = {
             {"FuelType", ShipFuel::FuelType::HFO},
-            {"MaxCapacity", units::volume::liter_t(11356235.35)},
-            {"InitialCapacityPercentage", 0.9},
-            {"DepthOfDischarge", 0.9}
+            {"MaxCapacity", Defaults::TankSize},
+            {"InitialCapacityPercentage",
+             Defaults::TankInitialCapacityPercentage},
+            {"DepthOfDischarge", Defaults::TankDepthOfDischarge}
         };
         tank->setCharacteristics(tankProperties);
-        energySource = std::static_pointer_cast<IEnergySource>(tank);
+        mMainEnergySource = std::static_pointer_cast<IEnergySource>(tank);
     }
 
     for (int i = 0; i < propellerCount; i++)
     {
 
-        ShipGearBox gearbox = ShipGearBox();
+        ShipGearBox* gearbox = new ShipGearBox();
         QVector<IShipEngine *> engines;
+        engines.reserve(engineCountPerPropeller); // Reserve space
+
         for (int j = 0; j < engineCountPerPropeller; j++)
         {
-            ShipEngine engine = ShipEngine();
-            engine.initialize(this, energySource.get(), parameters);
-            engines.push_back(&engine);
+            ShipEngine *engine = new ShipEngine();
+            try {
+                engine->initialize(this, mMainEnergySource.get(), parameters);
+            } catch (...) {
+                delete engine;
+                throw; // Rethrow the exception after cleaning up
+            }
+            engines.push_back(engine);
         }
-        gearbox.initialize(this, engines, parameters);
+        gearbox->initialize(this, engines, parameters);
 
-        auto prop = ShipPropeller();
-        prop.initialize(this, &gearbox, parameters);
+        // Create, initialize, and add the propeller to the ship
+        auto prop = new ShipPropeller();
+        try {
+            prop->initialize(this, gearbox, parameters);
+        } catch (...) {
+            delete prop;
+            throw; // Rethrow the exception after cleaning up
+        }
+        mPropellers.push_back(prop); // add the propeller to the ship
     }
 
     mStopIfNoEnergy =
         Utils::getValueFromMap<bool>(
-        parameters,
-        "StopIfNoEnergy",
-        false);
+            parameters,
+            "StopIfNoEnergy",
+            false);
 
     mRudderAngle =
         Utils::getValueFromMap<units::angle::degree_t>(
-        parameters,
-        "MaxRudderAngle",
-        units::angle::degree_t(30));
+            parameters,
+            "MaxRudderAngle",
+            units::angle::degree_t(30));
 
     mVesselWeight =
         Utils::getValueFromMap<units::mass::metric_ton_t>(
-        parameters,
-        "VesselWeight",
-        units::mass::metric_ton_t(0.0));
+            parameters,
+            "VesselWeight",
+            units::mass::metric_ton_t(0.0));
 
     mCargoWeight =
         Utils::getValueFromMap<units::mass::metric_ton_t>(
-        parameters,
-        "CargoWeight",
-        units::mass::metric_ton_t(0.0));
+            parameters,
+            "CargoWeight",
+            units::mass::metric_ton_t(0.0));
 
     mDraggedVessels =
         Utils::getValueFromMap<QVector<Ship*>>(
-        parameters,
-        "DraggedVessels",
-        QVector<Ship*>());
+            parameters,
+            "DraggedVessels",
+            QVector<Ship*>());
 
-    QVector<std::shared_ptr<Point>> points =
-        Utils::getValueFromMap<QVector<std::shared_ptr<Point>>>(
-        parameters,
-        "PathPoints",
-        QVector<std::shared_ptr<Point>>());
+    QVector<std::shared_ptr<GPoint>> points =
+        Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
+            parameters,
+            "PathPoints",
+            QVector<std::shared_ptr<GPoint>>());
 
-    QVector<std::shared_ptr<Line>> lines =
-        Utils::getValueFromMap<QVector<std::shared_ptr<Line>>>(
-        parameters,
-        "PathLines",
-        QVector<std::shared_ptr<Line>>());
+    QVector<std::shared_ptr<GLine>> lines =
+        Utils::getValueFromMap<QVector<std::shared_ptr<GLine>>>(
+            parameters,
+            "PathLines",
+            QVector<std::shared_ptr<GLine>>());
 
     if (lines.empty() || points.empty() ||
         lines.size() < 1 || points.size() < 2)
     {
-        throw ShipException("Path Lines and Points are not defined");
+        qFatal("Path Lines and Points are not defined");
     }
     setPath(points, lines);
     setStartPoint(points.at(0));
@@ -309,18 +389,31 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
 Ship::~Ship()
 {
     // avoid memory leaks
-    if (mStrategy) {
-        delete mStrategy;
+    if (mCalmResistanceStrategy != nullptr)
+    {
+        delete mCalmResistanceStrategy;
+        mCalmResistanceStrategy = nullptr;
+    }
+    if (mDynamicResistanceStrategy != nullptr)
+    {
+        delete mDynamicResistanceStrategy;
+        mDynamicResistanceStrategy = nullptr;
     }
     for (IShipPropeller* propeller : mPropellers)
     {
-        if (propeller)
+        if (propeller != nullptr)
+        {
             delete propeller;
+            propeller = nullptr;
+        }
     }
     for (Ship* vessel : mDraggedVessels)
     {
-        if (vessel)
+        if (vessel != nullptr)
+        {
             delete vessel;
+            vessel = nullptr;
+        }
     }
 }
 
@@ -329,18 +422,23 @@ QString Ship::getUserID()
     return mShipUserID;
 }
 
-void Ship::setResistancePropulsionStrategy(
-    IShipResistancePropulsionStrategy* newStrategy)
+units::force::newton_t Ship::calculateTotalResistance(
+    units::velocity::meters_per_second_t customSpeed) const
 {
-    if (mStrategy) {
-        delete mStrategy;  // avoid memory leaks
-    }
-    mStrategy = newStrategy;
-}
+    units::force::newton_t totalResis =
+        mCalmResistanceStrategy->getTotalResistance(*this, customSpeed);
 
-units::force::newton_t Ship::calculateTotalResistance() const
-{
-    return mStrategy->getTotalResistance(*this);
+    if (mDynamicResistanceStrategy != nullptr)
+    {
+        totalResis += mDynamicResistanceStrategy->getTotalResistance(*this);
+    }
+
+    for (auto &ship: this->mDraggedVessels)
+    {
+        // calculate the total calm and dynamic resistances
+        totalResis += ship->calculateTotalResistance(customSpeed);
+    }
+    return totalResis;
 }
 
 units::area::square_meter_t Ship::calc_WetSurfaceAreaToHoltrop() const
@@ -429,16 +527,17 @@ units::area::square_meter_t Ship::calc_WetSurfaceArea(
              * ((double)0.92 + ((double)0.092/getBlockCoef())))
             );
     }
-    else
-    {
-        throw ShipException("Wrong method selected!");
-    }
+
+    qFatal("Wrong method selected!");
+
+    return units::area::square_meter_t(0.0);
+
 }
 
 double Ship::calc_BlockCoefFromVolumetricDisplacement() const
 {
     return (getVolumetricDisplacement() /
-           (getBeam() * getMeanDraft() * getLengthInWaterline())).value();
+            (getBeam() * getMeanDraft() * getLengthInWaterline())).value();
 }
 
 double Ship::calc_BlockCoef(BlockCoefficientMethod method) const
@@ -461,9 +560,11 @@ double Ship::calc_BlockCoef(BlockCoefficientMethod method) const
         }
         else
         {
-            throw ShipException("Froud number is outside "
-                                "the allowable range for Jensen Method. "
-                                "Consider using Ayre Method instead");
+            qWarning() << "Froud number is outside "
+                          "the allowable range for Jensen Method. "
+                          "Set to default 'Ayre Method' instead";
+            mBlockCoefMethod = BlockCoefficientMethod::Ayre;
+            return ((double)1.06 - (double)1.68 * fn);
         }
     }
     else if (method == BlockCoefficientMethod::Schneekluth)
@@ -496,19 +597,25 @@ double Ship::calc_BlockCoef(BlockCoefficientMethod method) const
         }
         else
         {
-            throw ShipException("Froud number is outside "
-                                "the allowable range for Schneekluth Method");
+            qWarning() <<"Froud number is outside "
+                          "the allowable range for Schneekluth Method. "
+                          "Set to default 'Ayre Method' instead";
+            mBlockCoefMethod = BlockCoefficientMethod::Ayre;
+            return ((double)1.06 - (double)1.68 * fn);
         }
     }
     else
     {
-        throw ShipException("Wrong method selected!");
+        qWarning() << "Wrong method selected! "
+                      "Set to default 'Ayre Method' instead";
+        mBlockCoefMethod = BlockCoefficientMethod::Ayre;
+        return ((double)1.06 - (double)1.68 * fn);
     }
 }
 
 double Ship::calc_MidshiSectionCoef()
 {
-    return mBlockCoef / mPrismaticCoef;
+    return getBlockCoef() / getPrismaticCoef();
 }
 
 double Ship::calc_PrismaticCoef() const
@@ -516,8 +623,13 @@ double Ship::calc_PrismaticCoef() const
     return getBlockCoef()/ getMidshipSectionCoef();
 }
 
+double Ship::calc_SimpleBlockCoef() const
+{
+    return getMidshipSectionCoef() * getPrismaticCoef();
+}
+
 bool Ship::checkSelectedMethodAssumptions(
-    IShipResistancePropulsionStrategy *strategy)
+    IShipCalmResistanceStrategy *strategy)
 {
     if (typeid(strategy) == typeid(HoltropMethod))
     {
@@ -546,15 +658,17 @@ bool Ship::checkSelectedMethodAssumptions(
     }
     else if (typeid(strategy) != typeid(nullptr))
     {
-        throw ShipException("Resistance Strategy is not recognized!");
+        qFatal("Resistance Strategy is not recognized!");
     }
     return true;
 }
 
 units::volume::cubic_meter_t Ship::calc_VolumetricDisplacementByWeight() const
 {
+    auto env = mCurrentState.getEnvironment();
+    auto water_rho = hydrology::get_waterDensity(env.salinity, env.temperature);
     return (getTotalVesselWeight().convert<units::mass::kilogram>() /
-            hydrology::WATER_RHO);
+            water_rho);
 }
 
 units::volume::cubic_meter_t Ship::calc_VolumetricDisplacement() const
@@ -592,7 +706,8 @@ double Ship::calc_WaterplaneAreaCoef(WaterPlaneCoefficientMethod method) const
     }
     else
     {
-        throw ShipException("Wrong method selected!");
+        qFatal("Wrong method selected!");
+        return 0.0;
     }
 }
 
@@ -619,7 +734,7 @@ units::angle::degree_t Ship::calc_i_E() const
                   * pow(((double)1.0 - getPrismaticCoef() -
                          (double)0.0225 * getLongitudinalBuoyancyCenter()),
                         (double)0.6367)
-                  * pow((calc_RunLength() /
+                  * pow((getRunLength() /
                          getBeam()).value(), (double)0.34574)
                   * pow((100.0 * getVolumetricDisplacement().value() /
                          pow(getLengthInWaterline().value(), 3)),
@@ -628,6 +743,53 @@ units::angle::degree_t Ship::calc_i_E() const
         );
 }
 
+/**
+     * @brief calculate the surge added mass
+     * @cite Zeraatgar, H., Moghaddas, A., & Sadati, K. (2020).
+     *       Analysis of surge added mass of planing hulls by model experiment.
+     *       Ships and Offshore Structures, 15(3), 310-317.
+     */
+units::mass::metric_ton_t Ship::calc_SurgeAddedMass() const
+{
+
+    // eccentricity
+    double e =
+        sqrt((double)1.0 -
+             (((double)3.0 * getVolumetricDisplacement().value()) /
+              ((double)2.0 * units::constants::pi.value() *
+               getLengthInWaterline().value() * (double)0.5) ) /
+                 pow(getLengthInWaterline().value() * (double)0.5,
+                     (double)2.0));
+
+    // alpha zero
+    double alpha =
+        (((double)2.0 * ((double)1.0 - pow(e, (double)2.0))) /
+         (pow(e, (double)3.0))) *
+        (0.5 * log(((double)1.0 + e)/ ((double)1.0 - e)) - e);
+
+    // added mass coefficient
+    double k1 =
+        alpha / ((double)2.0 - alpha);
+
+    auto env = mCurrentState.getEnvironment();
+    auto water_rho = hydrology::get_waterDensity(env.salinity, env.temperature);
+
+    return (water_rho *
+            getVolumetricDisplacement() *
+            k1).convert<units::mass::metric_ton>();
+
+}
+
+units::mass::metric_ton_t Ship::calc_addedWeight() const
+{
+    auto env = mCurrentState.getEnvironment();
+    auto water_rho = hydrology::get_waterDensity(env.salinity, env.temperature);
+
+    return ((units::constants::pi * water_rho *
+             units::math::pow<2>(getMeanDraft()) *
+             getBeam() * getMidshipSectionCoef())/ (double)2.0).
+        convert<units::mass::metric_ton>();
+}
 
 
 double Ship::getPrismaticCoef() const
@@ -639,26 +801,57 @@ double Ship::getPrismaticCoef() const
     return mPrismaticCoef;
 }
 
-IShipResistancePropulsionStrategy *Ship::getResistanceStrategy() const
+void Ship::setCalmResistanceStrategy(
+    IShipCalmResistanceStrategy* newStrategy)
 {
-    return mStrategy;
+    if (mCalmResistanceStrategy)
+    {
+        delete mCalmResistanceStrategy;  // avoid memory leaks
+    }
+    mCalmResistanceStrategy = newStrategy;
 }
 
-//units::area::square_meter_t Ship::getLengthwiseProjectionArea() const
-//{
-//    if (std::isnan(mLengthwiseProjectionArea))
-//    {
-//        throw ShipException("Lengthwise projection area of the ship "
-//                            "is not assigned yet!");
-//    }
-//    return mLengthwiseProjectionArea;
-//}
+IShipCalmResistanceStrategy *Ship::getCalmResistanceStrategy() const
+{
+    return mCalmResistanceStrategy;
+}
 
-//void Ship::setLengthwiseProjectionArea(
-//    const units::area::square_meter_t &newLengthwiseProjectionArea)
-//{
-//    mLengthwiseProjectionArea = newLengthwiseProjectionArea;
-//}
+void Ship::setDynamicResistanceStrategy(
+    IShipDynamicResistanceStrategy *newStrategy)
+{
+    if (mDynamicResistanceStrategy)
+    {
+        delete mDynamicResistanceStrategy;  // avoid memory leaks
+    }
+    mDynamicResistanceStrategy = newStrategy;
+}
+
+IShipDynamicResistanceStrategy *Ship::getDynamicResistanceStrategy() const
+{
+    return mDynamicResistanceStrategy;
+}
+
+double Ship::getMainTankCurrentCapacity()
+{
+    return mPropellers[0]->getGearBox()->getEngines().at(0)->
+        getEnergySource()->getCurrentCapacityState();
+}
+
+units::area::square_meter_t Ship::getLengthwiseProjectionArea() const
+{
+   if (std::isnan(mLengthwiseProjectionArea.value()))
+   {
+       throw ShipException("Lengthwise projection area of the ship "
+                           "is not assigned yet!");
+   }
+   return mLengthwiseProjectionArea;
+}
+
+void Ship::setLengthwiseProjectionArea(
+   const units::area::square_meter_t &newLengthwiseProjectionArea)
+{
+   mLengthwiseProjectionArea = newLengthwiseProjectionArea;
+}
 
 units::length::nanometer_t Ship::getSurfaceRoughness() const
 {
@@ -747,21 +940,13 @@ void Ship::setCargoWeight(const units::mass::metric_ton_t &newCargoWeight)
     mCargoWeight = newCargoWeight;
 }
 
+
 units::mass::metric_ton_t Ship::getTotalVesselWeight() const
 {
-    return (mCargoWeight + mVesselWeight + mAddedWeight);
+    return (getCargoWeight() + getVesselWeight() +
+            calc_SurgeAddedMass() + // Calculate the added weights
+            mMainEnergySource->getCurrentWeight());
 }
-
-units::mass::metric_ton_t Ship::calc_addedWeight() const
-{
-    return ((units::constants::pi * hydrology::WATER_RHO *
-             units::math::pow<2>(getMeanDraft()) *
-             getBeam() * getMidshipSectionCoef())/ (double)2.0).
-        convert<units::mass::metric_ton>();
-}
-
-
-
 
 units::angle::degree_t Ship::getHalfWaterlineEntranceAngle() const
 {
@@ -782,7 +967,7 @@ double Ship::getBlockCoef() const
 {
     if (std::isnan(mBlockCoef))
     {
-        return calc_BlockCoef(mBlockCoefMethod);
+        return calc_SimpleBlockCoef(); //return calc_BlockCoef(mBlockCoefMethod);
     }
     return mBlockCoef;
 }
@@ -829,6 +1014,21 @@ units::length::meter_t Ship::getLengthInWaterline() const
 void Ship::setLengthInWaterline(const units::length::meter_t &newL)
 {
     mWaterlineLength = newL;
+}
+
+units::length::meter_t Ship::getLengthBetweenPerpendiculars() const
+{
+    if (std::isnan(mLengthBetweenPerpendiculars.value()))
+    {
+        throw ShipException("Length between perpendiculars "
+                            "is not assigned yet!");
+    }
+    return mLengthBetweenPerpendiculars;
+}
+
+void Ship::setLengthBetweenPerpendiculars(const units::length::meter_t &newL)
+{
+    mLengthBetweenPerpendiculars = newL;
 }
 
 units::length::meter_t Ship::getBeam() const
@@ -948,7 +1148,7 @@ units::area::square_meter_t Ship::getTotalAppendagesWettedSurfaces() const
         return units::area::square_meter_t(0.0);
     }
     units::area::square_meter_t totalArea = units::area::square_meter_t(0.0);
-    for (auto area : getAppendagesWettedSurfaces())
+    for (auto& area : getAppendagesWettedSurfaces())
     {
         totalArea += area;
     }
@@ -985,11 +1185,6 @@ void Ship::setBulbousBowTransverseArea(
 
 units::velocity::meters_per_second_t Ship::getSpeed() const
 {
-    if (std::isnan(mSpeed.value()))
-    {
-        throw ShipException("Ship speed "
-                            "is not assigned yet!");
-    }
     return mSpeed;
 }
 
@@ -1162,7 +1357,7 @@ void Ship::initializeDefaults()
 
     // calculate V or CB
     if (std::isnan(mVolumetricDisplacement.value()) &&
-                   std::isnan(mBlockCoef))
+        std::isnan(mBlockCoef))
     {
         throw ShipException("Volumetric displacement and block "
                             "coefficient are not defined!");
@@ -1202,9 +1397,9 @@ void Ship::initializeDefaults()
     }
 
     // Setting default strategies or configurations
-    if (!mStrategy)
+    if (!mCalmResistanceStrategy)
     {
-        mStrategy = new HoltropMethod();
+        mCalmResistanceStrategy = new HoltropMethod();
     }
 
     // Handle areas and related values
@@ -1248,113 +1443,189 @@ void Ship::initializeDefaults()
 
 }
 
-QVector<std::shared_ptr<Line>>* Ship::getShipPathLines()
+QVector<std::shared_ptr<GLine>>* Ship::getShipPathLines()
 {
     return &mPathLines;
 }
 
-QVector<std::shared_ptr<Point>>* Ship::getShipPathPoints()
+QVector<std::shared_ptr<GPoint>>* Ship::getShipPathPoints()
 {
     return &mPathPoints;
 }
 
-void Ship::setPath(const QVector<std::shared_ptr<Point>> points,
-                   const QVector<std::shared_ptr<Line>> lines)
+void Ship::setPath(const QVector<std::shared_ptr<GPoint>> points,
+                   const QVector<std::shared_ptr<GLine>> lines)
 {
     if (mTraveledDistance > units::length::meter_t(0.0) ||
         isLoaded())
     {
-        throw ShipException("Cannot set the ship path "
-                            "in the middle of the trip!");
+        qWarning() << "Cannot set the ship path "
+                      "in the middle of the trip!";
     }
 
     mPathPoints = points;
     mPathLines = lines;
     mLinksCumLengths = generateCumLinesLengths();
     mTotalPathLength = mLinksCumLengths.back();
-    mCurrentState = AlgebraicVector(*(mPathPoints.at(0)),
+    mCurrentState = GAlgebraicVector(*(mPathPoints.at(0)),
                                     *(mPathPoints.at(1)));
     computeStoppingPointIndices();
 }
 
-std::shared_ptr<Point> Ship::startPoint()
+std::shared_ptr<GPoint> Ship::startPoint()
 {
     return mStartCoordinates;
 }
 
 // this should be in the ship constructor only
-void Ship::setStartPoint(std::shared_ptr<Point> startPoint)
+void Ship::setStartPoint(std::shared_ptr<GPoint> startPoint)
 {
     mStartCoordinates = startPoint;
 }
 
-std::shared_ptr<Point> Ship::endPoint()
+std::shared_ptr<GPoint> Ship::endPoint()
 {
     return mEndCoordinates;
 }
 
-void Ship::setEndPoint(std::shared_ptr<Point> endPoint)
+void Ship::setEndPoint(std::shared_ptr<GPoint> endPoint)
 {
     mEndCoordinates = endPoint;
 }
 
-Point Ship::getCurrentPosition()
+GPoint Ship::getCurrentPosition()
 {
     return mCurrentState.getCurrentPosition();
 }
 
+units::angle::degree_t Ship::getCurrentHeading() const
+{
+    return mCurrentState.getOrientationAngleWithRespectToNorth();
+}
+
+GPoint Ship::getCurrentTarget()
+{
+    return mCurrentState.getTarget();
+}
+
+AlgebraicVector::Environment Ship::getCurrentEnvironment() const
+{
+    return mCurrentState.getEnvironment();
+}
+
+void Ship::setCurrentEnvironment(const AlgebraicVector::Environment newEnv)
+{
+    mCurrentState.setEnvironment(newEnv);
+}
+
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~ End of Setters/Getters ~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~ Start of Dynamics ~~~~~~~~~~~~~~~~~~
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 units::acceleration::meters_per_second_squared_t
 Ship::calc_maxAcceleration() const
 {
-    return (getTotalThrust() - mStrategy->getTotalResistance(*this)) /
+    auto thrust = getTotalThrust();
+    auto resistance = this->calculateTotalResistance();
+    auto acceleration = (thrust - resistance) /
            getTotalVesselWeight().convert<units::mass::kilogram>();
+    return acceleration;
 }
 
 units::acceleration::meters_per_second_squared_t
 Ship::calc_decelerationAtSpeed(
     const units::velocity::meters_per_second_t customSpeed) const
 {
-    return ((double)-1.0 * mStrategy->getTotalResistance(*this, customSpeed)) /
-           getTotalVesselWeight().convert<units::mass::kilogram>();
+    units::force::newton_t resultantForces =
+        this->calculateTotalResistance(customSpeed);
+
+    if (mBrakingThrustAvailable)
+    {
+        resultantForces += getTotalThrust();
+    }
+
+    units::acceleration::meters_per_second_squared_t acc =
+        resultantForces /
+        getTotalVesselWeight().convert<units::mass::kilogram>();
+
+    return ((double)-1.0 * acc); // make it negative value
+
+    // return -1.0L * units::acceleration::meters_per_second_squared_t(0.2);
+
 }
 
+double Ship::calc_frictionCoef(
+    const units::velocity::meters_per_second_t customSpeed) const
+{
+    return mCalmResistanceStrategy->
+        getCoefficientOfResistance(*this, customSpeed);
+}
 
 units::velocity::meters_per_second_t Ship::getMaxSpeed() const
 {
     return mMaxSpeed;
 }
 
-
-
-units::length::meter_t Ship::getSafeGap(
-    const units::length::meter_t initialGap,
+units::length::meter_t Ship::getSafeGap(const units::length::meter_t initialGap,
     const units::velocity::meters_per_second_t speed,
     const units::velocity::meters_per_second_t freeFlowSpeed,
-    const units::time::second_t T_s, bool estimate)
+    const units::time::second_t T_s,
+    const units::time::second_t timeStep, bool estimate)
 {
     units::length::meter_t gap_lad = units::length::meter_t(0.0);
 
-    units::acceleration::meters_per_second_squared_t d_des;
-
     if (! estimate )
     {
+        auto roundedSpeed = speed.round(1); // round the speed for faster calc
+
+        // use memorization to speed up calculations
+        if (mGapCache.contains(roundedSpeed))
+        {
+            return mGapCache[roundedSpeed];
+        }
+
+        units::velocity::meters_per_second_t currentSpeed = roundedSpeed;
+        gap_lad = initialGap + currentSpeed * timeStep;
+
+        // use a conversion limit of 0.05 for faster computations
+        while(currentSpeed > units::velocity::meters_per_second_t(0.5))
+        {
+            // check if the memory has this value for faster calculations
+            if (mGapCache.contains(roundedSpeed))
+            {
+                gap_lad += mGapCache[roundedSpeed];
+                break;
+            }
+
+            auto d_des_internal = calc_decelerationAtSpeed(currentSpeed);
+            currentSpeed += d_des_internal * timeStep; // the d_des is negative
+            gap_lad += currentSpeed * timeStep;
+        }
+
+        // gap_lad *= 2.0L;
+
+        mGapCache[roundedSpeed] = gap_lad;
+
+        // d_des = units::math::min(
+        //     units::math::abs(calc_decelerationAtSpeed(speed)), // average deceleration level
+        //     mD_des);
+
+        // gap_lad =
+        //     initialGap + T_s * speed +
+        //     (units::math::pow<2>(speed) / (2.0 * mD_des));
+    }
+    else
+    {
+        units::acceleration::meters_per_second_squared_t
         d_des = units::math::min(
-            units::math::abs(calc_decelerationAtSpeed(speed)),
+            units::math::abs(calc_decelerationAtSpeed(freeFlowSpeed)), // average deceleration level
             mD_des);
 
-        gap_lad =
-            initialGap + T_s * speed +
-            (units::math::pow<2>(speed) / (2.0 * mD_des));
-    }
-        else
-    {
-        d_des = units::math::min(
-            units::math::abs(calc_decelerationAtSpeed(freeFlowSpeed)),
-            mD_des);
         gap_lad = initialGap + T_s * freeFlowSpeed +
                   (units::math::pow<2>(freeFlowSpeed) /
                    (2.0 * d_des));
@@ -1377,9 +1648,11 @@ Ship::getNextTimeStepSpeed(
 
     if (u_hat < speed)
     {
-        u_hat = max(u_hat, speed - calc_decelerationAtSpeed(speed) * deltaT);
+        // consider average deceleration level
+        u_hat = max(u_hat, speed + calc_decelerationAtSpeed(speed) * deltaT);
     }
-    else if (u_hat > speed && u_hat != freeFlowSpeed) {
+    else if (u_hat > speed && u_hat != freeFlowSpeed)
+    {
         u_hat = min(u_hat, speed + aMax * deltaT);
     }
     return u_hat;
@@ -1411,8 +1684,9 @@ Ship::get_acceleration_an11(
     else {
         denominator = units::time::second_t(0.0001);
     }
+    // consider average deceleration level
     return units::math::max(((u_hat - speed) / (denominator)),
-               calc_decelerationAtSpeed(speed));
+                            calc_decelerationAtSpeed(speed));
 }
 
 
@@ -1424,7 +1698,7 @@ Ship::get_acceleration_an12(
     const units::acceleration::meters_per_second_squared_t &amax)
 {
     units::time::second_t t_s = (T_s == units::time::second_t(0.0L)) ?
-              units::time::second_t(0.0001L) : T_s;
+                                    units::time::second_t(0.0001L) : T_s;
     return units::math::min((u_hat - speed) / t_s, amax);
 }
 
@@ -1459,7 +1733,7 @@ Ship::get_acceleration_an14(
     return units::math::max(
         units::math::min(
             (leaderSpeed - speed) / T_s, amax),
-               calc_decelerationAtSpeed(speed));
+        calc_decelerationAtSpeed(speed)); // average deceleration level
 }
 
 double Ship::get_beta2()
@@ -1495,12 +1769,15 @@ Ship::get_acceleration_an2(
     const units::velocity::meters_per_second_t &leaderSpeed,
     const units::time::second_t &T_s)
 {
+    (void)T_s; // ignore it as we dont use it here
+
     units::acceleration::meters_per_second_squared_t d_des =
         units::math::min(
             units::math::abs(calc_decelerationAtSpeed(speed)),
             mD_des);
 
     units::acceleration::meters_per_second_squared_t term;
+
     term = units::math::pow<2>(units::math::pow<2>(speed) -
                                units::math::pow<2>(leaderSpeed)) /
            (4.0 * d_des *
@@ -1510,7 +1787,10 @@ Ship::get_acceleration_an2(
                                  )
                 )
             );
-    return min(term, calc_decelerationAtSpeed(speed) * (double)-1.0);
+    return std::min(term, d_des);
+
+    // consider average deceleration level
+    // return min(term, calc_decelerationAtSpeed(speed) * (double)-1.0);
 }
 
 units::acceleration::meters_per_second_squared_t
@@ -1523,12 +1803,16 @@ Ship::accelerate(
     const units::velocity::meters_per_second_t &freeFlowSpeed,
     const units::time::second_t &deltaT)
 {
-    //get the maximum acceleration that the train can go by
+    (void) acceleration; // ignore it as we dnt use now
+    //get the maximum acceleration that the ship can go by
     units::acceleration::meters_per_second_squared_t amax =
         calc_maxAcceleration();
 
-    if ((gap > this->getSafeGap(mingap, speed, freeFlowSpeed, mT_s, false)) &&
-        (amax.value() > 0))
+    auto safeGap = this->getSafeGap(mingap, speed,
+                                    freeFlowSpeed,
+                                    mT_s, deltaT, false);
+
+    if ((gap > safeGap) && (amax.value() > 0))
     {
         if (speed < freeFlowSpeed)
         {
@@ -1575,7 +1859,7 @@ Ship::accelerateConsideringJerk(
 
     units::acceleration::meters_per_second_squared_t an =
         units::math::min(units::math::abs(acceleration),
-                    units::math::abs(previousAcceleration) + jerk * deltaT);
+                         units::math::abs(previousAcceleration) + jerk * deltaT);
     return an * ((acceleration.value() > 0) ? 1 : -1);
 }
 
@@ -1662,9 +1946,9 @@ Ship::getStepAcceleration(
             QString message;
             QTextStream stream(&message);
             stream << "Ship " << mShipUserID
-                    << " Resistance is "
-                    << "larger than train tractive force at distance "
-                    << mTraveledDistance.value() << "(m)\n";
+                   << " Resistance is "
+                   << "larger than ship tractive force at distance "
+                   << mTraveledDistance.value() << "(m)\n";
             emit slowSpeedOrStopped(message);
             mShowNoPowerMessage = true;
         }
@@ -1691,24 +1975,30 @@ Ship::getStepAcceleration(
 }
 
 void Ship::moveShip(units::time::second_t &timeStep,
-    units::velocity::meters_per_second_t &freeFlowSpeed,
-    QVector<units::length::meter_t> &gapToNextCriticalPoint,
-    QVector<bool> &isFollowingAnotherShip,
-    QVector<units::velocity::meters_per_second_t> &leaderSpeeds)
+                    units::velocity::meters_per_second_t &freeFlowSpeed,
+                    QVector<units::length::meter_t> &gapToNextCriticalPoint,
+                    QVector<bool> &isFollowingAnotherShip,
+                    QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
+                    AlgebraicVector::Environment currentEnvironment)
 {
+    // set the environment before doing anything
+    setCurrentEnvironment(currentEnvironment);
 
-    units::acceleration::meters_per_second_squared_t jerkedAcceleration =
+    units::velocity::meters_per_second_t maxSpeed =
+        units::math::min(freeFlowSpeed, mMaxSpeed);
+
+    units::acceleration::meters_per_second_squared_t jerkAcceleration =
         this->getStepAcceleration(timeStep,
-                                  freeFlowSpeed,
+                                  maxSpeed,
                                   gapToNextCriticalPoint,
                                   isFollowingAnotherShip,
                                   leaderSpeeds);
 
-    mAcceleration = jerkedAcceleration;
+    mAcceleration = jerkAcceleration;
     mPreviousSpeed = this->mSpeed;
     mSpeed = this->speedUpDown(this->mPreviousSpeed,
                                this->mAcceleration,
-                               timeStep, freeFlowSpeed);
+                               timeStep, maxSpeed);
     mAcceleration = this->adjustAcceleration(this->mSpeed,
                                              this->mPreviousSpeed,
                                              timeStep);
@@ -1717,14 +2007,50 @@ void Ship::moveShip(units::time::second_t &timeStep,
                          timeStep);
     setStepTravelledDistance(this->mSpeed * timeStep, timeStep);
 
+    QSet<int> uniqueEngineIDs; // holds ids of engines
+    bool anyEngineOn = false;  // if any engine is still running
+
+    // loop over all propellers
+    // 2 propellers can share an engine,
+    // so do not consume twice the energy!
     for (auto propeller : mPropellers)
     {
+        // get the propeller engine
         auto engines = propeller->getGearBox()->getEngines();
+
+        // if a propeller has 2 engines (rare case)
         for (auto engine: engines)
         {
-            mCumConsumedEnergy +=
-                engine->energyConsumed(timeStep).energyConsumed;
+            // check duplicates
+            if (!uniqueEngineIDs.contains(engine->getEngineID()))
+            {
+                addToCummulativeConsumedEnergy(
+                    engine->energyConsumed(timeStep).
+                    energyConsumed); // consume required energy
+                uniqueEngineIDs.insert(engine->getEngineID());
+
+                // if any engine is still running
+                if (engine->isEngineWorking())
+                {
+                    anyEngineOn = true; // set to true
+                }
+            }
         }
+    }
+
+    // update the outofenergy and ison variables
+    mOutOfEnergy = !anyEngineOn; // the inverse of anyEngineOn (not the diff)
+    mIsOn = anyEngineOn;
+
+    units::length::meter_t lastStepDistance = mSpeed * timeStep;
+
+    // if the ship is within 10m from its destination,
+    // count it as reached destination
+    if (mPathPoints.back()->distance(mCurrentState.getCurrentPosition()) <=
+        lastStepDistance)
+    {
+        immediateStop(timeStep);
+        mReachedDestination = true;
     }
 }
 
@@ -1762,9 +2088,9 @@ void Ship::reset()
     mOutOfEnergy = false;
     mLoaded = false;
 
-    Point sp = *(mPathPoints.at(0));
-    Point ep = *(mPathPoints.at(1));
-    mCurrentState = AlgebraicVector(sp, ep);
+    GPoint sp = *(mPathPoints.at(0));
+    GPoint ep = *(mPathPoints.at(1));
+    mCurrentState = GAlgebraicVector(sp, ep);
 
     mPreviousPathPointIndex = 0;
 
@@ -1778,14 +2104,13 @@ void Ship::reset()
     mTotalResistance = units::force::newton_t(0.0);
 
     // reset the energy source
-    for (auto const propeller: mPropellers)
+    for (auto& propeller: mPropellers)
     {
-        for (auto const engine : propeller->getGearBox()->getEngines())
+        for (auto& engine : propeller->getGearBox()->getEngines())
         {
             engine->getEnergySource()->reset();
         }
     }
-
 }
 
 std::size_t Ship::getPreviousPathPointIndex() const
@@ -1803,7 +2128,13 @@ void Ship::setStartTime(const units::time::second_t &newStartTime)
     mStartTime = newStartTime;
 }
 
-units::energy::kilowatt_hour_t Ship::getConsumedEnergy()
+void Ship::addToCummulativeConsumedEnergy(
+    units::energy::kilowatt_hour_t consumedkWh)
+{
+    mCumConsumedEnergy += consumedkWh;
+}
+
+units::energy::kilowatt_hour_t Ship::getCumConsumedEnergy()
 {
     return mCumConsumedEnergy;
 }
@@ -1814,8 +2145,8 @@ QVector<units::length::meter_t> Ship::generateCumLinesLengths()
 
     if (n < 1)
     {
-        throw ShipException("Ship number of links should "
-                            "be greater than zero!");
+        qFatal("Ship number of links should "
+               "be greater than zero!");
     }
 
     QVector<units::length::meter_t>
@@ -1825,7 +2156,7 @@ QVector<units::length::meter_t> Ship::generateCumLinesLengths()
         units::length::meter_t(
             mPathLines.at(0)->length());
 
-    for (std::size_t i = 1; i < n; i++)
+    for (qsizetype i = 1; i < n; i++)
     {
         linksCumLengths[i] = linksCumLengths[i-1] +
                              units::length::meter_t(
@@ -1837,14 +2168,17 @@ QVector<units::length::meter_t> Ship::generateCumLinesLengths()
 
 units::length::meter_t Ship::distanceToFinishFromPathNodeIndex(qsizetype i)
 {
-    if (i < 0 || i >= mLinksCumLengths.size())
+    if (i < 0 || i > mLinksCumLengths.size())
     {
-        throw ShipException("Node index should "
-                            "be within zero and node path size!");
+        qFatal("Node index should "
+               "be within zero and node path size!");
+    }
+    if (i == mLinksCumLengths.size())
+    {
+        return units::length::meter_t(0.0);
     }
 
-    auto passedLength =
-        (i > 0) ? mLinksCumLengths[i-1] : units::length::meter_t(0);
+    auto passedLength = mLinksCumLengths[i-1];
     return mLinksCumLengths.back() - passedLength;
 }
 
@@ -1854,11 +2188,11 @@ Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
 {
     if (endIndex < startIndex)
     {
-        throw ShipException("Start index is greater than end index");
+        qFatal("Start index is greater than end index");
     }
     if (startIndex < 0 || endIndex >= mLinksCumLengths.size())
     {
-        throw ShipException("Node indices should "
+        qFatal("Node indices should "
                             "be within zero and node path size!");
     }
 
@@ -1866,17 +2200,17 @@ Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
 
     auto passedLength =
         (startIndex > 0) ? mLinksCumLengths[startIndex-1] :
-                            units::length::meter_t(0);
+            units::length::meter_t(0);
     return mLinksCumLengths[endIndex] - passedLength;
 }
 
 units::length::meter_t Ship::distanceFromCurrentPositionToNodePathIndex(
     qsizetype endIndex)
 {
-    if (endIndex > mLinksCumLengths.size() - 1 || endIndex < 0)
+    if (endIndex > mLinksCumLengths.size() || endIndex < 0)
     {
-        throw ShipException("End index should be between "
-                            "zero and node path size!");
+        qFatal("End index should be between "
+               "zero and node path size!");
     }
     qsizetype nextIndex = mPreviousPathPointIndex + 1;
     auto rest =
@@ -1890,50 +2224,75 @@ units::length::meter_t Ship::distanceFromCurrentPositionToNodePathIndex(
 
 double Ship::progress()
 {
+    // if the ship has not yet been loaded, return 0.0
     if (! mLoaded) return 0.0;
+    // if the ship reached its destination, return 1.0
+    if (mReachedDestination) return 1.0;
 
+    // if neither, calculate the progress
+
+    // calculate distance to finish from next node
     auto cumToFinish =
         distanceToFinishFromPathNodeIndex(mPreviousPathPointIndex + 1);
+
+    // calculate distance to next point
     cumToFinish +=
         mCurrentState.getCurrentPosition().
-                   distance(*mPathPoints[mPreviousPathPointIndex + 1]);
+        distance(*mPathPoints[mPreviousPathPointIndex + 1]);
 
-    return cumToFinish.value() / mLinksCumLengths.back().value();
+    // return the progress proportion
+    return ((mLinksCumLengths.back().value() - cumToFinish.value()) /
+            mLinksCumLengths.back().value());
 }
 
-units::velocity::meters_per_second_t Ship::getCurrentMaxSpeed()
-{
-    return mPathLines[mPreviousPathPointIndex]->getMaxSpeed();
-}
+// units::velocity::meters_per_second_t Ship::getCurrentMaxSpeed()
+// {
+//     return mPathLines[mPreviousPathPointIndex]->getMaxSpeed();
+// }
 
-QHash<qsizetype, units::velocity::meters_per_second_t>
-Ship::getAheadLowerSpeeds(qsizetype nextStopIndex)
-{
-    if (mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex].empty())
-    {
-        QHash<qsizetype, units::velocity::meters_per_second_t>
-            lowerSpeedMapping;
+// QHash<qsizetype, units::velocity::meters_per_second_t>
+// Ship::getAheadLowerSpeeds(qsizetype nextStopIndex)
+// {
+//     if (mLowerSpeedLinkIndex.isEmpty() ||
+//         mLowerSpeedLinkIndex[mPreviousPathPointIndex].isEmpty() ||
+//         mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex].empty())
+//     {
+//         QHash<qsizetype, units::velocity::meters_per_second_t>
+//             lowerSpeedMapping;
 
-        for(int i = mPreviousPathPointIndex + 1; i < mPathLines.size(); ++i)
-        {
-            const auto& currentLine = mPathLines[i];
-            const auto& previousLine = mPathLines[i - 1];
+//         for(qsizetype i = mPreviousPathPointIndex + 1;
+//              i < mPathLines.size(); ++i)
+//         {
+//             const auto& currentLine = mPathLines[i];
+//             const auto& previousLine = mPathLines[i - 1];
 
-            if(currentLine->getMaxSpeed() < previousLine->getMaxSpeed())
-            {
-                lowerSpeedMapping.insert(i, currentLine->getMaxSpeed());
-            }
-        }
-        mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex] =
-            lowerSpeedMapping;
-        return lowerSpeedMapping;
-    }
-    else
-    {
-        return mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex];
-    }
+//             // if(currentLine->getMaxSpeed() < previousLine->getMaxSpeed())
+//             // {
+//             //     lowerSpeedMapping.insert(i, currentLine->getMaxSpeed());
+//             // }
+//         }
 
-}
+//         // resize mLowerSpeedLinkIndex to store the calculated values
+//         if (mLowerSpeedLinkIndex.size() - 1 <= mPreviousPathPointIndex)
+//         {
+//             mLowerSpeedLinkIndex.resize(mPreviousPathPointIndex + 1);
+//         }
+//         if (mLowerSpeedLinkIndex[mPreviousPathPointIndex].size() - 1 <=
+//             nextStopIndex)
+//         {
+//             mLowerSpeedLinkIndex[mPreviousPathPointIndex].resize(
+//                 nextStopIndex + 1);
+//         }
+//         mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex] =
+//             lowerSpeedMapping;
+//         return lowerSpeedMapping;
+//     }
+//     else
+//     {
+//         return mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex];
+//     }
+
+// }
 
 void Ship::computeStoppingPointIndices()
 {
@@ -1947,16 +2306,24 @@ void Ship::computeStoppingPointIndices()
     }
 }
 
-QPair<qsizetype, std::shared_ptr<Point>> Ship::getNextStoppingPoint()
+Ship::stopPointDefinition Ship::getNextStoppingPoint()
 {
+    Ship::stopPointDefinition result;
+
+    // find the point index where the point is identified as a port
+    // and its index is larger than the previous ship index
     auto it = std::lower_bound(mStoppingPointIndices.begin(),
                                mStoppingPointIndices.end(),
                                mPreviousPathPointIndex);
     if(it != mStoppingPointIndices.end())
     {
-        return { *it, mPathPoints[*it] };
+        result.pointIndex = *it;
+        result.point = mPathPoints[*it];
+        return result;
     }
-    return { mPathPoints.size() - 1, mPathPoints.back() };
+    result.pointIndex = mPathPoints.size() - 1;
+    result.point = mPathPoints.back();
+    return result;
 }
 
 
@@ -1978,6 +2345,7 @@ bool Ship::isReachedDestination() const
 
 void Ship::immediateStop(units::time::second_t &timestep)
 {
+    (void)timestep; // unused for now
     this->mPreviousAcceleration = this->mAcceleration;
     this->mPreviousSpeed = this->mSpeed;
     this->mSpeed =
@@ -2011,99 +2379,100 @@ void Ship::setStepTravelledDistance(units::length::meter_t distance,
     }
 }
 
-Point Ship::getPositionByTravelledDistance(
-    units::length::meter_t newTotalDistance)
-{
-    if (newTotalDistance >= mTotalPathLength)
-    {
-        return *(mPathPoints.back());
-    }
-    // Initialize a Point object, assuming Point is default-constructible.
-    Point result;
+// Point Ship::getPositionByTravelledDistance(
+//     units::length::meter_t newTotalDistance)
+// {
+//     if (newTotalDistance >= mTotalPathLength)
+//     {
+//         return *(mPathPoints.back());
+//     }
+//     // Initialize a Point object, assuming Point is default-constructible.
+//     Point result;
 
-    for (std::size_t i = mPreviousPathPointIndex;
-         i < mLinksCumLengths.size();
-         ++i)
-    {
-        if (mLinksCumLengths[i] >= newTotalDistance)
-        {
-            // Update previousPathPointIndex to the index of the highest value
-            // that is lower than newTotalDistance.
-            mPreviousPathPointIndex = (i == 0) ? 0 : i - 1;
-            break;
-        }
-    }
+//     for (qsizetype i = mPreviousPathPointIndex;
+//          i < mLinksCumLengths.size();
+//          ++i)
+//     {
+//         if (mLinksCumLengths[i] >= newTotalDistance)
+//         {
+//             // Update previousPathPointIndex to the index of the highest value
+//             // that is lower than newTotalDistance.
+//             mPreviousPathPointIndex = (i == 0) ? 0 : i - 1;
+//             break;
+//         }
+//     }
 
-    if (mPreviousPathPointIndex >= mLinksCumLengths.size())
-    {
-        // If no such value exists, then all elements in
-        // mLinksCumLengths are lower than newTotalDistance.
-        // In this case, set previousPathPointIndex to the
-        // last index in mLinksCumLengths.
-        if (!mLinksCumLengths.empty())
-        {
-            mPreviousPathPointIndex = mLinksCumLengths.size() - 1;
-        }
-    }
+//     if (mPreviousPathPointIndex >= mLinksCumLengths.size())
+//     {
+//         // If no such value exists, then all elements in
+//         // mLinksCumLengths are lower than newTotalDistance.
+//         // In this case, set previousPathPointIndex to the
+//         // last index in mLinksCumLengths.
+//         if (!mLinksCumLengths.empty())
+//         {
+//             mPreviousPathPointIndex = mLinksCumLengths.size() - 1;
+//         }
+//     }
 
-    units::length::meter_t remainingDistance;
-    if (mPreviousPathPointIndex == 0)
-    {
-        remainingDistance = mTraveledDistance;
-    }
-    else
-    {
-        remainingDistance =
-            mTraveledDistance - mLinksCumLengths[mPreviousPathPointIndex - 1];
-    }
+//     units::length::meter_t remainingDistance;
+//     if (mPreviousPathPointIndex == 0)
+//     {
+//         remainingDistance = mTraveledDistance;
+//     }
+//     else
+//     {
+//         remainingDistance =
+//             mTraveledDistance - mLinksCumLengths[mPreviousPathPointIndex - 1];
+//     }
 
-    // Calculate the current coordinates based on the
-    // line and traveled distance. This assumes that
-    // getPointByDistance returns a Point when provided with
-    // the remaining distance and a starting point.
-    result = mPathLines[mPreviousPathPointIndex]->getPointByDistance(
-        remainingDistance,
-        mPathPoints[mPreviousPathPointIndex]
-        );
+//     // Calculate the current coordinates based on the
+//     // line and traveled distance. This assumes that
+//     // getPointByDistance returns a Point when provided with
+//     // the remaining distance and a starting point.
+//     result = mPathLines[mPreviousPathPointIndex]->getPointByDistance(
+//         remainingDistance,
+//         mPathPoints[mPreviousPathPointIndex]
+//         );
 
-    return result;
-}
+//     return result;
+// }
 
 bool Ship::isShipOnCorrectPath()
 {
-    // No path or single point path, consider it on path
-    if (mPathPoints.size() < 2) return true;
+    return true;
+    // // No path or single point path, consider it on path
+    // if (mPathPoints.size() < 2) return true;
 
-    units::length::meter_t positionTolerance = units::length::meter_t(10.0);
-    units::angle::degree_t orientationTolerance = units::angle::degree_t(5.0);
-    auto currentPosition = mCurrentState.getCurrentPosition();
-    auto currentOrientation = mCurrentState.orientation();
+    // units::length::meter_t positionTolerance = units::length::meter_t(10.0);
+    // units::angle::degree_t orientationTolerance = units::angle::degree_t(5.0);
+    // auto currentPosition = mCurrentState.getCurrentPosition();
+    // auto currentOrientation = mCurrentState.getOrientationWithRespectToTarget();
 
-    for(int i = 0; i < mPathPoints.size() - 1; i++)
-    {
-        auto startPoint = mPathPoints[i];
-        auto endPoint = mPathPoints[i + 1];
+    // for(int i = 0; i < mPathPoints.size() - 1; i++)
+    // {
+    //     auto startPoint = mPathPoints[i];
+    //     auto endPoint = mPathPoints[i + 1];
 
-        auto l = Line(startPoint, endPoint);
-        // Check Positional Deviation
-        auto distance = l.getPerpendicularDistance(currentPosition);
+    //     auto l = Line(startPoint, endPoint);
+    //     // Check Positional Deviation
+    //     auto distance = l.getPerpendicularDistance(currentPosition);
 
 
-        if (distance > positionTolerance) {
-            return false; // Positional deviation is too high
-        }
+    //     if (distance > positionTolerance) {
+    //         return false; // Positional deviation is too high
+    //     }
 
-        // Check Orientation Deviation
-        auto pathSegmentOrientation =
-            l.toAlgebraicVector(startPoint).orientation();
-        auto orientationDifference =
-            units::math::abs((currentOrientation - pathSegmentOrientation));
-        if (orientationDifference > orientationTolerance) {
-            return false; // Orientation deviation is too high
-        }
-    }
+    //     // Check Orientation Deviation
+    //     auto pathSegmentOrientation =
+    //         l.toAlgebraicVector(startPoint).getOrientationWithRespectToTarget();
+    //     auto orientationDifference =
+    //         units::math::abs((currentOrientation - pathSegmentOrientation));
+    //     if (orientationDifference > orientationTolerance) {
+    //         return false; // Orientation deviation is too high
+    //     }
+    // }
 
-    return true; // The ship is on path
+    // return true; // The ship is on path
 }
 
 
@@ -2123,30 +2492,38 @@ void Ship::handleStepDistanceChanged(units::length::meter_t newTotalDistance,
 
 
     // Obtain the current target point from the path.
-    std::shared_ptr<Point> currentTarget =
+    std::shared_ptr<GPoint> currentTarget =
         mPathPoints[mPreviousPathPointIndex + 1];
-    std::shared_ptr<Point> nextTarget =
+
+    // Calculate the distance at which the ship should start turning
+    auto r = calcTurningRadius();
+
+    // get the next target
+    if (mPreviousPathPointIndex + 2 > mPathPoints.size() - 1)
+    {
+        auto maxROT = calcMaxROT(r);
+        mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
+        mCurrentState.moveByDistance(newTotalDistance, timeStep);
+        return;
+    }
+    std::shared_ptr<GPoint> nextTarget =
         mPathPoints[mPreviousPathPointIndex + 2];
 
     // Calculate the remaining distance to the target point.
     units::length::meter_t distanceToTarget =
         mCurrentState.getCurrentPosition().distance(*currentTarget);
 
-    // Calculate the distance at which the ship should start turning
-    auto r = calcTurningRadius();
 
     // calculate the angle between the ship orientation and next target
     units::angle::degree_t turningAngleInDegrees =
         mCurrentState.angleTo(*nextTarget);
     while (turningAngleInDegrees.value() > 180.0)
     {
-        turningAngleInDegrees =
-            turningAngleInDegrees - units::angle::degree_t(180);
+        turningAngleInDegrees -= units::angle::degree_t(180);
     }
     while (turningAngleInDegrees.value() < 0.0)
     {
-        turningAngleInDegrees =
-            turningAngleInDegrees + units::angle::degree_t(180);
+        turningAngleInDegrees += units::angle::degree_t(180);
     }
     auto turningAngleInRad =
         turningAngleInDegrees.convert<units::angle::radian>();
@@ -2175,7 +2552,7 @@ void Ship::handleStepDistanceChanged(units::length::meter_t newTotalDistance,
         // update the orientation before moving to the next segment
         if (mPreviousPathPointIndex < mPathPoints.size() - 2)
         {
-            std::shared_ptr<Point> newTarget =
+            std::shared_ptr<GPoint> newTarget =
                 mPathPoints[mPreviousPathPointIndex + 1];
             auto maxROT = calcMaxROT(r);
             mCurrentState.setTargetAndMaxROT(*newTarget, maxROT);
@@ -2198,7 +2575,7 @@ void Ship::handleStepDistanceChanged(units::length::meter_t newTotalDistance,
     // Similar logic applies for the last point in the path
     if (mPreviousPathPointIndex == mPathPoints.size() - 2)
     {
-        std::shared_ptr<Point> lastPoint = mPathPoints.last();
+        std::shared_ptr<GPoint> lastPoint = mPathPoints.last();
         units::length::meter_t distanceToLast =
             mCurrentState.getCurrentPosition().distance(*lastPoint);
 
