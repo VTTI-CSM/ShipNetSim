@@ -1,33 +1,123 @@
 #include "simulator.h"
-#include "network/network.h"
+#include "ship/hydrology.h"
+#include "ship/ishipcalmresistancestrategy.h"
 #include "utils/utils.h"
 #include "ship/ship.h"
-#include "../../VersionConfig.h"
+#include "VersionConfig.h"
 
-Simulator::Simulator(std::shared_ptr<Network> network,
+Simulator::Simulator(std::shared_ptr<OptimizedNetwork> network,
                      QVector<std::shared_ptr<Ship>> shipList,
                      units::time::second_t simulatorTimeStep,
                      QObject *parent)
-    : mNetwork(network), mShips(shipList),
-    mTimeStep(simulatorTimeStep), QObject{parent},
+    : QObject{parent},
+    mShips(shipList),
+    mSimulationTime(units::time::second_t(0.0)),
     mSimulationEndTime(DefaultEndTime),
-    mSimulationTime(units::time::second_t(0.0))
+    mTimeStep(simulatorTimeStep),
+
+    mNetwork(network)
 {
     mOutputLocation = Utils::getHomeDirectory();
     // Get a high-resolution time point
     auto now = std::chrono::high_resolution_clock::now();
 
     // Convert the time point to a numerical value
-    auto serial_number =
+    simulation_serial_number =
         std::chrono::duration_cast<std::chrono::milliseconds>(
                              now.time_since_epoch()).count();
 
     // Define default names for trajectory and summary files with current time
     mTrajectoryFilename = DefaultInstantaneousTrajectoryFilename +
-                          QString::number(serial_number) + ".csv";
+                          QString::number(simulation_serial_number) + ".csv";
     mSummaryFileName = DefaultSummaryFilename +
-                       QString::number(serial_number) + ".txt";
+                       QString::number(simulation_serial_number) + ".txt";
 
+}
+
+void Simulator::studyShipsResistance()
+{
+    QString trajectoryFullPath = (mExportTrajectory)?
+                                     QDir(mOutputLocation).filePath(
+                                         mTrajectoryFilename) : "";
+    mTrajectoryFile.initCSV(trajectoryFullPath);
+
+    QString exportLine;
+    QTextStream stream(&exportLine);
+    stream << "ShipNo,"
+              "Speed_knots,"
+              "FroudeNumber,"
+              "Fr_i,"
+              "AirResistance_kN,"
+              "BulbousBowResistance_kN,"
+              "ImmersedTransomPressureResistance_kN,"
+              "AppendageResistance_N,WaveResistance_kN,"
+              "FrictionalResistance_kN,"
+              "ModelCorrelationResistance_kN,"
+              "TotalResistance_kN,"
+              "ResistanceCoefficient";
+
+    this->mTrajectoryFile.writeLine(exportLine);
+
+    for (auto &ship: mShips)
+    {
+        double s[] = {15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0};
+
+        for (double speedStep : s)  //Utils::linspace_step(0, ship->getMaxSpeed().value())
+        {
+            units::velocity::meters_per_second_t ss = units::velocity::knot_t(speedStep).convert<units::velocity::meters_per_second>();
+            ship->setSpeed(ss);
+            // ship->setSpeed(units::velocity::meters_per_second_t(speedStep));
+            auto speed = ss; //units::velocity::knot_t(speedStep).
+                         //convert<units::velocity::meters_per_second>();
+            auto fraudNo =
+                hydrology::F_n(speed, ship->getLengthInWaterline());
+
+            auto airRes =
+                ship->getCalmResistanceStrategy()->getAirResistance(*ship);
+            auto bulbousRes =
+                ship->getCalmResistanceStrategy()->getBulbousBowResistance(*ship);
+            auto transomRes =
+                ship->getCalmResistanceStrategy()->
+                              getImmersedTransomPressureResistance(*ship);
+            auto appendageRes =
+                ship->getCalmResistanceStrategy()->getAppendageResistance(*ship);
+            auto waveRes =
+                ship->getCalmResistanceStrategy()->getWaveResistance(*ship);
+            auto frictionalRes =
+                ship->getCalmResistanceStrategy()->getfrictionalResistance(*ship);
+            auto modelCorRes =
+                ship->getCalmResistanceStrategy()->
+                               getModelShipCorrelationResistance(*ship);
+            auto totalRes =
+                ship->calculateTotalResistance();
+
+            auto totalResCoef =
+                ship->getCalmResistanceStrategy()->
+                                getCoefficientOfResistance(*ship);
+            
+            auto FRI = ship->getCalmResistanceStrategy()->calc_F_n_i(*ship);
+
+            QString line;
+            QTextStream lineStream(&line);
+            lineStream << ship->getUserID() << ","
+                       << speed.convert<units::velocity::knot>().value() << ","
+                       << fraudNo << ","
+                       << FRI <<","
+                       << airRes.convert<units::force::kilonewton>().value() << ","
+                       << bulbousRes.convert<units::force::kilonewton>().value() << ","
+                       << transomRes.convert<units::force::kilonewton>().value() << ","
+                       << appendageRes.convert<units::force::kilonewton>().value() << ","
+                       << waveRes.convert<units::force::kilonewton>().value() << ","
+                       << frictionalRes.convert<units::force::kilonewton>().value() << ","
+                       << modelCorRes.convert<units::force::kilonewton>().value() << ","
+                       << totalRes.convert<units::force::kilonewton>().value() << ","
+                       << totalResCoef;
+
+
+            mTrajectoryFile.writeLine(line);
+        }
+
+    }
 }
 
 // Setter for the time step of the simulation
@@ -48,8 +138,16 @@ void Simulator::setPlotFrequency(int newPlotFrequency) {
 // Setter for the output folder location
 void Simulator::setOutputFolderLocation(QString newOutputFolderLocation)
 {
-    this->mOutputLocation = newOutputFolderLocation;
+    if (newOutputFolderLocation.trimmed().isEmpty())
+    {
+        mOutputLocation = Utils::getHomeDirectory();
+    }
+    else
+    {
+        this->mOutputLocation = newOutputFolderLocation;
+    }
 }
+
 // The getOutputFolder function returns the path to the
 // directory where the output files are stored.
 QString Simulator::getOutputFolder() {
@@ -60,7 +158,7 @@ QString Simulator::getOutputFolder() {
 void Simulator::setSummaryFilename(QString newfilename)
 {
     QString filename = newfilename;
-    if (!filename.isEmpty()){
+    if (!filename.trimmed().isEmpty()){
         QFileInfo fileInfo(filename);
         // Check if the file name has an extension
         if (!fileInfo.completeSuffix().isEmpty())
@@ -74,7 +172,8 @@ void Simulator::setSummaryFilename(QString newfilename)
     }
     else
     {
-        this->mSummaryFileName = DefaultSummaryFilename;
+        DefaultSummaryFilename +
+            QString::number(simulation_serial_number) + ".txt";
     }
 }
 
@@ -84,7 +183,7 @@ void Simulator::setExportInstantaneousTrajectory(
     QString newInstaTrajectFilename)
 {
     this->mExportTrajectory = exportInstaTraject;
-    if (newInstaTrajectFilename != "")
+    if (!newInstaTrajectFilename.trimmed().isEmpty())
     {
         QString filename = newInstaTrajectFilename;
 
@@ -104,17 +203,9 @@ void Simulator::setExportInstantaneousTrajectory(
     }
     else
     {
-        // Get a high-resolution time point
-        auto now = std::chrono::high_resolution_clock::now();
-
-        // Convert the time point to a numerical value
-        auto serial_number =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 now.time_since_epoch()).count();
-
-        this->mTrajectoryFilename =
+        mTrajectoryFilename =
             DefaultInstantaneousTrajectoryFilename +
-                                    QString::number(serial_number) + ".csv";
+            QString::number(simulation_serial_number) + ".csv";
     }
 }
 
@@ -122,13 +213,16 @@ void Simulator::setExportInstantaneousTrajectory(
 // all ships have reached their destinations.
 // If a ship has not reached its destination, it returns false;
 // otherwise, it returns true.
-bool Simulator::checkAllShipsReachedDestination() {
-    for (std::shared_ptr<Ship>& s : (mShips)) {
+bool Simulator::checkAllShipsReachedDestination()
+{
+    for (std::shared_ptr<Ship>& s : (mShips))
+    {
         if (s->isOutOfEnergy())
         {
             continue;
         }
-        if (! s->isReachedDestination()) {
+        if (! s->isReachedDestination())
+        {
             return false;
         }
     }
@@ -137,30 +231,46 @@ bool Simulator::checkAllShipsReachedDestination() {
 
 void Simulator::initializeAllShips()
 {
-    for (auto& ship: mShips)
-    {
-        // find the shortest path for the ship
-        ShortestPathResult r =
-            mNetwork->dijkstraShortestPath(ship->startPoint(),
-                                           ship->endPoint());
-        ship->setPath(r.points, r.lines);
+//    for (auto& ship: mShips)
+//    {
 
-    }
+//        // find the shortest path for the ship
+//        ShortestPathResult r =
+//            mNetwork->dijkstraShortestPath(ship->startPoint(),
+//                                           ship->endPoint());
+//        ship->setPath(r.points, r.lines);
+
+//    }
 }
 
 
 void Simulator::runSimulation()
 {
+    QString trajectoryFullPath = (mExportTrajectory)?
+                                     QDir(mOutputLocation).filePath(
+                                     mTrajectoryFilename) : "";
+
     // define trajectory file and set it up
-    if (this->mExportTrajectory) {
-        this->mTrajectoryFile.initCSV(mTrajectoryFilename);
+    if (this->mExportTrajectory)
+    {
+        this->mTrajectoryFile.initCSV(trajectoryFullPath);
         QString exportLine;
         QTextStream stream(&exportLine);
-        stream << "ShipNo,TStep_s,TravelledDistance_m,Acceleration_mps2,"
-               << "Speed_mps,LinkMaxSpeed_mps,"
-               << "EnergyConsumption_KWH,DelayTimeToEach_s,DelayTime_s,"
-               << "Stoppings,tractiveForce_N,"
-               << "ResistanceForces_N,CurrentUsedTractivePower_kw,";
+        stream << "TStep_s,"
+                  "ShipNo,"
+                  "WaterSalinity_ppt,"
+                  "WaveHeight_m,"
+                  "WaveFrequency_hz,"
+                  "WaveLength_m,"
+                  "NorthwardWindSpeed_mps,"
+                  "EastwardWindSpeed_mps,"
+                  "TravelledDistance_m,"
+                  "Acceleration_mps2,"
+                  "Speed_knots,"
+                  "CumEnergyConsumption_KWH,"
+                  "MainEnergySourceCapacityState_percent,"
+                  "Position,"
+                  "Heading_deg";
 
         this->mTrajectoryFile.writeLine(exportLine);
     }
@@ -193,8 +303,10 @@ void Simulator::runSimulation()
             for (std::shared_ptr <Ship>& s : (this->mShips)) {
                 if (! s->isLoaded()) { continue; }
 
+                Point nP = s->getCurrentPosition().projectTo(
+                    Point::getDefaultProjectionReference().get());
                 auto data = std::make_pair(s->getUserID(),
-                                           s->getCurrentPosition());
+                                           nP);
                 shipsLocs.push_back(data);
             }
             emit this->plotShipsUpdated(shipsLocs);
@@ -220,7 +332,7 @@ void Simulator::runSimulation()
     QTextStream stream(&exportLine);
 
     stream << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n"
-           << "NeTrainSim SIMULATION SUMMARY\n"
+           << "ShipNetSim SIMULATION SUMMARY\n"
            << "Version: " << ShipNetSim_VERSION << "\n"
            << "Simulation Time: " << Utils::formatDuration(difTime) << " (dd:hh:mm:ss)\n"
            << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n\n"
@@ -230,7 +342,18 @@ void Simulator::runSimulation()
            << "....................................................\n\n"
            << "\n";
 
+    for (auto &ship: mShips)
+    {
+        stream
+           << "Ship ID: " << ship->getUserID() << "\n"
+           << "SHIP GENERAL INFORMATION\n"
+            << "Average Max Propeller Effeciency                                               \x1D : " << ship->getPropellers()->front()->getDrivingEngines()[0]->getEngineMaxSpeedRatio() << "\n";
+    }
 
+    // Set up the summary file information
+    QString summaryFullPath =
+        QDir(mOutputLocation).filePath(mSummaryFileName);
+    this->mSummaryFile.initTXT(summaryFullPath);
     // setup the summary file
     this->mSummaryFile.writeFile(exportLine.replace("\x1D", ""));
     // ##################################################################
@@ -240,41 +363,39 @@ void Simulator::runSimulation()
     QVector<std::pair<QString, QString>> shipsSummaryData;
     shipsSummaryData = Utils::splitStringStream(exportLine, "\x1D :");
 
-    QString trajectoryFilePath = "";
-    if (this->mExportTrajectory) {
-        trajectoryFilePath =
-            QDir(mOutputLocation).filePath(this->mTrajectoryFilename);
-    }
+    // fire the signal of finished simulation
+    emit this->finishedSimulation(shipsSummaryData, trajectoryFullPath);
 
-    emit this->finishedSimulation(shipsSummaryData, trajectoryFilePath);
-
+    // make sure the files are closed!
+    mTrajectoryFile.close();
+    mSummaryFile.close();
 }
 
 
-// This function simulates one time step for a given train
+// This function simulates one time step for a given ship
 // in the simulation environment
 void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
 {
-    // Indicator to skip loading the train
+    // Indicator to skip loading the ship
     bool skipShipMove = false;
 
-    // Check if the train start time is passed
-    // if such, load train first and then run the simulation
+    // Check if the ship start time is passed
+    // if such, load ship first and then run the simulation
     if (this->mSimulationTime >= ship->getStartTime() &&
         !ship->isLoaded())
     {
         bool skipLoadingship = false;
 
-        // check if there is a train that is already loaded in
+        // check if there is a ship that is already loaded in
         // the same node and still on the same starting node
         for (std::shared_ptr<Ship>& otherShip : this->mShips)
         {
-            // check if the train is loaded and not reached destination
+            // check if the ship is loaded and not reached destination
             if (otherShip == ship ||
                 !otherShip->isLoaded() ||
                 otherShip->isReachedDestination()) { continue; }
 
-            // check if the train has the same starting node and
+            // check if the ship has the same starting node and
             // the otherTrain still on the same starting node
             if (otherShip->getShipPathPoints()->at(0) ==
                 ship->getShipPathPoints()->at(0) &&
@@ -285,44 +406,49 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                 break;
             }
         }
-        // skip loading the train if there is any train at the same point
+        // skip loading the ship if there is any ship at the same point
         if (!skipLoadingship)
         {
-            // load train
+            // load ship
             ship->load();
         }
     }
 
-    // Continue if the train is loaded and its start time
+    // Continue if the ship is loaded and its start time
     // is past the current simulation time
     if ((ship->getStartTime() <= this->mSimulationTime) &&
         ship->isLoaded())
     {
 
-        QPair<qsizetype, std::shared_ptr<Point>> stopPoint =
-            ship->getNextStoppingPoint();
+        AlgebraicVector::Environment currentEnvironment =
+            mNetwork->getEnvironmentFromPosition(ship->getCurrentPosition());
 
-        auto rest =
-            ship->distanceFromCurrentPositionToNodePathIndex(stopPoint.first);
+        // get the next port or stopping point
+        Ship::stopPointDefinition stopPoint = ship->getNextStoppingPoint();
 
-        auto currentMaxSpeed = ship->getCurrentMaxSpeed();
+        // get the lower speeds links by their starting point
+        // auto aheadLowerSpeeds = ship->getAheadLowerSpeeds(
+        //     stopPoint.pointIndex);
 
-        auto aheadLowerSpeeds = ship->getAheadLowerSpeeds(stopPoint.first);
-
+        // define the critical points
+        // a critical point is
+        // 1. any point that defines a lower max speed
+        // 2. stopping point (port)
         criticalPoints cp;
 
-        // add all lower speed points to their corresponding lists
-        for (auto index : aheadLowerSpeeds.keys())
-        {
-            cp.gapToCriticalPoint.push_back(
-                ship->distanceFromCurrentPositionToNodePathIndex(index));
-            cp.speedAtCriticalPoint.push_back(aheadLowerSpeeds[index]);
-            cp.isFollowingAnotherShip.push_back(false);
-        }
+        // // add all lower speed points to their corresponding lists
+        // for (auto &index : aheadLowerSpeeds.keys())
+        // {
+        //     cp.gapToCriticalPoint.push_back(
+        //         ship->distanceFromCurrentPositionToNodePathIndex(index));
+        //     cp.speedAtCriticalPoint.push_back(aheadLowerSpeeds[index]);
+        //     cp.isFollowingAnotherShip.push_back(false);
+        // }
 
         // add the stopping station to the list
         cp.gapToCriticalPoint.push_back(
-            ship->distanceFromCurrentPositionToNodePathIndex(stopPoint.first));
+            ship->distanceFromCurrentPositionToNodePathIndex(
+                stopPoint.pointIndex));
         cp.speedAtCriticalPoint.push_back(
             units::velocity::meters_per_second_t(0.0));
         cp.isFollowingAnotherShip.push_back(false);
@@ -339,17 +465,18 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
             ship->kickForwardADistance(cp.gapToCriticalPoint.back(),
                                        mTimeStep);
         }
-
         // if the ship should move in this time step,
         // move it forward by ship dynamics
         if (!skipShipMove)
         {
-            auto maxSpeed = ship->getCurrentMaxSpeed();
+            auto currentMaxSpeed =
+                units::velocity::meters_per_second_t(100.0); //ship->getCurrentMaxSpeed();
 
-            ship->moveShip(mTimeStep, maxSpeed,
+            ship->moveShip(mTimeStep, currentMaxSpeed,
                            cp.gapToCriticalPoint,
                            cp.isFollowingAnotherShip,
-                           cp.speedAtCriticalPoint);
+                           cp.speedAtCriticalPoint,
+                            currentEnvironment);
         }
 
 
@@ -359,13 +486,22 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
             QTextStream stream(&s);
             stream << mSimulationTime.value() << ","
                    << ship->getUserID() << ","
-                   << ship->getSpeed().value() << ","
-                   << ship->getAcceleration().value() << ","
-                   << ship->getCurrentMaxSpeed().value() << ","
-                   << ship->getConsumedEnergy().value();
+                   << currentEnvironment.salinity.value() << ","
+                   << currentEnvironment.waveHeight.value() << ","
+                   << currentEnvironment.waveFrequency.value() << ","
+                   << currentEnvironment.waveLength.value() << ","
+                   << currentEnvironment.windSpeed_Northward.value() << ","
+                   << currentEnvironment.windSpeed_Eastward.value() << ","
+                   << QString::number(ship->getTraveledDistance().value(), 'f', 3) << ","
+                   << QString::number(ship->getAcceleration().value(), 'f', 3) << ","
+                   << QString::number(ship->getSpeed().convert<units::velocity::knot>().value(), 'f', 3) << ","
+                   << QString::number(ship->getCumConsumedEnergy().value(), 'f', 3) << ","
+                   << QString::number(ship->getMainTankCurrentCapacity(), 'f', 3) << ","
+                   << ship->getCurrentPosition().toString() << ","
+                   << QString::number(ship->getCurrentHeading().value(), 'f', 3) << ","
+                   << ship->getCurrentTarget().toString();
             mTrajectoryFile.writeLine(s);
         }
-
     }
 
     // Minimize waiting when no ships are on network
@@ -430,7 +566,7 @@ void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
     QString bar = QString(progressValue, '-').append('>').
                   append(QString(bar_length - progressValue, ' '));
 
-    QChar ending = (progressPercent = 100) ? '\n' : '\r';
+    QChar ending = (progressPercent >= 100) ? '\n' : '\r';
 
     out << "Progress: [" << bar << "] " << progressPercent << "%" << ending;
 
