@@ -21,9 +21,10 @@
 
 #include <QMap>
 #include <any>
+#include "ishipengine.h"
 #include "../../third_party/units/units.h"
 
-class IShipEngine;  ///< Forward declaration of engine.
+//class IShipEngine;  ///< Forward declaration of engine.
 class Ship;         ///< Forward declaration of ship class.
 
 /**
@@ -109,6 +110,16 @@ public:
      * @return The output power of the gearbox in kilowatts.
      */
     virtual units::power::kilowatt_t getOutputPower() = 0;
+
+    /**
+     * @brief Get the current torque equivalent to the output power.
+     *
+     * This method is called to get the current torque at the
+     * current RPM and output power of the gearbox.
+     *
+     * @return The current Torque.
+     */
+    virtual units::torque::newton_meter_t getOutputTorque() = 0;
 
     /**
      * @brief Get the previous output power of the gearbox in kilowatts.
