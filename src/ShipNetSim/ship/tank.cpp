@@ -1,9 +1,12 @@
 #include "tank.h"
 #include <iostream>
 #include "../utils/utils.h"
-
+#include "ship.h"
+double Tank::getCurrentCapacityState()
+{
+    return tankStateOfCapacity * 100.0;
+}
 // Define the methods for the Tank class:
-
 // Getter for the maximum tank capacity.
 units::volume::liter_t Tank::getTankMaxCapacity() const
 {
@@ -60,8 +63,7 @@ EnergyConsumptionData Tank::consume(
         ShipFuel::convertKwhToLiters(consumedkWh, fuelType);
 
     // Check if the tank has enough fuel to satisfy the consumption request.
-    if (! isTankDrainable(consumedAmount) &&
-        consumedAmount > tankCurrentCapacity)
+    if (! isTankDrainable(consumedAmount))
     {
         // If not, set the result to indicate unsuccessful energy supply.
         result.isEnergySupplied = false;
@@ -79,6 +81,7 @@ EnergyConsumptionData Tank::consume(
     result.isEnergySupplied = true;
     result.energyConsumed = consumedkWh;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    // mHost->addToCummulativeConsumedEnergy(consumedkWh);
     return result;
 }
 
@@ -112,7 +115,8 @@ void Tank::setTankDOD(double newTankDOD)
 {
     // Ensure the provided depth of
     // discharge value is within valid range.
-    if (newTankDOD<=1 && newTankDOD>0.0){
+    if (newTankDOD <= 1.0 && newTankDOD >= 0.0)
+    {
         tankDOD = newTankDOD;
     }
     else
@@ -182,12 +186,20 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
         Utils::getValueFromMap<double>(parameters,
                                        "DepthOfDischarge",
                                        -1.0);
-    if (depthOfDischarge < 0.0) {
-        qFatal("Tank depth of charge is not defined!");
+    if (depthOfDischarge < 0.0)
+    {
+        qWarning() << "Tank depth of charge is not defined!"
+                      "Set to default '0.9'!";
+        depthOfDischarge = 0.9;
     }
 
     SetTankCharacteristics(fuelType, maxCapacity,
                            initialCapacityPercentage, depthOfDischarge);
+}
+
+units::mass::kilogram_t Tank::getCurrentWeight()
+{
+    return this->fuelWeight;
 }
 
 // Method to set initial properties of the tank.

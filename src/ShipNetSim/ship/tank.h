@@ -20,7 +20,7 @@
 #define TANK_H
 
 #include "shipfuel.h"
-#include "IEnergySource.h"
+#include "ienergysource.h"
 #include "../../third_party/units/units.h"
 
 class Tank : public IEnergySource
@@ -37,7 +37,7 @@ private:
     // State of capacity of the tank
     double tankStateOfCapacity;
     // Depth of discharge
-    double tankDOD;
+    double tankDOD = 0.0;
     // Total consumed amount of fuel in liters
     units::volume::liter_t tankCumConsumedFuel =
         units::volume::liter_t(0.0);
@@ -53,7 +53,7 @@ public:
      * @param maxCapacity   The maximum capacity the tank can hold in liters
      * @param initialCapacityPercentage
      *                      The initial capacity percentage that the tank
-     *                      holds once the train is loaded onto the network.
+     *                      holds once the ship is loaded onto the network.
      * @param depthOfDischarge
      *                      The allowable depth of discharge, the tank
      *                      can drain to.
@@ -63,6 +63,11 @@ public:
                                 double initialCapacityPercentage,
                                 double depthOfDischarge);
 
+    /**
+     * @brief Get the current state of capacity.
+     * @return The current state of capacit in percentage.
+     */
+    double getCurrentCapacityState() override;
     /**
      * Gets the maximum capacity of the tank
      *
@@ -181,9 +186,34 @@ public:
      */
     void reset() override;
 
-    // IEnergySource interface
+    /**
+     * @brief Set Properties of the tank.
+     *
+     * This function is called to set the parameters of the tank using
+     * the parameters QMap.
+     *
+     * @param parameters    A QMap of all parameters of the tank.
+     *      Parameters are:
+     *                      - FuelType: The fuel type as defined in
+     *                                      ShipFule::FuelType class.
+     *                      - MaxCapacity: The max capacity of
+     *                                      the tank in liters.
+     *                      - InitialCapacityPercentage: The initial
+     *                                      proportion of the tank capacity.
+     *                      - DepthOfDischarge: The max proportion depth of
+     *                                      fuel it is allowed to drain to.
+     */
     void setCharacteristics(const QMap<QString, std::any> &parameters) override;
 
+
+    /**
+     * @brief Get current weight of the tank and its content.
+     *
+     * This function is called to get the current updated tank total weight.
+     *
+     * @return the current tank weight in kilogram.
+     */
+    units::mass::kilogram_t getCurrentWeight() override;
 };
 
 #endif // TANK_H
