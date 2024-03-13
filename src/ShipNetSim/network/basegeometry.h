@@ -49,7 +49,7 @@ public:
      *
      * @return QString representing the geometric shape.
      */
-    virtual QString toString() = 0;
+    virtual QString toString() const = 0;
 };
 
 #endif // BASEGEOMETRY_H
