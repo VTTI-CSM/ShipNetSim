@@ -11,7 +11,7 @@
 
 
 #include "ishipengine.h"
-#include "IEnergySource.h"
+#include "ienergysource.h"
 #include <QMap>
 
 /**
@@ -26,6 +26,8 @@ public:
      * @brief Constructor for the ShipEngine class.
      */
     ShipEngine();
+
+    ~ShipEngine() override;
 
     // IEnergyConsumer interface
 
@@ -79,6 +81,13 @@ public:
     units::power::kilowatt_t getBrakePower() override;
 
     /**
+     * @brief Get the current torque equivalent to the brake power.
+     *
+     * @return The current Engine Torque.
+     */
+    units::torque::newton_meter_t getBrakeTorque() override;
+
+    /**
      * @brief Gets the current RPM of the engine.
      * @return The RPM value.
      */
@@ -99,6 +108,21 @@ public:
     double getHyperbolicThrottleCoef(
         units::velocity::meters_per_second_t ShipSpeed);
 
+    /**
+     * @brief Get engine unique ID
+     * @return The unique ID of the engine
+     */
+    int getEngineID() override;
+
+    /**
+     * @brief Gets the current status of the engine.
+     * @return True if the engine is running, false otherwise.
+     */
+    bool isEngineWorking() override;
+
+    void setEngineMaxSpeedRatio(double maxSpeedRatio) override;
+
+    double getEngineMaxSpeedRatio() override;
 
 private:
     unsigned int mId; ///< ID of the engine
