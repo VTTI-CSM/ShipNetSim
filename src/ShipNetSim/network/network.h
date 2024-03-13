@@ -77,6 +77,9 @@ public:
     // Dijkstra's algorithm.
     ShortestPathResult dijkstraShortestPath(std::shared_ptr<Point> startPoint,
                                             std::shared_ptr<Point> endpoint);
+
+    ShortestPathResult
+        dijkstraShortestPath(QVector<std::shared_ptr<Point>> points);
 };
 
 #endif // NETWORK_H
