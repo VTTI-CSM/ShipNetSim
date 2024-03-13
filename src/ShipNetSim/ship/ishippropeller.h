@@ -20,8 +20,8 @@
 #define I_SHIPPROPELLER_H
 
 #include "../../third_party/units/units.h"
-#include "IShipEngine.h"
-#include "IShipGearBox.h"
+#include "ishipengine.h"
+#include "ishipgearbox.h"
 #include <QMap>
 #include <QString>
 #include <any>
@@ -109,6 +109,20 @@ public:
         const units::length::meter_t &newPropellerDiameter);
 
     /**
+     * @brief Get the Pitch of the propeller.
+     *
+     * @return The pitch of the propeller.
+     */
+    [[nodiscard]] units::length::meter_t getPropellerPitch() const;
+
+    /**
+     * @brief Set the pitch of the propeller.
+     *
+     * @param newPropellerPitch The new Pitch of the propeller.
+     */
+    void setPropellerPitch(const units::length::meter_t newPropellerPitch);
+
+    /**
      * @brief Get the expanded blade area of the propeller.
      *
      * @return The expanded blade area of the propeller.
@@ -153,9 +167,11 @@ public:
      * @param newPropellerExpandedAreaRation The new expanded
      * area ratio of the propeller.
      */
-    void setPropellerExpandedAreaRation(double newPropellerExpandedAreaRation);
+    void setPropellerExpandedAreaRatio(double newPropellerExpandedAreaRatio);
 
-    // ...
+    [[nodiscard]] int getPropellerBladesCount() const;
+
+    void setPropellerBladesCount(int newPropellerBladesCount);
 
     /**
      * @brief Get the shaft efficiency of the propeller.
@@ -178,16 +194,6 @@ public:
      */
     virtual double getPropellerEfficiency() = 0;
 
-    /**
-     * @brief Set the open water efficiencies of the propeller.
-     *
-     * @param newPropellerOpenWaterEfficiencies The new open
-     * water efficiencies of the propeller.
-     */
-    virtual void setPropellerOpenWaterEfficiencies(
-        QMap<double, double> newPropellerOpenWaterEfficiencies) = 0;
-
-    // ...
 
     /**
      * @brief Get the effective power of the propeller.
@@ -243,7 +249,7 @@ public:
      *
      * @return The advanced ratio of the propeller.
      */
-    virtual double getAdvancedRatio() = 0;
+    virtual double getAdvanceRatio() = 0;
 
     /**
      * @brief Get the driving engines of the propeller.
@@ -257,10 +263,13 @@ protected:
     IShipGearBox* mGearBox; /**< The gearbox connected to the propeller. */
     units::length::meter_t
         mPropellerDiameter; /**< The diameter of the propeller. */
+    units::length::meter_t
+        mPropellerPitch;    /**< The pitch of the propeller. */
     units::area::square_meter_t
         mExpandedBladeArea; /**< The expanded blade area of the propeller. */
     units::area::square_meter_t
         mPropellerDiskArea; /**< The disk area of the propeller. */
+    int mNumberOfblades; /**< Number of blades in the propeller. */
 
     /**< The expanded area ratio of the propeller. */
     double

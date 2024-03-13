@@ -11,10 +11,12 @@ IShipPropeller::IShipPropeller()
 IShipPropeller::~IShipPropeller()
 {
     mHost = nullptr;
-    if (mGearBox) delete mGearBox;
+    if (mGearBox != nullptr)
+    {
+        delete mGearBox;
+        mGearBox = nullptr;
+    }
 }
-
-
 
 
 void IShipPropeller::setHost(Ship *host)
@@ -49,6 +51,17 @@ void IShipPropeller::setPropellerDiameter(
     mPropellerDiameter = newPropellerDiameter;
 }
 
+units::length::meter_t IShipPropeller::getPropellerPitch() const
+{
+    return mPropellerPitch;
+}
+
+void IShipPropeller::setPropellerPitch(
+    const units::length::meter_t newPropellerPitch)
+{
+    mPropellerPitch = newPropellerPitch;
+}
+
 units::area::square_meter_t IShipPropeller::getPropellerExpandedBladeArea() const
 {
     return mExpandedBladeArea;
@@ -77,8 +90,18 @@ double IShipPropeller::getPropellerExpandedAreaRatio() const
     return mPropellerExpandedAreaRatio;
 }
 
-void IShipPropeller::setPropellerExpandedAreaRation(
-    double newPropellerExpandedAreaRation)
+void IShipPropeller::setPropellerExpandedAreaRatio(
+    double newPropellerExpandedAreaRatio)
 {
-    mPropellerExpandedAreaRatio = newPropellerExpandedAreaRation;
+    mPropellerExpandedAreaRatio = newPropellerExpandedAreaRatio;
+}
+
+int IShipPropeller::getPropellerBladesCount() const
+{
+    return mNumberOfblades;
+}
+
+void IShipPropeller::setPropellerBladesCount(int newPropellerBladesCount)
+{
+    mNumberOfblades = newPropellerBladesCount;
 }
