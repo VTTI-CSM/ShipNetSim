@@ -28,11 +28,11 @@ class Ship;  // Forward declaration of the class ship
  *
  * Provides an interface to manage multiple resistance prediction methods
  */
-class IShipResistancePropulsionStrategy
+class IShipCalmResistanceStrategy
 {
 
 public:
-    virtual ~IShipResistancePropulsionStrategy() = default;
+    virtual ~IShipCalmResistanceStrategy() = default;
 
     /**
      * @brief Calculates the frictional resistance of the ship.
@@ -193,6 +193,18 @@ public:
             std::nan("Unintialized"))) = 0;
 
     /**
+     * @brief Get the coefficient of total resistance
+     * @param ship A constant reference to the Ship object.
+     * @param customSpeed Optional custom speed parameter.
+     * @return The coefficient of resistance of the ship at the current speed.
+     */
+    virtual double getCoefficientOfResistance(
+        const Ship& ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
+
+    /**
      * @brief Calculates the hull efficiency of the ship.
      *
      * Hull efficiency is a measure of how effectively the ship's hull
@@ -216,6 +228,19 @@ public:
      */
     virtual double getPropellerRotationEfficiency(const Ship &ship) = 0;
 
+    /**
+     * @brief Gets the thrust deduction fraction due to the hull interaction.
+     * @param ship A constant reference to the Ship object.
+     * @return The thrust deduction fraction, a dimensionless ratio.
+     */
+    virtual double getThrustDeductionFraction(const Ship &ship) = 0;
+
+
+    virtual double calc_F_n_i(
+        const Ship &ship,
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(
+            std::nan("Unintialized"))) = 0;
     /**
      * @brief Retrieves the name of the resistance prediction method.
      *
