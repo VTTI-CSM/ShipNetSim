@@ -1,6 +1,5 @@
 #include "ishipgearbox.h"
 #include "ship.h"
-#include "ishipengine.h"
 
 IShipGearBox::IShipGearBox()
 {
@@ -9,12 +8,12 @@ IShipGearBox::IShipGearBox()
 
 IShipGearBox::~IShipGearBox()
 {
-    if (mHost) delete mHost;
+    mHost = nullptr;
 
 
     foreach(auto &e, mEngines)
     {
-        if (e)
+        if (e != nullptr)
         {
             delete e;
         }

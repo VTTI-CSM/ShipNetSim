@@ -18,7 +18,7 @@
 #ifndef IENGINE_H
 #define IENGINE_H
 
-#include "IEnergyConsumer.h"
+#include "ienergyconsumer.h"
 
 /**
  * @class IShipEngine
@@ -37,7 +37,7 @@ public:
     /**
      * @brief Destructor for the IShipEngine interface.
      */
-    ~IShipEngine();
+    virtual ~IShipEngine() = default;
 
     /**
      * @brief Read power efficiency data from a file.
@@ -79,6 +79,16 @@ public:
     virtual units::power::kilowatt_t getBrakePower() = 0;
 
     /**
+     * @brief Get the current torque equivalent to the brake power.
+     *
+     * This method is called to get the current torque at the
+     * current RPM and brake power of the engine.
+     *
+     * @return The current Engine Torque.
+     */
+    virtual units::torque::newton_meter_t getBrakeTorque() = 0;
+
+    /**
      * @brief Get the current RPM of the engine.
      *
      * This method is called to get the current RPM
@@ -96,6 +106,18 @@ public:
      * @return The previous brake power of the engine in kilowatts.
      */
     virtual units::power::kilowatt_t getPreviousBrakePower() = 0;
+
+    virtual int getEngineID() = 0;
+
+    virtual bool isEngineWorking() = 0;
+
+    virtual void setEngineMaxSpeedRatio(double maxSpeedRatio) = 0;
+
+    virtual double getEngineMaxSpeedRatio() = 0;
+
+protected:
+
+    double mMaxSpeedRatio = 1.0;
 
 };
 
