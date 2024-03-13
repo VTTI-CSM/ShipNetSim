@@ -128,6 +128,22 @@ inline ValueType interpolate(const QMap<KeyType, ValueType> &map,
         );
 }
 
+inline std::vector<double> linspace_step(double start,
+                                         double end,
+                                         double step = 1.0)
+{
+    std::vector<double> linspaced;
+    int numSteps = static_cast<int>(std::ceil((end - start) / step));
+
+    for(int i = 0; i <= numSteps; ++i){
+        double currentValue = start + i * step;
+        // To avoid floating point errors, we limit the value to 'end'
+        if(currentValue > end) currentValue = end;
+        linspaced.push_back(currentValue);
+    }
+
+    return linspaced;
+}
 
 /**
      * Format duration
@@ -272,7 +288,7 @@ inline QString getHomeDirectory()
 
     if (!homeDir.isEmpty())
     {
-        // Creating a path to NeTrainSim folder in the Documents directory
+        // Creating a path to ShipNetSim folder in the Documents directory
         const QString documentsDir = QDir(homeDir).filePath("Documents");
         const QString folder = QDir(documentsDir).filePath("ShipNetSim");
 
@@ -284,6 +300,21 @@ inline QString getHomeDirectory()
     throw std::runtime_error("Error: Cannot retrieve home directory!");
 }
 
+inline bool stringToBool(const QString& str, bool* ok = nullptr)
+{
+    QString lowerStr = str.toLower();
+    if (lowerStr == "true" || str == "1") {
+        if (ok != nullptr) *ok = true;
+        return true;
+    } else if (lowerStr == "false" || str == "0") {
+        if (ok != nullptr) *ok = true;
+        return false;
+    } else {
+        if (ok != nullptr) *ok = false;
+        qWarning() << "Invalid boolean string:" << str;
+        return false;
+    }
+}
 
 
 
