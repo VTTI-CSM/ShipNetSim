@@ -24,6 +24,8 @@
 #include <cmath>
 #include <memory>
 
+class GLine; // forward declaration
+
 /**
  * @class Line
  *
@@ -41,10 +43,7 @@ private:
     std::shared_ptr<Point> start; // Start point of the line.
     std::shared_ptr<Point> end;   // End point of the line.
     units::length::meter_t mLength; // Length of the line.
-    units::velocity::meters_per_second_t mMaxSpeed; // Maximum speed.
     units::length::meter_t mWidth; // Width of the line.
-    units::length::meter_t mDepth; // Depth of the line.
-
 public:
     /**
      * @brief Enum for specifying start or end of the line.
@@ -72,17 +71,6 @@ public:
         right,
         onLine
     };
-
-    /**
-     * @brief Constructor to create a line with start and end points,
-     * and max speed.
-     *
-     * @param start A shared pointer to the start point of the line.
-     * @param end A shared pointer to the end point of the line.
-     * @param maxSpeed The maximum speed along the line.
-     */
-    Line(std::shared_ptr<Point> start, std::shared_ptr<Point> end,
-         units::velocity::meters_per_second_t maxSpeed);
 
     /**
      * @brief Constructor to create a line with start and end points.
@@ -114,24 +102,30 @@ public:
      */
     units::length::meter_t length() const;
 
-    /**
-     * @return The maximum speed along the line.
-     */
-    units::velocity::meters_per_second_t getMaxSpeed() const;
-
-    /**
-     * @return The depth of the line.
-     */
-    units::length::meter_t depth() const;
-
     // Geometric and relational methods
+
+    /**
+     * @brief check orientation and collinearity of 3 points.
+     * @param p The first point p
+     * @param q The second point q
+     * @param r The thrid point r
+     * @return Orientation::Collinear if the three points are
+     *          collinear with each other.
+     *          Orientation::Clockwise if the point is clockwise
+     *          to the line.
+     *          Orientation::CounterClockwise if the point is
+     *          counterclockwise with the line.
+     */
+    static Line::Orientation orientation(std::shared_ptr<Point> p,
+                                         std::shared_ptr<Point> q,
+                                         std::shared_ptr<Point> r);
     /**
      * @brief Check if two lines intersect.
      *
      * @param other The other line to check intersection with.
      * @return True if lines intersect, false otherwise.
      */
-    bool intersects(Line& other) const;
+    bool intersects(const Line& other, bool ignoreEdgePoints = true) const;
 
     /**
      * @brief Calculate the angle with another line.
@@ -161,6 +155,10 @@ public:
     Point getPointByDistance(units::length::meter_t distance,
                              std::shared_ptr<Point> from) const;
 
+    Point getNearestPoint(
+        const std::shared_ptr<Point>& point) const;
+
+    Point getProjectionFrom(const Point& point) const;
     /**
      * @brief Calculate the perpendicular distance from a point to the line.
      *
@@ -168,6 +166,9 @@ public:
      * @return The perpendicular distance from the point to the line.
      */
     units::length::meter_t getPerpendicularDistance(const Point& point) const;
+
+    units::length::meter_t distanceToPoint(
+        const std::shared_ptr<Point>& point) const;
 
     /**
      * @return The theoretical width of the line.
@@ -202,6 +203,22 @@ public:
     LocationToLine getlocationToLine(
         const std::shared_ptr<Point>& point) const;
 
+    GLine reprojectTo(OGRSpatialReference* targetSR);
+
+    // /**
+    //  * @brief Check if the line falls within a bounding box
+    //  * defined by two points.
+    //  *
+    //  * @param min_point the lower right point
+    //  * @param max_point the top left point
+    //  * @return true if the line falls within the bounding box,
+    //  * false otherwise
+    //  */
+    // bool isInsideBoundingBox(const Point& min_point,
+    //                          const Point& max_point) const;
+
+    Point midpoint() const;
+
     // Operator overloads
     /**
      * @brief Equality operator to compare two lines.
@@ -217,7 +234,7 @@ public:
      *
      * @return The string representation of the line.
      */
-    QString toString() override;
+    QString toString() const override;
 };
 
 #endif // LINE_H

@@ -10,31 +10,22 @@
  */
 
 #include "line.h"  // Include line header file.
+#include "gpoint.h"
+#include "gline.h"
 #include <sstream>  // Include stringstream class for string manipulation.
 #include <cmath>    // Include cmath for mathematical operations.
 
-// Define a small value for floating-point comparisons.
-const double EPSILON = 1e-9;
-
-// Constructor with start, end points and maximum speed specified.
-Line::Line(std::shared_ptr<Point> start, std::shared_ptr<Point> end,
-           units::velocity::meters_per_second_t maxSpeed) :
-    start(start),   // Initialize start point.
-    end(end),       // Initialize end point.
-    mMaxSpeed(maxSpeed)  // Initialize maximum speed.
-{
-    mLength = start->distance(*end);  // Calculate line segment length.
-}
-
-// Constructor with start and end points. Maximum speed is NaN.
+// Constructor with start and end points.
 Line::Line(std::shared_ptr<Point> start,
            std::shared_ptr<Point> end) :
     start(start),  // Initialize start point.
-    end(end),      // Initialize end point.
-    mMaxSpeed(
-        units::velocity::meters_per_second_t(
-            std::nan("no value")))  // NaN speed.
+    end(end)      // Initialize end point.
 {
+    if (! start->getGDALPoint().getSpatialReference()->IsSame(
+            end->getGDALPoint().getSpatialReference()))
+    {
+        qFatal("Mismatch spatial reference for the two points!");
+    }
     mLength = start->distance(*end);  // Calculate line segment length.
 }
 
@@ -42,12 +33,6 @@ Line::Line(std::shared_ptr<Point> start,
 Line::~Line()
 {
     // No dynamic memory to free.
-}
-
-// Get maximum speed allowed on this line segment.
-units::velocity::meters_per_second_t Line::getMaxSpeed() const
-{
-    return mMaxSpeed;  // Return maximum speed.
 }
 
 // Get length of the line segment.
@@ -83,9 +68,9 @@ bool onSegment(std::shared_ptr<Point> p,
 }
 
 // Determine orientation of three points.
-Line::Orientation orientation(std::shared_ptr<Point> p,
-                              std::shared_ptr<Point> q,
-                              std::shared_ptr<Point> r)
+Line::Orientation Line::orientation(std::shared_ptr<Point> p,
+                                     std::shared_ptr<Point> q,
+                                     std::shared_ptr<Point> r)
 {
     // Use temporary variables to avoid multiple calls to .value()
     double px = p->x().value(), py = p->y().value();
@@ -95,13 +80,25 @@ Line::Orientation orientation(std::shared_ptr<Point> p,
     // Calculate determinant of orientation matrix.
     double val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
 
+    // double check collinearity.
+    // This is more accurate than just the val < eps
+    double area = p->x().value() * (q->y().value() - r->y().value()) +
+                  q->x().value() * (r->y().value() - p->y().value()) +
+                  r->x().value() * (p->y().value() - q->y().value());
+    if (std::abs(area) < std::numeric_limits<double>::epsilon())
+    {
+        return Line::Collinear;
+    }
     // Check if points are collinear, clockwise, or counterclockwise.
-    if (std::abs(val) < EPSILON) return Line::Collinear;
+    // if (std::abs(val) < std::numeric_limits<double>::epsilon())
+    // {
+    //     return Line::Collinear;
+    // }
     return (val > 0) ? Line::Clockwise : Line::CounterClockwise;
 }
 
 // Check if two line segments intersect.
-bool Line::intersects(Line &other) const
+bool Line::intersects(const Line &other, bool ignoreEdgePoints) const
 {
     // Get start and end points of both line segments.
     std::shared_ptr<Point> p1 = this->start;
@@ -109,11 +106,17 @@ bool Line::intersects(Line &other) const
     std::shared_ptr<Point> p2 = other.start;
     std::shared_ptr<Point> q2 = other.end;
 
+    if (ignoreEdgePoints &&
+        (*p1 == *p2 || *p1 == *q2 || *q1 == *p2 || *q1 == *q2))
+    {
+        return false; // Ignore intersection as it's at the endpoint
+    }
+
     // Calculate orientations for the line segment pairs.
-    Line::Orientation o1 = orientation(p1, q1, p2);
-    Line::Orientation o2 = orientation(p1, q1, q2);
-    Line::Orientation o3 = orientation(p2, q2, p1);
-    Line::Orientation o4 = orientation(p2, q2, q1);
+    Line::Orientation o1 = Line::orientation(p1, q1, p2);
+    Line::Orientation o2 = Line::orientation(p1, q1, q2);
+    Line::Orientation o3 = Line::orientation(p2, q2, p1);
+    Line::Orientation o4 = Line::orientation(p2, q2, q1);
 
     // General case: The line segments intersect
     // if the orientations are different
@@ -140,12 +143,12 @@ units::angle::radian_t Line::angleWith(Line& other) const
 
     // Identify the common point
     if (*(this->startPoint()) == *(other.startPoint()) ||
-        this->startPoint() == other.endPoint())
+        *(this->startPoint()) == *(other.endPoint()))
     {
         commonPoint = this->startPoint();
     }
-    else if (this->endPoint() == other.startPoint() ||
-               this->endPoint() == other.endPoint())
+    else if (*(this->endPoint()) == *(other.startPoint()) ||
+               *(this->endPoint()) == *(other.endPoint()))
     {
         commonPoint = this->endPoint();
     }
@@ -278,23 +281,89 @@ Point Line::getPointByDistance(
     return getPointByDistance(distance, le);
 }
 
+Point Line::getProjectionFrom(const Point& point) const
+{
+    Point ap = point - *start;
+    Point ab = *end - *start;
+
+    double ap_dot_ab = ap.x().value() * ab.x().value() +
+                       ap.y().value() * ab.y().value();
+    double ab_dot_ab = ab.x().value() * ab.x().value() +
+                       ab.y().value() * ab.y().value();
+
+    // Calculate the magnitude of the projection of ap onto ab
+    double magnitude = ap_dot_ab / ab_dot_ab;
+
+    // Scale ab by the magnitude of the projection
+    // and add to a to get the projection point
+    Point projection = *start + (ab * magnitude);
+
+    return projection;
+}
+
 // Function to calculate the perpendicular distance from a point to the line.
 units::length::meter_t Line::getPerpendicularDistance(
     const Point& point) const  // Point from which distance is to be measured.
 {
-    // Calculate the coefficients of the line equation Ax + By + C = 0.
-    auto A = (end->y() - start->y()).value();
-    auto B = (start->x() - end->x()).value();
-    auto C = (end->x() * start->y() - start->x() * end->y()).value();
+    // find the projection of point on the line
+    Point projection = getProjectionFrom(point);
 
-    // Calculate the denominator of the distance formula.
-    auto denominator = std::sqrt(A * A + B * B);
-    // Calculate and return the perpendicular distance from
-    // the point to the line.
-    return units::length::meter_t(
-        std::abs(A * point.x().value() +
-                 B * point.y().value() + C) / denominator);
+    // calculate the distance between the two points
+    return point.distance(projection);
 }
+
+Point Line::getNearestPoint(
+    const std::shared_ptr<Point>& point) const
+{
+    double x0 = point->x().value();
+    double y0 = point->y().value();
+    double x1 = startPoint()->x().value();
+    double y1 = startPoint()->y().value();
+    double x2 = endPoint()->x().value();
+    double y2 = endPoint()->y().value();
+
+    // Calculate the line segment vector
+    double dx = x2 - x1;
+    double dy = y2 - y1;
+
+    // Calculate the t that minimizes the distance
+    // P(t) = P1 + t (P2 - P1)
+    // t ranges from 0 to 1
+    // t = (P0 - P1) * (P2 - P1) / ||P2 - P1||^2
+    double t = ((x0 - x1) * dx + (y0 - y1) * dy) / (dx * dx + dy * dy);
+
+    // Point on the segment nearest to the external point
+    double nearestX, nearestY;
+
+    if (t < 0.0) {
+        // Nearest point is the start point
+        nearestX = x1;
+        nearestY = y1;
+    } else if (t > 1.0) {
+        // Nearest point is the end point
+        nearestX = x2;
+        nearestY = y2;
+    } else {
+        // Nearest point is within the segment
+        nearestX = x1 + t * dx;
+        nearestY = y1 + t * dy;
+    }
+
+    return Point(units::length::meter_t(nearestX),
+                 units::length::meter_t(nearestY));
+}
+
+units::length::meter_t Line::distanceToPoint(
+    const std::shared_ptr<Point>& point) const
+{
+
+    Point nearestPoint = getNearestPoint(point);
+
+    // Calculate the distance from the point to the
+    // nearest point on the segment
+    return point->distance(nearestPoint);
+}
+
 
 // Function to get the theoretical width of the line.
 units::length::meter_t Line::getTheoriticalWidth() const
@@ -334,6 +403,21 @@ Line::LocationToLine Line::getlocationToLine(
     }
 }
 
+GLine Line::reprojectTo(OGRSpatialReference* targetSR)
+{
+    if (! targetSR || ! targetSR->IsGeographic())
+    {
+        qFatal("Target Spatial Reference "
+               "is not valid or not a geographic CRS.");
+    }
+    std::shared_ptr<GPoint> ps =
+        std::make_shared<GPoint>(start->reprojectTo(targetSR));
+    std::shared_ptr<GPoint> pe =
+        std::make_shared<GPoint>(end->reprojectTo(targetSR));
+
+    return GLine(ps, pe);
+}
+
 
 // Function to set the theoretical width of the line.
 void Line::setTheoriticalWidth(const units::length::meter_t newWidth)
@@ -363,16 +447,29 @@ AlgebraicVector Line::toAlgebraicVector(
     return result;
 }
 
+Point Line::midpoint() const
+{
+    const Point endPoint = *end.get();
+    return start->getMiddlePoint(endPoint);
+}
+
+// bool Line::isInsideBoundingBox(const Point& min_point,
+//                                const Point& max_point) const
+// {
+//     return startPoint()->isPointInsideBoundingBox(min_point, max_point) ||
+//            endPoint()->isPointInsideBoundingBox(min_point, max_point);
+// }
+
 // Overloaded equality operator to compare two lines.
 bool Line::operator==(const Line& other) const
 {
     // Return true if the starting and ending points
     // of both lines are the same.
-    return start == other.start && end == other.end;
+    return *start == *(other.start) && *end == *(other.end);
 }
 
 // Function to convert the line to a string representation.
-QString Line::toString()
+QString Line::toString() const
 {
     // Create a string representation of the line in the
     // format "Start Point || End Point".
