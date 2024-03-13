@@ -16,10 +16,10 @@
 #include "Point.h"
 #include "Polygon.h"
 #include "Line.h"
-#include <vector>
 #include <unordered_map>
 #include "../../third_party/units/units.h"
-#include "VisibilityGraph.h"
+#include "visibilitygraph.h"
+#include "optimizedvisibilitygraph.h"
 
 /**
  * @struct ShortestPathResult
@@ -29,10 +29,10 @@
  * This struct contains two QVector objects, one storing the lines of
  * the path and the other storing the points of the path.
  */
-struct ShortestPathResult {
-    QVector<std::shared_ptr<Line>> lines;
-    QVector<std::shared_ptr<Point>> points;
-};
+// struct ShortestPathResult {
+//     QVector<std::shared_ptr<Line>> lines;
+//     QVector<std::shared_ptr<Point>> points;
+// };
 
 /**
  * @class VisibilityGraph
@@ -51,8 +51,9 @@ struct ShortestPathResult {
 class VisibilityGraph
 {
 private:
-    std::shared_ptr<Point> startNode; ///< Start point of the path.
-    std::shared_ptr<Point> endNode; ///< End point of the path.
+//    std::shared_ptr<Point> startNode; ///< Start point of the path.
+//    std::shared_ptr<Point> endNode; ///< End point of the path.
+    QVector<std::shared_ptr<Point>> mustTraversePoints;
     std::shared_ptr<Polygon> polygon; ///< Polygonal environment.
     std::unordered_map<std::shared_ptr<Point>,
                        QVector<std::pair<std::shared_ptr<Line>,
@@ -67,6 +68,10 @@ private:
      */
     void removeVerticesAndEdges(std::shared_ptr<Point> nodeToRemove);
 
+
+    ShortestPathResult dijkstraShortestPath(
+        std::shared_ptr<Point> startPoint,
+        std::shared_ptr<Point> endPoint);
 
 public:
 
@@ -84,6 +89,20 @@ public:
                     std::shared_ptr<Point> endNode,
                     std::shared_ptr<Polygon> polygon);
 
+
+    /**
+     * @brief Constructor.
+     *
+     * Initializes a visibility graph with a must-visit points, and
+     * polygonal environment. The path will be built in the point order.
+     *
+     * @param points The points where the path will be built
+     * in the same order.
+     * @param polygon Polygonal environment.
+     */
+    VisibilityGraph(QVector<std::shared_ptr<Point>> points,
+                    std::shared_ptr<Polygon> polygon);
+
     /**
      * @brief Constructor.
      *
@@ -99,18 +118,12 @@ public:
     ~VisibilityGraph();
 
     /**
-     * @brief Set the start point of the path.
+     * @brief Set the must-traverse points of the path.
+     * It must include starting and ending points.
      *
-     * @param startPoint Start point of the path.
+     * @param points The must traverse points on the path.
      */
-    void setStartPoint(std::shared_ptr<Point> startPoint);
-
-    /**
-     * @brief Set the end point of the path.
-     *
-     * @param endPoint End point of the path.
-     */
-    void setEndPoint(std::shared_ptr<Point> endPoint);
+    void setTraversePoints(QVector<std::shared_ptr<Point>> points);
 
     /**
      * @brief Get the start point of the path.

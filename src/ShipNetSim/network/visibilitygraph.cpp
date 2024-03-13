@@ -1,27 +1,37 @@
 #include "visibilitygraph.h"
-#include "VisibilityGraph.h"
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <map>
 #include "line.h"
 #include <queue>
 
-VisibilityGraph::VisibilityGraph(std::shared_ptr<Point> startNode,
-                                 std::shared_ptr<Point> endNode,
-                                 std::shared_ptr<Polygon> polygon)
-    : startNode(startNode), endNode(endNode), polygon(polygon)
-{
-    // check if the start and end points are within
-    // the polygon boundaries
-    if (! polygon->pointIsInPolygon(*startNode))
-    {
-        throw std::invalid_argument("The start point is not within "
-                                    "the boundary of the polygon.");
-    }
+//VisibilityGraph::VisibilityGraph(std::shared_ptr<Point> startNode,
+//                                 std::shared_ptr<Point> endNode,
+//                                 std::shared_ptr<Polygon> polygon)
+//    : startNode(startNode), endNode(endNode), polygon(polygon)
+//{
+//    // check if the start and end points are within
+//    // the polygon boundaries
+//    if (! polygon->pointIsInPolygon(*startNode))
+//    {
+//        throw std::invalid_argument("The start point is not within "
+//                                    "the boundary of the polygon.");
+//    }
 
-    if (! polygon->pointIsInPolygon(*endNode))
+//    if (! polygon->pointIsInPolygon(*endNode))
+//    {
+//        throw std::invalid_argument("The end point is not within "
+//                                    "the boundary of the polygon.");
+//    }
+//}
+
+VisibilityGraph::VisibilityGraph(QVector<std::shared_ptr<Point> > points,
+                                 std::shared_ptr<Polygon> polygon)
+    : mustTraversePoints(points), polygon(polygon)
+{
+    if (mustTraversePoints.size() < 2)
     {
-        throw std::invalid_argument("The end point is not within "
-                                    "the boundary of the polygon.");
+        throw std::invalid_argument("The must traverse points vector"
+                                    "cannot have less than two points!");
     }
 }
 
@@ -31,52 +41,26 @@ VisibilityGraph::VisibilityGraph(std::shared_ptr<Polygon> polygon)
 VisibilityGraph::~VisibilityGraph() {}
 
 
-void VisibilityGraph::setStartPoint(std::shared_ptr<Point> startPoint)
+void VisibilityGraph::setTraversePoints(QVector<std::shared_ptr<Point>> points)
 {
-    if (!startPoint->isValid())
-    {
-        throw std::invalid_argument("The point is not a valid point!");
-    }
-    // check if the start point is within the polygon boundaries
-    if (! polygon->pointIsInPolygon(*startNode))
-    {
-        throw std::invalid_argument("The start point is not within "
-                                    "the boundary of the polygon.");
-    }
+    mustTraversePoints = points;
 
-    startNode = startPoint;
-
+    if (mustTraversePoints.size() < 2)
+    {
+        throw std::invalid_argument("The must traverse points vector"
+                                    "cannot have less than two points!");
+    }
 }
 
-void VisibilityGraph::setEndPoint(std::shared_ptr<Point> endPoint)
-{
-    if (!endPoint)
-    {
-        throw std::invalid_argument("The point is not a valid point!");
-    }
-    if (!endPoint->isValid())
-    {
-        throw std::invalid_argument("The point is not a valid point!");
-    }
-
-    endNode = endPoint;
-
-    // check if the end point is within the polygon boundaries
-    if (! polygon->pointIsInPolygon(*endNode))
-    {
-        throw std::invalid_argument("The end point is not within "
-                                    "the boundary of the polygon.");
-    }
-}
 
 std::shared_ptr<Point> VisibilityGraph::startPoint()
 {
-    return startNode;
+    return mustTraversePoints.front();
 }
 
 std::shared_ptr<Point> VisibilityGraph::endPoint()
 {
-    return endNode;
+    return mustTraversePoints.back();
 }
 
 
@@ -84,14 +68,14 @@ std::shared_ptr<Point> VisibilityGraph::endPoint()
 void VisibilityGraph::
     removeVerticesAndEdges(std::shared_ptr<Point> nodeToRemove)
 {
-    // Check if the point exists in the graph
+    // If the point is not in the graph, skip
     if (graph.find(nodeToRemove) == graph.end())
     {
         return;
     }
 
-    // Check if the point is in the polygon structure
-    if (polygon->PointIsPolygonStructure(nodeToRemove))
+    // If the point is in the polygon points, skip
+    if (polygon->contains(nodeToRemove))
     {
         return;
     }
@@ -120,36 +104,56 @@ void VisibilityGraph::
 
 void VisibilityGraph::buildGraph()
 {
-    if (!startNode || !endNode)
+    if (mustTraversePoints.empty())
     {
-        throw std::runtime_error("Both start point and "
-                                 "end point need to be "
+        throw std::runtime_error("mustTraversePoints vector need to be "
                                  "defined to construct "
                                  "the visibility graph!");
     }
 
     // Clear the existing graph
-    removeVerticesAndEdges(startNode);
-    removeVerticesAndEdges(endNode);
-
-    // Empty vector to hold all points
-    QVector<std::shared_ptr<Point>> allPoints = {};
-
-    // Add points from the outer boundary of the polygon
-    const auto& outerPoints = polygon->outer();
-    // Appends the elements of outerPoints to allPoints
-    allPoints += outerPoints;
-
-    // Add points from the inner holes of the polygon
-    const auto& holes = polygon->inners();
-    for (const auto& hole : holes)
+    for (auto& point: mustTraversePoints)
     {
-        allPoints += hole;
+        removeVerticesAndEdges(point);
     }
 
-    // Add the start and end points to the end; they have lower priority
-    allPoints.push_back(startNode);
-    allPoints.push_back(endNode);
+    // Empty vector to hold all points
+    QVector<std::shared_ptr<Point>> allPoints;
+
+    // Function to add a point if it's not already in the vector
+    auto addIfUnique = [&allPoints](const std::shared_ptr<Point>& newPoint)
+    {
+        for (const auto& point : allPoints)
+        {
+            if (*point == *newPoint)
+            {
+                return; // Point is already in the vector, don't add it again
+            }
+        }
+        // If we got here, the point is not in the vector, so we add it
+        allPoints.append(newPoint);
+    };
+
+    // Add points from the outer boundary of the polygon
+    for (const auto& point : polygon->outer())
+    {
+        addIfUnique(point);
+    }
+
+    // Add points from the inner holes of the polygon
+    for (const auto& hole : polygon->inners())
+    {
+        for (const auto& point : hole) {
+            addIfUnique(point);
+        }
+    }
+
+    // Add points from the must traverse points
+    for (const auto& point : mustTraversePoints)
+    {
+        addIfUnique(point);
+    }
+
 
     // Create lines between every pair of points
     for (const auto& pointA : allPoints)
@@ -182,8 +186,7 @@ void VisibilityGraph::buildGraph()
             } else {
                 // Create a new line
                 line = std::make_shared<Line>(pointA,
-                                              pointB,
-                                              polygon->getMaxAllowedSpeed());
+                                              pointB);
                 auto wdth = polygon->getMaxClearWidth(*line);
                 line->setTheoriticalWidth(wdth);
             }
@@ -207,6 +210,54 @@ void VisibilityGraph::buildGraph()
 
 ShortestPathResult VisibilityGraph::dijkstraShortestPath()
 {
+    ShortestPathResult result;
+
+    // Check if we have enough points to form a path
+    if (mustTraversePoints.size() < 2) {
+        // If there's only one point or none, return empty
+        // result or result with only one point
+        if (!mustTraversePoints.isEmpty()) {
+            result.points.append(mustTraversePoints.first());
+        }
+        return result;
+    }
+
+    // We start with the first point
+    result.points.append(mustTraversePoints.first());
+
+    for (qsizetype i = 0; i < mustTraversePoints.size() - 1; ++i)
+    {
+        auto startPoint = mustTraversePoints[i];
+        auto endPoint = mustTraversePoints[i + 1];
+
+        // Compute the shortest path between startPoint and endPoint
+        ShortestPathResult dijResult =
+            dijkstraShortestPath(startPoint, endPoint);
+
+        // We've already added the startPoint to the path,
+        // so we start with the second point
+        for (qsizetype j = 1; j < dijResult.points.size(); ++j)
+        {
+            result.points.append(dijResult.points[j]);
+        }
+
+        // Append the lines connecting these points to the result's lines
+        // Since lines are connecting the points, the number of lines
+        // should always be one less than the number of points
+        for (auto& line : dijResult.lines)
+        {
+            result.lines.append(line);
+        }
+    }
+
+    return result;
+}
+
+
+ShortestPathResult VisibilityGraph::dijkstraShortestPath(
+    std::shared_ptr<Point> startPoint,
+    std::shared_ptr<Point> endPoint)
+{
     using Pair = std::pair<units::length::meter_t,
                            std::shared_ptr<Point>>;
 
@@ -222,15 +273,15 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
     std::unordered_map<std::shared_ptr<Point>,
                        std::shared_ptr<Line>> prevLine;
 
-    pq.emplace(0, startNode);
-    dist[startNode] = units::length::meter_t(0.0);
+    pq.emplace(0, startPoint);
+    dist[startPoint] = units::length::meter_t(0.0);
 
     while (!pq.empty())
     {
         auto [currentDist, currentPoint] = pq.top();
         pq.pop();
 
-        if (currentPoint == endNode)
+        if (currentPoint == endPoint)
         {
             break;
         }
@@ -256,13 +307,13 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
     }
 
     ShortestPathResult result;
-    if (dist.find(endNode) == dist.end())
+    if (dist.find(endPoint) == dist.end())
     {
         return result;  // Empty result signifies no path exists
     }
 
-    std::shared_ptr<Point> currentPoint = endNode;
-    while (currentPoint != startNode)
+    std::shared_ptr<Point> currentPoint = endPoint;
+    while (currentPoint != startPoint)
     {
         auto line = prevLine[currentPoint];
         result.lines.prepend(line);
@@ -271,7 +322,7 @@ ShortestPathResult VisibilityGraph::dijkstraShortestPath()
         currentPoint = (line->startPoint() == currentPoint) ?
                            line->endPoint() : line->startPoint();
     }
-    result.points.prepend(startNode);
+    result.points.prepend(startPoint);
 
     return result;
 }
@@ -315,7 +366,7 @@ VisibilityGraph::getLinesFromPoints(
 {
     QVector<std::shared_ptr<Line>> lines;
 
-    for (size_t i = 0; i < pathPoints.size() - 1; ++i) {
+    for (qsizetype i = 0; i < pathPoints.size() - 1; ++i) {
         auto& pointA = pathPoints[i];
         auto& pointB = pathPoints[i + 1];
 
@@ -348,8 +399,7 @@ VisibilityGraph::getLinesFromPoints(
             // Create new line, add to the vector, and add to the graph
             auto newLine =
                 std::make_shared<Line>(pointA,
-                                       pointB,
-                                       polygon->getMaxAllowedSpeed());
+                                       pointB);
             lines.push_back(newLine);
 
             // Add the new line to the graph for both pointA and pointB
