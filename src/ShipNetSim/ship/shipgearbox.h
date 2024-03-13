@@ -89,6 +89,16 @@ public:
     units::power::kilowatt_t getOutputPower() override;
 
     /**
+     * @brief Get the current torque equivalent to the output power.
+     *
+     * This method is called to get the current torque at the
+     * current RPM and output power of the gearbox.
+     *
+     * @return The current Torque.
+     */
+    units::torque::newton_meter_t getOutputTorque() override;
+
+    /**
      * @brief Retrieves the gearbox's output power in the previous step.
      *
      * This method returns the output power of the gearbox in the

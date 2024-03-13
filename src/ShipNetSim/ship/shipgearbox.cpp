@@ -28,8 +28,10 @@ void ShipGearBox::setParameters(const QMap<QString, std::any> &parameters)
         Utils::getValueFromMap<double>(parameters, "gearboxEfficiency", -1.0);
     if (mEfficiency < 0)
     {
-        qFatal("Gearbox efficiency is not defined. "
-               "it should be a value of double in range [0,1]!");
+        mEfficiency = 1.0;
+
+        qWarning() << "Gearbox efficiency is not defined. "
+                      "Set to default '1.0'!";
     }
 }
 
@@ -90,6 +92,18 @@ units::power::kilowatt_t ShipGearBox::getOutputPower()
     // Multiply by efficiency to get the output power.
     mOutputPower = totalPower * mEfficiency;
     return mOutputPower;
+}
+
+units::torque::newton_meter_t ShipGearBox::getOutputTorque()
+{
+    units::torque::newton_meter_t result =
+        units::torque::newton_meter_t(
+            (getOutputPower().value() * 1000.0) /  // convert to watt
+            getOutputRPM().
+            convert<
+                units::angular_velocity::radians_per_second>().value());
+
+    return result;
 }
 
 units::power::kilowatt_t ShipGearBox::getPreviousOutputPower() const
