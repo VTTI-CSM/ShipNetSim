@@ -1525,7 +1525,7 @@ namespace units
 			return value;
 		}
 
-		template<std::size_t Ratio_num, std::size_t Ratio_den>
+		template<std::intmax_t Ratio_num, std::intmax_t Ratio_den>
 		struct normal_convert
 		{
 			template<typename T>
@@ -1535,7 +1535,7 @@ namespace units
 			}
 		};
 
-		template<std::size_t Ratio_num>
+		template<std::intmax_t Ratio_num>
 		struct normal_convert<Ratio_num, 1>
 		{
 			template<typename T>
@@ -1545,7 +1545,7 @@ namespace units
 			}
 		};
 
-		template<std::size_t Ratio_den>
+		template<std::intmax_t Ratio_den>
 		struct normal_convert<1, Ratio_den>
 		{
 			template<typename T>
@@ -2094,6 +2094,18 @@ namespace units
 		{
 			return static_cast<underlying_type>(*this);
 		}
+
+        /**
+         * @brief       round a unit percision
+         * @param       digit number of decimal points to keep
+         * @returns     rounded value of the type
+         */
+        inline constexpr unit_t round(int digit) const noexcept
+        {
+            T factor = std::pow(10.0, digit);
+            T roundedValue = std::round(m_value * factor) / factor;
+            return unit_t<Units, T, NonLinearScale>(roundedValue);
+        }
 
 		/**
 		 * @brief		unit value
@@ -4118,7 +4130,8 @@ namespace units
 	 * @sa			See unit_t for more information on unit type containers.
 	 */
 #if !defined(DISABLE_PREDEFINED_UNITS) || defined(ENABLE_PREDEFINED_CONCENTRATION_UNITS)
-	UNIT_ADD(concentration, ppm, parts_per_million, ppm, unit<std::ratio<1, 1000000>, units::category::scalar_unit>)
+	UNIT_ADD(concentration, pptd, parts_per_thousand, pptd, unit<std::ratio<1, 1000>, units::category::scalar_unit>)
+	UNIT_ADD(concentration, ppm, parts_per_million, ppm, unit<std::ratio<1, 1000>, parts_per_thousand>)
 	UNIT_ADD(concentration, ppb, parts_per_billion, ppb, unit<std::ratio<1, 1000>, parts_per_million>)
 	UNIT_ADD(concentration, ppt, parts_per_trillion, ppt, unit<std::ratio<1, 1000>, parts_per_billion>)
 	UNIT_ADD(concentration, percent, percent, pct, unit<std::ratio<1, 100>, units::category::scalar_unit>)
@@ -4185,7 +4198,7 @@ namespace units
 		 * @{
 		 */
 		using PI = unit<std::ratio<1>, dimensionless::scalar, std::ratio<1>>;
-
+		static constexpr const acceleration::meters_per_second_squared_t																			g(9.80665);										///< Standard acceleration due to gravity on the surface of the Earth.
 		static constexpr const unit_t<PI>																											pi(1);											///< Ratio of a circle's circumference to its diameter.
 		static constexpr const velocity::meters_per_second_t																						c(299792458.0);									///< Speed of light in vacuum.
 		static constexpr const unit_t<compound_unit<cubed<length::meters>, inverse<mass::kilogram>, inverse<squared<time::seconds>>>>				G(6.67408e-11);									///< Newtonian constant of gravitation.
