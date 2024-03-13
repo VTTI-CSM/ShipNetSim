@@ -1,14 +1,18 @@
 #include "battery.h"
 #include <iostream>
 #include "../utils/utils.h"
+#include "ship.h"
 
+double Battery::getCurrentCapacityState()
+{
+    return batteryStateOfCharge * 100.0;
+}
 // Getter method for the maximum charge of the battery.
 units::energy::kilowatt_hour_t Battery::getBatteryMaxCharge() const
 {
     // Simply return the max capacity value of the battery.
     return this->batteryMaxCapacity;
 }
-
 // Setter method to update the maximum charge of the battery.
 void Battery::setBatteryMaxCharge(
     units::energy::kilowatt_hour_t newMaxCharge)
@@ -77,6 +81,7 @@ EnergyConsumptionData Battery::consume(
         result.isEnergySupplied = true;
         result.energyConsumed = batteryMax_kwh;
         result.energyNotConsumed = EC_extra_kwh;
+        // mHost->addToCummulativeConsumedEnergy(batteryMax_kwh);
         return result;
     }
 
@@ -90,6 +95,7 @@ EnergyConsumptionData Battery::consume(
     result.isEnergySupplied = true;
     result.energyConsumed = consumedCharge;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    // mHost->addToCummulativeConsumedEnergy(consumedCharge);
     return result;
 }
 
@@ -451,6 +457,11 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
     setBatteryCharacterstics(maxCharge, initialChargePercentage,
                              depthOfDischarge, batteryCRate, maxRechargeSOC,
                              minRechargeSOC);
+}
+
+units::mass::kilogram_t Battery::getCurrentWeight()
+{
+    return units::mass::kilogram_t(0.0);
 }
 
 // Set the battery's main characteristics and initial conditions.
