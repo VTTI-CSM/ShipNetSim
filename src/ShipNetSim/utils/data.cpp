@@ -83,7 +83,7 @@ Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
     }
     else
     {
-        for (std::size_t i = 0; i < typeSequence.size(); ++i)
+        for (qsizetype i = 0; i < typeSequence.size(); ++i)
         {
             QString header = "Column" + QString::number(i);
             table.headers.push_back(header);
@@ -103,7 +103,7 @@ Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
                 "the provided type sequence");
         }
 
-        for (std::size_t i = 0; i < table.headers.size(); ++i) {
+        for (qsizetype i = 0; i < table.headers.size(); ++i) {
             bool conversionSuccessful = false;
 
             if (typeSequence[i] == "int") {
@@ -142,6 +142,13 @@ Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
     return table;
 }
 
+void Data::CSV::close()
+{
+    if (mFile.isOpen())
+    {
+        mFile.close();
+    }
+}
 
 Data::Table Data::Table::filterTable(
     const QString& columnName,
@@ -213,7 +220,7 @@ Data::Table Data::TXT::read(const QVector<QString>& typeSequence,
 
     QTextStream in(&mFile);
 
-    for (std::size_t i = 0; i < typeSequence.size(); ++i) {
+    for (qsizetype i = 0; i < typeSequence.size(); ++i) {
         QString header = "Column" + QString::number(i);
         table.headers.push_back(header);
         table.tableMap[header] = QVector<Cell>();
@@ -232,7 +239,7 @@ Data::Table Data::TXT::read(const QVector<QString>& typeSequence,
                 "the provided type sequence");
         }
 
-        for (std::size_t i = 0; i < table.headers.size(); ++i) {
+        for (qsizetype i = 0; i < table.headers.size(); ++i) {
             bool conversionSuccessful = false;
 
             if (typeSequence[i] == "int") {
@@ -289,5 +296,12 @@ bool Data::TXT::writeFile(QString &data)
     }
 
     return true;
+}
 
+void Data::TXT::close()
+{
+    if (mFile.isOpen())
+    {
+        mFile.close();
+    }
 }

@@ -163,6 +163,7 @@ public:
                const bool hasHeaders = false,
                const QString& separator = ",");
     bool writeLine(const QString &line);
+    void close();
 };
 
 class TXT
@@ -180,6 +181,7 @@ public:
     Table read(const QVector<QString>& typeSequence,
                       const QString& separator = ",");
     bool writeFile(QString &data);
+    void close();
 };
 
 }
