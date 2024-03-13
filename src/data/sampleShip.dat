@@ -1,0 +1,4 @@
+#MSC Oscar Water Vessel Characteristics :: https://en.wikipedia.org/wiki/MSC_Oscar
+#ID	Path														mxSpd	L_WL	L_PP	Width	FDrft	ADraft	Dspl		SAr			AAbveWtrline	BCHght	BArea	TraArea	Angl	roughns	LBncyCntr	Stern	midCf	WPlanCf	prismCf	blckCf	fuelTyp	tankSz	intCap	Depth	#Engns	Pwr-RPM					Pwr-Eff					GearRat	GearEff	shftEf	#proplr	propDia	PropPtc	BladeCount	ExpRat	stopNoE	RudrAng	DeadW		CargoW		Apend
+#																knots	meters	meters	meters	meters	meters	c.m			sq.m		sq.m			meters	sq.m	sq.m	deg		nm		%																	liters
+1	-7531224.12019,4085167.24237;-911496.184367,4647084.44462	22.80	395.40	391.2	59.08	15.70	15.70	183377.8212	13343.116	708.70000000	08.00	40.00	50.5	17.5	0.010	1.300000	0000	NANN	0.10	0.10	0.10	0000	20000.0	0.900	0.90	1.00	56250.0,200;62500.0,250	56250.0,0.9;62500.0,0.9	1.00	1.000	0.900	1.00	10.40	9.88	5.00000000	0.80	true	35.0	192237.0	221517.0	NAN
