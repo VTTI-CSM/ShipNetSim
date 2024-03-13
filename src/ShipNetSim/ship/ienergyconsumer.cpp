@@ -9,7 +9,7 @@ IEnergyConsumer::IEnergyConsumer()
 IEnergyConsumer::~IEnergyConsumer()
 {
     mHost = nullptr;
-    if (mEnergySource) delete mEnergySource;
+    mEnergySource = nullptr;
 }
 
 void IEnergyConsumer::setHost(Ship *host)

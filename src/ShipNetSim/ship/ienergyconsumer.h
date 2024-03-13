@@ -18,7 +18,7 @@
 #define IENERGYCONSUMER_H
 
 #include "../../third_party/units/units.h"
-#include "IEnergySource.h"
+#include "ienergysource.h"
 #include <QString>
 #include <any>
 
@@ -48,7 +48,7 @@ public:
     /**
      * @brief Destructor for the IEnergyConsumer interface.
      */
-    ~IEnergyConsumer();
+    virtual ~IEnergyConsumer();
 
     /**
      * @brief Initialize the energy-consuming component.
