@@ -34,6 +34,8 @@ class ShipPropeller : public IShipPropeller
 public:
     // IShipPropeller interface
 
+    // ~ShipPropeller();
+
     /**
      * @brief Initializes the propeller with the given parameters.
      *
@@ -80,6 +82,13 @@ public:
      */
     void setShaftEfficiency(double newShaftEfficiency) override;
 
+    units::power::kilowatt_t getShaftPower();
+
+    units::force::newton_t getShaftThrust();
+
+    units::torque::newton_meter_t getShaftTorque();
+
+
     /**
      * @brief Gets the propeller efficiency.
      *
@@ -91,19 +100,6 @@ public:
      */
     double getPropellerEfficiency() override;
 
-    /**
-     * @brief Sets the propeller open water efficiencies.
-     *
-     * Sets a map of open water efficiencies for the propeller.
-     * The map should contain values representing how efficiently
-     * the propeller converts rotational energy into thrust at
-     * different speeds.
-     *
-     * @param newPropellerOpenWaterEfficiencies The new map of
-     * open water efficiencies.
-     */
-    void setPropellerOpenWaterEfficiencies(
-        QMap<double, double> newPropellerOpenWaterEfficiencies) override;
 
     /**
      * @brief Gets the effective power of the propeller.
@@ -182,6 +178,18 @@ public:
     double getTorqueCoefficient() override;
 
     /**
+     * @brief Gets the theoritical ideal advance speed (V_a) of the ship.
+     *
+     * Returns the ideal advance speed of the ship considering
+     * the propeller pitch and the number of revolutions when
+     * there is no slipping.
+     * The speed of advance is in m/s.
+     *
+     * @return the speed of advance in m/s.
+     */
+    units::velocity::meters_per_second_t getIdealAdvanceSpeed();
+
+    /**
      * @brief Gets the advance ratio of the propeller.
      *
      * Returns the advance ratio of the propeller, which is
@@ -191,7 +199,18 @@ public:
      *
      * @return The advance ratio of the propeller.
      */
-    double getAdvancedRatio() override;
+    double getAdvanceRatio() override;
+
+    /**
+     * @brief Gets the propeller slip value.
+     *
+     * Returns the slip of the propeller due to the difference between
+     * the theoritical ideal speed of advance and the actual speed
+     * of advance. the slip is dimensionless between [0, 1].
+     *
+     * @return The propeller slip.
+     */
+    double getPropellerSlip();
 
     /**
      * @brief Gets the driving engines of the propeller.
@@ -204,16 +223,39 @@ public:
     const QVector<IShipEngine *> getDrivingEngines() const override;
 
 private:
+    struct KCoef
+    {
+    public: enum KType
+        {
+            Thrust,
+            Torque
+        };
+        QVector<double> C;
+        QVector<int> s;
+        QVector<int> t;
+        QVector<int> u;
+        QVector<int> v;
+        KType type;
+
+        bool checkInputs(double PD, double AreaRatio, int Z);
+
+        double getResult(double J, double PD,
+                         double AreaRatio, double Z, double Rn);
+    };
+
+    KCoef KT = KCoef();
+    KCoef KQ = KCoef();
+
     double mShaftEfficiency;  ///< Efficiency of the shaft.
-    QMap<double, double>
-        mPropellerOpenWaterEfficiencyToJ; ///< Map of propeller open water eff.
     units::power::kilowatt_t
         mPreviousEffectivePower;  ///< Previous effective power.
 
     // Private helper functions for calculating
     // various propeller-related parameters.
 
-    double getOpenWaterEfficiency();
+    double getOpenWaterEfficiency(double J = std::nan("undefined"),
+                                  double KT = std::nan("undefined"),
+                                  double KQ = std::nan("undefined"));
     double getRelativeEfficiency();
     double getHullEfficiency();
 
