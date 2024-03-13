@@ -78,6 +78,11 @@ public:
                                   double minRechargeSOC = 0.5);
 
     /**
+     * @brief Get the current state of charge.
+     * @return The current state of charge in percentage.
+     */
+    double getCurrentCapacityState() override;
+    /**
      * @brief Gets the maximum charge of the battery.
      * @return The maximum charge of the battery in kWh.
      */
@@ -279,6 +284,17 @@ public:
 
     // IEnergySource interface
     void setCharacteristics(const QMap<QString, std::any> &parameters) override;
+
+    /**
+     * @brief Get current weight of the battery and its content.
+     *
+     * This function is not yet implemented.     *
+     * This function is called to get the current updated tank total weight.
+     *
+     * @return the current tank weight in kilogram.
+     */
+    units::mass::kilogram_t getCurrentWeight() override;
+
 };
 
 #endif // BATTERY_H
