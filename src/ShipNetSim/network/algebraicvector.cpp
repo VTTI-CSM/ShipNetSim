@@ -34,7 +34,8 @@ AlgebraicVector::AlgebraicVector(const Point startPoint,
                                  const Point& endPoint)
 {
     // Set position to startPoint
-    mPosition_ = startPoint;
+    mPosition_ = Point(startPoint.x(),
+                       startPoint.y());
     // Set orientation based on endPoint
     setOrientationByEndPoint(endPoint);
     // Initialize rotation status to false
@@ -47,13 +48,18 @@ bool AlgebraicVector::isRotating() const
     return mIsRotating;  // Return rotation status
 }
 
-// Get orientation angle in degrees
-units::angle::degree_t AlgebraicVector::orientation() const
+// Get getOrientationWithRespectToTarget angle in degrees
+units::angle::degree_t AlgebraicVector::getOrientationWithRespectToTarget() const
 {
     // Calculate orientation angle based on orientation vector
     double x = mOrientation[0].value();
     double y = mOrientation[1].value();
     return units::angle::degree_t(std::atan2(y, x) * 180.0 / M_PI);
+}
+
+QVector<units::length::meter_t> AlgebraicVector::getOrientationVector() const
+{
+    return mOrientation;
 }
 
 // Set target point and maximum rate of turn
@@ -64,6 +70,11 @@ void AlgebraicVector::setTargetAndMaxROT(const Point& target,
     mTargetPoint_ = target;
     // Set maximum rate of turn
     mMaxROTPerSec_ = maxROTPerSec;
+}
+
+Point AlgebraicVector::getTarget()
+{
+    return mTargetPoint_;
 }
 
 // Set orientation based on end point
@@ -79,9 +90,44 @@ void AlgebraicVector::setOrientationByEndPoint(const Point& endPoint)
     // Handle zero magnitude vector as per application requirements
     if (magnitude == 0) return;
 
+    if (mOrientation.size() < 2)
+    {
+        mOrientation.resize(2);
+    }
     // Normalize direction vector
     mOrientation[0] = units::length::meter_t(dx / magnitude);
     mOrientation[1] = units::length::meter_t(dy / magnitude);
+}
+
+units::angle::degree_t AlgebraicVector::
+    getOrientationAngleWithRespectToNorth() const
+{
+    if (mOrientation.size() < 2) {
+        // Handle error or uninitialized state as appropriate
+        return units::angle::degree_t(0.0);
+    }
+
+    // atan2 returns the angle between the x-axis and the vector (dx, dy),
+    // but we need the angle with respect to the y-axis, so we swap dx and dy.
+    // Also, atan2 expects dy first, then dx, to compute the angle
+    // from the x-axis.
+    // To get the angle from the north, we essentially calculate atan2(dx, dy)
+    // but then we need to convert radians to degrees and adjust the angle so
+    // that north is 0/360 degrees and it increases clockwise.
+    double dy = mOrientation[0].value(); // x (swaping)
+    double dx = mOrientation[1].value(); // y
+    double radians = std::atan2(dx, dy); // Swap dx and dy for y-axis orientation
+
+    // Convert radians to degrees
+    double degrees = radians * (180.0 / M_PI);
+
+    // Adjust degrees to make north 0/360 degrees
+    // Since atan2 returns [-180, 180], add 360 to negative angles to normalize
+    if (degrees < 0) {
+        degrees += 360;
+    }
+
+    return units::angle::degree_t(degrees);
 }
 
 // Move by a specified distance
@@ -119,7 +165,7 @@ void AlgebraicVector::rotateToTargetByMaxROT(
         units::angle::degree_t(std::atan2(dy, dx) * 180.0 / M_PI);
 
     // Calculate difference between current and target orientations
-    auto currentOrientation = orientation();
+    auto currentOrientation = getOrientationWithRespectToTarget();
     auto diff = targetOrientation - currentOrientation;
 
     // Normalize difference to be within [-180, 180] degrees
@@ -177,4 +223,14 @@ units::angle::degree_t AlgebraicVector::angleTo(const Point& otherPoint) const
     while (angleDifference < -180.0) angleDifference += 360.0;
 
     return units::angle::degree_t(angleDifference);
+}
+
+AlgebraicVector::Environment AlgebraicVector::getEnvironment() const
+{
+    return mStateEnv;
+}
+
+void AlgebraicVector::setEnvironment(const Environment env)
+{
+    mStateEnv = env;
 }

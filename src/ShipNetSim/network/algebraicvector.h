@@ -22,6 +22,27 @@ class AlgebraicVector
 {
 public:
 
+    struct Environment {
+        units::temperature::celsius_t temperature =
+            units::temperature::celsius_t(0.0);
+        units::concentration::pptd_t salinity =
+            units::concentration::pptd_t(0.0);
+        units::length::meter_t waveHeight =
+            units::length::meter_t(0.0);
+        units::frequency::hertz_t waveFrequency =
+            units::frequency::hertz_t(0.0);
+        units::angular_velocity::radians_per_second_t waveAngularFrequency =
+            units::angular_velocity::radians_per_second_t(0.0);
+        units::length::meter_t waveLength =
+            units::length::meter_t(0.0);
+        units::velocity::meters_per_second_t windSpeed_Northward =
+            units::velocity::meters_per_second_t(0.0);
+        units::velocity::meters_per_second_t windSpeed_Eastward =
+            units::velocity::meters_per_second_t(0.0);
+        units::length::meter_t waterDepth =
+            units::length::meter_t(0.0);
+    };
+
     /**
      * @brief Default constructor.
      *
@@ -48,6 +69,13 @@ public:
                             units::angle::degree_t maxROTPerSec);
 
     /**
+     * @brief Gets the target position.
+     *
+     * @return target The target position to reach.
+     */
+    Point getTarget();
+
+    /**
      * @brief Moves the vector by a given distance in a given time step.
      *
      * @param distance The distance to move.
@@ -56,12 +84,20 @@ public:
     void moveByDistance(units::length::meter_t distance,
                         units::time::second_t timeStep);
 
+    units::angle::degree_t getOrientationAngleWithRespectToNorth() const;
+
     /**
-     * @brief Gets the orientation of the vector in degrees.
+     * @brief Gets the getOrientationWithRespectToTarget of the vector in degrees.
      *
-     * @return The orientation of the vector in degrees.
+     * @return The getOrientationWithRespectToTarget of the vector in degrees.
      */
-    units::angle::degree_t orientation() const;
+    units::angle::degree_t getOrientationWithRespectToTarget() const;
+
+    /**
+     * @brief Gets the orientation of the vector as a vector.
+     * @return The orientation vector <x,y>.
+     */
+    QVector<units::length::meter_t> getOrientationVector() const;
 
     /**
      * @brief Gets the current position of the vector.
@@ -86,14 +122,19 @@ public:
      */
     units::angle::degree_t angleTo(const Point& otherPoint) const;
 
+    Environment getEnvironment() const;
+
+    void setEnvironment(const Environment env);
+
 private:
     Point mTargetPoint_;  ///< The target position to reach.
     units::angle::degree_t
         mMaxROTPerSec_;  ///< Maximum rate of turn in degrees per second.
     Point mPosition_;  ///< The current position of the vector.
     QVector<units::length::meter_t>
-        mOrientation;  ///< Orientation of the vector.
+        mOrientation;  ///< Orientation of the vector toward a target point.
     bool mIsRotating;  ///< Indicates whether the vector is rotating.
+    Environment mStateEnv;
 
     /**
      * @brief Sets the orientation of the vector by the end point.
