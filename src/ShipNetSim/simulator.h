@@ -3,11 +3,11 @@
 
 #include "qmutex.h"
 #include "qwaitcondition.h"
-#include "network/network.h"
-#include <string>
-#include <iostream>
-#include <filesystem>
-#include <fstream>
+#include "network/optimizednetwork.h"
+// #include <string>
+// #include <iostream>
+// #include <filesystem>
+// #include <fstream>
 #include <QObject>
 #include <QDir>
 #include "utils/data.h"
@@ -32,10 +32,10 @@ private:
     inline static const QString DefaultSummaryEmptyFilename = "";
     /** (Immutable) the default instantaneous trajectory filename */
     inline static const QString
-        DefaultInstantaneousTrajectoryFilename = "trainTrajectory_";
+        DefaultInstantaneousTrajectoryFilename = "shipTrajectory_";
     /** (Immutable) the default summary filename */
     inline static const QString
-        DefaultSummaryFilename =  "trainSummary_";
+        DefaultSummaryFilename =  "shipSummary_";
 
     struct shipLinksSpeedResults
     {
@@ -50,7 +50,7 @@ private:
         QVector<bool> isFollowingAnotherShip;
     };
 
-    /** The trains */
+    /** The ships */
     QVector<std::shared_ptr<Ship>> mShips;
     /** The simulation time */
     units::time::second_t mSimulationTime;
@@ -58,7 +58,9 @@ private:
     units::time::second_t mSimulationEndTime;
     /** The time step */
     units::time::second_t mTimeStep;
-    /** The frequency of plotting the trains */
+    /** The network */
+    std::shared_ptr<OptimizedNetwork> mNetwork;
+    /** The frequency of plotting the ships */
     int mPlotFrequency;
     /** The output location */
     QString mOutputLocation;
@@ -66,10 +68,8 @@ private:
     QString mSummaryFileName;
     /** Filename of the trajectory file */
     QString mTrajectoryFilename;
-    /** The network */
-    std::shared_ptr<Network> mNetwork;
     /** The progress */
-    double mProgress;
+    int mProgress = 0;
     /** True to run simulation endlessly */
     bool mRunSimulationEndlessly;
     /** True to export trajectory */
@@ -78,8 +78,10 @@ private:
     Data::CSV mTrajectoryFile = Data::CSV();
     /** The summary file */
     Data::TXT mSummaryFile = Data::TXT();
-    /** export individualized trains summary in the summary file*/
+    /** export individualized ships summary in the summary file*/
     bool mExportIndividualizedTrainsSummary = false;
+    /** The serial number of the current simulation run. */
+    long long simulation_serial_number;
 
     /**
      * Determines if we can check all ships reached destination
@@ -97,7 +99,7 @@ private:
      * @author	Ahmed Aredah
      * @date	2/28/2023
      *
-     * @param 	train	The train.
+     * @param 	ship	The ship.
      */
     void playShipOneTimeStep(std::shared_ptr <Ship> ship);
 
@@ -128,11 +130,19 @@ private:
     units::time::second_t getNotLoadedShipsMinStartTime();
 
 public:
-    explicit Simulator(std::shared_ptr<Network> network,
+    explicit Simulator(std::shared_ptr<OptimizedNetwork> network,
                        QVector<std::shared_ptr<Ship>> shipList,
                        units::time::second_t simulatorTimeStep =
                        DefaultTimeStep,
                        QObject *parent = nullptr);
+
+    /**
+     * @brief Study the ships resistance.
+     *
+     * This function does not run the simulation,
+     * it only increments the ship speed and measures the resistance.
+     */
+    void studyShipsResistance();
 
 
     /**
@@ -161,13 +171,13 @@ public:
      * @date	2/28/2023
      *
      * @param newEndTime    the new end time of the simulator in seconds.
-     *                      Zero means do not stop untill all trains
+     *                      Zero means do not stop untill all ships
      *                      reach destination.
      */
     void setEndTime(units::time::second_t newEndTime);
 
     /**
-     * @brief set the plot frequency of trains, this only works in the gui
+     * @brief set the plot frequency of ships, this only works in the gui
      * @param newPlotFrequency
      */
     void setPlotFrequency(int newPlotFrequency);
@@ -216,9 +226,9 @@ signals:
     void progressUpdated(int progressPercentage);
 
     /**
-     * @brief Updates the plot of trains with their start and end points.
+     * @brief Updates the plot of ships with their start and end points.
      *
-     * @param trainsStartEndPoints A vector containing the names of the trains
+     * @param shipsStartEndPoints A vector containing the names of the ships
      *                            along with their start and end points.
      */
     void plotShipsUpdated(
@@ -259,7 +269,7 @@ public slots:
 private:
     QMutex mutex;
     QWaitCondition pauseCond;
-    bool mPauseFlag;
+    bool mPauseFlag = false;
 
 };
 
