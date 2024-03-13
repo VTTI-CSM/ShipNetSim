@@ -14,10 +14,11 @@ void ShipTest::cleanupTestCase()
 
 void ShipTest::init()
 {
-    m_ship = new Ship(units::length::meter_t(100.0),
-                      units::length::meter_t(15.0),
-                      units::length::meter_t(5.0));
-
+    QMap<QString, std::any> params;
+    params.insert("WaterlineLength", units::length::meter_t(100.0));
+    params.insert("Beam", units::length::meter_t(15.0));
+    params.insert("MeanDraft", units::length::meter_t(5.0));
+    m_ship = new Ship(params);
 }
 
 void ShipTest::cleanup()
@@ -28,30 +29,43 @@ void ShipTest::cleanup()
 
 void ShipTest::testFullConstructor()
 {
-    Ship ship(
-        units::length::meter_t(100.0),
-        units::length::meter_t(15.0),
-        0.5, // midshipCoef
-        0.6, // LongitudinalBuoyancyCenter
-        units::length::nanometer_t(200),
-        units::area::square_meter_t(5.0),
-        units::length::meter_t(3.0),
-        units::area::square_meter_t(4.0),
-        units::length::meter_t(5.0),
-        units::length::meter_t(6.0),
-        units::length::meter_t(4.0),
-        0.7, // blockCoef
-        Ship::BlockCoefficientMethod::Ayre,
-        0.8, // prismaticCoef
-        units::length::meter_t(75.0),
-        0.9, // waterplaneAreaCoef
-        Ship::WaterPlaneCoefficientMethod::U_Shape,
-        units::volume::cubic_meter_t(8000.0),
-        units::area::square_meter_t(400.0),
-        Ship::WetSurfaceAreaCalculationMethod::Holtrop,
-        units::angle::degree_t(15.0),
-        nullptr
-        );
+    QMap<QString, std::any> params;
+    params.insert("WaterlineLength", units::length::meter_t(100.0));
+    params.insert("Beam", units::length::meter_t(15.0));
+    params.insert("DraftAtForward", units::length::meter_t(4.0));
+    params.insert("MeanDraft", units::length::meter_t(5.0));
+    params.insert("DraftAtAft", units::length::meter_t(6.0));
+    params.insert("VolumetricDisplacement", units::volume::cubic_meter_t(8000.0));
+    params.insert("WettedHullSurface", units::area::square_meter_t(400.0));
+    params.insert("BulbousBowTransverseAreaCenterHeight", units::length::meter_t(3.0));
+    params.insert("BulbousBowTransverseArea", units::area::square_meter_t(5.0));
+    params.insert("ImmersedTransomArea", units::area::square_meter_t(4.0));
+    params.insert("HalfWaterlineEntranceAngle", units::length::meter_t(15.0));
+    params.insert("MaxSpeed", units::length::meter_t(5.0));
+    params.insert("SurfaceRoughness", units::length::nanometer_t(200));
+    params.insert("RunLength", units::length::meter_t(75.0));
+    params.insert("LongitudinalBuoyancyCenter", 0.6);
+    params.insert("MidshipSectionCoef", 0.5);
+    params.insert("WaterplaneAreaCoef", 0.9);
+    params.insert("PrismaticCoef", 0.8);
+    params.insert("BlockCoef", 0.7);
+    params.insert("BlockCoefMethod", Ship::BlockCoefficientMethod::Ayre);
+    params.insert("WaterplaneCoefMethod", Ship::WaterPlaneCoefficientMethod::U_Shape);
+    params.insert("PropellerCount", 1);
+    QMap<units::power::kilowatt_t,
+         units::angular_velocity::revolutions_per_minute_t> engineBrakePowerRPM;
+    engineBrakePowerRPM.insert(units::power::kilowatt_t(50000), units::angular_velocity::revolutions_per_minute_t(120));
+    params.insert("EngineBrakePowerToRPMMap", engineBrakePowerRPM);
+    QMap<units::power::kilowatt_t, double> engineBrakePowerEff;
+    engineBrakePowerEff.insert(units::power::kilowatt_t(50000), 0.9);
+    params.insert("EngineBrakePowerToEfficiency", engineBrakePowerEff);
+    params.insert("GearboxRatio", 1);
+    params.insert("gearboxEfficiency", 1.0);
+    params.insert("ShaftEfficiency", 1.0);
+    params.insert("PropellerDiameter", units::length::meter_t(5.0));
+    params.insert("PropellerPitch", units::length::meter_t(4.8));
+    params.insert("PropellerExpandedAreaRatio", 0.9);
+    Ship ship(params);
 
     QCOMPARE(ship.getLengthInWaterline(), units::length::meter_t(100.0));
     QCOMPARE(ship.getBeam(), units::length::meter_t(15.0));
@@ -83,9 +97,43 @@ void ShipTest::testFullConstructor()
 
 void ShipTest::testConstructorWithMeanDraft()
 {
-    Ship ship(units::length::meter_t(120.0),
-              units::length::meter_t(16.0),
-              units::length::meter_t(7.0));
+    QMap<QString, std::any> params;
+    params.insert("WaterlineLength", units::length::meter_t(120.0));
+    params.insert("Beam", units::length::meter_t(16.0));
+    params.insert("DraftAtForward", units::length::meter_t(4.0));
+    params.insert("MeanDraft", units::length::meter_t(7.0));
+    params.insert("DraftAtAft", units::length::meter_t(6.0));
+    params.insert("VolumetricDisplacement", units::volume::cubic_meter_t(8000.0));
+    params.insert("WettedHullSurface", units::area::square_meter_t(400.0));
+    params.insert("BulbousBowTransverseAreaCenterHeight", units::length::meter_t(3.0));
+    params.insert("BulbousBowTransverseArea", units::area::square_meter_t(5.0));
+    params.insert("ImmersedTransomArea", units::area::square_meter_t(4.0));
+    params.insert("HalfWaterlineEntranceAngle", units::length::meter_t(15.0));
+    params.insert("MaxSpeed", units::length::meter_t(5.0));
+    params.insert("SurfaceRoughness", units::length::nanometer_t(200));
+    params.insert("RunLength", units::length::meter_t(75.0));
+    params.insert("LongitudinalBuoyancyCenter", 0.6);
+    params.insert("MidshipSectionCoef", 0.5);
+    params.insert("WaterplaneAreaCoef", 0.9);
+    params.insert("PrismaticCoef", 0.8);
+    params.insert("BlockCoef", 0.7);
+    params.insert("BlockCoefMethod", Ship::BlockCoefficientMethod::Ayre);
+    params.insert("WaterplaneCoefMethod", Ship::WaterPlaneCoefficientMethod::U_Shape);
+    params.insert("PropellerCount", 1);
+    QMap<units::power::kilowatt_t,
+         units::angular_velocity::revolutions_per_minute_t> engineBrakePowerRPM;
+    engineBrakePowerRPM.insert(units::power::kilowatt_t(50000), units::angular_velocity::revolutions_per_minute_t(120));
+    params.insert("EngineBrakePowerToRPMMap", engineBrakePowerRPM);
+    QMap<units::power::kilowatt_t, double> engineBrakePowerEff;
+    engineBrakePowerEff.insert(units::power::kilowatt_t(50000), 0.9);
+    params.insert("EngineBrakePowerToEfficiency", engineBrakePowerEff);
+    params.insert("GearboxRatio", 1);
+    params.insert("gearboxEfficiency", 1.0);
+    params.insert("ShaftEfficiency", 1.0);
+    params.insert("PropellerDiameter", units::length::meter_t(5.0));
+    params.insert("PropellerPitch", units::length::meter_t(4.8));
+    params.insert("PropellerExpandedAreaRatio", 0.9);
+    Ship ship(params);
 
     QCOMPARE(ship.getLengthInWaterline(), units::length::meter_t(120.0));
     QCOMPARE(ship.getBeam(), units::length::meter_t(16.0));
@@ -94,10 +142,43 @@ void ShipTest::testConstructorWithMeanDraft()
 
 void ShipTest::testConstructorWithAftAndForwardDraft()
 {
-    Ship ship(units::length::meter_t(130.0),
-              units::length::meter_t(17.0),
-              units::length::meter_t(8.0),
-              units::length::meter_t(6.0));
+    QMap<QString, std::any> params;
+    params.insert("WaterlineLength", units::length::meter_t(130.0));
+    params.insert("Beam", units::length::meter_t(17.0));
+    params.insert("DraftAtForward", units::length::meter_t(6.0));
+    params.insert("MeanDraft", units::length::meter_t(7.0));
+    params.insert("DraftAtAft", units::length::meter_t(8.0));
+    params.insert("VolumetricDisplacement", units::volume::cubic_meter_t(8000.0));
+    params.insert("WettedHullSurface", units::area::square_meter_t(400.0));
+    params.insert("BulbousBowTransverseAreaCenterHeight", units::length::meter_t(3.0));
+    params.insert("BulbousBowTransverseArea", units::area::square_meter_t(5.0));
+    params.insert("ImmersedTransomArea", units::area::square_meter_t(4.0));
+    params.insert("HalfWaterlineEntranceAngle", units::length::meter_t(15.0));
+    params.insert("MaxSpeed", units::length::meter_t(5.0));
+    params.insert("SurfaceRoughness", units::length::nanometer_t(200));
+    params.insert("RunLength", units::length::meter_t(75.0));
+    params.insert("LongitudinalBuoyancyCenter", 0.6);
+    params.insert("MidshipSectionCoef", 0.5);
+    params.insert("WaterplaneAreaCoef", 0.9);
+    params.insert("PrismaticCoef", 0.8);
+    params.insert("BlockCoef", 0.7);
+    params.insert("BlockCoefMethod", Ship::BlockCoefficientMethod::Ayre);
+    params.insert("WaterplaneCoefMethod", Ship::WaterPlaneCoefficientMethod::U_Shape);
+    params.insert("PropellerCount", 1);
+    QMap<units::power::kilowatt_t,
+         units::angular_velocity::revolutions_per_minute_t> engineBrakePowerRPM;
+    engineBrakePowerRPM.insert(units::power::kilowatt_t(50000), units::angular_velocity::revolutions_per_minute_t(120));
+    params.insert("EngineBrakePowerToRPMMap", engineBrakePowerRPM);
+    QMap<units::power::kilowatt_t, double> engineBrakePowerEff;
+    engineBrakePowerEff.insert(units::power::kilowatt_t(50000), 0.9);
+    params.insert("EngineBrakePowerToEfficiency", engineBrakePowerEff);
+    params.insert("GearboxRatio", 1);
+    params.insert("gearboxEfficiency", 1.0);
+    params.insert("ShaftEfficiency", 1.0);
+    params.insert("PropellerDiameter", units::length::meter_t(5.0));
+    params.insert("PropellerPitch", units::length::meter_t(4.8));
+    params.insert("PropellerExpandedAreaRatio", 0.9);
+    Ship ship(params);
 
     QCOMPARE(ship.getLengthInWaterline(), units::length::meter_t(130.0));
     QCOMPARE(ship.getBeam(), units::length::meter_t(17.0));
