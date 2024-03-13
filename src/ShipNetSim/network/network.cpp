@@ -22,7 +22,7 @@
 // Default constructor
 Network::Network() : QObject(nullptr)
 {
-    // Empty constructor body
+
 }
 
 // Constructor with water boundaries and region name
@@ -39,7 +39,6 @@ Network::Network(std::shared_ptr<Polygon> waterBoundries,
 // Constructor with filename
 Network::Network(QString filename)
 {
-    static qint64 idCounter = 0;  // Counter for unique IDs
     QVector<std::shared_ptr<Point>> boundary;  // Store water body boundaries
     QVector<QVector<std::shared_ptr<Point>>> holes;  // Store inner holes
 
@@ -54,22 +53,24 @@ Network::Network(QString filename)
     QTextStream in(&file);
     QString line;  // Store each line from file
     QString name;  // Store region name
+    double maxSpeed = 100.0, depth= 500;
 
     // Read file line by line
-    while (!in.atEnd()) {
+    while (!in.atEnd())
+    {
         line = in.readLine().trimmed();  // Read and trim line from file
 
         // Parse MAX_SPEED section
         if (line == "[MAX_SPEED]")
         {
             line = in.readLine();  // Read next line
-            double maxSpeed = line.split(" ")[0].toDouble(); // Parse max speed
+            maxSpeed = line.split(" ")[0].toDouble(); // Parse max speed
         }
         // Parse DEPTH section
         else if (line == "[DEPTH]")
         {
             line = in.readLine();  // Read next line
-            double depth = line.split(" ")[0].toDouble();  // Parse depth
+            depth = line.split(" ")[0].toDouble();  // Parse depth
         }
         // Parse NAME section
         else if (line == "[NAME]")
@@ -98,20 +99,16 @@ Network::Network(QString filename)
                         units::length::meter_t(
                         parts[2].toDouble());  // Parse Y coordinate
 
-                    Point pt(x, y, 0, 0);  // Create Point object
+                    Point pt(x, y, 0);  // Create Point object
 
                     // Check if point is not already in polygon
                     if (!containsPoint(polygon, pt))
                     {
-                        qint64 simulatorid =
-                            ++idCounter;  // Generate unique ID
-
                         // Create shared Point object
                         std::shared_ptr<Point> p =
                             std::make_shared<Point>(x,
                                                     y,
-                                                    userid,
-                                                    simulatorid);
+                                                    userid);
                         polygon.append(p);  // Add Point object to polygon
                     }
                 }
@@ -139,12 +136,14 @@ Network::Network(QString filename)
     auto waterBody =
         std::make_shared<Polygon>(boundary,
                                   holes);  // Create shared Polygon object
+    waterBody->setMaxAllowedSpeed(
+        units::velocity::meters_per_second_t(maxSpeed));
+    waterBody->setDepth(units::length::meter_t(depth));
     Network(waterBody,
             name);  // Init Network object with water body and region name
 
     return;  // Return from constructor
 }
-
 // Check if a point is in a polygon
 bool Network::containsPoint(const QVector<std::shared_ptr<Point>>& polygon,
                             const Point& pt)
@@ -193,16 +192,25 @@ ShortestPathResult Network::dijkstraShortestPath(
     std::shared_ptr<Point> startPoint,
     std::shared_ptr<Point> endpoint)
 {
+    QVector<std::shared_ptr<Point>> points = {startPoint, endpoint};
+
+    return dijkstraShortestPath(points);
+}
+
+// Calculate shortest path using Dijkstra's algorithm with
+// must traverse points
+ShortestPathResult Network::
+    dijkstraShortestPath(QVector<std::shared_ptr<Point>> points)
+{
     // Check if water boundaries are defined
     if (!mWaterBoundries)
     {
-        throw std::exception("Water boundary "
-                             "is not defined yet!");  // Throw exception
+        throw std::runtime_error("Water boundary "
+                                 "is not defined yet!");  // Throw exception
     }
 
     // Set start and end points in visibility graph
-    mVisibilityGraph->setStartPoint(startPoint);
-    mVisibilityGraph->setEndPoint(endpoint);
+    mVisibilityGraph->setTraversePoints(points);
 
     // Build visibility graph
     mVisibilityGraph->buildGraph();
