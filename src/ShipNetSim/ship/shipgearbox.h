@@ -13,7 +13,8 @@
 
 #include "ishipgearbox.h"
 
-
+namespace ShipNetSimCore
+{
 /**
  * @class ShipGearBox
  * @brief Implementation of the IShipGearBox interface for ship gearboxes.
@@ -79,6 +80,14 @@ public:
     getOutputRPM() const override;
 
     /**
+     * @brief get the output RPM Range of the gearbox
+     * defined by the engine layout.
+     * @return vector of RPM deining the lowest and highest values.
+     */
+    QVector<units::angular_velocity::revolutions_per_minute_t>
+    getOutputRPMRange() const override;
+
+    /**
      * @brief Retrieves the gearbox's output power.
      *
      * This method returns the output power of the gearbox in
@@ -99,6 +108,29 @@ public:
     units::torque::newton_meter_t getOutputTorque() override;
 
     /**
+     * @brief set the engine speed (RPM)
+     *
+     * @details This function sets the engine speed in RPM. The function
+     * is mainly designed to set the engine speed that maximizes the propeller
+     * efficiency.
+     *
+     * @param targetRPM the target RPM that the engine should go by.
+     */
+    void setEngineRPM(
+        units::angular_velocity::revolutions_per_minute_t targetRPM) override;
+
+    /**
+     * @brief set the engine max power load.
+     *
+     * @details This function sets the engine max power load. power load is
+     * the max power / max power the engine can reach. the power load is a
+     * fraction between 0 and 1.
+     *
+     * @param targetPowerLoad the target power load the engine should reach.
+     */
+    void setEngineMaxPowerLoad(double targetPowerLoad) override;
+
+    /**
      * @brief Retrieves the gearbox's output power in the previous step.
      *
      * This method returns the output power of the gearbox in the
@@ -114,5 +146,5 @@ private:
     double mGearRationTo1; // Gear ratio of the gearbox.
     units::power::kilowatt_t mOutputPower; // Output power of the gearbox.
 };
-
+};
 #endif // SHIPGEARBOX_H
