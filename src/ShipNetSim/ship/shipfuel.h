@@ -11,7 +11,11 @@
 
 #include <iostream>
 #include <map>
+#include <QVector>
 #include "../../third_party/units/units.h"
+
+namespace ShipNetSimCore
+{
 
 /**
  * @class ShipFuel
@@ -19,6 +23,8 @@
  */
 class ShipFuel
 {
+
+
 public:
 
     /**
@@ -51,6 +57,7 @@ public:
         MDO, // Marine Diesel Oil
         MGO, // Marine Gas Oil
         Biofuel,
+        Electric
     };
 
     /**
@@ -82,18 +89,57 @@ public:
         units::volume::liter_t volume,
         FuelType fuelType);
 
-private:
     /**
-     * @brief Map of fuel types to their densities.
+     * @brief convert liters to carbon dioxide in kg.
+     * @param volume The volume of the fuel in liters.
+     * @param fuelType The type of the fuel.
+     * @return The equivalent CO2 content.
      */
-    static std::map<FuelType, units::density::kilograms_per_liter_t>
-        fuelDensities;
+    static units::mass::kilogram_t convertLitersToCarbonDioxide(
+        units::volume::liter_t volume,
+        FuelType fuelType);
 
     /**
-     * @brief Map of fuel types to their calorific values.
+     * @brief convert liters to sulfur dioxide in kg.
+     * @param volume The volume of the fuel in liters.
+     * @param fuelType The type of the fuel.
+     * @return The equivalent SO2 content.
      */
-    static std::map<FuelType, units::energy::megajoule_t> calorificValues;
+    static units::mass::kilogram_t convertLitersToSulfurDioxide(
+        units::volume::liter_t volume,
+        FuelType fuelType);
+
+    /**
+     * @brief get fuel types supported in the simulator as a vector.
+     * @return a vector of fuel types.
+     */
+    static QVector<ShipFuel::FuelType> getFuelTypes();
+
+    /**
+     * @brief convert fuel type to string.
+     * @param fuelType The type of the fuel.
+     * @return a string representation of the fuel type.
+     */
+    static QString convertFuelTypeToString(ShipFuel::FuelType fuelType);
+
+    struct FuelProperties {
+        units::density::kilograms_per_liter_t density;
+        units::energy::megajoule_t calorificValue;
+        double carbonContent;
+        double sulfureContent;
+    };
+private:
+
+    /**
+     * @brief Map of fuel types to their properties.
+     */
+    static std::map<FuelType, FuelProperties> fuelDetails;
+
+    /**
+     * @brief A list of all supported fuel types in the simulator.
+     */
+    static QVector<FuelType> mFuelTypes;
 
 };
-
+};
 #endif // SHIPFUEL_H
