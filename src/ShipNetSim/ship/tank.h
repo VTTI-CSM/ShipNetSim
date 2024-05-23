@@ -23,6 +23,8 @@
 #include "ienergysource.h"
 #include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 class Tank : public IEnergySource
 {
 private:
@@ -41,10 +43,7 @@ private:
     // Total consumed amount of fuel in liters
     units::volume::liter_t tankCumConsumedFuel =
         units::volume::liter_t(0.0);
-    // The type of fuel stored in the tank.
-    ShipFuel::FuelType fuelType;
-    // Weight of the fuel inside the tank
-    units::mass::kilogram_t fuelWeight;
+
 
 public:
     /**
@@ -168,10 +167,19 @@ public:
     units::volume::liter_t getTankCumConsumedFuel() const;
 
     /**
-     * @brief get the fuel stored type
-     * @return FuelType
+     * @brief Get the current fuel type stored in the energy source container.
+     *
+     * This method is called to get the fuel type of the energy source.
+     *
+     * @return ShipFuel::FuelType
      */
-    ShipFuel::FuelType getFuelType();
+    ShipFuel::FuelType getFuelType() override;
+
+    /**
+     * @brief Set the current fuel type stored in the energy source container.
+     * @param fuelType The fuel type stored in the energy source container.
+     */
+    void setFuelType(ShipFuel::FuelType fuelType) override;
 
     // IEnergySource interface
     /**
@@ -215,5 +223,5 @@ public:
      */
     units::mass::kilogram_t getCurrentWeight() override;
 };
-
+};
 #endif // TANK_H
