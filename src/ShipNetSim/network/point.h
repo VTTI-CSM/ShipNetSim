@@ -24,7 +24,8 @@
 #include <cmath>
 #include "../../third_party/units/units.h"
 
-
+namespace ShipNetSimCore
+{
 class GPoint; // Forward declaration
 
 /**
@@ -279,6 +280,8 @@ private:
     static std::shared_ptr<OGRSpatialReference> spatialRef;
 };
 
+};
+
 /**
  * @struct std::hash<Point>
  *
@@ -289,8 +292,8 @@ private:
  * hash-based containers.
  */
 template <>
-struct std::hash<Point> {
-    std::size_t operator()(const Point& p) const;
+struct std::hash<ShipNetSimCore::Point> {
+    std::size_t operator()(const ShipNetSimCore::Point& p) const;
 };
 
 #endif // POINT_H
