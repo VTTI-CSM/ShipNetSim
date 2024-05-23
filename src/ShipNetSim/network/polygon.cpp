@@ -21,6 +21,8 @@
 #include <GeographicLib/Geodesic.hpp>
 #include <GeographicLib/PolygonArea.hpp>
 
+namespace ShipNetSimCore
+{
 // Default constructor
 Polygon::Polygon() {}
 
@@ -500,3 +502,4 @@ bool Polygon::contains(std::shared_ptr<GPoint> point) const
     }
     return false;
 }
+};
