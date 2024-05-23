@@ -24,6 +24,8 @@
 #include "../network/gline.h"
 #include "../network/galgebraicvector.h"
 
+namespace ShipNetSimCore
+{
 // Forward declaration of the cal water resistance Interface
 class IShipCalmResistanceStrategy;
 //Forward declaration of the dynamic resistance interface
@@ -176,7 +178,10 @@ public:
     [[nodiscard]] units::force::newton_t
     calculateTotalResistance(units::velocity::meters_per_second_t customSpeed =
                              units::velocity::meters_per_second_t(
-                                 std::nan("unintialized"))) const;
+                                 std::nan("unintialized")),
+                             units::force::newton_t* totalResistance = nullptr);
+
+    [[nodiscard]] units::force::newton_t getTotalResistance();
 
 
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -426,6 +431,18 @@ public:
         const units::angle::degree_t &newHalfWaterlineEntranceAnlge);
 
     /**
+     * @brief Retrieves the length of entrance of the ship.
+     * @return length in meters.
+     */
+    [[nodiscard]] units::length::meter_t getLengthOfEntrance() const;
+
+    /**
+     * @brief Updates the length of entrance of the ship.
+     * @param newValue New length value in meters.
+     */
+    void setLengthOfEntrance(units::length::meter_t &newValue);
+
+    /**
      * @brief Retrieves the speed of the ship in knots.
      * @return Speed in knots.
      */
@@ -548,6 +565,19 @@ public:
      */
     void setRunLength(const units::length::meter_t &newRunLength);
 
+    /**
+     * @brief Calculate the total thrust the ship engine is producing.
+     * @param totalThrust is an optional parameter to dump the calculated
+     * value to.
+     * @return total thrust in newton.
+     */
+    [[nodiscard]] units::force::newton_t CalculateTotalThrust(
+        units::force::newton_t* totalThrust = nullptr);
+
+    /**
+     * @brief Get the total thrust the ship engine is producing.
+     * @return total thrust in newton.
+     */
     [[nodiscard]] units::force::newton_t getTotalThrust() const;
 
     [[nodiscard]] units::mass::metric_ton_t getVesselWeight() const;
@@ -558,7 +588,9 @@ public:
 
     units::mass::metric_ton_t calc_SurgeAddedMass() const;
 
-    [[nodiscard]] units::mass::metric_ton_t getTotalVesselWeight() const;
+    [[nodiscard]] units::mass::metric_ton_t getTotalVesselStaticWeight() const;
+
+    [[nodiscard]] units::mass::metric_ton_t getTotalVesselDynamicWeight() const;
 
     void addPropeller(IShipPropeller *newPropeller);
 
@@ -600,7 +632,19 @@ public:
 
     void addToCummulativeConsumedEnergy(
         units::energy::kilowatt_hour_t consumedkWh);
-    units::energy::kilowatt_hour_t getCumConsumedEnergy();
+    units::energy::kilowatt_hour_t getCumConsumedEnergy() const;
+
+    std::map<ShipFuel::FuelType, units::volume::liter_t>
+    getCumConsumedFuel() const;
+
+    units::unit_t<units::compound_unit<units::mass::metric_tons,
+                                       units::length::kilometers>>
+    getTotalCargoTonKm() const;
+
+    units::time::second_t getTripTime();
+
+    double calculateRunningAverage(
+        double previousAverage, double currentTimeStepData, double timeStep);
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -612,6 +656,8 @@ public:
                   QVector<bool> &isFollowingAnotherShip,
                   QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
                   AlgebraicVector::Environment currentEnvironment);
+
+    void calculateGeneralStats(units::time::second_t timeStep);
 
     [[nodiscard]] units::length::meter_t getTraveledDistance() const;
     [[nodiscard]] units::length::meter_t getTotalPathLength() const;
@@ -643,6 +689,41 @@ public:
 //    [[nodiscard]] units::velocity::meters_per_second_t getSpeed();
     [[nodiscard]] units::velocity::meters_per_second_t getPreviousSpeed() const;
     [[nodiscard]] units::velocity::meters_per_second_t getMaxSpeed() const;
+
+    [[nodiscard]] units::acceleration::meters_per_second_squared_t
+    getMaxAcceleration();
+
+    [[nodiscard]] units::acceleration::meters_per_second_squared_t
+    getTripRunningAverageAcceleration() const;
+
+    [[nodiscard]] units::velocity::meters_per_second_t
+    getTripRunningAvergageSpeed() const;
+
+    [[nodiscard]] units::unit_t<
+        units::compound_unit<units::energy::kilowatt_hour,
+                             units::inverse<units::mass::metric_ton>>>
+    getEnergyConsumptionPerTon() const;
+
+    units::unit_t<
+        units::compound_unit<units::energy::kilowatt_hour,
+                             units::inverse<
+                                 units::compound_unit<
+                                     units::length::meter, units::mass::metric_ton>>>>
+    getEnergyConsumptionPerTonKM() const;
+
+    units::volume::liter_t getOverallCumFuelConsumption() const;
+
+    units::unit_t<
+        units::compound_unit<units::volume::liter,
+                             units::inverse<units::mass::metric_ton>>>
+    getOverallCumFuelConsumptionPerTon() const;
+
+    units::unit_t<
+        units::compound_unit<units::volume::liter,
+                             units::inverse<
+                                 units::compound_unit<
+                                     units::length::meter, units::mass::metric_ton>>>>
+    getOverallCumFuelConsumptionPerTonKM() const;
 
 
 private:
@@ -705,6 +786,9 @@ private:
     //!< Angle at which the waterline meets the ship's hull at the bow.
     units::angle::degree_t mHalfWaterlineEntranceAngle;
 
+    //!< The length of waterline entrance
+    units::length::meter_t mLengthOfEntrance;
+
     //!< Roughness of the ship's submerged surface.
     units::length::nanometer_t mSurfaceRoughness =
         units::length::nanometer_t(150.0);
@@ -740,28 +824,8 @@ private:
     /// Method of calculating the block coef
     mutable BlockCoefficientMethod mBlockCoefMethod;
 
-    /// Resistance due to friction between the ship's
-    /// hull and the surrounding water.
-    units::force::newton_t mFrictionalResistance;
-
-    //!< Resistance due to ship appendages like rudders, bilge keels, etc.
-    units::force::newton_t mAppendageResistance;
-
-    //!< Resistance due to wave formation around the ship.
-    units::force::newton_t mWaveResistance;
-
-    //!< Resistance due to the bulbous bow of the ship.
-    units::force::newton_t mBulbousBowResistance;
-
-    //!< Resistance due to the submerged part of the ship's transom.
-    units::force::newton_t mTransomResistance;
-
-    /// Additional resistance that accounts for discrepancies
-    /// in theoretical and actual resistances.
-    units::force::newton_t mCorrelationAllowanceResistance;
-
-    //!< Resistance due to the ship's superstructure interaction with air.
-    units::force::newton_t mAirResistance;
+    //!< Total thrust forces generated by the ship.
+    units::force::newton_t mTotalThrust;
 
     //!< Total resistance faced by the ship.
     units::force::newton_t mTotalResistance;
@@ -783,6 +847,12 @@ private:
     //!< The previous acceleration of the vessel
     units::acceleration::meters_per_second_squared_t mPreviousAcceleration;
 
+    //!< the max acceleration of the vessel in the current time step.
+    units::acceleration::meters_per_second_squared_t mMaxAcceleration;
+
+    //!< The average running acceleration through out the trip.
+    units::acceleration::meters_per_second_squared_t mRunningAvrAcceleration;
+
     //!< The max speed the vessel can go by.
     //! this is required for the model to work.
     //! if the vessel is a cargo ship, 25 knots is a typical value.
@@ -793,6 +863,9 @@ private:
 
     //!< The previous speed of the vessel.
     units::velocity::meters_per_second_t mPreviousSpeed;
+
+    //!< The average running speed through out the trip.
+    units::velocity::meters_per_second_t mRunningAvrSpeed;
 
     //!< The ship traveled distance.
     units::length::meter_t mTraveledDistance;
@@ -845,9 +918,9 @@ private:
     //!< the last point on the ship path
     std::shared_ptr<GPoint> mEndCoordinates;
 
-    //!< The main energy source that is feeding the main
-    //! engine for the propulsion system.
-    std::shared_ptr<IEnergySource> mMainEnergySource;
+    //!< The energy sources that is feeding the
+    //! engines for the propulsion system.
+    QVector<std::shared_ptr<IEnergySource>> mEnergySources;
 
     //!< Holds all the propellers the ship has
     QVector<IShipPropeller*> mPropellers;
@@ -870,7 +943,7 @@ private:
     std::shared_ptr<GLine> mCurrentLink;
 
     //!< A boolean to disable showing warning messages for no power.
-    bool mShowNoPowerMessage;
+    bool mShowNoPowerMessage = false;
 
     //!< Holds the reaction time.
     units::time::second_t mT_s = units::time::second_t(10.0);
@@ -878,8 +951,8 @@ private:
     //!< Holds the max deceleration level.
     //! This is the upper bound of the decceleration.
     //! Refer to calc_decelerationAtSpeed().
-    units::acceleration::meters_per_second_squared_t mD_des =
-        units::acceleration::meters_per_second_squared_t(0.2);
+    // units::acceleration::meters_per_second_squared_t mD_des =
+    //     units::acceleration::meters_per_second_squared_t(0.2);
 
     //!< The max angle the rudder can turn by
     units::angle::degree_t mRudderAngle = units::angle::degree_t(25.0);
@@ -915,7 +988,13 @@ private:
     //!< The cum energy consuption to current time.
     units::energy::kilowatt_hour_t mCumConsumedEnergy =
         units::energy::kilowatt_hour_t(0.0);
+    std::map<ShipFuel::FuelType, units::volume::liter_t> mCumConsumedFuel;
 
+    units::unit_t<units::compound_unit<units::mass::metric_tons,
+                                       units::length::kilometers>>
+        mTotalCargoTonKm =
+        units::unit_t<units::compound_unit<units::mass::metric_tons,
+                                           units::length::kilometers>>(0.0);
 
 
     /**
@@ -926,7 +1005,7 @@ private:
      */
     units::area::square_meter_t calc_WetSurfaceArea(
         WetSurfaceAreaCalculationMethod method =
-        WetSurfaceAreaCalculationMethod::Holtrop
+        WetSurfaceAreaCalculationMethod::Cargo
         ) const;
 
     /**
@@ -944,6 +1023,10 @@ private:
      */
     double calc_BlockCoef(BlockCoefficientMethod method =
                     BlockCoefficientMethod::Ayre) const;
+
+    double calc_blockCoefByVolumetricDisplacement() const;
+
+    double calc_blockCoefByMidShipAndPrismaticCoefs() const;
 
     /**
      * @brief calculates  the Midshi section coefficient
@@ -964,6 +1047,12 @@ private:
      * @return The half entrance angle.
      */
     units::angle::degree_t calc_i_E() const;
+
+    /**
+     * @brief Calculates the length of entrance in meters.
+     * @return The length of entrance.
+     */
+    units::length::meter_t calc_LE() const;
 
     /**
      * @brief Calculates the wetted surface area of the
@@ -1008,7 +1097,7 @@ private:
      */
     double calc_PrismaticCoef() const;
 
-    double calc_SimpleBlockCoef() const;
+
 
     units::mass::metric_ton_t calc_addedWeight() const;
 
@@ -1036,11 +1125,14 @@ private:
     // ~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     units::acceleration::meters_per_second_squared_t
-    calc_maxAcceleration() const;
+    calc_maxAcceleration(
+        units::acceleration::meters_per_second_squared_t* maxAccel = nullptr,
+        units::force::newton_t* totalThrust = nullptr,
+        units::force::newton_t* totalResistance = nullptr);
 
     units::acceleration::meters_per_second_squared_t
     calc_decelerationAtSpeed(
-        const units::velocity::meters_per_second_t customSpeed) const;
+        const units::velocity::meters_per_second_t customSpeed);
     double calc_frictionCoef(
         const units::velocity::meters_per_second_t customSpeed) const;
 
@@ -1134,14 +1226,21 @@ private:
         const units::acceleration::meters_per_second_squared_t &acceleration,
         const units::velocity::meters_per_second_t &leaderSpeed,
         const units::velocity::meters_per_second_t &freeFlowSpeed,
-        const units::time::second_t &deltaT);
+        const units::time::second_t &deltaT,
+        units::acceleration::meters_per_second_squared_t* maxAccel = nullptr,
+        units::force::newton_t* totalThrust = nullptr,
+        units::force::newton_t* totalResistance = nullptr);
 
     units::acceleration::meters_per_second_squared_t
-    getStepAcceleration(units::time::second_t &timeStep,
+    getStepAcceleration(
+        units::time::second_t &timeStep,
         units::velocity::meters_per_second_t &freeFlowSpeed,
         QVector<units::length::meter_t> &gapToNextCriticalPoint,
         QVector<bool> &isFollowingAnotherShip,
-        QVector<units::velocity::meters_per_second_t> &leaderSpeeds);
+        QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
+        units::acceleration::meters_per_second_squared_t* maxAccel = nullptr,
+        units::force::newton_t* totalThrust = nullptr,
+        units::force::newton_t* totalResistance = nullptr);
 
     units::acceleration::meters_per_second_squared_t
     accelerateConsideringJerk(
@@ -1151,11 +1250,11 @@ private:
         units::time::second_t &deltaT );
 
     units::acceleration::meters_per_second_squared_t
-    smoothAccelerate(
-        units::acceleration::meters_per_second_squared_t &acceleration,
-        units::acceleration::
-        meters_per_second_squared_t &previousAccelerationValue,
-        double &alpha);
+    smoothAccelerate(units::acceleration::meters_per_second_squared_t &acceleration,
+                     units::acceleration::
+                     meters_per_second_squared_t &previousAccelerationValue,
+                     double &alpha,
+                     units::acceleration::meters_per_second_squared_t &maxAcceleration);
 
     units::velocity::meters_per_second_t
     speedUpDown(units::velocity::meters_per_second_t &previousSpeed,
@@ -1220,5 +1319,5 @@ private slots:
     void handleStepDistanceChanged(units::length::meter_t newTotalDistance,
                                    units::time::second_t timeStep);
 };
-
+};
 #endif // SHIP_H
