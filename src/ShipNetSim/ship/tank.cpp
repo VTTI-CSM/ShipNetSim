@@ -2,6 +2,9 @@
 #include <iostream>
 #include "../utils/utils.h"
 #include "ship.h"
+
+namespace ShipNetSimCore
+{
 double Tank::getCurrentCapacityState()
 {
     return tankStateOfCapacity * 100.0;
@@ -36,7 +39,7 @@ void Tank::setTankInitialCapacity(double newInitialCapacityPercentage)
     tankInitialCapacity = tankMaxCapacity * newInitialCapacityPercentage;
 
     // Update the fuel weight based on the new initial capacity.
-    fuelWeight = ShipFuel::getWeight(tankInitialCapacity, fuelType);
+    mFuelWeight = ShipFuel::getWeight(tankInitialCapacity, mFuelType);
 }
 
 // Getter for the current tank capacity.
@@ -60,7 +63,7 @@ EnergyConsumptionData Tank::consume(
 
     // Convert the amount of energy in kWh to the equivalent volume in liters.
     auto consumedAmount =
-        ShipFuel::convertKwhToLiters(consumedkWh, fuelType);
+        ShipFuel::convertKwhToLiters(consumedkWh, mFuelType);
 
     // Check if the tank has enough fuel to satisfy the consumption request.
     if (! isTankDrainable(consumedAmount))
@@ -69,18 +72,21 @@ EnergyConsumptionData Tank::consume(
         result.isEnergySupplied = false;
         result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
         result.energyNotConsumed = consumedkWh;
+        result.fuelConsumed = {mFuelType, units::volume::liter_t(0.0)};
         return result;
     }
     // Update tank state after fuel consumption.
     tankCumConsumedFuel += consumedAmount;
     tankCurrentCapacity -= consumedAmount;
-    fuelWeight = ShipFuel::getWeight(tankCurrentCapacity, fuelType);
+    mFuelWeight = ShipFuel::getWeight(tankCurrentCapacity, mFuelType);
     tankStateOfCapacity = tankCurrentCapacity / tankMaxCapacity;
 
     // Update the result to indicate successful energy supply.
     result.isEnergySupplied = true;
     result.energyConsumed = consumedkWh;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    auto l = ShipFuel::convertKwhToLiters(consumedkWh, mFuelType);
+    result.fuelConsumed = {mFuelType, l};
     // mHost->addToCummulativeConsumedEnergy(consumedkWh);
     return result;
 }
@@ -141,14 +147,20 @@ units::energy::kilowatt_hour_t Tank::getTotalEnergyConsumed()
 {
     // Convert the cumulative consumed fuel
     // volume to the equivalent energy in kWh.
-    return ShipFuel::convertLitersToKwh(tankCumConsumedFuel, fuelType);
+    return ShipFuel::convertLitersToKwh(tankCumConsumedFuel, mFuelType);
 }
 
 // Getter for the type of fuel stored in the tank.
 ShipFuel::FuelType Tank::getFuelType()
 {
     // Return the tank's fuel type.
-    return fuelType;
+    return mFuelType;
+}
+// Setter for the fuel type stored in the tank
+void Tank::setFuelType(ShipFuel::FuelType fuelType)
+{
+    mFuelType = fuelType;
+    mFuelWeight = ShipFuel::getWeight(tankCurrentCapacity, mFuelType);
 }
 
 // Check if the tank has any fuel left.
@@ -161,7 +173,7 @@ bool Tank::tankHasFuel()
 
 void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
 {
-    this->fuelType =
+    this->mFuelType =
         Utils::getValueFromMap<ShipFuel::FuelType>(parameters,
                                                    "FuelType",
                                                     ShipFuel::FuelType::HFO);
@@ -193,13 +205,13 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
         depthOfDischarge = 0.9;
     }
 
-    SetTankCharacteristics(fuelType, maxCapacity,
+    SetTankCharacteristics(mFuelType, maxCapacity,
                            initialCapacityPercentage, depthOfDischarge);
 }
 
 units::mass::kilogram_t Tank::getCurrentWeight()
 {
-    return this->fuelWeight;
+    return this->mFuelWeight;
 }
 
 // Method to set initial properties of the tank.
@@ -209,7 +221,7 @@ void Tank::SetTankCharacteristics(ShipFuel::FuelType storedFuelType,
                                   double depthOfDischarge)
 {
     // Set the tank's fuel type.
-    this->fuelType = storedFuelType;
+    this->mFuelType = storedFuelType;
 
     // Set the tank's maximum capacity.
     this->setTankMaxCapacity(maxCapacity);
@@ -239,3 +251,6 @@ void Tank::reset()
     // Recalculate the state of capacity.
     tankStateOfCapacity = (tankCurrentCapacity/tankMaxCapacity).value();
 }
+
+
+};
