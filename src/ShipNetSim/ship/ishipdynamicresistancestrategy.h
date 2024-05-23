@@ -3,6 +3,8 @@
 
 #include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 class Ship;  // Forward declaration of the class ship
 
 class IShipDynamicResistanceStrategy {
@@ -23,5 +25,5 @@ public:
     virtual units::force::newton_t
     getTotalResistance(const Ship &ship) = 0;
 };
-
+};
 #endif // IDYNAMICRESISTANCE_H

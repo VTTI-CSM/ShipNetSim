@@ -19,7 +19,8 @@
 
 #include "../../third_party/units/units.h"
 
-
+namespace ShipNetSimCore
+{
 class Ship;  // Forward declaration of the class ship
 
 /**
@@ -252,5 +253,5 @@ public:
      */
     virtual std::string getMethodName() = 0;
 };
-
+};
 #endif // ISHIPRESISTANCE_H
