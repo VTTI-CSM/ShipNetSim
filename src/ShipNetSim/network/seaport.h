@@ -4,6 +4,8 @@
 #include "gpoint.h"
 #include <QString>
 
+namespace ShipNetSimCore
+{
 class SeaPort
 {
 public:
@@ -30,5 +32,5 @@ private:
     GPoint mPortCoordinate;
     std::shared_ptr<GPoint> mClosestPointOnWaterPolygon;
 };
-
+};
 #endif // SEAPORT_H
