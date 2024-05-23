@@ -6,17 +6,1335 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1318</width>
+    <height>804</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>ShipNetSim</string>
   </property>
-  <widget class="QWidget" name="centralwidget"/>
-  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="0" column="0">
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QTabWidget" name="tabWidget_project">
+        <property name="tabPosition">
+         <enum>QTabWidget::West</enum>
+        </property>
+        <property name="currentIndex">
+         <number>2</number>
+        </property>
+        <property name="tabsClosable">
+         <bool>false</bool>
+        </property>
+        <widget class="QWidget" name="generalTab">
+         <attribute name="title">
+          <string>General Info</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_9">
+          <item row="0" column="0">
+           <layout class="QGridLayout" name="generalGridLayout">
+            <item row="3" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_createdBy">
+              <item>
+               <widget class="QLabel" name="label_createdBy">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>100</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>130</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Created by:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="lineEdit_createdBy">
+                <property name="minimumSize">
+                 <size>
+                  <width>200</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter your name or the name of the creator of the project in this textbox. This field helps to attribute ownership and acknowledge the individual or team responsible for developing or initiating the simulation. Providing accurate information in this field ensures proper recognition and facilitates collaboration or communication among users.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_2">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item row="0" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_projectName">
+              <item>
+               <widget class="QLabel" name="label_projectName">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>100</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>130</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Project name:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="lineEdit_projectName">
+                <property name="minimumSize">
+                 <size>
+                  <width>200</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the name of your project in this textbox. The project name helps you easily identify and distinguish your project from others. Be sure to choose a descriptive and concise name that accurately represents the purpose or subject of your project.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item row="5" column="0">
+             <spacer name="verticalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_19">
+              <item>
+               <widget class="QLabel" name="label_3">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="minimumSize">
+                 <size>
+                  <width>100</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Network name:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLineEdit" name="lineEdit_networkName">
+                <property name="toolTip">
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the name of the train network or railway system associated with your simulation. This field allows you to provide a distinctive name to identify and differentiate various train networks within your simulator. Consider using a meaningful and recognizable name that reflects the actual railway system you are simulating.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_10">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tab">
+         <attribute name="title">
+          <string>Ships Definition</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_13">
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+             <widget class="QWidget" name="widget_oldTrainOD" native="true">
+              <property name="enabled">
+               <bool>true</bool>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>93</height>
+               </size>
+              </property>
+              <layout class="QGridLayout" name="gridLayout_11">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item row="0" column="0">
+                <layout class="QGridLayout" name="layout_oldNetwork_2">
+                 <item row="0" column="0">
+                  <layout class="QGridLayout" name="gridLayout_12">
+                   <property name="topMargin">
+                    <number>7</number>
+                   </property>
+                   <property name="bottomMargin">
+                    <number>7</number>
+                   </property>
+                   <item row="0" column="0">
+                    <widget class="QLabel" name="label_8">
+                     <property name="minimumSize">
+                      <size>
+                       <width>100</width>
+                       <height>0</height>
+                      </size>
+                     </property>
+                     <property name="text">
+                      <string>Ships File</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="1">
+                    <widget class="QLineEdit" name="lineEdit_trains">
+                     <property name="enabled">
+                      <bool>false</bool>
+                     </property>
+                     <property name="minimumSize">
+                      <size>
+                       <width>200</width>
+                       <height>0</height>
+                      </size>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="2">
+                    <widget class="QPushButton" name="pushButton_trains">
+                     <property name="toolTip">
+                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the file location or path where the trains file is stored for your train simulation. The trains file contains the information about the trains in your simulation, such as their characteristics, schedules, and assigned routes. Browse to select the appropriate file that contains the relevant train data for your simulation. This file is crucial for defining the properties and behavior of the trains within the simulated train network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                     </property>
+                     <property name="text">
+                      <string>Browse</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="3">
+                    <spacer name="horizontalSpacer_11">
+                     <property name="orientation">
+                      <enum>Qt::Horizontal</enum>
+                     </property>
+                     <property name="sizeHint" stdset="0">
+                      <size>
+                       <width>40</width>
+                       <height>20</height>
+                      </size>
+                     </property>
+                    </spacer>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QWidget" name="widget_newTrainOD" native="true">
+              <layout class="QGridLayout" name="gridLayout_14">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item row="1" column="0">
+                <widget class="QTabWidget" name="tabWidget_newTrainOD">
+                 <property name="currentIndex">
+                  <number>0</number>
+                 </property>
+                 <widget class="QWidget" name="tab_6">
+                  <attribute name="title">
+                   <string>Define Vehicles</string>
+                  </attribute>
+                  <layout class="QGridLayout" name="gridLayout_15">
+                   <item row="0" column="0">
+                    <layout class="QVBoxLayout" name="verticalLayout_2">
+                     <item>
+                      <widget class="QLabel" name="label_15">
+                       <property name="text">
+                        <string>Ships Characteristics</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="CustomTableWidget" name="table_newLocomotive">
+                       <attribute name="horizontalHeaderDefaultSectionSize">
+                        <number>140</number>
+                       </attribute>
+                       <column>
+                        <property name="text">
+                         <string>ID</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Path</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Max Speed (knots)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐿𝑊𝐿 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐿𝑃𝑃 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐵 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑇𝐴 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑇𝐹 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑉 (cub. m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑆 (sq. m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐴𝑉 (sq. m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>ℎ𝐵 (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐴𝐵𝑇 (sq. m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑖𝐸 (degree)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝑘𝑆 (𝜇m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝓁𝐶𝐵 (%)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Stern Type</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐶𝑀</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐶𝑊𝑃</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐶𝑃</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐶𝐵</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Fuel Type</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Tank Size (liters)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Tank Init Capacity (%)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Tank Depth of Discharge (%)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Engines Count Per Propeller (#)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Engine Brake Power to RPM Map (kW, #)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Engine Brake Power to Efficiency Map (kW, %)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Gearbox Ratio to 1</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Gearbox Efficiency (%)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Shaft Efficiency (%)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Propeller Count (#)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Propeller Diameter (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Propeller Pitch (m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Propeller Blade Count (#)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Propeller Expanded Area Ratio</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Stop if No Energy?</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Max Rudder Angle (degrees)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Vessel Weight (ton)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Cargo Weight (ton)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Appendages Surface Area Map (ID, sq. m)</string>
+                        </property>
+                       </column>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                  </layout>
+                 </widget>
+                 <widget class="QWidget" name="tab_8">
+                  <attribute name="title">
+                   <string>Define Ships Paths</string>
+                  </attribute>
+                  <layout class="QGridLayout" name="gridLayout_17">
+                   <item row="1" column="0">
+                    <layout class="QVBoxLayout" name="verticalLayout_4">
+                     <item>
+                      <widget class="OSGEarthQtWidget" name="plot_trains" native="true">
+                       <property name="mouseTracking">
+                        <bool>true</bool>
+                       </property>
+                       <layout class="QGridLayout" name="gridLayout_18"/>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                   <item row="0" column="0">
+                    <layout class="QHBoxLayout" name="horizontalLayout_5">
+                     <item>
+                      <widget class="QLabel" name="label_18">
+                       <property name="text">
+                        <string>Select traverse ports for each ship. Ship ID: </string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QComboBox" name="combo_visualizeTrain"/>
+                     </item>
+                     <item>
+                      <spacer name="horizontalSpacer_6">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                    </layout>
+                   </item>
+                   <item row="2" column="0">
+                    <layout class="QHBoxLayout" name="horizontalLayout_3">
+                     <item>
+                      <widget class="QLabel" name="label_21">
+                       <property name="text">
+                        <string>Left click to select a node, right click to deselect it.</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <spacer name="horizontalSpacer_15">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                     <item>
+                      <widget class="QPushButton" name="pushButton_saveNewTrains">
+                       <property name="text">
+                        <string>Save Ships File</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                  </layout>
+                 </widget>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tab_2">
+         <attribute name="title">
+          <string>Simulation</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_26">
+          <item row="0" column="0">
+           <widget class="QSplitter" name="splitter_simulator">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <widget class="QWidget" name="layoutWidget_2">
+             <layout class="QHBoxLayout" name="horizontalLayout_18">
+              <item>
+               <widget class="QGroupBox" name="groupBox">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>229</height>
+                 </size>
+                </property>
+                <property name="title">
+                 <string>Simulation options</string>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_20">
+                 <property name="sizeConstraint">
+                  <enum>QLayout::SetFixedSize</enum>
+                 </property>
+                 <item row="0" column="1">
+                  <widget class="QGroupBox" name="verticalGroupBox_6">
+                   <property name="minimumSize">
+                    <size>
+                     <width>600</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="title">
+                    <string>Export options</string>
+                   </property>
+                   <layout class="QVBoxLayout" name="verticalLayout_8">
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_15">
+                      <item>
+                       <widget class="QLabel" name="label_11">
+                        <property name="minimumSize">
+                         <size>
+                          <width>152</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="text">
+                         <string>Output directory:</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLineEdit" name="lineEdit_outputPath">
+                        <property name="enabled">
+                         <bool>false</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButton_selectoutputPath">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the directory location where the simulation output will be saved. It determines the folder or path where the generated simulation output files will be stored.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="text">
+                         <string>Browse</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_16">
+                      <item>
+                       <widget class="QLabel" name="label_12">
+                        <property name="minimumSize">
+                         <size>
+                          <width>152</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="text">
+                         <string>Summary file name:</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLineEdit" name="lineEdit_summaryfilename">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired name for the summary file that will be generated by the simulation. It determines the name of the file that will contain an overview or summary of the simulation results. Provide a descriptive and recognizable name for the summary file, reflecting the purpose or content it represents.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QCheckBox" name="checkBox_detailedTrainsSummay">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to display a detailed summary of trains during the simulation. By selecting this option, you indicate your preference for additional information and metrics about each individual train's performance and status.&lt;/p&gt;&lt;p&gt;When checked, the simulation output will include a detailed trains summary, providing insights such as train energy consumptions, arrival times, and any relevant performance metrics. This detailed summary can be helpful for in-depth analysis and monitoring of each train's behavior throughout the simulation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="text">
+                         <string>Show detailed ships summary?</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_17">
+                      <item>
+                       <widget class="QCheckBox" name="checkBox_exportTrajectory">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to export the trajectory data of trains during the simulation. By selecting this option, you indicate your intention to save the detailed trajectory information of each train's movement throughout the simulation.&lt;/p&gt;&lt;p&gt;When checked, the simulation will generate trajectory data files, capturing the precise positions and timestamps of trains at various points in time. Exporting trajectory data allows for further analysis, visualization, or integration with external tools or systems. This option is particularly useful when conducting post-simulation analysis or when you need to examine train movements in detail.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="text">
+                         <string>Export trajectory?</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QWidget" name="horizontalWidget_TrajFile" native="true">
+                        <layout class="QHBoxLayout" name="horizontalLayout_13">
+                         <item>
+                          <widget class="QLabel" name="label_13">
+                           <property name="minimumSize">
+                            <size>
+                             <width>153</width>
+                             <height>0</height>
+                            </size>
+                           </property>
+                           <property name="text">
+                            <string>Trajectory file name:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLineEdit" name="lineEdit_trajectoryFilename">
+                           <property name="toolTip">
+                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired name for the trajectory file that will be generated during the simulation. The &amp;quot;Trajectory File Name&amp;quot; setting determines the name of the file that will store the trajectory data of trains' movements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                 <item row="0" column="0">
+                  <layout class="QVBoxLayout" name="verticalLayout_5">
+                   <item>
+                    <layout class="QHBoxLayout" name="horizontalLayout_8">
+                     <item>
+                      <widget class="QGroupBox" name="verticalGroupBox_61">
+                       <property name="title">
+                        <string>General</string>
+                       </property>
+                       <layout class="QVBoxLayout" name="verticalLayout_6">
+                        <item>
+                         <layout class="QHBoxLayout" name="horizontalLayout_11">
+                          <item>
+                           <widget class="QLabel" name="label_7">
+                            <property name="minimumSize">
+                             <size>
+                              <width>150</width>
+                              <height>0</height>
+                             </size>
+                            </property>
+                            <property name="text">
+                             <string>Simulation time:</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
+                           <widget class="QDoubleSpinBox" name="doubleSpinBox">
+                            <property name="minimumSize">
+                             <size>
+                              <width>150</width>
+                              <height>0</height>
+                             </size>
+                            </property>
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired end time for your simulation in this textbox. The simulation end time represents the point at which the simulation will conclude or stop running in seconds.&lt;/p&gt;&lt;p&gt;If you set the value to 0, the simulation will stop only when all trains have reached their respective destinations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="minimum">
+                             <double>0.000000000000000</double>
+                            </property>
+                            <property name="maximum">
+                             <double>999999999.000000000000000</double>
+                            </property>
+                            <property name="singleStep">
+                             <double>10.000000000000000</double>
+                            </property>
+                            <property name="value">
+                             <double>0.000000000000000</double>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </item>
+                        <item>
+                         <layout class="QHBoxLayout" name="horizontalLayout_12">
+                          <item>
+                           <widget class="QLabel" name="label_9">
+                            <property name="minimumSize">
+                             <size>
+                              <width>150</width>
+                              <height>0</height>
+                             </size>
+                            </property>
+                            <property name="text">
+                             <string>Simulation time step:</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
+                           <widget class="QDoubleSpinBox" name="doubleSpinBox_timeStep">
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the time step duration for your simulation in seconds. The time step represents the increment of time by which the simulation progresses with each iteration. A preferred time step for your simulation is 1.0 seconds. Adjusting the time step duration allows you to balance between simulation accuracy and performance. Keep in mind that smaller time steps provide more precise results but may increase computational load, while larger time steps prioritize performance over absolute accuracy. Find the optimal balance by experimenting with different values for your specific simulation requirements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="minimum">
+                             <double>0.100000000000000</double>
+                            </property>
+                            <property name="maximum">
+                             <double>10.000000000000000</double>
+                            </property>
+                            <property name="singleStep">
+                             <double>0.100000000000000</double>
+                            </property>
+                            <property name="value">
+                             <double>1.000000000000000</double>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </item>
+                        <item>
+                         <layout class="QHBoxLayout" name="horizontalLayout_10">
+                          <item>
+                           <widget class="QLabel" name="label_10">
+                            <property name="minimumSize">
+                             <size>
+                              <width>150</width>
+                              <height>0</height>
+                             </size>
+                            </property>
+                            <property name="text">
+                             <string>Draw output every:</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
+                           <widget class="QSpinBox" name="spinBox_plotEvery">
+                            <property name="toolTip">
+                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the interval for updating and drawing the simulation output. It determines how frequently the visual representation of the simulation is updated and displayed. A preferred value for your simulation is 100. Adjust this interval based on your preference for visual feedback and performance considerations.&lt;/p&gt;&lt;p&gt;For example, if you set it to 100, the simulation will update and redraw the output every 100 simulation steps or iterations, providing periodic visual updates. Modify this value according to your requirements, finding the optimal balance between real-time updates and potential performance impacts.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            </property>
+                            <property name="maximum">
+                             <number>1000</number>
+                            </property>
+                            <property name="singleStep">
+                             <number>50</number>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </item>
+                       </layout>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_12">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </widget>
+            <widget class="OSGEarthQtWidget" name="plot_simulation" native="true">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
+             </property>
+             <property name="mouseTracking">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tab_5">
+         <attribute name="title">
+          <string>Results</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_21">
+          <item row="0" column="0">
+           <widget class="QTabWidget" name="tabWidget_results">
+            <property name="currentIndex">
+             <number>0</number>
+            </property>
+            <widget class="QWidget" name="tab_9">
+             <attribute name="title">
+              <string>Summary</string>
+             </attribute>
+             <layout class="QGridLayout" name="gridLayout_22">
+              <item row="0" column="0">
+               <layout class="QVBoxLayout" name="verticalLayout_11">
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_2">
+                  <item>
+                   <widget class="QLabel" name="label_19">
+                    <property name="text">
+                     <string>This file is not saved automatically! To save it, pop it out and click save as pdf!</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <spacer name="horizontalSpacer_14">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="pushButton_popoutPreview">
+                    <property name="text">
+                     <string>Pop out</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QVBoxLayout" name="verticalLayout_12">
+                  <item>
+                   <widget class="QPrintPreviewWidget" name="widget_SummaryReport" native="true"/>
+                  </item>
+                 </layout>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+            <widget class="QWidget" name="tab_10">
+             <attribute name="title">
+              <string>Detailed</string>
+             </attribute>
+             <layout class="QGridLayout" name="gridLayout_19">
+              <item row="1" column="0">
+               <widget class="QTabWidget" name="tabWidget">
+                <property name="tabPosition">
+                 <enum>QTabWidget::West</enum>
+                </property>
+                <property name="currentIndex">
+                 <number>1</number>
+                </property>
+                <widget class="QWidget" name="tab_11">
+                 <attribute name="title">
+                  <string>Trajectory</string>
+                 </attribute>
+                 <layout class="QGridLayout" name="gridLayout_24">
+                  <item row="0" column="0">
+                   <layout class="QVBoxLayout" name="verticalLayout_14">
+                    <item>
+                     <widget class="QWidget" name="plot_trajectory_grades" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_trajectory_speed" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_trajectory_acceleration" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_trajectory_EC" native="true"/>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+                <widget class="QWidget" name="tab_12">
+                 <attribute name="title">
+                  <string>Forces</string>
+                 </attribute>
+                 <layout class="QGridLayout" name="gridLayout_23">
+                  <item row="0" column="0">
+                   <layout class="QVBoxLayout" name="verticalLayout_10">
+                    <item>
+                     <widget class="QWidget" name="plot_forces_grades" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_forces_tractiveForces" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_forces_resistance" native="true"/>
+                    </item>
+                    <item>
+                     <widget class="QWidget" name="plot_forces_totalForces" native="true"/>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </widget>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <layout class="QHBoxLayout" name="horizontalLayout_22">
+                <item>
+                 <widget class="QLabel" name="label_23">
+                  <property name="text">
+                   <string>Ship ID:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="comboBox_trainsResults"/>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_20">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_24">
+                  <property name="text">
+                   <string>X-Axis Variable</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QComboBox" name="comboBox_resultsXAxis">
+                  <item>
+                   <property name="text">
+                    <string>Distance</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Time</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <layout class="QHBoxLayout" name="horizontalLayout_next">
+      <item>
+       <widget class="DisappearingLabel" name="label_Notification">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_3">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="CustomProgressBar" name="progressBar">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="whatsThis">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The progress bar visually represents the progress or completion status of a task, process, or operation within the application. It provides a graphical indicator to show how far along the task has progressed and how much remains to be completed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="value">
+         <number>0</number>
+        </property>
+        <property name="invertedAppearance">
+         <bool>false</bool>
+        </property>
+        <property name="format">
+         <string notr="true">%p%</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="horizontalSpacer_13">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="ToggleButton" name="pushButton_pauseResume">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Click this button to pause or resume the simulation. The &amp;quot;Pause/Continue&amp;quot; feature allows you to temporarily halt the simulation's progress or resume it from the paused state.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Pause</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_projectNext">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Click this button to navigate to the next page or screen. The &amp;quot;Next&amp;quot; button allows you to move forward to the next section or page within the application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Next</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1318</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuShipNetSim">
+    <property name="title">
+     <string>ShipNetSim</string>
+    </property>
+    <addaction name="actionCreate_a_new_project"/>
+    <addaction name="actionOpen_an_existing_project"/>
+    <addaction name="separator"/>
+    <addaction name="actionSave"/>
+    <addaction name="actionSave_as"/>
+    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title">
+     <string>Tools</string>
+    </property>
+    <addaction name="actionSettings"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionAbout_ShipNetSim"/>
+    <addaction name="actionOpen_user_manual"/>
+    <addaction name="separator"/>
+    <addaction name="actionLoad_Sample_Project"/>
+   </widget>
+   <addaction name="menuShipNetSim"/>
+   <addaction name="menuTools"/>
+   <addaction name="menuHelp"/>
+  </widget>
   <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionCreate_a_new_project">
+   <property name="text">
+    <string>Create New Project</string>
+   </property>
+  </action>
+  <action name="actionOpen_an_existing_project">
+   <property name="text">
+    <string>Open Existing Project</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </action>
+  <action name="actionSave_as">
+   <property name="text">
+    <string>Save As</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionAbout_ShipNetSim">
+   <property name="text">
+    <string>About ShipNetSim</string>
+   </property>
+  </action>
+  <action name="actionOpen_user_manual">
+   <property name="text">
+    <string>Open User Manual</string>
+   </property>
+  </action>
+  <action name="actionLoad_Sample_Project">
+   <property name="text">
+    <string>Load Sample Project</string>
+   </property>
+  </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>OSGEarthQtWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/osgearthqtwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>CustomTableWidget</class>
+   <extends>QTableWidget</extends>
+   <header>gui/customtablewidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QPrintPreviewWidget</class>
+   <extends>QWidget</extends>
+   <header>qprintpreviewwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>DisappearingLabel</class>
+   <extends>QLabel</extends>
+   <header>gui/disappearinglabel.h</header>
+  </customwidget>
+  <customwidget>
+   <class>CustomProgressBar</class>
+   <extends>QProgressBar</extends>
+   <header>gui/customprogressbar.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ToggleButton</class>
+   <extends>QPushButton</extends>
+   <header>gui/togglebutton.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
