@@ -3,6 +3,8 @@
 #include "../utils/utils.h"
 #include "ship.h"
 
+namespace ShipNetSimCore
+{
 double Battery::getCurrentCapacityState()
 {
     return batteryStateOfCharge * 100.0;
@@ -58,6 +60,8 @@ EnergyConsumptionData Battery::consume(
         result.isEnergySupplied = false;
         result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
         result.energyNotConsumed = consumedCharge;
+        result.fuelConsumed =
+            {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
         return result;
     }
     // Calculate the maximum energy the
@@ -81,6 +85,8 @@ EnergyConsumptionData Battery::consume(
         result.isEnergySupplied = true;
         result.energyConsumed = batteryMax_kwh;
         result.energyNotConsumed = EC_extra_kwh;
+        result.fuelConsumed =
+            {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
         // mHost->addToCummulativeConsumedEnergy(batteryMax_kwh);
         return result;
     }
@@ -95,6 +101,8 @@ EnergyConsumptionData Battery::consume(
     result.isEnergySupplied = true;
     result.energyConsumed = consumedCharge;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
+    result.fuelConsumed =
+        {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
     // mHost->addToCummulativeConsumedEnergy(consumedCharge);
     return result;
 }
@@ -464,6 +472,17 @@ units::mass::kilogram_t Battery::getCurrentWeight()
     return units::mass::kilogram_t(0.0);
 }
 
+ShipFuel::FuelType Battery::getFuelType()
+{
+    return mFuelType;
+}
+
+void Battery::setFuelType(ShipFuel::FuelType fuelType)
+{
+    (void) fuelType;
+    return;
+}
+
 // Set the battery's main characteristics and initial conditions.
 void Battery::setBatteryCharacterstics(
     units::energy::kilowatt_hour_t maxCharge,
@@ -481,4 +500,7 @@ void Battery::setBatteryCharacterstics(
     this->setBatteryCRate(batteryCRate);
     this->setBatteryRechargeSOCLowerBound(minRechargeSOC);
     this->setBatteryRechargeSOCUpperBound(maxRechargeSOC);
+    this->mFuelType = ShipFuel::FuelType::Electric;
+    this->mFuelWeight = units::mass::kilogram_t(0.0);
 }
+};

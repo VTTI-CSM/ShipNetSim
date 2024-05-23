@@ -23,6 +23,8 @@
 #include "../../third_party/units/units.h"
 #include "ienergysource.h"
 
+namespace ShipNetSimCore
+{
 class Battery : public IEnergySource
 {
 private:
@@ -295,6 +297,21 @@ public:
      */
     units::mass::kilogram_t getCurrentWeight() override;
 
-};
+    /**
+     * @brief Get the current fuel type stored in the energy source container.
+     *
+     * This method is called to get the fuel type of the energy source.
+     *
+     * @return ShipFuel::FuelType
+     */
+    ShipFuel::FuelType getFuelType() override;
 
+    /**
+     * @brief Set the current fuel type stored in the energy source container.
+     * @param fuelType The fuel type stored in the energy source container.
+     */
+    void setFuelType(ShipFuel::FuelType fuelType) override;
+
+};
+};
 #endif // BATTERY_H
