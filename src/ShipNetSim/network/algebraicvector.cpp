@@ -15,6 +15,8 @@
 #include <cmath>  // Include mathematical functions
 #include <QDebug>  // Include debugging utilities
 
+namespace ShipNetSimCore
+{
 // Default constructor
 AlgebraicVector::AlgebraicVector()
 {
@@ -234,3 +236,4 @@ void AlgebraicVector::setEnvironment(const Environment env)
 {
     mStateEnv = env;
 }
+};
