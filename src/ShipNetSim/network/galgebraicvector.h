@@ -7,6 +7,8 @@
 #include "algebraicvector.h"
 #include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 class GAlgebraicVector
 {
 public:
@@ -52,7 +54,7 @@ public:
     void moveByDistance(units::length::meter_t distance,
                         units::time::second_t timeStep);
 
-    units::angle::degree_t getOrientationAngleWithRespectToNorth() const;
+    units::angle::degree_t getVectorAzimuth() const;
 
     /**
      * @brief Gets the orientation of the vector in degrees.
@@ -89,11 +91,11 @@ public:
     void setEnvironment(const AlgebraicVector::Environment env);
 
 private:
-    GLine mCurrentTargetVector; ///< The vector that holds the direction of movement.
+    GLine mCurrentHeadingVector; ///< The vector that holds the direction of movement.
     units::angle::degree_t
         mMaxROTPerSec_;  ///< Maximum rate of turn in degrees per second.
 
-    units::angle::degree_t mCurrentHeading; ///< angle of the vector with north
+    units::angle::degree_t mCurrentCourse; ///< Azimuth of the vector
     bool mIsRotating;  ///< Indicates whether the vector is rotating.
     AlgebraicVector::Environment mStateEnv;
 
@@ -116,5 +118,5 @@ private:
                                 units::angle::degree_t maxROTPerSec,
                                 units::time::second_t timeStep);
 };
-
+};
 #endif // GALGEBRAICVECTOR_H
