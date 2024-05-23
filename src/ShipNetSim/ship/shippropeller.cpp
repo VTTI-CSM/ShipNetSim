@@ -5,6 +5,10 @@
 #include "../utils/utils.h"
 #include <cmath>
 
+namespace ShipNetSimCore
+{
+
+
 #define PROPELLER_EFFICIENCY_AT_ZERO_SPEED 0.8
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -182,27 +186,27 @@ void ShipPropeller::initialize(Ship *ship, IShipGearBox *gearbox,
     // get the max effeciency of the propeller to set the
     // max speed of the engines
 
-    double j = 0.0;
-    double bestEff = 0.0, bestJ = 0.0;
-    while (j < 1.0)
-    {
-        double approxKT = KT.getResult(j, PD, mPropellerExpandedAreaRatio,
-                                       mNumberOfblades, 2000000.0);
-        double approxKQ = KQ.getResult(j, PD, mPropellerExpandedAreaRatio,
-                                       mNumberOfblades, 2000000.0);
-        double eff = getOpenWaterEfficiency(j, approxKT, approxKQ);
-        if (eff > bestEff)
-        {
-            bestEff = eff;
-            bestJ = j;
-        }
-        j += 0.05;
-    }
+    // double j = 0.0;
+    // double bestEff = 0.0, bestJ = 0.0;
+    // while (j < 1.0)
+    // {
+    //     double approxKT = KT.getResult(j, PD, mPropellerExpandedAreaRatio,
+    //                                    mNumberOfblades, 2000000.0);
+    //     double approxKQ = KQ.getResult(j, PD, mPropellerExpandedAreaRatio,
+    //                                    mNumberOfblades, 2000000.0);
+    //     double eff = getOpenWaterEfficiency(j, approxKT, approxKQ);
+    //     if (eff > bestEff)
+    //     {
+    //         bestEff = eff;
+    //         bestJ = j;
+    //     }
+    //     j += 0.05;
+    // }
 
-    for (int i = 0; i < mGearBox->getEngines().size(); i++)
-    {
-        mGearBox->getEngines()[0]->setEngineMaxSpeedRatio(bestJ);
-    }
+    // for (int i = 0; i < mGearBox->getEngines().size(); i++)
+    // {
+    //     mGearBox->getEngines()[0]->setEngineMaxSpeedRatio(bestJ);
+    // }
 }
 
 
@@ -257,6 +261,8 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
     mExpandedBladeArea =
         mPropellerExpandedAreaRatio * mPropellerDiskArea;
 
+
+
 }
 
 const QVector<IShipEngine *> ShipPropeller::getDrivingEngines() const
@@ -281,9 +287,9 @@ double ShipPropeller::getOpenWaterEfficiency(
 {
     if (std::isnan(JRatio) || std::isnan(K_T) || std::isnan(K_Q))
     {
-        JRatio = getAdvanceRatio();
-        K_T = getThrustCoefficient();
-        K_Q = getTorqueCoefficient();
+        JRatio = getAdvanceRatio(getRPM());
+        K_T = getThrustCoefficient(getRPM());
+        K_Q = getTorqueCoefficient(getRPM());
     }
 
     return (JRatio / 2.0 * units::constants::pi.value()) * (K_T / K_Q);
@@ -336,15 +342,15 @@ void ShipPropeller::setShaftEfficiency(double newShaftEfficiency)
 
 double ShipPropeller::getPropellerEfficiency()
 {
-    if (getAdvanceRatio() < 0.3)
+    if (getAdvanceRatio(getRPM()) < 0.3)
     {
         return PROPELLER_EFFICIENCY_AT_ZERO_SPEED;
     }
     else
     {
+        mGearBox->setEngineMaxPowerLoad(getOptimumJ(mHost->getSpeed()));
         return getOpenWaterEfficiency() * getRelativeEfficiency();
     }
-
 }
 
 units::power::kilowatt_t ShipPropeller::getEffectivePower()
@@ -354,10 +360,6 @@ units::power::kilowatt_t ShipPropeller::getEffectivePower()
     auto shaftEff = mShaftEfficiency;
     auto hullEff = getHullEfficiency();
     mPreviousEffectivePower = gearboxPower * propellerEff * shaftEff * hullEff;
-    // mGearBox->getOutputPower() *
-    //                           getPropellerEfficiency() *
-    //                           mShaftEfficiency *
-    //                           getHullEfficiency();
     return mPreviousEffectivePower;
 }
 
@@ -402,10 +404,11 @@ units::torque::newton_meter_t ShipPropeller::getTorque()
                          radians_per_second>().value());
 }
 
-double ShipPropeller::getThrustCoefficient()
+double ShipPropeller::getThrustCoefficient(
+    units::angular_velocity::revolutions_per_minute_t rpm)
 {
 
-    double J = getAdvanceRatio();
+    double J = getAdvanceRatio(rpm);
     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
     auto env = mHost->getCurrentEnvironment();
     double RN = hydrology::R_n(mHost->getSpeed(),
@@ -425,20 +428,12 @@ double ShipPropeller::getThrustCoefficient()
                "instead of the B-Series!");
         return result;
     }
-
-//     auto shaftThrust = getShaftThrust(); // Calculate using gearbox output power
-//     return (shaftThrust.value() /
-//             (hydrology::WATER_RHO.value() *
-//              pow(
-//                  getRPM().
-//                  convert<units::angular_velocity::revolutions_per_second>().
-//                  value(), (double)2.0) *
-//              pow(getPropellerDiameter().value(),(double)4.0)));
 }
 
-double ShipPropeller::getTorqueCoefficient()
+double ShipPropeller::getTorqueCoefficient(
+    units::angular_velocity::revolutions_per_minute_t rpm)
 {
-    double J = getAdvanceRatio();
+    double J = getAdvanceRatio(rpm);
     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
     auto env = mHost->getCurrentEnvironment();
     double RN = hydrology::R_n(mHost->getSpeed(),
@@ -458,14 +453,6 @@ double ShipPropeller::getTorqueCoefficient()
                "instead of the B-Series!");
         return result;
     }
-    // auto shaftTorque = getShaftTorque(); // Calculated using gearbox output power
-    // return (shaftTorque.value() /
-    //         (hydrology::WATER_RHO.value() *
-    //          pow(
-    //              getRPM().
-    //              convert<units::angular_velocity::revolutions_per_second>().
-    //              value(), (double)2.0) *
-    //          pow(getPropellerDiameter().value(),(double)5.0)));
 }
 
 double ShipPropeller::getPropellerSlip()
@@ -484,11 +471,12 @@ ShipPropeller::getIdealAdvanceSpeed()
         value() * mPropellerPitch.value());
 }
 
-double ShipPropeller::getAdvanceRatio()
+double ShipPropeller::getAdvanceRatio(
+    units::angular_velocity::revolutions_per_minute_t rpm)
 {
     double speedOfAdvance = mHost->getCalmResistanceStrategy()->
                           calc_SpeedOfAdvance(*mHost).value();
-    double n = getRPM().
+    double n = rpm.
                convert<units::angular_velocity::revolutions_per_second>().
                value();
 
@@ -501,3 +489,130 @@ double ShipPropeller::getAdvanceRatio()
     return j;
 }
 
+units::angular_velocity::revolutions_per_minute_t
+ShipPropeller::getRPMFromAdvanceRatioAndMaxShipSpeed(double advanceRatio)
+{
+    double speedofAdvance =
+        mHost->getCalmResistanceStrategy()->
+        calc_SpeedOfAdvance(*mHost, mHost->getMaxSpeed()).value();
+
+    double n =
+        speedofAdvance / (advanceRatio * getPropellerDiameter().value());
+
+    return units::angular_velocity::revolutions_per_minute_t(n);
+}
+
+units::angular_velocity::revolutions_per_minute_t
+ShipPropeller::getRPMFromAdvanceRatioAndShipSpeed(
+    double advanceRatio, units::velocity::meters_per_second_t speed)
+{
+    double speedofAdvance =
+        mHost->getCalmResistanceStrategy()->
+        calc_SpeedOfAdvance(*mHost, speed).value();
+
+    double n =
+        speedofAdvance / (advanceRatio * getPropellerDiameter().value());
+
+    return units::angular_velocity::revolutions_per_minute_t(n);
+}
+
+// double ShipPropeller::getOptimumJ(units::velocity::meters_per_second_t speed)
+// {
+//     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
+//     auto env = mHost->getCurrentEnvironment();
+//     double RN =
+//         hydrology::R_n(speed, mHost->getLengthBetweenPerpendiculars(),
+//                        env.salinity, env.temperature);
+//     double j = 0.0;
+//     double bestEff = 0.0, bestJ = 0.0;
+//     while (j < 1.0)
+//     {
+//         double approxKT = KT.getResult(j, PD, mPropellerExpandedAreaRatio,
+//                                        mNumberOfblades, RN);
+//         double approxKQ = KQ.getResult(j, PD, mPropellerExpandedAreaRatio,
+//                                        mNumberOfblades, RN);
+//         double eff = getOpenWaterEfficiency(j, approxKT, approxKQ);
+//         if (eff > bestEff)
+//         {
+//             bestEff = eff;
+//             bestJ = j;
+//         }
+//         j += 0.05;
+//     }
+//     return bestJ;
+// }
+
+double ShipPropeller::getOptimumJ(units::velocity::meters_per_second_t speed) {
+    double PD = (getPropellerPitch()/getPropellerDiameter()).value();
+    auto env = mHost->getCurrentEnvironment();
+    double RN = hydrology::R_n(speed, mHost->getLengthBetweenPerpendiculars(),
+                               env.salinity, env.temperature);
+
+    /// calculate the eff at J
+    auto getEfficiencyAtJ = [&](double jV, double PDV, double RNV) {
+        double approxKT = KT.getResult(jV, PDV, mPropellerExpandedAreaRatio,
+                                       mNumberOfblades, RNV);
+        double approxKQ = KQ.getResult(jV, PDV, mPropellerExpandedAreaRatio,
+                                       mNumberOfblades, RNV);
+        return getOpenWaterEfficiency(jV, approxKT, approxKQ);
+    };
+
+    double step = 0.05; // Step size for evaluation around bestJ
+    double bestEff = getEfficiencyAtJ(mLastBestJ, PD, RN);
+    double j = mLastBestJ;
+
+    bool searchPositive = true; // Initially, let's assume we
+                                // search in the positive direction.
+
+    bool updated = false;       // If the algorithm found a better eff,
+                                // then keep searching.
+
+    do {
+        updated = false;
+        double newJ = j + (searchPositive ? step : -step);
+        if ((newJ <= 1.0 && searchPositive) ||
+            (newJ >= 0.0 && !searchPositive))
+        {
+            double newEff = getEfficiencyAtJ(newJ, PD, RN);
+            if (newEff > bestEff) {
+                bestEff = newEff;
+                j = newJ;
+                updated = true; // Found a better efficiency,
+                                // continue in this direction
+            }
+            else
+            {
+                // If no improvement, switch the search direction
+                // for the next iteration
+                searchPositive = !searchPositive;
+                newJ = j + (searchPositive ? step : -step);
+
+                if ((newJ <= 1.0 && searchPositive) ||
+                    (newJ >= 0.0 && !searchPositive))
+                {
+                    newEff = getEfficiencyAtJ(newJ, PD, RN);
+
+                    if (newEff > bestEff) {
+                        bestEff = newEff;
+                        j = newJ;
+                        updated = true;  // Found a better efficiency,
+                                         // continue in this direction
+                    }
+                }
+            }
+        }
+    } while (updated);
+
+    mLastBestJ = j; // Update the last known best J
+    return j;
+}
+
+units::angular_velocity::revolutions_per_minute_t
+ShipPropeller::getOptimumRPM(units::velocity::meters_per_second_t speed)
+{
+    double bestJ = getOptimumJ(speed);
+
+    return getRPMFromAdvanceRatioAndShipSpeed(bestJ, speed);
+}
+
+};

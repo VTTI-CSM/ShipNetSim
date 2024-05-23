@@ -17,6 +17,8 @@
 #include "ishipgearbox.h"
 #include "ishippropeller.h"
 
+namespace ShipNetSimCore
+{
 class Ship;  // Forward declaration of the class ship
 
 /**
@@ -163,7 +165,8 @@ public:
      *
      * @return The thrust coefficient of the propeller.
      */
-    double getThrustCoefficient() override;
+    double getThrustCoefficient(
+        units::angular_velocity::revolutions_per_minute_t rpm) override;
 
     /**
      * @brief Gets the torque coefficient of the propeller.
@@ -175,7 +178,8 @@ public:
      *
      * @return The torque coefficient of the propeller.
      */
-    double getTorqueCoefficient() override;
+    double getTorqueCoefficient(
+        units::angular_velocity::revolutions_per_minute_t rpm) override;
 
     /**
      * @brief Gets the theoritical ideal advance speed (V_a) of the ship.
@@ -199,7 +203,8 @@ public:
      *
      * @return The advance ratio of the propeller.
      */
-    double getAdvanceRatio() override;
+    double getAdvanceRatio(
+        units::angular_velocity::revolutions_per_minute_t rpm) override;
 
     /**
      * @brief Gets the propeller slip value.
@@ -222,6 +227,18 @@ public:
      */
     const QVector<IShipEngine *> getDrivingEngines() const override;
 
+    units::angular_velocity::revolutions_per_minute_t
+    getRPMFromAdvanceRatioAndMaxShipSpeed(double advanceRatio) override;
+
+    units::angular_velocity::revolutions_per_minute_t
+    getRPMFromAdvanceRatioAndShipSpeed(
+        double advanceRatio,
+        units::velocity::meters_per_second_t speed) override;
+
+    double getOptimumJ(units::velocity::meters_per_second_t speed) override;
+
+    units::angular_velocity::revolutions_per_minute_t
+    getOptimumRPM(units::velocity::meters_per_second_t speed) override;
 private:
     struct KCoef
     {
@@ -250,6 +267,8 @@ private:
     units::power::kilowatt_t
         mPreviousEffectivePower;  ///< Previous effective power.
 
+    double mLastBestJ = 0.8; // Default starting point if no bestJ known
+
     // Private helper functions for calculating
     // various propeller-related parameters.
 
@@ -260,5 +279,5 @@ private:
     double getHullEfficiency();
 
 };
-
+};
 #endif // SHIPPROPELLER_H
