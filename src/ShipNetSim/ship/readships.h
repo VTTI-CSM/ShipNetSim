@@ -34,7 +34,10 @@
 #include "../network/optimizednetwork.h"
 #include "ship.h"
 #include "../utils/utils.h"
+#include "ishipengine.h"
 
+namespace ShipNetSimCore
+{
 /**
  * @namespace readShips
  * @brief This namespace contains functions to read and process
@@ -300,181 +303,114 @@ static std::any toQStringT(const QString& str, bool isOptional)
     return str;
 }
 
-
-// /**
-//  * @brief Converts a string to a QMap of doubles.
-//  *
-//  * This function takes a string that represents a map of double
-//  * key-value pairs. The pairs are separated by a predefined delimiter,
-//  * and each key and value are also separated by a delimiter.
-//  * The function then converts each key and value to double and
-//  * adds them to a QMap, which is then returned as a std::any object.
-//  *
-//  * @param str The input string to be converted.
-//  * @return A std::any object that holds the QMap of double key-value pairs.
-//  */
-// static std::any toQMapDoublesT(const QString& str)
-// {
-//     QMap<double, double> resultMap;
-
-//     // Split the string into pairs
-//     QStringList pairs = str.split(delim[1]);
-//     for (const QString& pair : pairs) {
-//         // Split each pair into key and value
-//         QStringList keyValuePair = pair.split(delim[2]);
-
-//         // Convert key and value to double
-//         double key =
-//             convertToDouble(keyValuePair[0].trimmed(),
-//                             "Invalid double conversion for key: %s");
-//         double value =
-//             convertToDouble(keyValuePair[1].trimmed(),
-//                             "Invalid double conversion for value: %s");
-
-//         // If there are exactly two elements (key and value),
-//         // add them to the map
-//         if (keyValuePair.size() == 2)
-//         {
-//             resultMap[key] = value;
-//         }
-//         else
-//         {
-//             // If there are not exactly two elements, terminate with a
-//             // fatal error
-//             qFatal("Malformed key-value pair: %s", pair.toUtf8().constData());
-//         }
-//     }
-//     return resultMap;
-// }
-
-/**
- * @brief Converts a string to a QMap of kilowatt to revolutions per minute.
- *
- * This function takes a string that represents a map of kilowatt to
- * revolutions per minute key-value pairs.
- * The pairs are separated by a predefined delimiter, and each
- * key and value are also separated by a delimiter.
- * The function then converts each key and value to their respective
- *  units and adds them to a QMap,
- * which is then returned as a std::any object.
- *
- * @param str The input string to be converted.
- * @return A std::any object that holds the QMap of kilowatt to
- * revolutions per minute key-value pairs.
- */
-static std::any toEngineRPMT(const QString& str, bool isOptional)
+static std::any toEnginePowerVectorT(const QString& str, bool isOptional)
 {
-    // Define a QMap to hold the converted key-value pairs.
-    QMap<units::power::kilowatt_t,
-         units::angular_velocity::revolutions_per_minute_t> resultMap;
+    // Define a vector to hold data
+    QVector<units::power::kilowatt_t> result;
 
     if (isOptional)
     {
         // if the string has no information, return nothing
         if (str.contains("na", Qt::CaseInsensitive))
         {
-            return resultMap;
+            return result;
         }
     }
 
-    // Split the string into pairs.
-    QStringList pairs = str.split(delim[1]);
-    for (const QString& pair : pairs)
+    QStringList pointsData = str.split(delim[1]);
+    for (const QString& pointData : pointsData)
     {
-        // Split each pair into key and value.
-        QStringList keyValuePair = pair.split(delim[2]);
-
-        // Convert key and value to their respective units.
-        units::power::kilowatt_t key =
+        units::power::kilowatt_t power =
             units::power::kilowatt_t(
-                convertToDouble(keyValuePair[0].trimmed(),
-                                "Invalid double conversion for key: %s", false));
-
-        units::angular_velocity::revolutions_per_minute_t value =
-            units::angular_velocity::revolutions_per_minute_t(
-                 convertToDouble(keyValuePair[1].trimmed(),
-                                "Invalid double conversion for value: %s", false));
-
-        // If there are exactly two elements (key and value), add them to
-        // the map.
-        if (keyValuePair.size() == 2)
-        {
-            resultMap[key] = value;
-        }
-        else
-        {
-            // If there are not exactly two elements, terminate with a fatal
-            // error.
-            qFatal("Malformed key-value pair: %s", pair.toUtf8().constData());
-        }
+                convertToDouble(pointData.trimmed(),
+                                "Invalid double conversion "
+                                "for key: %s", false));
+        result.push_back(power);
     }
-    return resultMap;
+
+    if (result.size() != 4) {
+        // If there are not exactly 4 elements representing l1, l2, l3, l4,
+        // terminate with a fatal error.
+        qFatal("Malformed Engine Properties."
+               "\nEngine Operational Power Settings must have "
+               "4 data points representing L1, L2, L3, L4 on the "
+               "engine layout!");
+    }
+
+    return result;
+
 }
-
-
 /**
- * @brief Converts a string to a QMap of kilowatt to efficiency ratio.
+ * @brief Converts a string to a QVector of engine properties.
  *
- * This function takes a string that represents a map of kilowatt to
- * efficiency ratio key-value pairs.
- * The pairs are separated by a predefined delimiter, and each
+ * This function takes a string that represents a vector of engine properties
+ * in the following order: Brake Powers, revolutions per minute, Efficiencies.
+ * The values are separated by a predefined delimiter, and each
  * key and value are also separated by a delimiter.
- * The function then converts each key to kilowatts, each value
- * to a double representing the efficiency ratio,
- * and adds them to a QMap, which is then returned as a std::any object.
+ * The function then converts each value to their respective
+ *  units and adds them to a QVector,
+ * which is then returned as a std::any object.
+ * The engine properties should be specified at L1, L2, L3, L4 of the
+ * engine layout.
  *
  * @param str The input string to be converted.
- * @return A std::any object that holds the QMap of kilowatt to
- * efficiency ratio key-value pairs.
+ * @return A std::any object that holds the QVector<EngineProperites>.
  */
-static std::any toEngineEfficiency(const QString& str, bool isOptional)
+static std::any toEnginePowerRPMEfficiencyT(const QString& str, bool isOptional)
 {
-    // Define a QMap to hold the converted key-value pairs.
-    QMap<units::power::kilowatt_t, double> resultMap;
+    // Define a vector to hold data
+    QVector<IShipEngine::EngineProperties> result;
 
-    // if the string has no information, return nothing
     if (isOptional)
     {
+        // if the string has no information, return nothing
         if (str.contains("na", Qt::CaseInsensitive))
         {
-            return resultMap;
+            return result;
         }
     }
 
     // Split the string into pairs.
-    QStringList pairs = str.split(delim[1]);
-    for (const QString& pair : pairs)
+    QStringList pointsData = str.split(delim[1]);
+    for (const QString& pointData : pointsData)
     {
         // Split each pair into key and value.
-        QStringList keyValuePair = pair.split(delim[2]);
+        QStringList values = pointData.split(delim[2]);
 
-        // Convert key to kilowatts.
-        units::power::kilowatt_t key =
+        // If the properties are not 3 values, return error.
+        if (values.size() != 3)
+        {
+            // If there are not exactly 3 elements, terminate with a fatal
+            // error.
+            qFatal("Malformed Engine Property: %s"
+                   "\nEngine Power-RPM-Efficiency Mapping must have "
+                   "3 values representing Break Power, RPM, Efficiency!",
+                   pointData.toUtf8().constData());
+        }
+
+        // Convert key and value to their respective units.
+        units::power::kilowatt_t power =
             units::power::kilowatt_t(
-                convertToDouble(keyValuePair[0].trimmed(),
-                                "Invalid double conversion for key: %s", false));
+                convertToDouble(values[0].trimmed(),
+                                "Invalid double conversion "
+                                "for key: %s", false));
 
-        // Convert value to a double.
-        double value = convertToDouble(
-            keyValuePair[1].trimmed(),
-            "Invalid double conversion for value: %s", false);
+        units::angular_velocity::revolutions_per_minute_t rpm =
+            units::angular_velocity::revolutions_per_minute_t(
+                convertToDouble(values[1].trimmed(),
+                                "Invalid double conversion "
+                                "for value: %s", false));
 
-        // If there are exactly two elements (key and value), add them
-        // to the map.
-        if (keyValuePair.size() == 2)
-        {
-            resultMap[key] = value;
-        }
-        else
-        {
-            // If there are not exactly two elements, terminate with
-            // a fatal error.
-            qFatal("Malformed key-value pair: %s", pair.toUtf8().constData());
-        }
+        double eff =
+            convertToDouble(values[2].trimmed(),
+                            "Invalud double conversion "
+                            "for value: %s", false);
+
+        result.push_back(IShipEngine::EngineProperties(power, rpm, eff));
     }
-    return resultMap;
-}
 
+    return result;
+}
 
 /**
  * @brief Converts a string to a QVector of shared pointers to Point objects.
@@ -524,6 +460,12 @@ static std::any toPathPointsT(const QString& str, bool isOptional)
             units::angle::degree_t(
                 convertToDouble(keyValuePair[1].trimmed(),
                                 "Invalid double conversion for x2: %s", false));
+
+        // check if the coordinates are WGS84
+        if (std::abs(x1.value()) > 180.0 || std::abs(x2.value()) > 90.0)
+        {
+            qFatal("Not WGS Coordinate Points: %s", pair.toUtf8().constData());
+        }
 
         // If there are exactly two elements (x and y), create a Point
         // object and add it to the QVector.
@@ -642,8 +584,9 @@ static std::any toFuelTypeT(const QString& str, bool isOptional)
  * @brief A QVector of ParamInfo structures that defines the order
  * and processing functions for file parameters.
  *
- * Each ParamInfo structure contains a string name and a function
- * pointer converter. The name is the name of the parameter as
+ * Each ParamInfo structure contains a string name, a function
+ * pointer converter, and a boolean indicating if this parameter is optional
+ * or not. The name is the name of the parameter as
  * it appears in the file. The converter function is used to convert
  * the parameter value from a string to its correct data type.
  *
@@ -661,8 +604,8 @@ static QVector<ParamInfo> FileOrderedparameters =
     {"Beam", toMeterT, false},
     {"DraftAtForward", toMeterT, false},
     {"DraftAtAft", toMeterT, false},
-    {"VolumetricDisplacement", toCubicMeterT, false},
-    {"WettedHullSurface", toSquareMeterT, false},
+    {"VolumetricDisplacement", toCubicMeterT, true},
+    {"WettedHullSurface", toSquareMeterT, true},
     {"ShipAndCargoAreaAboveWaterline", toSquareMeterT, false},
     {"BulbousBowTransverseAreaCenterHeight", toMeterT, false},
     {"BulbousBowTransverseArea", toSquareMeterT, false},
@@ -685,8 +628,9 @@ static QVector<ParamInfo> FileOrderedparameters =
 
     // Engine parameters
     {"EnginesCountPerPropeller", toIntT, false},
-    {"EngineBrakePowerToRPMMap", toEngineRPMT, false},
-    {"EngineBrakePowerToEfficiency", toEngineEfficiency, false},
+    {"EngineOperationalPowerSettings", toEnginePowerVectorT, false},
+    {"EngineTierIIPropertiesPoints", toEnginePowerRPMEfficiencyT, false},
+    {"EngineTierIIIPropertiesPoints", toEnginePowerRPMEfficiencyT, true},
 
     // Gearbox parameters
     {"GearboxRatio", toDoubleT, false},
@@ -848,4 +792,5 @@ static QVector<std::shared_ptr<Ship>> readShipsFile(
 
 
 }
+};
 #endif // READSHIPS_H
