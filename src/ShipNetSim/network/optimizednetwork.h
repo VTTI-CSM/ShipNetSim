@@ -6,93 +6,110 @@
 #include "optimizedvisibilitygraph.h"
 #include "QObject"
 #include "seaport.h"
-// #include "tinytiffreader.hxx"
 #include "./algebraicvector.h"
 
-
+namespace ShipNetSimCore
+{
 class Ship;
+
+struct tiffFileData {
+    /**
+     * Array to hold geotransformation parameters of a raster dataset.
+     * These parameters define the affine transformation that maps the
+     * pixel/line coordinates of the raster into georeferenced space.
+     * The array consists of six double precision values, each
+     * representing a specific parameter in the transformation process:
+     *
+     * adfGeoTransform[0] - Top left x-coordinate of the raster. This is
+     *                      the x-coordinate of the upper-left corner of
+     *                      the top-left pixel in the raster, which
+     *                      represents the georeferenced longitude
+     *                      (in a geographic coordinate system) or easting
+     *                       (in a projected coordinate system) of that point.
+     *
+     * adfGeoTransform[1] - Pixel width in the georeferenced units of the
+     *                      raster's coordinate system.
+     *                      This is the distance in the x-direction
+     *                      (longitude or easting) covered
+     *                      by one pixel in the raster.
+     *
+     * adfGeoTransform[2] - Rotation parameter 1, which represents the
+     *                      row rotation about the top-left corner of
+     *                      the raster. For north-up images,
+     *                      this is typically 0.
+     *
+     * adfGeoTransform[3] - Top left y-coordinate of the raster. This is
+     *                      the y-coordinate of the upper-left corner of
+     *                      the top-left pixel in the raster, which
+     *                      represents the georeferenced latitude
+     *                      (in a geographic coordinate
+     *                      system) or northing (in a projected coordinate
+     *                      system) of that point.
+     *
+     * adfGeoTransform[4] - Rotation parameter 2, which represents the
+     *                      column rotation about the top-left
+     *                      corner of the raster. For north-up images,
+     *                      this is typically 0.
+     *
+     * adfGeoTransform[5] - Pixel height in the georeferenced units of
+     *                      the raster's coordinate system,
+     *                      which is the distance in the y-direction
+     *                      (latitude or northing) covered
+     *                      by one pixel in the raster. For north-up
+     *                      images, this value is typically
+     *                      negative, indicating that the numeric value
+     *                      of the y-coordinate decreases
+     *                      as you move down the rows of the raster.
+     *
+     * Together, these parameters are used to convert between pixel/line
+     * (row/column) coordinates and geographic coordinates. It is essential
+     * for tasks such as georeferencing, where the spatial
+     * location of the raster data in a coordinate system is defined,
+     * and for accurately overlaying raster data in mapping applications.
+     */
+    double adfGeoTransform[6];
+
+    /**
+     * Holds the tiff dataset from GDAL
+     */
+    GDALDataset* dataset;
+
+    /**
+     * Holds the tiff band from GDAL
+     */
+    GDALRasterBand* band;
+
+    tiffFileData()
+    {
+        std::fill_n(adfGeoTransform, 6, std::nan("no value"));
+        dataset = nullptr;
+        band = nullptr;
+    }
+
+    ~tiffFileData() {
+        // Cleanup
+        GDALClose(dataset);
+    }
+};
 
 class OptimizedNetwork : QObject
 {
     Q_OBJECT
 private:
 
-    static const QVector<QString>& SalinityTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "salinity.tif"
-            };
-        return v;
-    };
+    // Hold the tiff data
+    tiffFileData salinityTiffData;
+    tiffFileData waveHeightTiffData;
+    tiffFileData wavePeriodTiffData;
+    tiffFileData windNorthTiffData;
+    tiffFileData windEastTiffData;
+    tiffFileData waterDepthTiffData;
 
-    static const QVector<QString>& WaveHeightTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "waveHeight.tif"
-            };
-        return v;
-    };
-
-    static const QVector<QString>& wavePeriodTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "wavePeriod.tif"
-            };
-        return v;
-    };
-
-    static const QVector<QString>& windSpeedNorthTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "WindSpeedNorth.tif"
-            };
-        return v;
-    };
-
-    static const QVector<QString>& windSpeedEastTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "WindSpeedEast.tif"
-            };
-        return v;
-    };
-
-    static const QVector<QString>& waterDepthTiffLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "WaterDepth.tif"
-            };
-        return v;
-    };
-
-    static const QVector<QString>& seaPortsLocations() {
-        static QVector<QString> v
-            {
-                "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-                "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/"
-                "ports.geojson"
-            };
-        return v;
-    }
-
-
-    bool loadFirstAvailableTiffFile(std::vector<std::vector<float>>& variable,
-        QVector<QString> locations);
-    bool loadFirstAvailableSeaPortsFile(QVector<QString> locations);
-
+    // Holds all the boundaries as polygons
     QVector<std::shared_ptr<Polygon>> mBoundaries;
+
+
+
 
     // The visibility graph representing navigable paths in the region.
     std::shared_ptr<OptimizedVisibilityGraph> mVisibilityGraph;
@@ -103,34 +120,41 @@ private:
     // Holds the sea ports
     QVector<std::shared_ptr<SeaPort>> mSeaPorts;
 
-    std::vector<std::vector<float>> salinity;
-    std::vector<std::vector<float>> waveHeight;
-    std::vector<std::vector<float>> wavePeriod;
-    std::vector<std::vector<float>> windNorth;
-    std::vector<std::vector<float>> windEast;
-    std::vector<std::vector<float>> waterDepth;
-
     // The name of the region.
     QString mRegionName;
 
-    std::vector<std::vector<float>> readTIFFAs2DArray(const char* filename);
-    QVector<std::shared_ptr<SeaPort>> readSeaPorts(const char* filename);
 
-    std::pair<size_t, size_t> mapCoordinateTo2DArray(
-        GPoint coord, GPoint mapMinPoint, GPoint mapMaxPoint,
-        size_t arrayWidth, size_t arrayHeight);
+    // Loads the TIFF file
+    bool loadFirstAvailableTiffFile(tiffFileData &variable,
+                                    QVector<QString> locations);
 
+    // load the GEOJSON file
+    bool loadFirstAvailableSeaPortsFile(QVector<QString> locations);
+
+    // reads the tiff file as a GDAL dataset
+    GDALDataset *readTIFFFile(const char* filename);
+
+    // reads the seaports as vector
+    static QVector<std::shared_ptr<SeaPort>> readSeaPorts(const char* filename);
+
+    // convert the coordinates to its equivilant tiff x, y indicies
+    std::pair<size_t, size_t> mapCoordinatesToTiffIndecies(
+        tiffFileData& data, GPoint p);
+
+    // load the text file for the structure
     void loadTxtFile(const QString& filename);
+
+    // load the shape file for the structure
     void loadShapeFile(const QString& filepath);
+
+    // load the tiff data
     void loadTiffData();
 
-    // // Private method to check if a point is within a given polygon.
-    // bool containsPoint(const QVector<std::shared_ptr<Point>>& polygon,
-    //                    const Point& pt);
 public:
     // Default constructor.
     OptimizedNetwork();
 
+    // Full constructor
     OptimizedNetwork(QVector<std::shared_ptr<Polygon>> boundaries,
                      BoundariesType boundariesType,
                      QString regionName = "");
@@ -177,6 +201,14 @@ public:
     [[nodiscard]] ShortestPathResult findShortestPath(
         QVector<std::shared_ptr<GPoint>> points,
         PathFindingAlgorithm algorithm);
-};
 
+    /**
+     * @brief loads the sea ports from the default geojson file
+     * @return a vector of all sea ports in the network that support
+     *         cargo ships.
+     */
+    static QVector<std::shared_ptr<SeaPort>>
+    loadFirstAvailableSeaPorts();
+};
+};
 #endif // OPTIMIZEDNETWORK_H

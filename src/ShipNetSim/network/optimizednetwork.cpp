@@ -1,5 +1,5 @@
 #include "optimizednetwork.h"
-#include "gpoint.h"
+#include "GPoint.h"
 #include "qdebug.h"      // Debugging utilities
 #include <QCoreApplication>  // Core application utilities
 #include <QFile>             // File input/output utilities
@@ -8,49 +8,76 @@
 #include <QRegularExpression>
 #include <gdal_priv.h>
 #include <ogrsf_frmts.h>
+#include "../utils/utils.h"
+#include "networkdefaults.h"
+
+namespace ShipNetSimCore
+{
 
 bool OptimizedNetwork::loadFirstAvailableTiffFile(
-    std::vector<std::vector<float>>& variable,
+    tiffFileData& variable,
     QVector<QString> locations)
 {
-    bool fileLoaded = false;
+    QString loc =
+        Utils::getFirstExistingPathFromList(locations,
+                                                      QVector<QString>{"tif", "tiff"});
 
-    for (qsizetype i = 0; i < locations.size(); i++) {
-        if (fileLoaded) { break; }
-        // Check the file exists and its extension is valid
-        QFileInfo fileInfo(locations[i]);
-        if (fileInfo.exists()) {
-            // Get the file extension in lowercase
-            QString extension = fileInfo.suffix().toLower();
-            if (extension == "tif" || extension == "tiff") {
-                variable = readTIFFAs2DArray(
-                    fileInfo.absoluteFilePath().toStdString().c_str());
-                fileLoaded = true;
-            }
-        }
+    if (loc == "")
+    {
+        qFatal("Could not find the tiff file");
     }
-    return fileLoaded;
+    variable.dataset = readTIFFFile(loc.toStdString().c_str());
+    if (variable.dataset->GetGeoTransform(
+            variable.adfGeoTransform) != CE_None)
+    {
+        qFatal("Tiff file may not have an assigned SRS!");
+        return false;
+    }
+    variable.band = variable.dataset->GetRasterBand(1);
+    return true;
+
+}
+
+QVector<std::shared_ptr<SeaPort>>
+OptimizedNetwork::loadFirstAvailableSeaPorts()
+{
+    QVector<QString> seaPortsLocs = NetworkDefaults::seaPortsLocations();
+
+    QString filePath =
+        Utils::getFirstExistingPathFromList(seaPortsLocs,
+                                            QVector<QString>("geojson"));
+    // if there is a path found, load it
+    if (filePath == "")
+    {
+        return QVector<std::shared_ptr<SeaPort>>();
+    }
+    else
+    {
+        QVector<std::shared_ptr<SeaPort>> SeaPorts =
+            readSeaPorts( filePath.toStdString().c_str());
+        return SeaPorts;
+    }
+
 }
 
 bool OptimizedNetwork::loadFirstAvailableSeaPortsFile(
     QVector<QString> locations)
 {
-    bool fileLoaded = false;
-    for (qsizetype i = 0; i < locations.size(); i++) {
-        if (fileLoaded) { break; }
-        // Check the file exists and its extension is valid
-        QFileInfo fileInfo(locations[i]);
-        if (fileInfo.exists()) {
-            // Get the file extension in lowercase
-            QString extension = fileInfo.suffix().toLower();
-            if (extension == "geojson") {
-                mSeaPorts = readSeaPorts(
-                    fileInfo.absoluteFilePath().toStdString().c_str());
-                fileLoaded = true;
-            }
-        }
+    QString filePath =
+        Utils::getFirstExistingPathFromList(locations,
+                                            QVector<QString>("geojson"));
+
+    // if there is a path found, load it
+    if (filePath == "")
+    {
+        return false;
     }
-    return fileLoaded;
+    else
+    {
+        mSeaPorts = readSeaPorts(
+            filePath.toStdString().c_str());
+        return true;
+    }
 }
 
 OptimizedNetwork::OptimizedNetwork()
@@ -74,7 +101,8 @@ OptimizedNetwork::OptimizedNetwork(
     mRegionName = regionName;  // Set region name
 
     // load the sea ports
-    bool loadedSeaPorts = loadFirstAvailableSeaPortsFile(seaPortsLocations());
+    bool loadedSeaPorts =
+        loadFirstAvailableSeaPortsFile(NetworkDefaults::seaPortsLocations());
     if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
@@ -113,7 +141,8 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
     }
 
     // load the sea ports
-    bool loadedSeaPorts = loadFirstAvailableSeaPortsFile(seaPortsLocations());
+    bool loadedSeaPorts =
+        loadFirstAvailableSeaPortsFile(NetworkDefaults::seaPortsLocations());
     if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
@@ -385,26 +414,44 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
 
 void OptimizedNetwork::loadTiffData() {
     loadFirstAvailableTiffFile(
-        salinity, OptimizedNetwork::SalinityTiffLocations());
+        salinityTiffData, NetworkDefaults::SalinityTiffLocations());
 
     loadFirstAvailableTiffFile(
-        waveHeight, OptimizedNetwork::WaveHeightTiffLocations());
+        waveHeightTiffData, NetworkDefaults::WaveHeightTiffLocations());
 
     loadFirstAvailableTiffFile(
-        wavePeriod, OptimizedNetwork::wavePeriodTiffLocations());
+        wavePeriodTiffData, NetworkDefaults::wavePeriodTiffLocations());
 
     loadFirstAvailableTiffFile(
-        windNorth, OptimizedNetwork::windSpeedNorthTiffLocations());
+        windNorthTiffData, NetworkDefaults::windSpeedNorthTiffLocations());
 
     loadFirstAvailableTiffFile(
-        windEast, OptimizedNetwork::windSpeedEastTiffLocations());
+        windEastTiffData, NetworkDefaults::windSpeedEastTiffLocations());
 
     loadFirstAvailableTiffFile(
-        waterDepth, OptimizedNetwork::waterDepthTiffLocations());
+        waterDepthTiffData, NetworkDefaults::waterDepthTiffLocations());
 }
 
+std::pair<size_t, size_t>
+OptimizedNetwork::mapCoordinatesToTiffIndecies(tiffFileData& data, GPoint p)
+{
+    size_t pixelX, pixelY;
 
-std::vector<std::vector<float>> OptimizedNetwork::readTIFFAs2DArray(
+    double inv_det = 1.0 /
+                     (data.adfGeoTransform[1] * data.adfGeoTransform[5] -
+                      data.adfGeoTransform[2] * data.adfGeoTransform[4]);
+    double x = p.getLongitude().value() - data.adfGeoTransform[0];
+    double y = p.getLatitude().value() - data.adfGeoTransform[3];
+
+    // Using the inverse of the geotransform matrix to convert
+    pixelX = static_cast<size_t>((x * data.adfGeoTransform[5] -
+                                  y * data.adfGeoTransform[2]) * inv_det);
+    pixelY = static_cast<size_t>((-x * data.adfGeoTransform[4] +
+                                  y * data.adfGeoTransform[1]) * inv_det);
+    return std::make_pair(pixelX, pixelY);
+}
+
+GDALDataset *OptimizedNetwork::readTIFFFile(
     const char* filename)
 {
 
@@ -424,38 +471,41 @@ std::vector<std::vector<float>> OptimizedNetwork::readTIFFAs2DArray(
                "which is not supported.");
     }
 
-    GDALRasterBand *band = dataset->GetRasterBand(1); // Get the first band
-    int width = band->GetXSize();
-    int height = band->GetYSize();
+    return dataset;
 
-    std::vector<std::vector<float>> imageData(height,
-                                              std::vector<float>(width));
+    // GDALRasterBand *band = dataset->GetRasterBand(1); // Get the first band
 
-    float *image = new float[width * height];
-    // Read the raster data into the buffer
-    if(band->RasterIO(GF_Read, 0, 0, width, height,
-                       image, width, height, GDT_Float32, 0, 0) != CE_None)
-    {
-        delete[] image;
-        GDALClose(dataset);
-        qFatal("Failed to read the raster data from the TIFF file."
-               "The Tiff file must be grey scale with only one band!");
-    }
+    // int width = band->GetXSize();
+    // int height = band->GetYSize();
 
-    // Convert from the 1D buffer to 2D buffer
-    for (int row = 0; row < height; ++row) {
-        for (int col = 0; col < width; ++col) {
-            // Calculate the index for the 1D array (image)
-            int index = row * width + col;
-            // Assign the value from the 1D array to the 2D vector
-            imageData[row][col] = image[index];
-        }
-    }
+    // std::vector<std::vector<float>> imageData(height,
+    //                                           std::vector<float>(width));
 
-    delete[] image;
-    GDALClose(dataset); // Ensure the dataset is properly closed
+    // float *image = new float[width * height];
+    // // Read the raster data into the buffer
+    // if(band->RasterIO(GF_Read, 0, 0, width, height,
+    //                    image, width, height, GDT_Float32, 0, 0) != CE_None)
+    // {
+    //     delete[] image;
+    //     GDALClose(dataset);
+    //     qFatal("Failed to read the raster data from the TIFF file."
+    //            "The Tiff file must be grey scale with only one band!");
+    // }
 
-    return imageData; // Return the populated 2D vector
+    // // Convert from the 1D buffer to 2D buffer
+    // for (int row = 0; row < height; ++row) {
+    //     for (int col = 0; col < width; ++col) {
+    //         // Calculate the index for the 1D array (image)
+    //         int index = row * width + col;
+    //         // Assign the value from the 1D array to the 2D vector
+    //         imageData[row][col] = image[index];
+    //     }
+    // }
+
+    // delete[] image;
+    // GDALClose(dataset); // Ensure the dataset is properly closed
+
+    // return imageData; // Return the populated 2D vector
 
 
     // TinyTIFFReaderFile* tiffr = TinyTIFFReader_open(filename);
@@ -535,8 +585,8 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
             if (geometry != nullptr &&
                 wkbFlatten(geometry->getGeometryType()) == wkbPoint) {
                 OGRPoint* point = static_cast<OGRPoint*>(geometry);
-                double longitude = point->getY();
-                double latitude = point->getX();
+                double longitude = point->getX();
+                double latitude = point->getY();
                 GPoint p = GPoint(units::angle::degree_t(longitude),
                                   units::angle::degree_t(latitude));
                 SeaPort sp = SeaPort(p);
@@ -549,11 +599,8 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
                     qWarning(e.what());
                 }
 
-                seaPorts.push_back(std::make_shared<SeaPort>(SeaPort(p)));
+                seaPorts.push_back(std::make_shared<SeaPort>(sp));
 
-                // std::cout << "Country: " << country << ", NameWoDiac: " << nameWoDiac
-                //           << ", LOCODE: " << locode << ", Coordinates: ("
-                //           << longitude << ", " << latitude << ")" << std::endl;
             }
         }
 
@@ -564,84 +611,46 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
     return seaPorts;
 }
 
-std::pair<size_t, size_t> OptimizedNetwork::mapCoordinateTo2DArray(
-    GPoint coord, GPoint mapMinPoint, GPoint mapMaxPoint,
-    size_t arrayWidth, size_t arrayHeight)
-{
-    // Normalize x and y within the coordinate system boundaries
-    double x_norm =
-        (coord.getLongitude().value() -
-         mapMinPoint.getLongitude().value()) /
-        (mapMaxPoint.getLongitude().value() -
-         mapMinPoint.getLongitude().value());
-    double y_norm =
-        (coord.getLatitude().value() -
-         mapMinPoint.getLatitude().value()) /
-        (mapMaxPoint.getLatitude().value() -
-         mapMinPoint.getLatitude().value());
-
-    // Scale normalized coordinates to array indices
-    size_t i =
-        static_cast<size_t>(y_norm * (arrayHeight - 1)); // 0-based index
-    size_t j =
-        static_cast<size_t>(x_norm * (arrayWidth - 1)); // 0-based index
-
-    return {i, j};
-}
 
 AlgebraicVector::Environment OptimizedNetwork::
     getEnvironmentFromPosition(GPoint p)
 {
     AlgebraicVector::Environment env;
 
-    auto getArrayIndex =
-        [this, &p](const std::vector<std::vector<float>>& vec) ->
-        std::pair<size_t, size_t> {    // {new index.height, new index.width}
+    auto getValue =
+        [this, &p]( tiffFileData& data) ->
+        float {    // {new index.height, new index.width}
 
-        size_t height = vec.size();
-        size_t width = vec.empty() ? 0 : vec[0].size();
-
-        if (height <= 0 || width <= 0) { return {-1, -1}; }
-
-        return this->mapCoordinateTo2DArray(
-            p, mVisibilityGraph->getMinMapPoint(),
-            mVisibilityGraph->getMaxMapPoint(),
-            width, height);
-
+        auto index = mapCoordinatesToTiffIndecies(data, p);
+        float value;
+        data.band->RasterIO(GF_Read, index.first, index.second, 1, 1,
+                       &value, 1, 1, GDT_Float32, 0, 0);
+        return value;
     };
 
-    auto saIndex = getArrayIndex(salinity);
-    double salinityValue =
-        (saIndex.first > 0) ? salinity[saIndex.first][saIndex.second] : 0;
-    if (std::isnan(salinityValue)) { salinityValue = 0.0; };
+    double salinityValue = getValue(salinityTiffData);
+    salinityValue = std::isnan(salinityValue)? 35.0: salinityValue; // default value if nan
     env.salinity = units::concentration::pptd_t(salinityValue);
 
-    auto whIndex = getArrayIndex(waveHeight);
-    double waveHeightValue =
-        (whIndex.first > 0) ? waveHeight[whIndex.first][whIndex.second] : 0.0;
-    if (std::isnan(waveHeightValue)) { waveHeightValue = 0.0; }
+    double waveHeightValue = getValue(waveHeightTiffData);
+    waveHeightValue = std::isnan(waveHeightValue)? 0.0 : waveHeightValue;
     env.waveHeight = units::length::meter_t(waveHeightValue);
 
-    auto wpIndex = getArrayIndex(wavePeriod);
-    double wavePeriodValue =
-        (wpIndex.first > 0) ? wavePeriod[wpIndex.first][wpIndex.second] : 0;
-    if (std::isnan(wavePeriodValue)) { wavePeriodValue = 40.0; };  //40 seconds
+    double wavePeriodValue = getValue(wavePeriodTiffData);
+    wavePeriodValue = (wavePeriodValue <= 0.0 || std::isnan(wavePeriodValue))?
+        40.0 : wavePeriodValue;  //40 seconds
     double waveFrequency = 1.0f / wavePeriodValue;
     env.waveFrequency = units::frequency::hertz_t(waveFrequency);
     env.waveAngularFrequency =
         units::angular_velocity::radians_per_second_t(
         (double)2.0 * units::constants::pi.value() * waveFrequency);
 
-    auto wsnIndex = getArrayIndex(windNorth);
-    double windSpeed_Northward =
-        (wsnIndex.first > 0) ? windNorth[wsnIndex.first][wsnIndex.second] : 0;
+    double windSpeed_Northward = getValue(windNorthTiffData);
     if (std::isnan(windSpeed_Northward)) { windSpeed_Northward = 0.0; };
     env.windSpeed_Northward =
         units::velocity::meters_per_second_t(windSpeed_Northward);
 
-    auto wseIndex = getArrayIndex(windEast);
-    double windSpeed_Eastward =
-        (wsnIndex.first > 0) ? windEast[wseIndex.first][wseIndex.second] : 0;
+    double windSpeed_Eastward = getValue(windEastTiffData);
     if (std::isnan(windSpeed_Eastward)) { windSpeed_Eastward = 0.0; };
     env.windSpeed_Eastward =
         units::velocity::meters_per_second_t(windSpeed_Eastward);
@@ -653,9 +662,7 @@ AlgebraicVector::Environment OptimizedNetwork::
     env.waveLength = units::length::meter_t(waveLength);
 
 
-    auto waterDIndex = getArrayIndex(waterDepth);
-    double depthV =
-        (waterDIndex.first > 0) ? waterDepth[waterDIndex.first][waterDIndex.second] : 50.0;
+    double depthV = getValue(waterDepthTiffData);
     if (std::isnan(depthV)) { depthV = 50.0; };
     env.waterDepth = units::length::meter_t(depthV);
 
@@ -703,3 +710,4 @@ QString OptimizedNetwork::getRegionName()
 {
     return mRegionName;
 }
+};
