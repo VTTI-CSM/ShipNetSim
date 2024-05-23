@@ -20,8 +20,12 @@
 #include "../../third_party/units/units.h"
 #include "ienergysource.h"
 #include <QString>
+#include <QVector>
 #include <any>
+#include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 class Ship;  // Forward declaration of the class ship
 
 /**
@@ -59,12 +63,12 @@ public:
      * additional parameters required for initialization.
      *
      * @param host A pointer to the ship the component is part of.
-     * @param energySource A pointer to the energy source
+     * @param energySource QVector of pointers to the energy source
      * that provides the energy the component consumes.
      * @param parameters A map of additional parameters
      * required for initialization.
      */
-    virtual void initialize(Ship *host, IEnergySource *energySource,
+    virtual void initialize(Ship *host, QVector<IEnergySource*> energySource,
                             const QMap<QString, std::any>& parameters) = 0;
 
     /**
@@ -77,10 +81,10 @@ public:
     /**
      * @brief Set the energy source for the energy-consuming component.
      *
-     * @param energySource A pointer to the energy source that provides
+     * @param energySources Pointers to the energy sources that provides
      * the energy the component consumes.
      */
-    void setEnergySource(IEnergySource *energySource);
+    void setEnergySources(QVector<IEnergySource*> energySources);
 
     /**
      * @brief Set the additional parameters required for initialization.
@@ -103,10 +107,10 @@ public:
      * @return A pointer to the energy source that provides the energy
      * the component consumes.
      */
-    IEnergySource* getEnergySource() const;
+    IEnergySource* getCurrentEnergySource() const;
 
     /**
-     * @brief Calculate the amount of energy consumed by the component
+     * @brief Calculate and consume the amount of energy used by the component
      * in a given time step.
      *
      * This method should return an instance of EnergyConsumptionData
@@ -119,11 +123,33 @@ public:
      * the amount of energy consumed by the component.
      */
     virtual EnergyConsumptionData
-    energyConsumed(units::time::second_t timeStep) = 0;
+    consumeUsedEnergy(units::time::second_t timeStep) = 0;
+
+    /**
+     * @brief gets the cumulative energy used and consumed by the component
+     * during simulation time.
+     * @return An instance of EnergyConsumptionData that contains
+     * the amount of energy consumed by the component.
+     */
+    virtual units::energy::kilowatt_hour_t getCumEnergyConsumption() = 0;
+
+private:
+    static std::map<ShipFuel::FuelType, units::volume::liter_t>
+    initializeFuelConsumption() {
+        std::map<ShipFuel::FuelType, units::volume::liter_t> map;
+        for (auto& ft: ShipFuel::getFuelTypes()) {
+            map.insert({ft, units::volume::liter_t(0.0)});
+        }
+        return map;  // Make sure to return the map
+    }
 
 protected:
     Ship *mHost;  ///< A pointer to the host ship.
-    IEnergySource *mEnergySource;  ///< A pointer to the energy source.
+    QVector<IEnergySource*> mEnergySources;  ///< Pointers to the energy sources.
+    IEnergySource* mCurrentEnergySource; ///< Current E.S to draw energy from.
+    units::energy::kilowatt_hour_t mCumEnergyConsumption =
+        units::energy::kilowatt_hour_t(0.0);
+    std::map<ShipFuel::FuelType, units::volume::liter_t> mCumFuelConsumption;
 };
-
+};
 #endif // IENERGYCONSUMER_H
