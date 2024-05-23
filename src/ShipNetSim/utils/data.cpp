@@ -1,7 +1,9 @@
 #include "data.h"
 #include <QFile>
 #include <QTextStream>
-#include <boost/algorithm/string.hpp>
+
+namespace ShipNetSimCore
+{
 
 template <typename T>
 QVector<T> Data::Table::getColumn(const QString& headerName) const
@@ -305,3 +307,4 @@ void Data::TXT::close()
         mFile.close();
     }
 }
+};
