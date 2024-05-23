@@ -21,6 +21,8 @@
 #include "../../third_party/units/units.h"
 #include "gline.h"
 
+namespace ShipNetSimCore
+{
 /**
  * @class Polygon
  *
@@ -207,5 +209,5 @@ public:
      */
     bool contains(std::shared_ptr<GPoint> point) const;
 };
-
+};
 #endif // POLYGON_H
