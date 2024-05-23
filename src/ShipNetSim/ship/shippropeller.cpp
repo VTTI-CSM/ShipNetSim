@@ -261,8 +261,6 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
     mExpandedBladeArea =
         mPropellerExpandedAreaRatio * mPropellerDiskArea;
 
-
-
 }
 
 const QVector<IShipEngine *> ShipPropeller::getDrivingEngines() const
