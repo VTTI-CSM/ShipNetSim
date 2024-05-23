@@ -2,6 +2,8 @@
 #include "ishipgearbox.h"
 #include "ship.h"
 
+namespace ShipNetSimCore
+{
 IShipPropeller::IShipPropeller()
 {
     mHost = nullptr;
@@ -105,3 +107,4 @@ void IShipPropeller::setPropellerBladesCount(int newPropellerBladesCount)
 {
     mNumberOfblades = newPropellerBladesCount;
 }
+};
