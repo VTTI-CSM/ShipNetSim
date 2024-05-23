@@ -37,6 +37,8 @@
 #include "quadtree.h"
 #include "seaport.h"
 
+namespace ShipNetSimCore
+{
 enum class BoundariesType{
     Water,
     Land
@@ -349,5 +351,5 @@ private:
     // /// Creates an edge between two nodes.
     // void addEdge(qsizetype node1, qsizetype node2);
 };
-
+};
 #endif // OPTIMIZEDVISIBILITYGRAPH_H
