@@ -3,6 +3,8 @@
 #include <GeographicLib/Geodesic.hpp>
 #include <GeographicLib/GeodesicLine.hpp>
 
+namespace ShipNetSimCore
+{
 GLine::GLine()
 {
     start =
@@ -18,6 +20,8 @@ GLine::GLine()
     line.addPoint(&ep);
 
     mLength = units::length::meter_t(0.0);
+    mForwardAzimuth = units::angle::degree_t(0.0);
+    mBackwardAzimuth = units::angle::degree_t(0.0);
 }
 
 GLine::GLine(std::shared_ptr<GPoint> start,
@@ -37,6 +41,8 @@ GLine::GLine(std::shared_ptr<GPoint> start,
     line.addPoint(&ep);
 
     mLength = start->distance(*end);  // Calculate line segment length.
+    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
 // Destructor.
@@ -54,6 +60,16 @@ OGRLineString GLine::getGDALLine() const
 units::length::meter_t GLine::length() const
 {
     return mLength;  // Return length of the line segment.
+}
+
+units::angle::degree_t GLine::forwardAzimuth() const
+{
+    return mForwardAzimuth;
+}
+
+units::angle::degree_t GLine::backwardAzimuth() const
+{
+    return mBackwardAzimuth;
 }
 
 // Get starting point of the line segment.
@@ -75,6 +91,8 @@ void GLine::setStartPoint(std::shared_ptr<GPoint> sPoint)
     line.setPoint(0, &sp);
 
     mLength = start->distance(*end);  // Calculate line segment length.
+    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
 void GLine::setEndPoint(std::shared_ptr<GPoint> ePoint)
@@ -84,6 +102,8 @@ void GLine::setEndPoint(std::shared_ptr<GPoint> ePoint)
     line.setPoint(1, &ep);
 
     mLength = start->distance(*end);  // Calculate line segment length.
+    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
 Line GLine::projectTo(OGRSpatialReference* targetSR) const
@@ -142,31 +162,8 @@ bool GLine::intersects(GLine &other, bool ignoreEdgePoints) const
     return getGDALLine().Intersects(&otherL);
 }
 
-units::angle::degree_t GLine::getHeading() const
-{
-    // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR =
-        start->getGDALPoint().getSpatialReference();
-
-    double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
-
-    // Create a GeographicLib::Geodesic object with the
-    // ellipsoid parameters
-    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
-
-    // Compute the azimuths
-    double azi1, s12;
-    geod.Inverse(start->getLatitude().value(),
-                 start->getLongitude().value(),
-                 end->getLatitude().value(),
-                 end->getLongitude().value(), s12, azi1);
-
-    return units::angle::degree_t(azi1);
-}
-
 // Calculate angle between two line segments.
-units::angle::radian_t GLine::angleWith(GLine& other) const
+units::angle::radian_t GLine::smallestAngleWith(GLine& other) const
 {
     // Identify common point between line segments.
     std::shared_ptr<GPoint> commonPoint;
@@ -212,28 +209,10 @@ units::angle::radian_t GLine::angleWith(GLine& other) const
         c = other.startPoint();
     }
 
-    // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR =
-        commonPoint->getGDALPoint().getSpatialReference();
-
-    double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
-
-    // Create a GeographicLib::Geodesic object with the
-    // ellipsoid parameters
-    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
-
     // Compute the azimuths of the two lines from their shared starting point
-    double azi1, azi2, s12;
-    geod.Inverse(commonPoint->getLatitude().value(),
-                 commonPoint->getLongitude().value(),
-                 a->getLatitude().value(),
-                 a->getLongitude().value(), s12, azi1);
-    geod.Inverse(commonPoint->getLatitude().value(),
-                 commonPoint->getLongitude().value(),
-                 c->getLatitude().value(),
-                 c->getLongitude().value(),
-                 s12, azi2);
+    double azi1, azi2;
+    azi1 = commonPoint->forwardAzimuth(*a).value();
+    azi2 = commonPoint->forwardAzimuth(*c).value();
 
     // Calculate the angle between the two azimuths
     double angle = azi2 - azi1;
@@ -365,3 +344,4 @@ QString GLine::toString() const
     // Return the created string.
     return str;
 }
+};

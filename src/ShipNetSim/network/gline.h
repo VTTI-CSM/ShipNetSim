@@ -5,6 +5,8 @@
 #include "line.h"
 #include "basegeometry.h"
 
+namespace ShipNetSimCore
+{
 class GAlgebraicVector;  // forward declaration
 
 class GLine : public BaseGeometry
@@ -15,6 +17,8 @@ private:
     std::shared_ptr<GPoint> end;   // End point of the line.
     OGRLineString line; // gdal internal line
     units::length::meter_t mLength; // geodetic length between the two points
+    units::angle::degree_t mForwardAzimuth; // azimuth from start to end
+    units::angle::degree_t mBackwardAzimuth; // azimuth from end to start
     units::length::meter_t mWidth; // Width of the line.
 
     static constexpr double TOLERANCE = 0.1;
@@ -68,6 +72,16 @@ public:
      */
     units::length::meter_t length() const;
 
+    /**
+     * @return the forward azimuth from the start to end points.
+     */
+    units::angle::degree_t forwardAzimuth() const;
+
+    /**
+     * @return the forward azimuth from the end to start points.
+     */
+    units::angle::degree_t backwardAzimuth() const;
+
     Line projectTo(OGRSpatialReference* targetSR) const;
 
     /**
@@ -94,14 +108,13 @@ public:
      */
     bool intersects(GLine& other, bool ignoreEdgePoints = true) const;
 
-    units::angle::degree_t getHeading() const;
     /**
      * @brief Calculate the angle with another line.
      *
      * @param other The other line to calculate angle with.
      * @return The angle between the two lines.
      */
-    units::angle::radian_t angleWith(GLine& other) const;
+    units::angle::radian_t smallestAngleWith(GLine& other) const;
 
     /**
      * @brief Get a point on the line by distance from one end.
@@ -193,5 +206,5 @@ public:
 
 
 };
-
+};
 #endif // GLINE_H
