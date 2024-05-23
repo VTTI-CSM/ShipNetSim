@@ -6,6 +6,9 @@
 #include <unordered_map>
 #include "optimizedvisibilitygraph.h"
 
+namespace ShipNetSimCore
+{
+
 bool ShortestPathResult::isValid()
 {
     return (points.size() >= 2 &&
@@ -625,3 +628,4 @@ void OptimizedVisibilityGraph::clear()
 }
 
 
+};
