@@ -20,9 +20,19 @@ list(GET VERSION_LIST 2 ShipNetSim_VERSION_PATCH)
 
 project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 
-# Add the project name as a compiler definition
-add_definitions(-DPROJECT_NAME="${PROJECT_NAME}")
+# Set a default build type if none was specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+    # Set the possible values of build type for cmake-gui
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+endif()
 
+# Compiler settings
+# Set the C++20 standard to be used for compiling
+set(CMAKE_CXX_STANDARD 23)
+# Ensure that the selected C++ standard is a
+# requirement for the compiler
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable Qt's Automatic User Interface Compiler (UIC)
 set(CMAKE_AUTOUIC ON)
 # Enable Qt's Meta-Object Compiler (MOC) which allows
@@ -32,88 +42,98 @@ set(CMAKE_AUTOMOC ON)
 # resource files into binary format
 set(CMAKE_AUTORCC ON)
 
-# Set the C++20 standard to be used for compiling
-set(CMAKE_CXX_STANDARD 23)
+# # Add the project name as a compiler definition
+# add_definitions(-DPROJECT_NAME="${PROJECT_NAME}")
 
-# Ensure that the selected C++ standard is a
-# requirement for the compiler
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Add definitions based on build type
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions(-DQT_NO_DEBUG_OUTPUT)
 endif()
 
-# Set BOOST_ROOT based on the platform
-if(WIN32)
-    set(BOOST_ROOT "C:/Boost"
-        CACHE STRING "Boost root directory") # Windows path
-elseif(APPLE)
-    set(BOOST_ROOT "/path/to/boost/on/mac"
-        CACHE STRING "Boost root directory") # macOS path
-else()
-    set(BOOST_ROOT "/path/to/boost/on/linux"
-        CACHE STRING "Boost root directory") # Linux path
+
+# -------------------------------------------------------
+# --------------------- Libraries -----------------------
+# --------------- Define Default Paths ------------------
+# -------------------------------------------------------
+
+# Library directories - Users can provide path if not set
+# Using multiple default paths as hints for find_package
+set(GDAL_ROOT_HINTS
+    "C:/Program Files/gdal/"
+    "C:/Program Files (x86)/gdal/"
+    CACHE STRING "Hints for finding GDAL"
+)
+set(GeographicLib_ROOT_HINTS
+    "C:/Program Files/GeographicLib"
+    "C:/Program Files (x86)/GeographicLib"
+    CACHE STRING "Hints for finding GeographicLib"
+)
+set(OpenSceneGraph_ROOT_HINTS
+    "C:/Program Files/OpenSceneGraph/"
+    "C:/Program Files/OSG/"
+    "C:/Program Files (x86)/OpenSceneGraph/"
+    CACHE STRING "Hints for finding OpenSceneGraph"
+)
+
+set(osgEarth_LIBRARY "C:/Program Files/OSGEarth/lib/osgEarth.lib" CACHE PATH "Path to debug library of osgEarth")
+set(osgEarth_LIBRARY_DEBUG "C:/Program Files/OSGEarth/lib/osgEarthd.lib" CACHE PATH "Path to debug library of osgEarth")
+set(osgEarth_INCLUDE_DIR "C:/Program Files/OSGEarth/include" CACHE PATH "Path to osgEarth include directory")
+
+# Allow the user to override the default paths
+if (NOT "${GDAL_DIR}" STREQUAL "")
+    list(APPEND GDAL_ROOT_HINTS "${GDAL_DIR}")
+endif()
+if (NOT "${GeographicLib_DIR}" STREQUAL "")
+    list(APPEND GeographicLib_ROOT_HINTS "${GeographicLib_DIR}")
+endif()
+# If OSG_DIR is provided, append it to the hints list
+if (NOT "${OSG_DIR}" STREQUAL "")
+    list(APPEND OpenSceneGraph_ROOT_HINTS "${OSG_DIR}")
 endif()
 
-# Set GeographicLib based on the platform
-if(WIN32)
-    set(GeographicLib_ROOT " C:/Program Files/GeographicLib"
-        CACHE STRING "GeographicLib root directory") # Windows Path
-elseif(APPLE)
-    set(GeographicLib_ROOT "/path/to/gdal/on//max"
-        CACHE STRING "GeographicLib root directory") # macOS Path
-else()
-    set(GeographicLib_ROOT "/path/to/gdal/on/linux"
-        CACHE STRING "GeographicLib root directory") # Linux Path
+# Find packages with specified or default paths
+# If the user does not provide a specific path, use default paths as hints
+find_package(GDAL REQUIRED HINTS ${GDAL_ROOT_HINTS})
+find_package(GeographicLib REQUIRED HINTS ${GeographicLib_ROOT_HINTS})
+
+
+# Check if the libraries were found, and if
+# not, print a fatal error message
+if(NOT GDAL_FOUND)
+    message(FATAL_ERROR "GDAL not found in
+        the specific path: ${GDAL_ROOT}")
+endif()
+if(NOT GEOGRAPHICLIB_FOUND)
+    message(FATAL_ERROR "GeographicLib not found in
+        the specific path: ${GEOGRAPHICLIB_ROOT}")
 endif()
 
-# Set GDAL based on the platform
-if(WIN32)
-    set(GDAL_ROOT "C:/Program Files/gdal"
-        CACHE STRING "GDAL root directory") # Windows Path
-elseif(APPLE)
-    set(GDAL_ROOT "/path/to/gdal/on//max"
-        CACHE STRING "GDAL root directory") # macOS Path
-else()
-    set(GDAL_ROOT "/path/to/gdal/on/linux"
-        CACHE STRING "GDAL root directory") # Linux Path
-endif()
 
-if(WIN32)
-    set(LIBTINYTIFF_INCLUDE_DIR "C:/dev/TinyTIFF/include/lib/include"
-        CACHE STRING "TinyTiff include directory")
+# -------------------------------------------------------
+# --------------------- OPTIONS -------------------------
+# -------------------------------------------------------
 
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(LIBTINYTIFF_LIBRARY
-            "C:/dev/TinyTIFF/include/lib/lib/TinyTIFFShared_Debug.lib"
-            CACHE STRING "TinyTiff lib directory")
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-        set(LIBTINYTIFF_LIBRARY
-            "C:/dev/TinyTIFF/include/lib/lib/TinyTIFFShared_Release.lib"
-            CACHE STRING "TinyTiff lib directory")
-    else()
-        message(FATAL_ERROR "Unsupported build type: ${CMAKE_BUILD_TYPE}")
-    endif()
+# Add an option for the user to select building GUI or not. Default is ON.
+option(BUILD_GUI "Build the GUI components" ON)
+# Cache the option so it's stored between runs
+set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
-elseif(APPLE)
-    set(TINYTIFF_ROOT ""
-        CACHE STRING "TinyTiff include directory")
 
-else()
-    set(TINYTIFF_ROOT ""
-        CACHE STRING "TinyTiff include directory") # Linux path
-endif()
-
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Boost library settings: turn off static linking,
-# enable multi-threading, turn off static runtime
-set(Boost_USE_STATIC_LIBS OFF)
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_RUNTIME OFF)
-
+# -------------------------------------------------------
+# ---------------- RULES AND SUB PROJECTS ---------------
+# -------------------------------------------------------
 
 # include src directory
 add_subdirectory(src)
+
+# Installation rules
+install(TARGETS ShipNetSim RUNTIME DESTINATION bin)
+
+# CPack for packaging
+# include(InstallRequiredSystemLibraries)
+# set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/License.txt")
+# set(CPACK_PACKAGE_VERSION_MAJOR "${ShipNetSim_VERSION_MAJOR}")
+# set(CPACK_PACKAGE_VERSION_MINOR "${ShipNetSim_VERSION_MINOR}")
+# set(CPACK_PACKAGE_VERSION_PATCH "${ShipNetSim_VERSION_PATCH}")
+# include(CPack)
