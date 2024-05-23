@@ -24,6 +24,8 @@
 #include "gline.h"
 #include "polygon.h"
 
+namespace ShipNetSimCore
+{
 /**
  * @class Quadtree
  * @brief Represents a quadtree data structure for efficient
@@ -415,5 +417,6 @@ public:
     GPoint getMapMaxPoint() const;
 
 
+};
 };
 #endif // QUADTREE_H
