@@ -4,6 +4,8 @@
 #include <limits>
 #include <QtEndian>
 
+namespace ShipNetSimCore
+{
 Quadtree::Node::Node(Quadtree* tree, Node* parent, int quadrant)
     : host(tree), quadrant(quadrant), isLeaf(true), parent(parent),
     min_point(std::make_shared<GPoint>(
@@ -1355,3 +1357,4 @@ GPoint Quadtree::getMapMaxPoint() const
 }
 
 
+};
