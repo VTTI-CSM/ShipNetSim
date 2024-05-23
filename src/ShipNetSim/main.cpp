@@ -27,6 +27,7 @@
 const std::string compilation_date = __DATE__;
 const std::string compilation_time = __TIME__;
 
+using namespace ShipNetSimCore;
 
 /*!
  * @brief Validates the presence of a command-line option and
@@ -357,6 +358,7 @@ int main(int argc, char *argv[])
         }
         else
         {
+
             // parse the waterboundaries file
             if (checkParserValue(parser, waterBoundariesOption,
                                  "Water boundaries file is missing!", true))
@@ -369,10 +371,15 @@ int main(int argc, char *argv[])
                 throw std::runtime_error("Water boundaries file is missing!");
             }
 
+            std::cout <<"\nLoading Networks!              \n";
+
             // Initialize network and simulator with config.
             net = std::make_shared<OptimizedNetwork>(waterBoundariesFile);
+
+            std::cout <<"\nLoading Ships!                 \n";
             ships = readShips::readShipsFile(shipsFile, net, false);
 
+            std::cout <<"\nPutting Things Together!       \n";
             sim = std::make_unique<Simulator>(net,
                                               ships,
                                               units::time::second_t(timeStep));
@@ -383,7 +390,7 @@ int main(int argc, char *argv[])
             sim->setExportInstantaneousTrajectory(exportInstaTraj,
                                                   instaTrajFilename);
             // run the actual simulation
-            std::cout <<"\nStarting the Simulator!          \n";
+            std::cout <<"\nStarting Simulation!           \n";
             sim->runSimulation();
         }
         std::cout << "\nOutput folder: " <<
