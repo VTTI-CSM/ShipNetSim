@@ -2,6 +2,8 @@
 #include "hydrology.h"
 #include "ship.h"
 
+namespace ShipNetSimCore
+{
 HoltropMethod::~HoltropMethod()
 {}
 
@@ -1212,12 +1214,25 @@ HoltropMethod::getTotalResistance(
     const Ship &ship,
     units::velocity::meters_per_second_t customSpeed)
 {
-    return getfrictionalResistance(ship, customSpeed) +
-           getAppendageResistance(ship, customSpeed) +
-           getModelShipCorrelationResistance(ship, customSpeed) +
-           getWaveResistance(ship, customSpeed) +
-           getBulbousBowResistance(ship, customSpeed) +
-           getAirResistance(ship, customSpeed);
+    units::force::newton_t friction =
+        getfrictionalResistance(ship, customSpeed);
+    units::force::newton_t appendage =
+        getAppendageResistance(ship, customSpeed);
+    units::force::newton_t correlation =
+        getModelShipCorrelationResistance(ship, customSpeed);
+    units::force::newton_t wave =
+        getWaveResistance(ship, customSpeed);
+    units::force::newton_t bulbous =
+        getBulbousBowResistance(ship, customSpeed);
+    units::force::newton_t air =
+        getAirResistance(ship, customSpeed);
+
+    return friction +
+           appendage +
+           correlation +
+           wave +
+           bulbous; // +
+           // air;
 }
 
 double HoltropMethod::getCoefficientOfResistance(
@@ -1312,3 +1327,4 @@ std::string HoltropMethod::getMethodName()
     return "Holtrop and Mennen Resistance Prediction Method";
 }
 
+};

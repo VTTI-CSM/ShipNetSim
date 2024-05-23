@@ -15,7 +15,8 @@
 
 #include "ishipcalmresistancestrategy.h"
 
-
+namespace ShipNetSimCore
+{
 /**
  * @class HoltropResistanceMethod
  * @brief Implements the Holtrop and Mennen resistance prediction
@@ -469,5 +470,5 @@ private:
     friend class HoltropResistanceMethodTest;
 
 };
-
+};
 #endif // RESISTANCESTRATEGY_H
