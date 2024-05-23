@@ -26,8 +26,9 @@
 #include <QString>
 #include <any>
 
-class Ship;         ///< Forward declaration of ship class.
-
+namespace ShipNetSimCore
+{
+class Ship;             ///< Forward declaration of ship class.
 /**
  * @brief The IShipPropeller class
  * @class IShipPropeller
@@ -235,21 +236,24 @@ public:
      *
      * @return The thrust coefficient of the propeller.
      */
-    virtual double getThrustCoefficient() = 0;
+    virtual double getThrustCoefficient(
+        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
 
     /**
      * @brief Get the torque coefficient of the propeller.
      *
      * @return The torque coefficient of the propeller.
      */
-    virtual double getTorqueCoefficient() = 0;
+    virtual double getTorqueCoefficient(
+        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
 
     /**
      * @brief Get the advanced ratio of the propeller.
      *
      * @return The advanced ratio of the propeller.
      */
-    virtual double getAdvanceRatio() = 0;
+    virtual double getAdvanceRatio(
+        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
 
     /**
      * @brief Get the driving engines of the propeller.
@@ -257,6 +261,18 @@ public:
      * @return The driving engines of the propeller.
      */
     virtual const QVector<IShipEngine*> getDrivingEngines() const = 0;
+
+    virtual units::angular_velocity::revolutions_per_minute_t
+    getRPMFromAdvanceRatioAndMaxShipSpeed(double advanceRatio) = 0;
+
+    virtual units::angular_velocity::revolutions_per_minute_t
+    getRPMFromAdvanceRatioAndShipSpeed(
+        double advanceRatio, units::velocity::meters_per_second_t speed) = 0;
+
+    virtual double getOptimumJ(units::velocity::meters_per_second_t speed) = 0;
+
+    virtual units::angular_velocity::revolutions_per_minute_t
+    getOptimumRPM(units::velocity::meters_per_second_t speed) = 0;
 
 protected:
     Ship *mHost;            /**< The ship associated with the propeller. */
@@ -275,5 +291,5 @@ protected:
     double
         mPropellerExpandedAreaRatio;
 };
-
+};
 #endif //I_SHIPPROPELLER_H
