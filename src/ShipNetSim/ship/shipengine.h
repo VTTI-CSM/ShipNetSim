@@ -14,6 +14,8 @@
 #include "ienergysource.h"
 #include <QMap>
 
+namespace ShipNetSimCore
+{
 /**
  * @class ShipEngine
  * @brief The ShipEngine class manages the ship's engine operations.
@@ -29,15 +31,13 @@ public:
 
     ~ShipEngine() override;
 
-    // IEnergyConsumer interface
-
     /**
      * @brief Initializes the ship engine with the necessary parameters.
      * @param host The ship that owns the engine.
-     * @param energySource The energy source for the engine.
+     * @param energySources The energy sources for the engine.
      * @param parameters The parameters required for initialization.
      */
-    void initialize(Ship *host, IEnergySource *energySource,
+    void initialize(Ship *host, QVector<IEnergySource*> energySources,
                     const QMap<QString, std::any> &parameters) override;
 
     /**
@@ -47,26 +47,18 @@ public:
     void setParameters(const QMap<QString, std::any> &parameters) override;
 
     /**
-     * @brief Calculates the energy consumed by the ship engine.
+     * @brief Calculates and consume the energy used by the ship engine.
      * @param timeStep The time step for the calculation.
+     * @param fuelType The fuel type to be consumed.
      * @return The energy consumption data.
      */
     EnergyConsumptionData
-    energyConsumed(units::time::second_t timeStep) override;
+    consumeUsedEnergy(units::time::second_t timeStep) override;
+
+    bool
+    selectCurrentEnergySourceByFuelType(ShipFuel::FuelType fuelType) override;
 
     // IEngine interface
-
-    /**
-     * @brief Reads the power efficiency from a file.
-     * @param filePath The file path to read from.
-     */
-    void readPowerEfficiency(QString filePath) override;
-
-    /**
-     * @brief Reads the power RPM from a file.
-     * @param filePath The file path to read from.
-     */
-    void readPowerRPM(QString filePath) override;
 
     /**
      * @brief Gets the current efficiency of the engine.
@@ -92,6 +84,13 @@ public:
      * @return The RPM value.
      */
     units::angular_velocity::revolutions_per_minute_t getRPM() override;
+
+    /**
+     * @brief Get RPM Range defined by the engine layout
+     * @return vector of RPM deining the highest and lowest values.
+     */
+    QVector<units::angular_velocity::revolutions_per_minute_t>
+    getRPMRange() override;
 
     /**
      * @brief Gets the previous brake power of the engine.
@@ -120,37 +119,44 @@ public:
      */
     bool isEngineWorking() override;
 
-    void setEngineMaxSpeedRatio(double maxSpeedRatio) override;
+    /**
+     * @brief set the engine max power ratio, the default value is 1.0.
+     *
+     * @details The function sets the engine power ratio to the max
+     * power of the engine. The default value is 1.0
+     * @param setEngineMaxPowerLoad is the max ratio of engine load the engine
+     * reaches.
+     */
+    void setEngineMaxPowerLoad(double targetRatio) override;
 
-    double getEngineMaxSpeedRatio() override;
+    /**
+     * @brief Get the engine max power ratio of the engine.
+     * @return a ratio representing the max load the engine can reach.
+     */
+    double getEngineMaxPowerRatio() override;
+
+
+    units::energy::kilowatt_hour_t getCumEnergyConsumption() override;
+
+    void setEngineRPM(
+        units::angular_velocity::revolutions_per_minute_t targetRPM) override;
 
 private:
     unsigned int mId; ///< ID of the engine
-    bool mIsWorking; ///< a boolean to indicate the engine is working
-
-    // for interpolation
-    QMap<units::power::kilowatt_t,
-         units::angular_velocity::revolutions_per_minute_t>
-        mBrakePowerToRPMMap; ///< RPM to power curve from the manufacturer
-
-    QMap<units::power::kilowatt_t, double>
-        mBrakePowerToEfficiencyMap; ///< eff to power curve from manufacturer
+    bool mIsWorking = true; ///< a boolean to indicate the engine is working
 
     unsigned int counter = 0; ///< keep track of new ids
 
     double mEfficiency; ///< current efficiency of the engine
-    units::angular_velocity::revolutions_per_minute_t
-        mRPM; ///< current rpm of the engine
 
-    units::power::kilowatt_t mRawPower; ///< power without considering eff
-    units::power::kilowatt_t mCurrentOutputPower; ///< power with eff
-    units::power::kilowatt_t mPreviousOutputPower; ///< previous power with eff
+
+    units::power::kilowatt_t mCurrentOutputPower; ///< power
+    units::power::kilowatt_t mPreviousOutputPower; ///< previous power
 
     /**
      * @brief Updates the current step of the engine's operation.
      */
     void updateCurrentStep();
-
 };
-
+};
 #endif // SHIPENGINE_H

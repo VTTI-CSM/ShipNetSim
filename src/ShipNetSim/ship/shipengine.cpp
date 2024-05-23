@@ -7,10 +7,13 @@
 #include <QMap>
 #include "../utils/utils.h"
 
+namespace ShipNetSimCore
+{
+
+
 ShipEngine::ShipEngine()
 {
     mHost = nullptr;
-    mEnergySource = nullptr;
 }
 
 ShipEngine::~ShipEngine()
@@ -18,12 +21,13 @@ ShipEngine::~ShipEngine()
     // empty
 }
 
-void ShipEngine::initialize(Ship *host, IEnergySource *energySource,
+void ShipEngine::initialize(Ship *host, QVector<IEnergySource*> energySources,
                 const QMap<QString, std::any> &parameters)
 {
     mHost = host;
 
-    mEnergySource = energySource;
+    mEnergySources = energySources;
+    mCurrentEnergySource = energySources[0];
 
     // set the engines parameters
     setParameters(parameters);
@@ -37,137 +41,109 @@ void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
         Utils::getValueFromMap<unsigned int>(parameters,
                                              "EngineID",
                                              counter);
-    mBrakePowerToRPMMap =
-        Utils::getValueFromMap<
-            QMap<units::power::kilowatt_t,
-                 units::angular_velocity::revolutions_per_minute_t>>(
-            parameters, "EngineBrakePowerToRPMMap",
-            QMap<units::power::kilowatt_t,
-                 units::angular_velocity::revolutions_per_minute_t>());
 
-    mBrakePowerToEfficiencyMap =
-        Utils::getValueFromMap<QMap<units::power::kilowatt_t,
-                                    double>>(
-            parameters, "EngineBrakePowerToEfficiency",
-            QMap<units::power::kilowatt_t, double>());
+    mEngineOperationalPowerSettings =
+        Utils::getValueFromMap<QVector<units::power::kilowatt_t>>
+        (parameters, "EngineOperationalPowerSettings", {});
 
-    if (mBrakePowerToRPMMap.size() < 1)
+    if (mEngineOperationalPowerSettings.size() != 4)
     {
-        qCritical() << "Power-To-RPM Mapping is not defined!";
+        qCritical() << "Engine max power properties is not defined! "
+                       "Engine Properties (BrakePower, RPM, Efficiency) "
+                       "must be defined at the"
+                       " corners of the engine layout!";
     }
 
-    if (mBrakePowerToEfficiencyMap.size() < 1)
+    mEngineDefaultTierPropertiesPoints = Utils::getValueFromMap<QVector<EngineProperties>>
+        (parameters, "EngineTierIIPropertiesPoints", {});
+
+    if (mEngineDefaultTierPropertiesPoints.size() < 2)
     {
-        qCritical() << "Power-To-Efficiency Mapping is not defined!";
+        qFatal("Engine Properties points are not defined! "
+               "2 Engine Properties (BrakePower, RPM, Efficiency) "
+               "must be defined at least!");
     }
 
-    if (!mBrakePowerToEfficiencyMap.isEmpty()) {
-        auto smallestKey = mBrakePowerToEfficiencyMap.begin().key();
-        mEfficiency = mBrakePowerToEfficiencyMap[smallestKey];
+    mEngineNOxReducedTierPropertiesPoints = Utils::getValueFromMap<QVector<EngineProperties>>
+        (parameters, "EngineTierIIIPropertiesPoints", {});
+
+    // sort the engine properties
+    std::sort(mEngineOperationalPowerSettings.begin(),
+              mEngineOperationalPowerSettings.end());
+    std::sort(mEngineDefaultTierPropertiesPoints.begin(),
+              mEngineDefaultTierPropertiesPoints.end(),
+              EngineProperties::compareByBreakPower);
+    if (!mEngineDefaultTierPropertiesPoints.empty())
+    {
+        std::sort(mEngineNOxReducedTierPropertiesPoints.begin(),
+                  mEngineNOxReducedTierPropertiesPoints.end(),
+                  EngineProperties::compareByBreakPower);
     }
 
-    if (!mBrakePowerToRPMMap.isEmpty()) {
-        auto smallestKey = mBrakePowerToRPMMap.begin().key();
-        mRPM = mBrakePowerToRPMMap[smallestKey];
-    }
+    setCurrentEngineProperties(EngineOperationalLoad::Economic);
+
+    // set initial value
+    mEfficiency = 0.001f;
+    mRPM = units::angular_velocity::revolutions_per_minute_t(0.0f);
+    mCurrentOutputPower = units::power::kilowatt_t(0.0);
 }
 
-void ShipEngine::setEngineMaxSpeedRatio(double maxSpeedRatio)
+void ShipEngine::setEngineMaxPowerLoad(double targetRatio)
 {
-    mMaxSpeedRatio = maxSpeedRatio;
+    mMaxPowerRatio = targetRatio;
+
+    // get the power
+    updateCurrentStep();
 }
 
-double ShipEngine::getEngineMaxSpeedRatio()
+double ShipEngine::getEngineMaxPowerRatio()
 {
-    return mMaxSpeedRatio;
+    return mMaxPowerRatio;
+}
+
+bool
+ShipEngine::selectCurrentEnergySourceByFuelType(ShipFuel::FuelType fuelType)
+{
+    for (auto& ES : mEnergySources)
+    {
+        if (ES->getFuelType() == fuelType)
+        {
+            mCurrentEnergySource = ES;
+            return true;
+        }
+    }
+    return false;
 }
 
 EnergyConsumptionData
-ShipEngine::energyConsumed(units::time::second_t timeStep)
+ShipEngine::consumeUsedEnergy(units::time::second_t timeStep)
 {
-    // the brake power should be increased to consider the losses
+    // the brake power should be increased to consider the losses due to the
+    // efficiency of the engine.
+    // this value should be calculated by the SOF as reported by
+    // the manufacturer
     units::energy::kilowatt_hour_t energy =
-        mCurrentOutputPower *  // TODO: Should consider efficiency
+        (mCurrentOutputPower / mEfficiency) *
         timeStep.convert<units::time::hour>();
 
     // consume the energy and return not consumed energy
-    auto result = mEnergySource->consume(timeStep, energy);
-
+    auto result = mCurrentEnergySource->consume(timeStep, energy);
+    mCumFuelConsumption[result.fuelConsumed.first] +=
+        result.fuelConsumed.second;
     // check there is enough energy
     if (!result.isEnergySupplied)
     {
         // no power is provided
         mIsWorking = false;
     }
+
+    mCumEnergyConsumption += result.energyConsumed;
+
     return result;
 }
 
-void ShipEngine::readPowerEfficiency(QString filePath)
-{
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Unable to open" << filePath;
-        return;
-    }
-
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList parts = line.split(' ', Qt::SkipEmptyParts);
-        if (parts.size() != 2) {
-            qDebug() << "Invalid line:" << line;
-            continue;
-        }
-
-        bool ok1, ok2;
-        double power = parts[0].toDouble(&ok1);
-        double efficiency = parts[1].toDouble(&ok2);
-
-        if (!ok1 || !ok2) {
-            qDebug() << "Invalid numbers in line:" << line;
-            continue;
-        }
-
-        mBrakePowerToEfficiencyMap.insert(
-            units::power::kilowatt_t(power), efficiency);
-    }
-
-    file.close();
-}
-
-
-void ShipEngine::readPowerRPM(QString filePath)
-{
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Unable to open" << filePath;
-        return;
-    }
-
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList parts = line.split(' ', Qt::SkipEmptyParts);
-        if (parts.size() != 2) {
-            qDebug() << "Invalid line:" << line;
-            continue;
-        }
-
-        bool ok1, ok2;
-        double power = parts[0].toDouble(&ok1);
-        double speed = parts[1].toDouble(&ok2);
-
-        if (!ok1 || !ok2) {
-            qDebug() << "Invalid numbers in line:" << line;
-            continue;
-        }
-
-        mBrakePowerToRPMMap.insert(
-            units::power::kilowatt_t(power),
-            units::angular_velocity::revolutions_per_minute_t(speed));
-    }
-
-    file.close();
+units::energy::kilowatt_hour_t ShipEngine::getCumEnergyConsumption() {
+    return mCumEnergyConsumption;
 }
 
 
@@ -179,51 +155,49 @@ double ShipEngine::getEfficiency()
 
 void ShipEngine::updateCurrentStep()
 {
+    // update the previous power
     mPreviousOutputPower = mCurrentOutputPower;
+
+    units::power::kilowatt_t mRawPower;  ///< power without considering eff
+    // ensure the RPM is up to date
+    if (!mIsWorking) {
+        mRPM = units::angular_velocity::revolutions_per_minute_t(0.0);
+        mRawPower = units::power::kilowatt_t(0.0);
+        mCurrentOutputPower = mRawPower;
+        mEfficiency = 0.0;
+        return;
+    }
 
     double lambda = getHyperbolicThrottleCoef(mHost->getSpeed());
 
-    units::power::kilowatt_t min_power = mBrakePowerToRPMMap.firstKey();
-    units::power::kilowatt_t max_power = mBrakePowerToRPMMap.lastKey();
-
     // Calculating power without considering efficiency
-    mRawPower = lambda * max_power * mIsWorking;
-    if (mRawPower < min_power)
+    // as the efficiency is only for calculating fuel consumption
+    mRawPower = lambda * mCurrentOperationalPowerSetting;
+    if (mRawPower > mCurrentOperationalPowerSetting)
     {
-        mRawPower = min_power;
+        mRawPower = mCurrentOperationalPowerSetting;
     }
-    else if (mRawPower > max_power)
-    {
-        mRawPower = max_power;
-    }
+
+    auto r = getEnginePropertiesAtPower(mRawPower, mCurrentOperationalTier);
 
     // Getting efficiency based on raw power without
     // checks or using stored values
-    mEfficiency = (mIsWorking)?
-        Utils::interpolate(mBrakePowerToEfficiencyMap, mRawPower) : 0.0;
+    mEfficiency = (r.efficiency <= 0.0) ? 0.0001 : r.efficiency;
+    mRPM = r.RPM;
 
-    // Calculating the final power by applying efficiency
-    mCurrentOutputPower = mRawPower * mEfficiency;
+    // the engine output power is what is reported by the manufacturer
+    mCurrentOutputPower = mRawPower;
 
-    // ensure the RPM is up to date
-    mRPM = (mIsWorking)?
-               Utils::interpolate(mBrakePowerToRPMMap, mRawPower) :
-               units::angular_velocity::revolutions_per_minute_t(0.0);
 }
-
 
 
 units::power::kilowatt_t ShipEngine::getBrakePower()
 {
-    updateCurrentStep();
-
     return mCurrentOutputPower;
 }
 
 units::torque::newton_meter_t ShipEngine::getBrakeTorque()
 {
-    updateCurrentStep();
-
     units::torque::newton_meter_t result =
         units::torque::newton_meter_t(
         (mCurrentOutputPower.convert<units::power::watt>().value()) /
@@ -238,6 +212,13 @@ units::angular_velocity::revolutions_per_minute_t ShipEngine::getRPM()
     return mRPM;
 }
 
+QVector<units::angular_velocity::revolutions_per_minute_t>
+ShipEngine::getRPMRange()
+{
+    return {mEngineDefaultTierPropertiesPoints.front().RPM,
+            mEngineDefaultTierPropertiesPoints.back().RPM};
+}
+
 double ShipEngine::getHyperbolicThrottleCoef(
     units::velocity::meters_per_second_t ShipSpeed)
 {
@@ -246,20 +227,18 @@ double ShipEngine::getHyperbolicThrottleCoef(
     dv = (ShipSpeed / mHost->getMaxSpeed()).value();
     double lambda = (double)1.0 / (1.0 + exp(-7.82605 * (dv - 0.42606)));
 
-
-
-    if (lambda < 0.0)
+    if (lambda <= 0.2)
     {
-        lambda = 0.0;
+        lambda = 0.2;
     }
     else if (lambda > 1.0)
     {
         lambda = 1.0;
     }
 
-    if (lambda > mMaxSpeedRatio)
+    if (lambda > mMaxPowerRatio)
     {
-        lambda = mMaxSpeedRatio;
+        lambda = mMaxPowerRatio;
     }
 
     return lambda;
@@ -271,10 +250,20 @@ int ShipEngine::getEngineID()
     return mId;
 }
 
-//void ShipEngine::setBrakePowerFractionToFullPower(double fractionToFullPower)
-//{
+void ShipEngine::setEngineRPM(
+    units::angular_velocity::revolutions_per_minute_t targetRPM)
+{
 
-//};
+    // set the new RPM
+    mRPM =
+        units::math::max(mEngineDefaultTierPropertiesPoints.front().RPM,
+                         units::math::min(targetRPM,
+                                          mEngineDefaultTierPropertiesPoints.back().RPM));
+
+    // get the power
+    updateCurrentStep();
+
+}
 
 units::power::kilowatt_t ShipEngine::getPreviousBrakePower()
 {
@@ -285,3 +274,4 @@ bool ShipEngine::isEngineWorking()
 {
     return mIsWorking;
 }
+};
