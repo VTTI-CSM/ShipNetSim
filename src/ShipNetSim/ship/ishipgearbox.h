@@ -24,6 +24,8 @@
 #include "ishipengine.h"
 #include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 //class IShipEngine;  ///< Forward declaration of engine.
 class Ship;         ///< Forward declaration of ship class.
 
@@ -105,6 +107,14 @@ public:
     getOutputRPM() const = 0;
 
     /**
+     * @brief get the output RPM Range of the gearbox
+     * defined by the engine layout.
+     * @return vector of RPM deining the lowest and highest values.
+     */
+    virtual QVector<units::angular_velocity::revolutions_per_minute_t>
+    getOutputRPMRange() const = 0;
+
+    /**
      * @brief Get the output power of the gearbox in kilowatts.
      *
      * @return The output power of the gearbox in kilowatts.
@@ -128,10 +138,33 @@ public:
      */
     virtual units::power::kilowatt_t getPreviousOutputPower() const = 0;
 
+    /**
+     * @brief set the engine speed (RPM)
+     *
+     * @details This function sets the engine speed in RPM. The function
+     * is mainly designed to set the engine speed that maximizes the propeller
+     * efficiency.
+     *
+     * @param targetRPM the target RPM that the engine should go by.
+     */
+    virtual void setEngineRPM(
+        units::angular_velocity::revolutions_per_minute_t targetRPM) = 0;
+
+    /**
+     * @brief set the engine max power load.
+     *
+     * @details This function sets the engine max power load. power load is
+     * the max power / max power the engine can reach. the power load is a
+     * fraction between 0 and 1.
+     *
+     * @param targetPowerLoad the target power load the engine should reach.
+     */
+    virtual void setEngineMaxPowerLoad(double targetPowerLoad) = 0;
+
 protected:
     Ship *mHost;     ///< Pointer to the ship associated with the gearbox.
     QVector<IShipEngine *>
         mEngines;    ///< Vector of engines connected to the gearbox.
 };
-
+};
 #endif // ISHIPGEARBOX_H
