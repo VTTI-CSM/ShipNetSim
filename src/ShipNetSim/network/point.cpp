@@ -19,6 +19,8 @@
 #include <QtEndian>  // Include Qt's endianness conversion functions
 #include <GeographicLib/Geocentric.hpp>
 
+namespace ShipNetSimCore
+{
 std::shared_ptr<OGRSpatialReference> Point::spatialRef = nullptr;
 
 // Default constructor, initializes members with NaN and default values.
@@ -369,13 +371,6 @@ bool Point::isExactlyEqual(const Point& other) const
            mDwellTime == other.mDwellTime;
 }
 
-// Hash function for the Point class.
-std::size_t std::hash<Point>::operator()(const Point &p) const
-{
-    // Calculate the hash value using the x and y coordinates.
-    return std::hash<long double>()(p.x().value()) ^
-           std::hash<long double>()(p.y().value());
-}
 void Point::serialize(std::ostream& out) const
 {
     if (!out) {
@@ -499,4 +494,15 @@ bool Point::Equal::operator()(const std::shared_ptr<Point>& lhs,
 std::ostream& operator<<(std::ostream& os, const Point& point)
 {
     return os << point.toString().toStdString();
+}
+};
+
+// Hash function for the Point class.
+std::size_t
+std::hash<ShipNetSimCore::Point>::operator()(const ShipNetSimCore::Point &p)
+    const
+{
+    // Calculate the hash value using the x and y coordinates.
+    return std::hash<long double>()(p.x().value()) ^
+           std::hash<long double>()(p.y().value());
 }
