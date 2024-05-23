@@ -24,6 +24,8 @@
 #include <cmath>
 #include <memory>
 
+namespace ShipNetSimCore
+{
 class GLine; // forward declaration
 
 /**
@@ -236,5 +238,5 @@ public:
      */
     QString toString() const override;
 };
-
+};
 #endif // LINE_H

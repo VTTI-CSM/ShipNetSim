@@ -15,6 +15,8 @@
 #include <sstream>  // Include stringstream class for string manipulation.
 #include <cmath>    // Include cmath for mathematical operations.
 
+namespace ShipNetSimCore
+{
 // Constructor with start and end points.
 Line::Line(std::shared_ptr<Point> start,
            std::shared_ptr<Point> end) :
@@ -480,3 +482,4 @@ QString Line::toString() const
     // Return the created string.
     return str;
 }
+};
