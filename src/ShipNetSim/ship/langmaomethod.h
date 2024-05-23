@@ -3,7 +3,8 @@
 
 #include "ishipdynamicresistancestrategy.h"
 
-
+namespace ShipNetSimCore
+{
 class LangMaoMethod : public IShipDynamicResistanceStrategy
 {
 public:
@@ -22,5 +23,5 @@ private:
                        units::angle::degree_t(0.0));
 
 };
-
+};
 #endif // DYNAMICRESISTANCE_H
