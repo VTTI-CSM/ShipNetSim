@@ -1,6 +1,8 @@
 #include "ishipgearbox.h"
 #include "ship.h"
 
+namespace ShipNetSimCore
+{
 IShipGearBox::IShipGearBox()
 {
     mHost = nullptr;
@@ -39,3 +41,4 @@ const Ship *IShipGearBox::getHost() const
 {
     return mHost;
 }
+};
