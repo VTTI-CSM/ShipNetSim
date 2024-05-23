@@ -28,6 +28,8 @@
 #include "../../third_party/units/units.h"
 #include "basegeometry.h"
 
+namespace ShipNetSimCore
+{
 class Point; // Forward declaration
 
 class GPoint : public BaseGeometry
@@ -70,6 +72,24 @@ public:
      * @return Distance in meters as units::length::meter_t.
      */
     [[nodiscard]] units::length::meter_t distance(const GPoint& other) const;
+
+    /**
+     * Calculates the geodesic azimuth from this point to another GPoint.
+     * Both points must have spatial references set and they must be the same.
+     * @param other The other GPoint to calculate the azimuth to.
+     * @return Azimuth in degrees as units::angle::degree_t.
+     */
+    [[nodiscard]] units::angle::degree_t
+    forwardAzimuth(const GPoint& other) const;
+
+    /**
+     * Calculates the geodesic azimuth from the another GPoint to this point.
+     * Both points must have spatial references set and they must be the same.
+     * @param other The other GPoint to calculate the azimuth from.
+     * @return Azimuth in degrees as units::angle::degree_t.
+     */
+    [[nodiscard]] units::angle::degree_t
+    backwardAzimuth(const GPoint& other) const;
 
     // Returns the GDAL OGRPoint representation of this GPoint.
     OGRPoint getGDALPoint() const;
@@ -274,6 +294,7 @@ private:
     static std::shared_ptr<OGRSpatialReference> spatialRef;
 };
 
+};
 
 /**
  * @struct std::hash<Point>
@@ -285,8 +306,7 @@ private:
  * hash-based containers.
  */
 template <>
-struct std::hash<GPoint> {
-    std::size_t operator()(const GPoint& p) const;
+struct std::hash<ShipNetSimCore::GPoint> {
+    std::size_t operator()(const ShipNetSimCore::GPoint& p) const;
 };
-
 #endif // GPOINT_H
