@@ -1,5 +1,7 @@
 #include "seaport.h"
 
+namespace ShipNetSimCore
+{
 SeaPort::SeaPort(GPoint newCoordinate) : mPortCoordinate(newCoordinate) {}
 
 void SeaPort::setPortCoordinate(GPoint newCoordinate) {
@@ -28,3 +30,5 @@ std::shared_ptr<GPoint> SeaPort::getClosestPointOnWaterPolygon() {
 QString SeaPort::getCountryName() { return mPortCountry; }
 QString SeaPort::getPortName() { return mPortName; }
 QString SeaPort::getPortCode() { return mPortCode; }
+
+};
