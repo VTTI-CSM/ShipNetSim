@@ -21,7 +21,8 @@
 #include <iostream>
 #include <QTextStream>
 
-
+namespace ShipNetSimCore
+{
 /**
  * @class Logger
  * @brief Custom logger for Qt applications
@@ -116,5 +117,5 @@ private:
     /// Minimum log level for standard output.
     static QtMsgType stdOutMinLogLevel;
 };
-
+};
 #endif // LOGGER_H

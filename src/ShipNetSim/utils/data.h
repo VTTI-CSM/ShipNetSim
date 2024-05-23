@@ -20,6 +20,8 @@
 #include <QFile>
 #include <QTextStream>
 
+namespace ShipNetSimCore
+{
 using Cell = QVariant;
 
 namespace Data
@@ -185,5 +187,5 @@ public:
 };
 
 }
-
+};
 #endif // DATA_H

@@ -2,6 +2,8 @@
 #include "logger.h"
 #include <QStandardPaths>
 
+namespace ShipNetSimCore
+{
 // Set the project name based on if it's defined.
 // If PROJECT_NAME is defined, set it as the project name.
 // Otherwise, default to "Unknown Project".
@@ -129,4 +131,5 @@ void Logger::setFileMinLogLevel(QtMsgType newType)
 void Logger::setStdOutMinLogLevel(QtMsgType newType)
 {
     Logger::stdOutMinLogLevel = newType;
+}
 }

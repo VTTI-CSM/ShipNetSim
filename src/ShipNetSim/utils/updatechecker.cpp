@@ -8,6 +8,8 @@
 #include <QDebug>
 #include "src/ShipNetSim/VersionConfig.h"
 
+namespace ShipNetSimCore
+{
 
 UpdateChecker::UpdateChecker(QObject *parent)
     : QObject(parent), manager(new QNetworkAccessManager(this)) {
@@ -70,4 +72,5 @@ void UpdateChecker::replyFinished(QNetworkReply *reply) {
     // Compare mostRecentVersion with your app's current version
     bool isUpdateRequired = mostRecentVersion != currentVersion;
     emit updateAvailable(isUpdateRequired);
+}
 }
