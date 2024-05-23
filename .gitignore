@@ -95,3 +95,7 @@ CMakeLists.txt.user*
 **/.qtc_clangd/
 /.qtc_clangd/
 **/build-test-Desktop_Qt_6_4_2_MSVC2019_64bit-Debug/**
+
+#Data files
+#----------
+src/data/**
