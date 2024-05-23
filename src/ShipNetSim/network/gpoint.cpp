@@ -5,6 +5,8 @@
 #include <ogr_geometry.h>
 #include <GeographicLib/Geodesic.hpp>
 
+namespace ShipNetSimCore
+{
 std::shared_ptr<OGRSpatialReference> GPoint::spatialRef = nullptr;
 
 GPoint::GPoint() : mOGRPoint(0.0, 0.0), mIsPort(false),
@@ -177,8 +179,8 @@ GPoint GPoint::pointAtDistanceAndHeading(units::length::meter_t distance,
         newSR = currentSR->Clone();
     }
 
-    return GPoint(units::angle::degree_t(newLat),
-                  units::angle::degree_t(newLon), "NewPoint", *newSR);
+    return GPoint(units::angle::degree_t(newLon),
+                  units::angle::degree_t(newLat), "NewPoint", *newSR);
 }
 
 void GPoint::transformDatumTo(OGRSpatialReference* targetSR)
@@ -234,13 +236,81 @@ units::length::meter_t GPoint::distance(const GPoint& other) const
     // Create a GeographicLib::Geodesic object with the ellipsoid parameters
     const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
 
-    double distance;
+    double t = 0.0, distance = 0.0;
     // Calculate the distance
-    geod.Inverse(this->getLatitude().value(), this->getLongitude().value(),
+    geod.GenInverse(this->getLatitude().value(), this->getLongitude().value(),
                  other.getLatitude().value(), other.getLongitude().value(),
-                 distance);
+                 GeographicLib::Geodesic::mask::DISTANCE,
+                 distance, t, t, t, t, t, t);
 
     return units::length::meter_t(distance);
+}
+
+units::angle::degree_t GPoint::forwardAzimuth(const GPoint& other) const
+{
+    // Ensure the spatial reference is set for both points
+    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
+    const OGRSpatialReference* otherSR = other.mOGRPoint.getSpatialReference();
+
+    if (thisSR == nullptr || otherSR == nullptr) {
+        throw std::runtime_error("Spatial reference not "
+                                 "set for one or both points.");
+    }
+
+    if (!thisSR->IsSame(otherSR))
+    {
+        qFatal("Mismatch geodetic datums!");
+    }
+
+
+    double semiMajorAxis = thisSR->GetSemiMajor();
+    double flattening = 1.0 / thisSR->GetInvFlattening();
+
+    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
+
+    double t = 0.0, azimuth = 0.0;
+
+    // Calculate the azimuth
+    geod.GenInverse(this->getLatitude().value(), this->getLongitude().value(),
+                    other.getLatitude().value(), other.getLongitude().value(),
+                    GeographicLib::Geodesic::mask::AZIMUTH,
+                    t, azimuth, t, t, t, t, t);
+
+    return units::angle::degree_t(azimuth);
+}
+
+units::angle::degree_t GPoint::backwardAzimuth(const GPoint& other) const
+{
+    // Ensure the spatial reference is set for both points
+    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
+    const OGRSpatialReference* otherSR = other.mOGRPoint.getSpatialReference();
+
+    if (thisSR == nullptr || otherSR == nullptr) {
+        throw std::runtime_error("Spatial reference not "
+                                 "set for one or both points.");
+    }
+
+    if (!thisSR->IsSame(otherSR))
+    {
+        qFatal("Mismatch geodetic datums!");
+    }
+
+
+    double semiMajorAxis = thisSR->GetSemiMajor();
+    double flattening = 1.0 / thisSR->GetInvFlattening();
+
+    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
+
+    double t = 0.0, azimuth = 0.0;
+    // Calculate the azimuth
+    geod.GenInverse(other.getLatitude().value(), other.getLongitude().value(),
+                    this->getLatitude().value(), this->getLongitude().value(),
+                    GeographicLib::Geodesic::mask::AZIMUTH,
+                    t, azimuth, t, t, t, t, t);
+
+    return units::angle::degree_t(azimuth);
 }
 
 units::angle::degree_t GPoint::getLatitude() const {
@@ -315,8 +385,8 @@ QString GPoint::toString() const
 {
     QString str;
      // Convert coordinate value to string in decimal format
-    QString xStr = QString::number(getLatitude().value(), 'f', 3);
-    QString yStr = QString::number(getLongitude().value(), 'f', 3);
+    QString xStr = QString::number(getLongitude().value(), 'f', 3);
+    QString yStr = QString::number(getLatitude().value(), 'f', 3);
 
 
     // Format the string as "Point userID(x, y)".
@@ -467,4 +537,5 @@ std::ostream& operator<<(std::ostream& os, const GPoint& point) {
         ", Lat: " << point.getLatitude().value() <<
         ", Lon: " << point.getLongitude().value() << ")";
     return os;
+}
 }
