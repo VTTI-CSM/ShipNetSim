@@ -5,6 +5,9 @@
 #include "ship/ship.h"
 #include "VersionConfig.h"
 
+namespace ShipNetSimCore
+{
+
 Simulator::Simulator(std::shared_ptr<OptimizedNetwork> network,
                      QVector<std::shared_ptr<Ship>> shipList,
                      units::time::second_t simulatorTimeStep,
@@ -264,13 +267,16 @@ void Simulator::runSimulation()
                   "WaveLength_m,"
                   "NorthwardWindSpeed_mps,"
                   "EastwardWindSpeed_mps,"
+                  "TotalShipThrust_N,"
+                  "TotalShipResistance_N,"
+                  "maxAcceleration_mps2,"
                   "TravelledDistance_m,"
                   "Acceleration_mps2,"
                   "Speed_knots,"
                   "CumEnergyConsumption_KWH,"
                   "MainEnergySourceCapacityState_percent,"
-                  "Position,"
-                  "Heading_deg";
+                  "Position(id;long;lat),"
+                  "Course_deg";
 
         this->mTrajectoryFile.writeLine(exportLine);
     }
@@ -331,23 +337,114 @@ void Simulator::runSimulation()
     QString exportLine;
     QTextStream stream(&exportLine);
 
-    stream << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n"
-           << "ShipNetSim SIMULATION SUMMARY\n"
-           << "Version: " << ShipNetSim_VERSION << "\n"
-           << "Simulation Time: " << Utils::formatDuration(difTime) << " (dd:hh:mm:ss)\n"
-           << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n\n"
-           << "+ NETWORK STATISTICS:\n"
-           << "  |_ Region Name                                                                \x1D : " << this->mNetwork->getRegionName() << "\n"
-           << "  |_ Total Number of Ships on Network                                           \x1D : " << Utils::thousandSeparator(this->mShips.size()) << "\n"
-           << "....................................................\n\n"
-           << "\n";
+    stream
+        << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n"
+        << "ShipNetSim SIMULATION SUMMARY\n"
+        << "Version: " << ShipNetSim_VERSION << "\n"
+        << "Simulation Time: " << Utils::formatDuration(difTime) << " (dd:hh:mm:ss)\n"
+        << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n\n"
+        << "+ NETWORK STATISTICS:\n"
+        << "  |_ Total Number of Ships on Network                                           \x1D : " << Utils::thousandSeparator(this->mShips.size()) << "\n"
+        << "....................................................\n\n"
+        << "\n";
+    stream
+        << "+ AGGREGATED/ACCUMULATED TRAINS STATISTICS:\n"
+        << "    |-> Moved Commodity:\n"
+        << "        |_ Total Moved Cargo (ton)                                              \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + (s->getCargoWeight().value());
+                                                                                                                                                 })) << "\n"
+        << "        |_ Total ton.km (ton.Km)                                                \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + (s->getTotalCargoTonKm().value());
+                                                                                                                                                 })) << "\n\n"
+        << "  |-> Route Information:\n"
+        << "    |_ Ships Reached Destination                                                \x1D : " << std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                        [](int total, const auto& s) {
+                                                                                                                            return total + s->isReachedDestination();
+                                                                                                                        }) << "\n"
+        << "    |_ Ships Total Path Length (km)                                             \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + (s->getTotalPathLength().value());
+                                                                                                                                                 })) << "\n\n"
+        << "  |-> Ships Performance:\n"
+        << "    |_ Operating Time (d:h::m::s)                                               \x1D : " << Utils::formatDuration(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                              [](double total, const auto& s) {
+                                                                                                                                                  return total + s->getTripTime().value();
+                                                                                                                                              })) << "\n"
+        << "    |_ Average Speed (meter/second)                                             \x1D : " << std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                        [](double total, const auto& s) {
+                                                                                                                            return total + s->getTripRunningAvergageSpeed().value();
+                                                                                                                        })/this->mShips.size() << "\n"
+        << "    |_ Average Acceleration (meter/square second)                               \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + s->getTripRunningAverageAcceleration().value();
+                                                                                                                                                 })/this->mShips.size(), 4) << "\n"
+        << "    |_ Average Travelled Distance (km)                                          \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + (s->getTraveledDistance().convert<units::length::kilometers>().value());
+                                                                                                                                                 })/this->mShips.size()) << "\n"
+        << "    |_ Consumed and Regenerated Energy:\n"
+        << "        |_ Total Net Energy Consumed (KW.h)                                     \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + s->getCumConsumedEnergy().value();
+                                                                                                                                                 })) << "\n"
+        << "            |_ Total Energy Consumed (KW.h)                                     \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + s->getCumConsumedEnergy().value();
+                                                                                                                                                 })) << "\n"
+        << "            |_ Total Energy Regenerated (KW.h)                                  \x1D : " << Utils::thousandSeparator(0.0) << "\n"
+        << "            |_ Average Net Energy Consumption per Net Weight (KW.h/ton)         \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + (s->getEnergyConsumptionPerTon().value());
+                                                                                                                                                 })) << "\n"
+        << "            |_ Average Net Energy Consumption per Net ton.km (KW.hx10^3/ton.km) \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total +
+                                                                                                                                                            (s->getEnergyConsumptionPerTonKM().value() * (double) 1000.0);
+                                                                                                                                                 })) << "\n"
+        << "        |_ Tank Consumption:\n";
+
+    std::map<ShipFuel::FuelType, units::volume::liter_t> totalFuelConsumed;
+    for (auto& s: mShips) {
+        for (auto& fc: s->getCumConsumedFuel() ) {
+            totalFuelConsumed[fc.first] += fc.second;
+        }
+    }
+
+    stream
+        << "            |_ Total Overall Fuel Consumed (litters)                            \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& s) {
+                                                                                                                                                     return total + s->getOverallCumFuelConsumption().value();
+                                                                                                                                                 })) << "\n";
+
+    for (auto& fc: totalFuelConsumed) {
+    stream
+            << Utils::formatString(
+                   "                |_ ",
+                    ShipFuel::convertFuelTypeToString(fc.first) + " (litters) ",
+                   "\x1D : ", " ", 84) << Utils::thousandSeparator(fc.second.value()) << "\n";
+    }
+
+    stream
+        << "            |_ Average Fuel Consumed per Net Weight (litterx10^3/ton)           \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& train) {
+                                                                                                                                                     return total + train->getOverallCumFuelConsumptionPerTon().value();
+                                                                                                                                                 })) << "\n"
+        << "            |_ Average Fuel Consumed per Net ton.km (littersx10^3/ton.km)       \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& train) {
+                                                                                                                                                     return total + train->getOverallCumFuelConsumptionPerTonKM().value();
+                                                                                                                                                 })) << "\n"
+        << "        |_ Tank Status:\n"
+        << "....................................................\n\n";
 
     for (auto &ship: mShips)
     {
         stream
            << "Ship ID: " << ship->getUserID() << "\n"
            << "SHIP GENERAL INFORMATION\n"
-            << "Average Max Propeller Effeciency                                               \x1D : " << ship->getPropellers()->front()->getDrivingEngines()[0]->getEngineMaxSpeedRatio() << "\n";
+           << "Average Max Propeller Effeciency                                               \x1D : " << ship->getPropellers()->front()->getDrivingEngines()[0]->getEngineMaxPowerRatio() << "\n"
+            << "Total Energy Consumed                                                          \x1D : " << ship->getCumConsumedEnergy().value() << "\n";
     }
 
     // Set up the summary file information
@@ -479,6 +576,8 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                             currentEnvironment);
         }
 
+        // calculate stats even if the ship did not move
+        ship->calculateGeneralStats(mTimeStep);
 
         if (mExportTrajectory)
         {
@@ -492,14 +591,16 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                    << currentEnvironment.waveLength.value() << ","
                    << currentEnvironment.windSpeed_Northward.value() << ","
                    << currentEnvironment.windSpeed_Eastward.value() << ","
+                   << ship->getTotalThrust().value() << ","
+                   << ship->calculateTotalResistance().value() << ","
+                   << ship->getMaxAcceleration().value() << ","
                    << QString::number(ship->getTraveledDistance().value(), 'f', 3) << ","
                    << QString::number(ship->getAcceleration().value(), 'f', 3) << ","
                    << QString::number(ship->getSpeed().convert<units::velocity::knot>().value(), 'f', 3) << ","
                    << QString::number(ship->getCumConsumedEnergy().value(), 'f', 3) << ","
                    << QString::number(ship->getMainTankCurrentCapacity(), 'f', 3) << ","
                    << ship->getCurrentPosition().toString() << ","
-                   << QString::number(ship->getCurrentHeading().value(), 'f', 3) << ","
-                   << ship->getCurrentTarget().toString();
+                   << QString::number(ship->getCurrentHeading().value(), 'f', 3);
             mTrajectoryFile.writeLine(s);
         }
     }
@@ -589,3 +690,4 @@ void Simulator::resumeSimulation() {
     pauseCond.wakeAll(); // This will wake up the thread
 }
 
+}

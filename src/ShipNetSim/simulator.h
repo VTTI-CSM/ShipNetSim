@@ -12,6 +12,9 @@
 #include <QDir>
 #include "utils/data.h"
 
+namespace ShipNetSimCore
+{
+
 class Simulator : public QObject
 {
     Q_OBJECT
@@ -272,5 +275,5 @@ private:
     bool mPauseFlag = false;
 
 };
-
+};
 #endif // SIMULATOR_H
