@@ -7,6 +7,8 @@
 
 using namespace units;
 
+namespace ShipNetSimCore
+{
 namespace hydrology{
 
 static constexpr units::acceleration::meters_per_second_squared_t G =
@@ -135,4 +137,5 @@ inline double R_n(units::velocity::meters_per_second_t ship_speed,
 }
 
 }
+};
 #endif // HYDROLOGY_H
