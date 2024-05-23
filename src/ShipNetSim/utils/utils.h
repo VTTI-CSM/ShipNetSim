@@ -6,9 +6,85 @@
 #include <QMap>
 #include <QDir>
 
+namespace ShipNetSimCore
+{
 // The Utils namespace encapsulates utility functions and structures
 namespace Utils
 {
+
+inline QString getFirstExistingPathFromList(
+    QVector<QString> filePaths,
+    QVector<QString> extensions = QVector<QString>())
+{
+    for (const QString& loc: filePaths)
+    {
+        QFileInfo fileInfo(loc);
+
+        // If the path is relative, resolve it to an absolute path
+        QString fullPath;
+        if (fileInfo.isRelative())
+        {
+            fullPath = QDir::current().absoluteFilePath(loc);
+        }
+        else
+        {
+            fullPath = loc;
+        }
+
+        // Check if the file exists
+        if (QFile::exists(fullPath))
+        {
+            // Get the extension of the file
+            QString ext = fileInfo.suffix().toLower();
+
+            // if it has the needed extension or no required extension,
+            // return the path
+            if (extensions.empty() ||
+                extensions.contains(ext, Qt::CaseInsensitive))
+            {
+                return fullPath;
+            }
+        }
+    }
+    return QString("");
+};
+
+/**
+ * Format a QString by prepending a prefix and appending a filler string
+ * until a specified length is reached.
+ *
+ * @param preString The string to prepend.
+ * @param mainString The main content string.
+ * @param postString The string to append after the main string.
+ * @param filler The string to append repeatedly to fill up to the
+ * desired length.
+ * @param length The target total length of the final string.
+ * @return A formatted QString of the specified length.
+ */
+inline QString formatString(const QString preString,
+                            const QString mainString,
+                            const QString postString,
+                            const QString filler,
+                            int length) {
+    // Start by concatenating preString and mainString
+    QString result = preString + mainString;
+
+    // Calculate remaining length to fill
+    int remainingLength = length - postString.length() - result.length();
+
+    // Append the filler string as many times as needed to reach the
+    // desired length excluding postString
+    while (remainingLength > 0) {
+        // Append only the necessary part of the filler
+        result.append(filler.left(remainingLength));
+        // Update remaining length
+        remainingLength = length - postString.length() - result.length();
+    }
+
+    result += postString;  // Append postString after filling
+
+    return result;  // Return the formatted string
+}
 
 /**
  * Retrieve a value from a QMap with a specified key.
@@ -84,48 +160,66 @@ struct ValueGetter<double, double> {
     }
 };
 
-/**
- * Interpolates the value for a given key from a QMap.
- *
- * @param map  The QMap containing the data for interpolation.
- * @param key  The key for which interpolation is required.
- * @returns Interpolated value for the given key.
- */
-template<typename KeyType, typename ValueType>
-inline ValueType interpolate(const QMap<KeyType, ValueType> &map,
-                             KeyType key)
+// Template function for linear interpolation
+template<typename T>
+inline T linearInterpolate(T x0, T y0, T x1, T y1, T x) {
+    if (x1 == x0) {
+        throw std::invalid_argument("x0 and x1 cannot be the same, "
+                                    "division by zero is not allowed!");
+    }
+
+    // Compute the slope and perform interpolation
+    return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+};
+
+// Function to perform interpolation on given x and y
+// vectors at a given x point
+template<typename T>
+inline T linearInterpolateAtX(const QVector<T>& x_vals,
+                              const QVector<T>& y_vals,
+                              T x)
 {
-    // Handle edge cases: single entry or zero key
-    if (map.size() == 1) return map.first();
-    if (ValueGetter<KeyType, ValueType>::getKey(key) == 0.0)
-        return ValueGetter<KeyType, ValueType>::fromValue(0.0);
-
-    // Establish interpolation bounds
-    auto lower = map.lowerBound(key);
-    if (lower == map.end()) {
-        return (--lower).value();
+    // check both vectors have the same size
+    if (x_vals.size() != y_vals.size()) {
+        throw std::invalid_argument("x_vals and y_vals must "
+                                    "be of the same size!");
     }
-    if (lower.key() == key || lower == map.begin()) {
-        return lower.value();
+
+    // check x_vals is not empty
+    if (x_vals.empty()) {
+        throw std::invalid_argument("x_vals and y_vals cannot be empty!");
     }
-    auto upper = lower;
-    lower--;
 
-    // Calculate the slope for interpolation
-    double slope = (ValueGetter<KeyType,
-                                ValueType>::getValue(upper.value() -
-                                                     lower.value()) /
-                    (ValueGetter<KeyType,
-                                 ValueType>::getKey(upper.key()) -
-                     ValueGetter<KeyType,
-                                 ValueType>::getKey(lower.key())));
+    // check the x_vals is sorted
+    if (!std::is_sorted(x_vals.begin(), x_vals.end())) {
+        throw std::invalid_argument("x_vals must be sorted in "
+                                    "non-decreasing order!");
+    }
 
-    // Return interpolated value
-    return ValueGetter<KeyType, ValueType>::fromValue(
-        ValueGetter<KeyType, ValueType>::getValue(lower.value()) +
-        slope * (ValueGetter<KeyType, ValueType>::getKey(key) -
-                 ValueGetter<KeyType, ValueType>::getKey(lower.key()))
-        );
+    // Check if x is before the first element, interpolate with assumed (0,0)
+    if (x < x_vals.front()) {
+        return linearInterpolate(T(0), T(0),
+                                 x_vals.front(), y_vals.front(),
+                                 x);
+    }
+
+    // Ensure x is within the bounds
+    if (x > x_vals.back()) {
+        throw std::out_of_range("x is out of the range of x_vals!");
+    }
+
+    // Find the correct interval
+    for (std::size_t i = 0; i < x_vals.size() - 1; ++i) {
+        if (x >= x_vals[i] && x <= x_vals[i + 1]) {
+            return linearInterpolate(x_vals[i],
+                                     y_vals[i],
+                                     x_vals[i + 1],
+                                     y_vals[i + 1], x);
+        }
+    }
+
+    throw std::logic_error("Interpolation interval not found, "
+                           "which should be impossible!");
 }
 
 inline std::vector<double> linspace_step(double start,
@@ -146,19 +240,26 @@ inline std::vector<double> linspace_step(double start,
 }
 
 /**
-     * Format duration
-     *
-     * @author	Ahmed Aredah
-     * @date	2/28/2023
-     *
-     * @param 	seconds	The seconds.
-     *
-     * @returns	The formatted duration.
-     *
-     * @tparam	T	Generic type parameter.
-     */
+ * Format duration from seconds into a customized string format.
+ *
+ * @author	Ahmed Aredah
+ * @date	2/28/2023
+ *
+ * @param 	seconds	The duration in seconds to format.
+ * @param	format	The format string specifying the output format,
+ *                  using placeholders:
+ *                  %dd for days,
+ *                  %hh for hours,
+ *                  %mm for minutes,
+ *                  %ss for seconds.
+ *
+ * @returns	The duration formatted according to the specified format.
+ *
+ * @tparam	T	Generic type parameter, should be capable of conversion to int.
+ */
 template<typename T>
-inline QString formatDuration(T seconds) {
+inline QString formatDuration(T seconds,
+                              const QString format = "%dd days %hh:%mm:%ss") {
     int minutes = static_cast<int>(seconds) / 60;
     int hours = minutes / 60;
     int days = hours / 24;
@@ -168,10 +269,22 @@ inline QString formatDuration(T seconds) {
 
     QString result;
     QTextStream stream(&result);
-    stream << days << ":";
-    stream << QString("%1").arg(remainingHours, 2, 10, QChar('0')) << ":";
-    stream << QString("%1").arg(remainingMinutes, 2, 10, QChar('0')) << ":";
-    stream << QString("%1").arg(remainingSeconds, 2, 10, QChar('0'));
+
+    // Using placeholders in format: %dd for days, %hh for hours, %mm for minutes, %ss for seconds
+    QString tempFormat = format;
+
+    // Replace day, hour, minute, and second placeholders
+    tempFormat.replace("%dd",
+                       QString::number(days));
+    tempFormat.replace("%hh",
+                       QString("%1").arg(remainingHours, 2, 10, QChar('0')));
+    tempFormat.replace("%mm",
+                       QString("%1").arg(remainingMinutes, 2, 10, QChar('0')));
+    tempFormat.replace("%ss",
+                       QString("%1").arg(remainingSeconds, 2, 10, QChar('0')));
+
+    // Stream the formatted string
+    stream << tempFormat;
 
     return result;
 }
@@ -316,7 +429,6 @@ inline bool stringToBool(const QString& str, bool* ok = nullptr)
     }
 }
 
-
-
 }
+};
 #endif // UTILS_H
