@@ -17,6 +17,8 @@
 #include <QString>
 #include <string>
 
+namespace ShipNetSimCore
+{
 /**
  * @class BaseGeometry
  *
@@ -51,5 +53,5 @@ public:
      */
     virtual QString toString() const = 0;
 };
-
+};
 #endif // BASEGEOMETRY_H
