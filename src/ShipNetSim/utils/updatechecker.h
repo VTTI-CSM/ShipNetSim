@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QNetworkAccessManager>
 
+namespace ShipNetSimCore
+{
 class UpdateChecker : public QObject {
     Q_OBJECT
 
@@ -23,5 +25,5 @@ private:
 
     void handleSslErrors(QNetworkReply *reply, const QList<QSslError> &errors);
 };
-
+};
 #endif // UPDATECHECKER_H
