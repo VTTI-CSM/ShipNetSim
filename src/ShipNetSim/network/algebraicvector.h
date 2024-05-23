@@ -18,6 +18,8 @@
 #include "point.h"
 #include "../../third_party/units/units.h"
 
+namespace ShipNetSimCore
+{
 class AlgebraicVector
 {
 public:
@@ -41,6 +43,57 @@ public:
             units::velocity::meters_per_second_t(0.0);
         units::length::meter_t waterDepth =
             units::length::meter_t(0.0);
+
+        units::angle::degree_t getEncounterAngle(
+            units::angle::degree_t shipHeadingAzimuth)
+        {
+            auto waveDirectionAz =
+                calculateAzimuth(windSpeed_Northward.value(),
+                                 windSpeed_Eastward.value());
+
+            return calculateEncounterAngle(shipHeadingAzimuth,
+                                           waveDirectionAz);
+        }
+
+    private:
+        // Function to calculate the wave encounter angle
+        units::angle::degree_t calculateEncounterAngle(
+            units::angle::degree_t shipHeadingAzimuth,
+            units::angle::degree_t waveDirectionAzimuth) const
+        {
+            // Calculate the absolute difference
+            units::angle::degree_t mu =
+                units::math::abs(waveDirectionAzimuth -
+                                 shipHeadingAzimuth);
+
+            // Normalize to 0-360 degrees
+            mu = units::angle::degree_t(fmod(mu.value() + 360.0, 360.0));
+
+            // Adjust to 0-180 degrees
+            if (mu.value() > 180.0) {
+                mu = units::angle::degree_t(360.0) - mu;
+            }
+
+            return mu;
+        }
+
+
+        // Function to calculate the azimuth angle of any wave/wind
+        units::angle::degree_t calculateAzimuth(
+            double Northward, double Eastward) const
+        {
+            // Convert from radians to degrees
+            units::angle::degree_t waveAzimuth =
+                units::angle::radian_t(atan2(Eastward, Northward)).
+                convert<units::angle::degrees>();
+
+            // Ensure the angle is in the range [0, 360)
+            if (waveAzimuth.value() < 0.0) {
+                waveAzimuth += units::angle::degree_t(360.0);
+            }
+
+            return waveAzimuth;
+        }
     };
 
     /**
@@ -154,6 +207,7 @@ private:
     void rotateToTargetByMaxROT(const Point& target,
                                 units::angle::degree_t maxROTPerSec,
                                 units::time::second_t timeStep);
+};
 };
 
 #endif // ALGEBRAICVECTOR_H
