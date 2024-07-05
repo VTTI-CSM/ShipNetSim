@@ -24,7 +24,9 @@ endforeach()
 list(REMOVE_DUPLICATES INCLUDE_DIRS)
 
 # Include all directories found
-include_directories(${INCLUDE_DIRS})
+include_directories(${INCLUDE_DIRS}
+${CMAKE_SOURCE_DIR}/src
+)
 
 if(NOT OpenSceneGraph_FOUND)
     message(FATAL_ERROR "GeographicLib not found in
@@ -35,73 +37,143 @@ if (NOT osgEarth_FOUND)
         the specific path: ${GDAL_ROOT}")
 endif()
 
-
-
-set(PROJECT_SOURCES
+set(PROJECT_H_FILES
         ../ShipNetSim/network/point.h
-        ../ShipNetSim/network/point.cpp
         ../ShipNetSim/network/gpoint.h
-        ../ShipNetSim/network/gpoint.cpp
         ../ShipNetSim/network/seaport.h
-        ../ShipNetSim/network/seaport.cpp
         ../ShipNetSim/network/line.h
-        ../ShipNetSim/network/line.cpp
         ../ShipNetSim/network/gline.h
-        ../ShipNetSim/network/gline.cpp
         ../ShipNetSim/network/polygon.h
-        ../ShipNetSim/network/polygon.cpp
         ../ShipNetSim/network/algebraicvector.h
-        ../ShipNetSim/network/algebraicvector.cpp
         ../ShipNetSim/network/galgebraicvector.h
-        ../ShipNetSim/network/galgebraicvector.cpp
         ../ShipNetSim/network/networkdefaults.h
         ../ShipNetSim/network/optimizedvisibilitygraph.h
-        ../ShipNetSim/network/optimizedvisibilitygraph.cpp
         ../ShipNetSim/network/quadtree.h
-        ../ShipNetSim/network/quadtree.cpp
         ../ShipNetSim/network/optimizednetwork.h
-        ../ShipNetSim/network/optimizednetwork.cpp
-        gui/osgearthqtwidget.h gui/osgearthqtwidget.cpp
-        defaults.h defaults.cpp
-        gui/aboutwindow.cpp
-        gui/aboutwindow.h
-        gui/aboutwindow.ui
-        gui/checkboxdelegate.h
-        gui/clickablelabel.cpp
-        gui/ClickableLabel.h
-        gui/comboboxdelegate.h
-        gui/customprogressbar.h
-        gui/customtablewidget.cpp
-        gui/customtablewidget.h
-        gui/disappearinglabel.cpp
-        gui/disappearinglabel.h
-        gui/intnumericdelegate.h
-        gui/nonemptydelegate.h
-        gui/numericdelegate.h
-        gui/osgwidget.cpp
-        gui/osgwidget.h
-        gui/settingswindow.cpp
-        gui/settingswindow.h
-        gui/settingswindow.ui
-        # gui/simulationworker.cpp
-        # gui/simulationworker.h
-        gui/textboxdelegate.h
-        gui/togglebutton.cpp
-        gui/togglebutton.h
-        gui/globalmapmanager.h gui/globalmapmanager.cpp
+        ../ShipNetSim/utils/data.h
 
-        main.cpp
-        shipnetsim.cpp
-        shipnetsim.h
-        shipnetsim.ui
+        ../ShipNetSim/ship/battery.h
+        ../ShipNetSim/ship/defaults.h
+        ../ShipNetSim/ship/holtropmethod.h
+        ../ShipNetSim/ship/hydrology.h
+        ../ShipNetSim/ship/ienergyconsumer.h
+        ../ShipNetSim/ship/ienergysource.h
+        ../ShipNetSim/ship/ishipcalmresistancestrategy.h
+        ../ShipNetSim/ship/ishipdynamicresistancestrategy.h
+        ../ShipNetSim/ship/ishipengine.h
+        ../ShipNetSim/ship/ishipgearbox.h
+        ../ShipNetSim/ship/ishippropeller.h
+        ../ShipNetSim/ship/langmaomethod.h
+        ../ShipNetSim/ship/shipslist.h
+        ../ShipNetSim/ship/ship.h
+        ../ShipNetSim/ship/shipengine.h
+        ../ShipNetSim/ship/shipfuel.h
+        ../ShipNetSim/ship/shipgearbox.h
+        ../ShipNetSim/ship/shippropeller.h
+        ../ShipNetSim/ship/tank.h
+
+        ../ShipNetSim/simulator.h
+
+        utils/defaults.h
+        utils/errorhandler.h
+        utils/configurationmanager.h
+        utils/unittype.h
+
+        gui/windowMangement/aboutwindow.h
+        gui/windowMangement/settingswindow.h
+        gui/windowMangement/shipnetsimui.h
+        gui/windowMangement/shipnetsim.h
+
+        gui/components/osgearthqtwidget.h
+        gui/components/checkboxdelegate.h
+        gui/components/ClickableLabel.h
+        gui/components/comboboxdelegate.h
+        gui/components/customprogressbar.h
+        gui/components/customtablewidget.h
+        gui/components/disappearinglabel.h
+        gui/components/intnumericdelegate.h
+        gui/components/nonemptydelegate.h
+        gui/components/numericdelegate.h
+        gui/components/osgwidget.cpp
+        gui/components/osgwidget.h
+        gui/components/simulationworker.h
+        gui/components/textboxdelegate.h
+        gui/components/togglebutton.h
+        gui/components/globalmapmanager.h
+        gui/components/customprogressbar.h
+        gui/components/portclickhandler.h
+
 )
 
+set(PROJECT_UI_FILES
+        gui/windowMangement/aboutwindow.ui
+        gui/windowMangement/settingswindow.ui
+        gui/windowMangement/shipnetsim.ui
+)
+
+set(PROJECT_SOURCES
+        ../ShipNetSim/network/point.cpp
+        ../ShipNetSim/network/gpoint.cpp
+        ../ShipNetSim/network/seaport.cpp
+        ../ShipNetSim/network/line.cpp
+        ../ShipNetSim/network/gline.cpp
+        ../ShipNetSim/network/polygon.cpp
+        ../ShipNetSim/network/algebraicvector.cpp
+        ../ShipNetSim/network/galgebraicvector.cpp
+        ../ShipNetSim/network/optimizedvisibilitygraph.cpp
+        ../ShipNetSim/network/quadtree.cpp
+        ../ShipNetSim/network/optimizednetwork.cpp
+        ../ShipNetSim/utils/data.cpp
+
+        ../ShipNetSim/ship/battery.cpp
+        ../ShipNetSim/ship/holtropmethod.cpp
+        ../ShipNetSim/ship/ienergyconsumer.cpp
+        ../ShipNetSim/ship/ishipengine.cpp
+        ../ShipNetSim/ship/ishipgearbox.cpp
+        ../ShipNetSim/ship/ishippropeller.cpp
+        ../ShipNetSim/ship/langmaomethod.cpp
+        ../ShipNetSim/ship/ship.cpp
+        ../ShipNetSim/ship/shipengine.cpp
+        ../ShipNetSim/ship/shipfuel.cpp
+        ../ShipNetSim/ship/shipgearbox.cpp
+        ../ShipNetSim/ship/shippropeller.cpp
+        ../ShipNetSim/ship/tank.cpp
+
+        ../ShipNetSim/simulator.cpp
+
+        utils/defaults.cpp
+        utils/configurationmanager.cpp
+
+        gui/windowMangement/aboutwindow.cpp
+        gui/windowMangement/settingswindow.cpp
+        gui/windowMangement/shipnetsimui.cpp
+
+        gui/components/osgearthqtwidget.cpp
+        gui/components/clickablelabel.cpp
+        gui/components/customtablewidget.cpp
+        gui/components/disappearinglabel.cpp
+        gui/components/simulationworker.cpp
+        gui/components/togglebutton.cpp
+        gui/components/globalmapmanager.cpp
+        gui/windowMangement/shipnetsim.cpp
+        utils/errorhandler.cpp
+
+        main.cpp
+)
+
+# set configuration file
+configure_file(VersionConfig.h.in VersionConfig.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(ShipNetSimGUI
         MANUAL_FINALIZATION
+
+        ${PROJECT_H_FILES}
+        ${PROJECT_UI_FILES}
         ${PROJECT_SOURCES}
-        gui/portclickhandler.h
+        gui/media/src.qrc
+
 
 
         # guiclasses/osgwidget.h guiclasses/osgwidget.cpp
