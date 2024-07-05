@@ -19,7 +19,7 @@
 #include <QTranslator>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
-#include "ship/readships.h"
+#include "ship/shipsList.h"
 #include "utils/utils.h"
 #include "utils/updatechecker.h"
 
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
     double timeStep = 1.0;
 
     // Simulator and network object setup.
-    std::shared_ptr<OptimizedNetwork> net;
+    OptimizedNetwork* net = nullptr;
     QVector<std::shared_ptr<Ship>> ships;
     std::unique_ptr<Simulator> sim;
 
@@ -341,7 +341,9 @@ int main(int argc, char *argv[])
         // Check if the parametric resistance flag is set
         if (parser.isSet(studyResistances))
         {
-            ships = readShips::readShipsFile(shipsFile, nullptr, true);
+            auto shipsDetails =
+                ShipsList::readShipsFile(shipsFile, nullptr, true);
+            ships = ShipsList::loadShipsFromParameters(shipsDetails);
             sim = std::make_unique<Simulator>(nullptr,
                                               ships,
                                               units::time::second_t(timeStep));
@@ -374,10 +376,12 @@ int main(int argc, char *argv[])
             std::cout <<"\nLoading Networks!              \n";
 
             // Initialize network and simulator with config.
-            net = std::make_shared<OptimizedNetwork>(waterBoundariesFile);
+            net = new OptimizedNetwork(waterBoundariesFile);
 
             std::cout <<"\nLoading Ships!                 \n";
-            ships = readShips::readShipsFile(shipsFile, net, false);
+            auto shipsDetails =
+                ShipsList::readShipsFile(shipsFile, net, false);
+            ships = ShipsList::loadShipsFromParameters(shipsDetails);
 
             std::cout <<"\nPutting Things Together!       \n";
             sim = std::make_unique<Simulator>(net,
@@ -397,6 +401,7 @@ int main(int argc, char *argv[])
             sim->getOutputFolder().toStdString() << std::endl;
     }
     catch (const std::exception& e) {
+        if (net) delete net;
         // Log setup errors and exit application.
         qWarning() << "An error occurred: " << e.what();
         Logger::detach(); // Ensure logger is detached.
