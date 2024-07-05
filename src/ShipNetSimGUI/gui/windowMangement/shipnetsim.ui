@@ -6,12 +6,16 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1318</width>
+    <width>1590</width>
     <height>804</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>ShipNetSim</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../media/src.qrc">
+    <normaloff>:/Logo25x25.png</normaloff>:/Logo25x25.png</iconset>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_2">
@@ -210,7 +214,7 @@
         </widget>
         <widget class="QWidget" name="tab">
          <attribute name="title">
-          <string>Ships Definition</string>
+          <string>Vessels Definition</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_13">
           <item row="0" column="0">
@@ -258,7 +262,7 @@
                       </size>
                      </property>
                      <property name="text">
-                      <string>Ships File</string>
+                      <string>Vessels File</string>
                      </property>
                     </widget>
                    </item>
@@ -323,13 +327,37 @@
                <item row="1" column="0">
                 <widget class="QTabWidget" name="tabWidget_newTrainOD">
                  <property name="currentIndex">
-                  <number>0</number>
+                  <number>1</number>
                  </property>
                  <widget class="QWidget" name="tab_6">
                   <attribute name="title">
-                   <string>Define Vehicles</string>
+                   <string>Define Vessels</string>
                   </attribute>
                   <layout class="QGridLayout" name="gridLayout_15">
+                   <item row="1" column="0">
+                    <layout class="QHBoxLayout" name="horizontalLayout">
+                     <item>
+                      <spacer name="horizontalSpacer_5">
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                     <item>
+                      <widget class="QPushButton" name="pushButton_saveNewShips">
+                       <property name="text">
+                        <string>Save Ships File</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
                    <item row="0" column="0">
                     <layout class="QVBoxLayout" name="verticalLayout_2">
                      <item>
@@ -340,7 +368,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="CustomTableWidget" name="table_newLocomotive">
+                      <widget class="CustomTableWidget" name="table_newShips">
                        <attribute name="horizontalHeaderDefaultSectionSize">
                         <number>140</number>
                        </attribute>
@@ -557,21 +585,9 @@
                  </widget>
                  <widget class="QWidget" name="tab_8">
                   <attribute name="title">
-                   <string>Define Ships Paths</string>
+                   <string>Define Vessels Paths</string>
                   </attribute>
                   <layout class="QGridLayout" name="gridLayout_17">
-                   <item row="1" column="0">
-                    <layout class="QVBoxLayout" name="verticalLayout_4">
-                     <item>
-                      <widget class="OSGEarthQtWidget" name="plot_trains" native="true">
-                       <property name="mouseTracking">
-                        <bool>true</bool>
-                       </property>
-                       <layout class="QGridLayout" name="gridLayout_18"/>
-                      </widget>
-                     </item>
-                    </layout>
-                   </item>
                    <item row="0" column="0">
                     <layout class="QHBoxLayout" name="horizontalLayout_5">
                      <item>
@@ -582,7 +598,7 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QComboBox" name="combo_visualizeTrain"/>
+                      <widget class="QComboBox" name="combo_visualizeShip"/>
                      </item>
                      <item>
                       <spacer name="horizontalSpacer_6">
@@ -599,12 +615,33 @@
                      </item>
                     </layout>
                    </item>
+                   <item row="1" column="0">
+                    <layout class="QVBoxLayout" name="verticalLayout_4">
+                     <item>
+                      <widget class="OSGEarthQtWidget" name="plot_trains" native="true">
+                       <property name="mouseTracking">
+                        <bool>true</bool>
+                       </property>
+                       <layout class="QGridLayout" name="gridLayout_18"/>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
                    <item row="2" column="0">
                     <layout class="QHBoxLayout" name="horizontalLayout_3">
+                     <property name="sizeConstraint">
+                      <enum>QLayout::SetMaximumSize</enum>
+                     </property>
                      <item>
                       <widget class="QLabel" name="label_21">
+                       <property name="maximumSize">
+                        <size>
+                         <width>16777215</width>
+                         <height>20</height>
+                        </size>
+                       </property>
                        <property name="text">
-                        <string>Left click to select a node, right click to deselect it.</string>
+                        <string>Click once to select a port, click again to deselect it..</string>
                        </property>
                       </widget>
                      </item>
@@ -620,13 +657,6 @@
                         </size>
                        </property>
                       </spacer>
-                     </item>
-                     <item>
-                      <widget class="QPushButton" name="pushButton_saveNewTrains">
-                       <property name="text">
-                        <string>Save Ships File</string>
-                       </property>
-                      </widget>
                      </item>
                     </layout>
                    </item>
@@ -664,21 +694,24 @@
                 <property name="maximumSize">
                  <size>
                   <width>16777215</width>
-                  <height>229</height>
+                  <height>200</height>
                  </size>
                 </property>
                 <property name="title">
                  <string>Simulation options</string>
                 </property>
+                <property name="alignment">
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                </property>
                 <layout class="QGridLayout" name="gridLayout_20">
                  <property name="sizeConstraint">
                   <enum>QLayout::SetFixedSize</enum>
                  </property>
-                 <item row="0" column="1">
+                 <item row="0" column="3">
                   <widget class="QGroupBox" name="verticalGroupBox_6">
                    <property name="minimumSize">
                     <size>
-                     <width>600</width>
+                     <width>400</width>
                      <height>0</height>
                     </size>
                    </property>
@@ -748,7 +781,7 @@
                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to display a detailed summary of trains during the simulation. By selecting this option, you indicate your preference for additional information and metrics about each individual train's performance and status.&lt;/p&gt;&lt;p&gt;When checked, the simulation output will include a detailed trains summary, providing insights such as train energy consumptions, arrival times, and any relevant performance metrics. This detailed summary can be helpful for in-depth analysis and monitoring of each train's behavior throughout the simulation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="text">
-                         <string>Show detailed ships summary?</string>
+                         <string>Show detailed vessels summary?</string>
                         </property>
                        </widget>
                       </item>
@@ -794,6 +827,19 @@
                       </item>
                      </layout>
                     </item>
+                    <item>
+                     <spacer name="verticalSpacer_4">
+                      <property name="orientation">
+                       <enum>Qt::Vertical</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>20</width>
+                        <height>40</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
                    </layout>
                   </widget>
                  </item>
@@ -803,6 +849,12 @@
                     <layout class="QHBoxLayout" name="horizontalLayout_8">
                      <item>
                       <widget class="QGroupBox" name="verticalGroupBox_61">
+                       <property name="minimumSize">
+                        <size>
+                         <width>350</width>
+                         <height>0</height>
+                        </size>
+                       </property>
                        <property name="title">
                         <string>General</string>
                        </property>
@@ -915,12 +967,105 @@
                           </item>
                          </layout>
                         </item>
+                        <item>
+                         <spacer name="verticalSpacer_3">
+                          <property name="orientation">
+                           <enum>Qt::Vertical</enum>
+                          </property>
+                          <property name="sizeHint" stdset="0">
+                           <size>
+                            <width>20</width>
+                            <height>40</height>
+                           </size>
+                          </property>
+                         </spacer>
+                        </item>
                        </layout>
                       </widget>
                      </item>
                     </layout>
                    </item>
                   </layout>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QGroupBox" name="groupBox_2">
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="title">
+                    <string>Simulation Date and Time</string>
+                   </property>
+                   <layout class="QGridLayout" name="gridLayout_3">
+                    <item row="0" column="0">
+                     <layout class="QVBoxLayout" name="verticalLayout_3">
+                      <item>
+                       <widget class="QLabel" name="label_16">
+                        <property name="text">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select simulation start date and time. &lt;/p&gt;&lt;p&gt;This selection is necessary to utilize the right environmental conditions for the vessel dynamics calculations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="wordWrap">
+                         <bool>true</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <layout class="QHBoxLayout" name="horizontalLayout_4">
+                        <item>
+                         <widget class="QLabel" name="label_6">
+                          <property name="text">
+                           <string>start time:</string>
+                          </property>
+                         </widget>
+                        </item>
+                        <item>
+                         <widget class="QDateTimeEdit" name="dateTimeEdit">
+                          <property name="date">
+                           <date>
+                            <year>2024</year>
+                            <month>1</month>
+                            <day>1</day>
+                           </date>
+                          </property>
+                          <property name="calendarPopup">
+                           <bool>true</bool>
+                          </property>
+                         </widget>
+                        </item>
+                        <item>
+                         <spacer name="horizontalSpacer_4">
+                          <property name="orientation">
+                           <enum>Qt::Horizontal</enum>
+                          </property>
+                          <property name="sizeHint" stdset="0">
+                           <size>
+                            <width>40</width>
+                            <height>20</height>
+                           </size>
+                          </property>
+                         </spacer>
+                        </item>
+                       </layout>
+                      </item>
+                      <item>
+                       <spacer name="verticalSpacer">
+                        <property name="orientation">
+                         <enum>Qt::Vertical</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>20</width>
+                          <height>40</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </widget>
                  </item>
                 </layout>
                </widget>
@@ -932,7 +1077,7 @@
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
-                  <width>40</width>
+                  <width>10</width>
                   <height>20</height>
                  </size>
                 </property>
@@ -1006,7 +1151,7 @@
                 <item>
                  <layout class="QVBoxLayout" name="verticalLayout_12">
                   <item>
-                   <widget class="QPrintPreviewWidget" name="widget_SummaryReport" native="true"/>
+                   <widget class="QWidget" name="widget_SummaryReport" native="true"/>
                   </item>
                  </layout>
                 </item>
@@ -1080,7 +1225,7 @@
                 <item>
                  <widget class="QLabel" name="label_23">
                   <property name="text">
-                   <string>Ship ID:</string>
+                   <string>Vessel ID:</string>
                   </property>
                  </widget>
                 </item>
@@ -1219,7 +1364,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1318</width>
+     <width>1590</width>
      <height>25</height>
     </rect>
    </property>
@@ -1305,36 +1450,32 @@
   <customwidget>
    <class>OSGEarthQtWidget</class>
    <extends>QWidget</extends>
-   <header>gui/osgearthqtwidget.h</header>
+   <header>../src/ShipNetSimGUI/gui/components/osgearthqtwidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
    <class>CustomTableWidget</class>
    <extends>QTableWidget</extends>
-   <header>gui/customtablewidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>QPrintPreviewWidget</class>
-   <extends>QWidget</extends>
-   <header>qprintpreviewwidget.h</header>
-   <container>1</container>
+   <header>../src/ShipNetSimGUI/gui/components/customtablewidget.h</header>
   </customwidget>
   <customwidget>
    <class>DisappearingLabel</class>
    <extends>QLabel</extends>
-   <header>gui/disappearinglabel.h</header>
+   <header>../src/ShipNetSimGUI/gui/components/disappearinglabel.h</header>
   </customwidget>
   <customwidget>
    <class>CustomProgressBar</class>
    <extends>QProgressBar</extends>
-   <header>gui/customprogressbar.h</header>
+   <header>../src/ShipNetSimGUI/gui/components/customprogressbar.h</header>
   </customwidget>
   <customwidget>
    <class>ToggleButton</class>
    <extends>QPushButton</extends>
-   <header>gui/togglebutton.h</header>
+   <header>../src/ShipNetSimGUI/gui/components/togglebutton.h</header>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="../media/src.qrc"/>
+ </resources>
  <connections/>
 </ui>

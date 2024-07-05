@@ -12,10 +12,10 @@ QVector<QString> earthTifPaths =
 
 QVector<QString> iconPath =
     {
-        "./data/seaPortIcon.png",
+        "./data/portIcon25px.png",
         "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-        "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/placemark32.png",
+        "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/portIcon25px.png",
         "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
-        "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/seaPortIcon.png"
+        "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/placemark32.png"
 };
 }

@@ -11,7 +11,7 @@
 #include <QAction>
 #include <QClipboard>
 // #include <QMessageBox>
-// #include "../NeTrainSim/util/utils.h"
+// #include "../NeTrainSim/utils/utils.h"
 
 CustomTableWidget::CustomTableWidget(QWidget *parent)
     : QTableWidget(parent)

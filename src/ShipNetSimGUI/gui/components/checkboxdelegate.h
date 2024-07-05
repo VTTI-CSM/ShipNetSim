@@ -1,8 +1,8 @@
 #ifndef CHECKBOXDELEGATE_H
 #define CHECKBOXDELEGATE_H
 
-#include "qapplication.h"
-#include "qpainter.h"
+#include <QApplication>
+#include <QPainter>
 #include <QStyledItemDelegate>
 #include <QCheckBox>
 

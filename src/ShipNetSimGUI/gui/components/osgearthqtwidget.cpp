@@ -49,6 +49,8 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent) :
     QObject::connect(this, &osgQOpenGLWidget::initialized, [this]
                      {
 
+        std::cout << "Widget initialized." << std::endl;
+
         // This is normally called by Viewer::run but we are
         // running our frame loop manually so we need to call it here.
         getOsgViewer()->setReleaseContextAtEndOfFrameHint(false);
@@ -106,7 +108,7 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent) :
         auto manager = GlobalMapManager::getInstance();
 
         osg::ref_ptr<osg::Group> preloadedMapRoot =
-            manager.getRootGroup();
+            manager->getRootGroup();
 
         // if the map is already loaded, do not load again.
         if (preloadedMapRoot) {
@@ -114,36 +116,59 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent) :
         }
         else {
             // Load the Earth model normally if not preloaded
-            manager.preloadEarthModel();
+            manager->preloadEarthModel();
             setMapNode(preloadedMapRoot);
         }
 
-        osgEarth::Util::ObjectIDPicker* picker = new ObjectIDPicker();
+        if (!preloadedMapRoot) {
+            std::cerr << "Preloaded map root is null." << std::endl;
+            return;
+        }
+
+        osgEarth::ObjectIDPicker* picker = new ObjectIDPicker();
+        if (!picker) {
+            std::cerr << "Failed to create ObjectIDPicker." << std::endl;
+            return;
+        }
+
+        std::cout << "Setting picker view and graph." << std::endl;
         picker->setView(getOsgViewer());
-        picker->setGraph(preloadedMapRoot.get());
-        preloadedMapRoot->addChild(picker);
+        picker->setGraph(manager->getMapNode().get());
+        manager->getMapNode()->addChild(picker);
+        std::cout << "Picker added to scene graph." << std::endl;
 
-        ObjectIDPicker::Function pick = [&](ObjectID id)
+        picker->onClick([&](const ObjectID& id)
         {
-            std::cout << id << "here!\n";
-            if (id > 0)
+            if (id != OSGEARTH_OBJECTID_EMPTY)
             {
-                std::cout << "Inside: " << id << " --  ";
+                auto place = Registry::objectIndex()->get<AnnotationNode>(id);
+                if (place)
+                {
+                    std::cout << "Clicked on \"" << place->getText() << "\""
+                              << std::endl;
 
-                // Got a pick:
-                FeatureIndex* index = Registry::objectIndex()->get<FeatureIndex>(id).get();
-                std::cout << "BLA: " << index;
-                Feature* feature = index ? index->getFeature(id) : 0L;
-                _pickedAnno = Registry::objectIndex()->get<AnnotationNode>(id).get();
-                std::cout << "Label: " << _pickedAnno->getName() << " : " << id;
+                    // Retrieve custom data
+                    auto customData =
+                        dynamic_cast<GlobalMapManager::CustomData<
+                        std::shared_ptr<ShipNetSimCore::SeaPort>>*>(
+                        place->getUserData());
+
+                    if (customData)
+                    {
+                        std::shared_ptr<ShipNetSimCore::SeaPort> seaPortPtr =
+                            customData->getData();
+                        std::cout << "Custom data retrieved successfully."
+                                  << std::endl;
+                        std::cout << "From Country: \""
+                                  << seaPortPtr->getCountryName().toStdString()
+                                  << "\"" << std::endl;
+
+                    }
+                }
             }
-            else
-            {
-                // No pick:
-                _pickedAnno = nullptr;
-            }
-        };
-        picker->onClick(pick);
+        });
+
+        std::cout << "Picker onClick function connected." << std::endl;
     });
 
 
@@ -173,6 +198,11 @@ void OSGEarthQtWidget::setMapNode(osg::ref_ptr<osg::Group> root)
             // printSceneGraph(root.get());
         }
     }
+}
+
+void OSGEarthQtWidget::addDefaultPorts() {
+    auto manager = GlobalMapManager::getInstance();
+    manager->addSeaPort();
 }
 
 void OSGEarthQtWidget::printSceneGraph(const osg::Node* node, int level) {
