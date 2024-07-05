@@ -1,7 +1,7 @@
 // #include "shipnetsim.h"
 
-#include "shipnetsim.h"
-#include "ui_shipnetsim.h"
+#include "gui/windowMangement/shipnetsim.h"
+#include "gui/windowMangement/ui_shipnetsim.h"
 #include <osgQOpenGL/osgQOpenGLWidget>
 
 #include <osgDB/ReadFile>
@@ -30,7 +30,7 @@
 #include <osgEarth/Utils>
 #include <osgEarth/Registry>
 #include <osgEarth/Metrics>
-#include <osgEarth/ExampleResources>
+// #include <osgEarth/ExampleResources>
 
 #include <QApplication>
 #include <QSurfaceFormat>
@@ -39,7 +39,7 @@
 #include <windows.h>
 #include <iostream>
 
-#include "./gui/globalmapmanager.h"
+#include "./gui/components/globalmapmanager.h"
 
 
 int main(int argc, char *argv[])
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     QSurfaceFormat::setDefaultFormat(format);
 
-    GlobalMapManager::getInstance().preloadEarthModel();
+    GlobalMapManager::getInstance()->preloadEarthModel();
 
     ShipNetSim w;
 
