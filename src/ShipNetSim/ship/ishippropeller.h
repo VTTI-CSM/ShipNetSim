@@ -274,6 +274,12 @@ public:
     virtual units::angular_velocity::revolutions_per_minute_t
     getOptimumRPM(units::velocity::meters_per_second_t speed) = 0;
 
+    bool requestHigherEnginePower();
+
+    bool requestLowerEnginePower();
+
+    IShipEngine::EngineOperationalLoad getCurrentOperationalLoad();
+
 protected:
     Ship *mHost;            /**< The ship associated with the propeller. */
     IShipGearBox* mGearBox; /**< The gearbox connected to the propeller. */

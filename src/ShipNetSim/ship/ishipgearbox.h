@@ -161,6 +161,12 @@ public:
      */
     virtual void setEngineMaxPowerLoad(double targetPowerLoad) = 0;
 
+    IShipEngine::EngineOperationalLoad getCurrentOperationalLoad();
+
+    bool requestHigherEnginePower();
+
+    bool requestLowerEnginePower();
+
 protected:
     Ship *mHost;     ///< Pointer to the ship associated with the gearbox.
     QVector<IShipEngine *>

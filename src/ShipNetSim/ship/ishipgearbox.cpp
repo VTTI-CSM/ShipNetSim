@@ -41,4 +41,26 @@ const Ship *IShipGearBox::getHost() const
 {
     return mHost;
 }
+
+bool IShipGearBox::requestHigherEnginePower() {
+    bool result = true;
+    for (auto& engine: mEngines) {
+        result *= engine->requestHigherEnginePower();
+    }
+
+    return result;
+}
+
+bool IShipGearBox::requestLowerEnginePower() {
+    bool result = true;
+    for (auto& engine: mEngines) {
+        result *= engine->requestLowerEnginePower();
+    }
+
+    return result;
+}
+
+IShipEngine::EngineOperationalLoad IShipGearBox::getCurrentOperationalLoad() {
+    return mEngines[0]->getCurrentOperationalLoad();
+}
 };
