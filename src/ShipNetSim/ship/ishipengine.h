@@ -224,6 +224,12 @@ public:
 
     bool changeTier(EngineOperationalTier targetTier);
 
+    static QVector<EngineOperationalLoad>
+    getEngineOperationalLoads();
+
+    static QVector<EngineOperationalTier>
+    getEngineOperationalTiers();
+
 private:
     void setEngineProperitesSetting(QVector<EngineProperties> engineSettings);
 
@@ -258,11 +264,19 @@ protected:
     EngineOperationalLoad mCurrentOperationalLoad;
 
 
+
+
 private:
     /// Memorization
     QVector<double> mEnginePowerList = QVector<double>();
     QVector<double> mRPMList = QVector<double>();
     QVector<double> mEfficiencyList = QVector<double>();
+
+    static QVector<EngineOperationalLoad>
+        mEngineOperationalLoad;
+
+    static QVector<EngineOperationalTier>
+        mEngineOperationalTier;
 
 };
 };
