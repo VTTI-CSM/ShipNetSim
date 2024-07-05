@@ -8,7 +8,7 @@
 namespace ShipNetSimCore
 {
 
-Simulator::Simulator(std::shared_ptr<OptimizedNetwork> network,
+Simulator::Simulator(OptimizedNetwork* network,
                      QVector<std::shared_ptr<Ship>> shipList,
                      units::time::second_t simulatorTimeStep,
                      QObject *parent)
@@ -35,6 +35,10 @@ Simulator::Simulator(std::shared_ptr<OptimizedNetwork> network,
     mSummaryFileName = DefaultSummaryFilename +
                        QString::number(simulation_serial_number) + ".txt";
 
+}
+
+Simulator::~Simulator() {
+    mNetwork = nullptr;
 }
 
 void Simulator::studyShipsResistance()
@@ -212,6 +216,12 @@ void Simulator::setExportInstantaneousTrajectory(
     }
 }
 
+
+void
+Simulator::setExportIndividualizedShipsSummary(bool exportAllTrainsSummary) {
+    mExportIndividualizedTrainsSummary = exportAllTrainsSummary;
+}
+
 // The checkAllShipsReachedDestination function checks if
 // all ships have reached their destinations.
 // If a ship has not reached its destination, it returns false;
@@ -304,13 +314,12 @@ void Simulator::runSimulation()
         if (mPlotFrequency > 0.0 &&
             ((int(this->mSimulationTime) * 10) % (mPlotFrequency * 10)) == 0)
         {
-            QVector<std::pair<QString, Point>> shipsLocs;
+            QVector<std::pair<QString, GPoint>> shipsLocs;
 
             for (std::shared_ptr <Ship>& s : (this->mShips)) {
                 if (! s->isLoaded()) { continue; }
 
-                Point nP = s->getCurrentPosition().projectTo(
-                    Point::getDefaultProjectionReference().get());
+                GPoint nP = s->getCurrentPosition();
                 auto data = std::make_pair(s->getUserID(),
                                            nP);
                 shipsLocs.push_back(data);
