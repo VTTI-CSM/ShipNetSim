@@ -107,4 +107,18 @@ void IShipPropeller::setPropellerBladesCount(int newPropellerBladesCount)
 {
     mNumberOfblades = newPropellerBladesCount;
 }
+
+bool IShipPropeller::requestHigherEnginePower() {
+    return mGearBox->requestHigherEnginePower();
+}
+
+bool IShipPropeller::requestLowerEnginePower() {
+    return mGearBox->requestLowerEnginePower();
+}
+
+IShipEngine::EngineOperationalLoad
+IShipPropeller::getCurrentOperationalLoad() {
+    return mGearBox->getCurrentOperationalLoad();
+}
+
 };
