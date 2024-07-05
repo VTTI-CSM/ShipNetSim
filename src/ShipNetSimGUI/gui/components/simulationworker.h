@@ -5,9 +5,9 @@
  *        It receives input data and parameters, performs the simulation using the Simulator class, and emits signals to update the UI.
  *        The SimulationWorker class is intended to be used for simulation tasks in a multi-threaded application.
  *        It is designed to work with the Simulator class and communicates with the UI through signals and slots.
- *        The SimulationWorker class takes nodeRecords, linkRecords, trainRecords, networkName, endTime, timeStep, plotFrequency,
- *        exportDir, summaryFilename, exportInsta, instaFilename, and exportAllTrainsSummary as input data for simulation.
- *        It performs the simulation, updates the progress, coordinates of trains, and emits signals to inform the UI about the progress and results.
+ *        The SimulationWorker class takes nodeRecords, linkRecords, shipRecords, networkName, endTime, timeStep, plotFrequency,
+ *        exportDir, summaryFilename, exportInsta, instaFilename, and exportAllShipsSummary as input data for simulation.
+ *        It performs the simulation, updates the progress, coordinates of ships, and emits signals to inform the UI about the progress and results.
  *        The SimulationWorker class can be used in a QWidget-based application.
  * @author Ahmed Aredah
  * @date 6/7/2023
@@ -16,9 +16,9 @@
 #ifndef SIMULATIONWORKER_H
 #define SIMULATIONWORKER_H
 
-#include <any>
 #include <QObject>
-#include "../NeTrainSim/simulator.h"
+#include "../ShipNetSim/simulator.h"
+#include "../ShipNetSim/network/gpoint.h"
 
 /**
  * @class SimulationWorker
@@ -34,7 +34,7 @@ public:
      * input data and parameters.
      * @param nodeRecords The node records for the simulation.
      * @param linkRecords The link records for the simulation.
-     * @param trainRecords The train records for the simulation.
+     * @param shipRecords The ship records for the simulation.
      * @param networkName The network name for the simulation.
      * @param endTime The end time for the simulation.
      * @param timeStep The time step for the simulation.
@@ -44,17 +44,18 @@ public:
      * @param exportInsta Indicates whether to export instant data in the
      * simulation.
      * @param instaFilename The instant data filename for the simulation.
-     * @param exportAllTrainsSummary Indicates whether to export summary
-     * data for all trains in the simulation.
+     * @param exportAllShipsSummary Indicates whether to export summary
+     * data for all ships in the simulation.
      */
-    SimulationWorker(Vector<Map<std::string, std::string>> nodeRecords,
-                     Vector<Map<std::string, std::string>> linkRecords,
-                     Vector<Map<string, std::any> > trainRecords,
-                     std::string networkName,
-                     double endTime, double timeStep, double plotFrequency,
-                     std::string exportDir,
-                     std::string summaryFilename, bool exportInsta,
-                     std::string instaFilename, bool exportAllTrainsSummary);
+    template<typename T>
+    SimulationWorker(QString waterBoundariesFile,
+                     QVector<QMap<QString, T>> shipsRecords,
+                     QString networkName,
+                     units::time::second_t endTime,
+                     units::time::second_t timeStep, double plotFrequency,
+                     QString exportDir,
+                     QString summaryFilename, bool exportInsta,
+                     QString instaFilename, bool exportAllShipsSummary);
 
     /**
      * @brief Destroys the SimulationWorker object.
@@ -68,18 +69,17 @@ signals:
      * @param trajectoryFile The trajectory file path of the simulation.
      */
     void simulationFinished(
-        const Vector<std::pair<std::string, std::string>>& summaryData,
-        const std::string& trajectoryFile);
+        const QVector<std::pair<QString, QString>>& summaryData,
+        const QString& trajectoryFile);
 
     /**
-     * @brief Signal emitted when the coordinates of trains are updated.
-     * @param trainsStartEndPoints The start and end points of trains'
+     * @brief Signal emitted when the coordinates of ships are updated.
+     * @param shipsStartEndPoints The start and end points of ships'
      * coordinates.
      */
-    void trainsCoordinatesUpdated(
-        Vector<std::pair<std::string,
-                         Vector<std::pair<double,
-                                          double>>>> trainsStartEndPoints);
+    void shipsCoordinatesUpdated(
+        QVector<std::pair<QString,
+                          ShipNetSimCore::GPoint>> shipsStartEndPoints);
 
     /**
      * @brief Signal emitted when the simulation progress is updated.
@@ -91,13 +91,13 @@ signals:
      * @brief Signal emitted when an error occurs during the simulation.
      * @param error The error message.
      */
-    void errorOccurred(std::string error);
+    void errorOccurred(QString error);
 
-    void trainSuddenAcceleration(std::string msg);
+    void shipSuddenAcceleration(QString msg);
 
-    void trainSlowSpeed(std::string msg);
+    void shipSlowSpeed(QString msg);
 
-    void trainsCollided(std::string& msg);
+    void shipsCollided(QString& msg);
 
 public slots:
     /**
@@ -107,14 +107,13 @@ public slots:
     void onProgressUpdated(int progressPercentage);
 
     /**
-     * @brief Slot called when the coordinates of trains are updated.
-     * @param trainsStartEndPoints The start and end points of trains'
+     * @brief Slot called when the coordinates of ships are updated.
+     * @param shipsStartEndPoints The start and end points of ships'
      * coordinates.
      */
-    void onTrainsCoordinatesUpdated(
-        Vector<std::pair<std::string,
-                         Vector<std::pair<double,
-                                          double>>>> trainsStartEndPoints);
+    void onShipsCoordinatesUpdated(
+        QVector<std::pair<QString,
+                          ShipNetSimCore::GPoint> > shipsStartEndPoints);
 
     /**
      * @brief Slot called when the simulation is finished.
@@ -122,9 +121,9 @@ public slots:
      * @param trajectoryFile The trajectory file path of the simulation.
      */
     void onSimulationFinished(
-        const Vector<std::pair<std::string,
-                               std::string>> &summaryData,
-        const string &trajectoryFile);
+        const QVector<std::pair<QString,
+                                QString>> &summaryData,
+        const QString &trajectoryFile);
 
     /**
      * @brief Slot called to start the simulation work.
@@ -133,9 +132,9 @@ public slots:
 
 public:
     /**< Pointer to the Simulator object for performing the simulation. */
-    Simulator* sim;
+    ShipNetSimCore::Simulator* sim;
     /**< Pointer to the Network object used in the simulation. */
-    Network* net;
+    ShipNetSimCore::OptimizedNetwork* net;
 };
 
 #endif // SIMULATIONWORKER_H

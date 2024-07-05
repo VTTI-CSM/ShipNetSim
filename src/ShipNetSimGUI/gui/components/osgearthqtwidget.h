@@ -32,6 +32,7 @@ public:
     explicit OSGEarthQtWidget(QWidget *parent = 0);
     virtual ~OSGEarthQtWidget();
     void setMapNode(osg::ref_ptr<osg::Group> root);
+    void addDefaultPorts();
 private:
     osg::ref_ptr<AnnotationNode> _pickedAnno;
     void configureView( osgViewer::View* view ) const;

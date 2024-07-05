@@ -1,7 +1,7 @@
 #ifndef SETTINGSWINDOW_H
 #define SETTINGSWINDOW_H
 
-#include "qlineedit.h"
+#include <QLineEdit>
 #include <QMainWindow>
 
 namespace Ui {

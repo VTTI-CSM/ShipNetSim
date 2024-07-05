@@ -27,7 +27,7 @@
 #include <osgEarth/Registry>
 
 #include <QString>
-#include "../defaults.h"
+#include "../../utils/defaults.h"
 #include "osgEarth/ObjectIndex"
 #include "portclickhandler.h"
 #include "utils/utils.h"
@@ -36,10 +36,22 @@
 class GlobalMapManager
 {
 public:
-    static GlobalMapManager& getInstance() {
+    static GlobalMapManager* getInstance() {
         static GlobalMapManager instance;
-        return instance;
+        return &instance;
     }
+
+    template <typename T>
+    class CustomData : public osg::Referenced
+    {
+    public:
+        CustomData(const T& data) : _data(data) {}
+
+        const T& getData() const { return _data; }
+
+    private:
+        T _data;
+    };
 
     void preloadEarthModel() {
         if (!_mapNode) { // Prevent reloading if already loaded
@@ -102,6 +114,13 @@ public:
     void
     addSeaPort()
     {
+
+        if (!_mapNode.valid())
+        {
+            qDebug() << "MapNode is not valid!";
+            return;
+        }
+
         // load sea ports
         QVector<std::shared_ptr<ShipNetSimCore::SeaPort>> ports =
             ShipNetSimCore::OptimizedNetwork::loadFirstAvailableSeaPorts();
@@ -120,9 +139,9 @@ public:
         labelStyle.getOrCreate<osgEarth::TextSymbol>()->halo() =
             osgEarth::Color("#5f5f5f");
 
-        osgEarth::Style pointStyle;
-        pointStyle.getOrCreate<osgEarth::IconSymbol>()->url()->setLiteral("path/to/icon.png");
-        pointStyle.getOrCreate<osgEarth::IconSymbol>()->declutter() = true;
+        // osgEarth::Style pointStyle;
+        // pointStyle.getOrCreate<osgEarth::IconSymbol>()->url()->setLiteral("path/to/icon.png");
+        // pointStyle.getOrCreate<osgEarth::IconSymbol>()->declutter() = true;
 
 
         // Path for icon
@@ -167,13 +186,18 @@ public:
                             osgEarth::AltitudeMode::ALTMODE_ABSOLUTE),
                         labelText.toStdString(),
                         pm);
+
+                // store port data on the label
+                auto customData =
+                    new GlobalMapManager::CustomData<
+                    std::shared_ptr<ShipNetSimCore::SeaPort>>(port);
+                label->setUserData(customData);
+
                 label->setStyle(labelStyle);
                 // label->setName("Port_" + port->getPortName().toStdString());
                 iconNode = label;
 
-                // osgEarth::Registry::instance()->objectIndex()->tagNode(iconNode, iconNode );
-                // osgEarth::Registry::instance()->objectIndex()->setObjectIDAtrribLocation(1);
-                // osgEarth::Registry::objectIndex()->tagNode( iconNode, iconNode );
+                osgEarth::Registry::objectIndex()->tagNode( iconNode, iconNode );
 
                 // clickHandler->addPortNode(label, port);
 
