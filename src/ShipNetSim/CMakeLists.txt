@@ -39,7 +39,7 @@ add_executable(${SHIPNETSIM_NAME}
   ship/shipengine.h ship/shipengine.cpp
   ship/ishipgearbox.h ship/ishipgearbox.cpp
   ship/shipgearbox.h ship/shipgearbox.cpp
-  ship/readships.h
+  ship/shipsList.h
   ship/defaults.h
   network/quadtree.h network/quadtree.cpp
   network/optimizedvisibilitygraph.h network/optimizedvisibilitygraph.cpp
@@ -56,6 +56,7 @@ add_executable(${SHIPNETSIM_NAME}
 
 # Include directories and link libraries are inherited from the parent scope
 target_include_directories(${SHIPNETSIM_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSim
     ${CMAKE_BINARY_DIR}
 )
 
