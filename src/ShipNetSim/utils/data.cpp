@@ -1,6 +1,7 @@
 #include "data.h"
 #include <QFile>
 #include <QTextStream>
+#include <QDomDocument>
 
 namespace ShipNetSimCore
 {
@@ -307,4 +308,120 @@ void Data::TXT::close()
         mFile.close();
     }
 }
+
+void Data::ProjectFile::createProjectFile(const ProjectDataFile pf,
+                                          QString& filename)
+{
+    // Create a QDomDocument object
+    QDomDocument doc;
+
+    // Create the root element
+    QDomElement root = doc.createElement("Data");
+    doc.appendChild(root);
+
+    // Create project name element and set its text
+    QDomElement projectElement = doc.createElement("ProjectName");
+    QDomText projectText = doc.createTextNode(pf.projectName);
+    projectElement.appendChild(projectText);
+    root.appendChild(projectElement);
+
+    // Create network name element and set its text
+    QDomElement networkElement = doc.createElement("NetworkName");
+    QDomText networkText = doc.createTextNode(pf.networkName);
+    networkElement.appendChild(networkText);
+    root.appendChild(networkElement);
+
+    // Create author name element and set its text
+    QDomElement authorElement = doc.createElement("AuthorName");
+    QDomText authorText = doc.createTextNode(pf.authorName);
+    authorElement.appendChild(authorText);
+    root.appendChild(authorElement);
+
+    // Create trains file name element and set its text
+    QDomElement trainsElement = doc.createElement("ShipsFileName");
+    QDomText trainsText = doc.createTextNode(pf.shipsFileName);
+    trainsElement.appendChild(trainsText);
+    root.appendChild(trainsElement);
+
+    // Create simEndTime name element and set its text
+    QDomElement ElementSimEndTime = doc.createElement("simEndTime");
+    QDomText simEndTimeText = doc.createTextNode(pf.simEndTime);
+    ElementSimEndTime.appendChild(simEndTimeText);
+    root.appendChild(ElementSimEndTime);
+
+    // Create simTimestep name element and set its text
+    QDomElement ElementsimTimestep = doc.createElement("simTimestep");
+    QDomText simTimestepText = doc.createTextNode(pf.simTimestep);
+    ElementsimTimestep.appendChild(simTimestepText);
+    root.appendChild(ElementsimTimestep);
+
+    // Create simTimestep name element and set its text
+    QDomElement ElementsimPlotTime = doc.createElement("simPlotTime");
+    QDomText simPlotTimeText = doc.createTextNode(pf.simPlotTime);
+    ElementsimPlotTime.appendChild(simPlotTimeText);
+    root.appendChild(ElementsimPlotTime);
+
+    // Create a QFile object to write the XML file
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        throw std::runtime_error("Error: "
+                                 "Failed to open the file for writing.");
+    }
+
+    // Create a QTextStream object to write the XML content to the file
+    QTextStream out(&file);
+    out.setDevice(&file); // Set the device of the QTextStream
+    out.setEncoding(QStringConverter::Utf8);
+    doc.save(out, 4); // Save the XML document with indentation
+
+    // Close the file
+    file.close();
+}
+
+Data::ProjectFile::ProjectDataFile
+Data::ProjectFile::readProjectFile(const QString& filename)
+{
+    // Create a QDomDocument object
+    QDomDocument doc;
+
+    // Create a QFile object to read the XML file
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        throw std::runtime_error("Error: Failed to open the file for reading.");
+    }
+
+    // Set the content of the QDomDocument with the file content
+    if (!doc.setContent(&file)) {
+        file.close();
+        throw std::runtime_error("Error: Failed to parse the XML file.");
+    }
+
+    // Close the file
+    file.close();
+
+    // Get the root element
+    QDomElement root = doc.documentElement();
+
+    // Get the child elements
+    QDomElement projectElement      = root.firstChildElement("ProjectName");
+    QDomElement networkElement      = root.firstChildElement("NetworkName");
+    QDomElement authorElement       = root.firstChildElement("AuthorName");
+    QDomElement trainsElement       = root.firstChildElement("ShipssFileName");
+    QDomElement simEndTimeElement   = root.firstChildElement("simEndTime");
+    QDomElement simTimestepElement  = root.firstChildElement("simTimestep");
+    QDomElement simPlotTimeElement  = root.firstChildElement("simPlotTime");
+
+    Data::ProjectFile::ProjectDataFile pf;
+    // Get the text values
+    pf.projectName       = projectElement.text();
+    pf.networkName       = networkElement.text();
+    pf.authorName        = authorElement.text();
+    pf.shipsFileName    = trainsElement.text();
+    pf.simEndTime        = simEndTimeElement.text();
+    pf.simTimestep       = simTimestepElement.text();
+    pf.simPlotTime       = simPlotTimeElement.text();
+
+    // Return the extracted values as a tuple
+    return pf;
+};
 };
