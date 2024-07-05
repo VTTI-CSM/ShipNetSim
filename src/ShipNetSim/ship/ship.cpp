@@ -2213,6 +2213,21 @@ void Ship::moveShip(units::time::second_t &timeStep,
         immediateStop(timeStep);
         mReachedDestination = true;
     }
+
+    // update operational power of the engine
+    if (mTotalThrust < mTotalResistance &&
+        getSpeed() < getMaxSpeed() * 0.8) {
+        for (auto& propeller: mPropellers) {
+            propeller->requestHigherEnginePower();
+        }
+    }
+    else if (mTotalThrust.value() > 1.25 * mTotalResistance.value() &&
+             mPropellers[0]->getCurrentOperationalLoad() >
+                 IShipEngine::EngineOperationalLoad::Economic) {
+        for (auto& propeller: mPropellers) {
+            propeller->requestLowerEnginePower();
+        }
+    }
 }
 
 void Ship::calculateGeneralStats(units::time::second_t timeStep) {
