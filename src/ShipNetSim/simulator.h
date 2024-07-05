@@ -62,7 +62,7 @@ private:
     /** The time step */
     units::time::second_t mTimeStep;
     /** The network */
-    std::shared_ptr<OptimizedNetwork> mNetwork;
+    OptimizedNetwork* mNetwork;
     /** The frequency of plotting the ships */
     int mPlotFrequency;
     /** The output location */
@@ -133,11 +133,14 @@ private:
     units::time::second_t getNotLoadedShipsMinStartTime();
 
 public:
-    explicit Simulator(std::shared_ptr<OptimizedNetwork> network,
+    explicit Simulator(OptimizedNetwork* network,
                        QVector<std::shared_ptr<Ship>> shipList,
                        units::time::second_t simulatorTimeStep =
                        DefaultTimeStep,
                        QObject *parent = nullptr);
+
+
+    ~Simulator();
 
     /**
      * @brief Study the ships resistance.
@@ -204,13 +207,16 @@ public:
                             DefaultSummaryEmptyFilename);
 
     /**
-     * @brief setExportInstantaneousTrajectory
+     * @brief set export instantaneous ship trajectory for all ships in the
+     * simulator at every simulation time step.
      *
      * @author	Ahmed Aredah
      * @date	2/28/2023
      *
-     * @param exportInstaTraject
-     * @param newInstaTrajectFilename
+     * @param exportInstaTraject        a boolean to enable or disable
+     *                                  the export trajectory
+     * @param newInstaTrajectFilename   a path to the file in case the
+     *                                  exportInstaTraject is set to true.
      */
     void setExportInstantaneousTrajectory(
         bool exportInstaTraject,
@@ -218,6 +224,14 @@ public:
         DefaultInstantaneousTrajectoryEmptyFilename);
 
 
+    /**
+     * @brief set the export individualized ships summary for all ships
+     * in the simulator.
+     *
+     *@param exportAllTrainsSummary a boolean to enable or disable exporting
+     *individualized ships summary.
+     */
+    void setExportIndividualizedShipsSummary(bool exportAllTrainsSummary);
 
 signals:
     /**
@@ -235,7 +249,7 @@ signals:
      *                            along with their start and end points.
      */
     void plotShipsUpdated(
-        QVector<std::pair<QString, Point>> shipsPoints);
+        QVector<std::pair<QString, GPoint>> shipsPoints);
 
     /**
      * @brief Signals that the simulation has finished.
