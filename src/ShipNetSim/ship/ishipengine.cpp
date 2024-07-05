@@ -3,6 +3,18 @@
 namespace ShipNetSimCore
 {
 
+QVector<IShipEngine::EngineOperationalLoad> IShipEngine::mEngineOperationalLoad = {
+    IShipEngine::EngineOperationalLoad::Low,
+    IShipEngine::EngineOperationalLoad::Economic,
+    IShipEngine::EngineOperationalLoad::ReducedMCR,
+    IShipEngine::EngineOperationalLoad::MCR
+};
+
+QVector<IShipEngine::EngineOperationalTier> IShipEngine::mEngineOperationalTier = {
+    IShipEngine::EngineOperationalTier::tierII,
+    IShipEngine::EngineOperationalTier::TierIII
+};
+
 bool
 IShipEngine::requestHigherEnginePower()
 {
@@ -112,5 +124,17 @@ bool IShipEngine::changeTier(IShipEngine::EngineOperationalTier targetTier)
     }
     return false;
 }
+
+QVector<IShipEngine::EngineOperationalLoad>
+IShipEngine::getEngineOperationalLoads() {
+    return mEngineOperationalLoad;
+}
+
+QVector<IShipEngine::EngineOperationalTier>
+IShipEngine::getEngineOperationalTiers() {
+    return mEngineOperationalTier;
+}
+
+
 
 }
