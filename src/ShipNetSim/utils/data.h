@@ -186,6 +186,21 @@ public:
     void close();
 };
 
+namespace ProjectFile {
+    struct ProjectDataFile {
+        QString projectName;
+        QString networkName;
+        QString authorName;
+        QString shipsFileName;
+        QString simEndTime;
+        QString simTimestep;
+        QString simPlotTime;
+    };
+
+    void createProjectFile(const ProjectDataFile pf, QString& filename);
+
+    ProjectDataFile readProjectFile(const QString &filename);
+};
 }
 };
 #endif // DATA_H
