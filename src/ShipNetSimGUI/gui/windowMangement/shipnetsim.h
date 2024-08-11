@@ -111,6 +111,8 @@ private:
 
     void setupPage1();
 
+    void setupPage2();
+
 
 private slots:
     void on_tabWidget_results_currentChanged(int index);

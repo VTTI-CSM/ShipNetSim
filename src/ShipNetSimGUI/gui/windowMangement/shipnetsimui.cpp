@@ -82,6 +82,28 @@ QString ShipNetSimUI::browseFiles(ShipNetSim *parent,
     return fname;
 }
 
+void ShipNetSimUI::browseFolder(ShipNetSim *parent,
+                                QLineEdit* theLineEdit,
+                                const QString& theHelpMessage) {
+    QString browsLoc = QString();
+    if ( parent->userBrowsePath.isEmpty()) {
+        browsLoc = parent->defaultBrowsePath;
+    }
+    else {
+        browsLoc = parent->userBrowsePath;
+    }
+    QString folderPath =
+        QFileDialog::getExistingDirectory(parent,
+                                          theHelpMessage,
+                                          browsLoc,
+                                          QFileDialog::ShowDirsOnly |
+                                              QFileDialog::DontResolveSymlinks);
+    // Check if a folder was selected
+    if (!folderPath.isEmpty()) {
+        theLineEdit->setText(folderPath);
+    }
+}
+
 void ShipNetSimUI::openAboutPage(ShipNetSim *parent) {
     if (parent->aboutWindow == nullptr) {
         parent->aboutWindow = std::make_shared<AboutWindow>(parent);

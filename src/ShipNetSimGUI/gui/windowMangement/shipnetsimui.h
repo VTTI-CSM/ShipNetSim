@@ -21,5 +21,8 @@ public:
     static QString browseFiles(ShipNetSim *parent,
                                QLineEdit* theLineEdit,
                                const QString& theFileName);
+    static void browseFolder(ShipNetSim *parent,
+                             QLineEdit* theLineEdit,
+                             const QString& theHelpMessage);
 };
 #endif // SHIPNETSIMUI_H
