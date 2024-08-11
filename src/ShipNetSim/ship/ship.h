@@ -132,6 +132,65 @@ public:
         bilge_keels
     };
 
+    static QString toString(ShipAppendage appendage) {
+        static const QMap<ShipAppendage, QString> appendageToString = {
+            { ShipAppendage::rudder_behind_skeg, "Rudder Behind Skeg" },
+            { ShipAppendage::rudder_behind_stern, "Rudder Behind Stern" },
+            { ShipAppendage::slender_twin_screw_rudder,
+             "Slender Twin Screw Rudder" },
+            { ShipAppendage::thick_twin_screw_rudder,
+             "Thick Twin Screw Rudder" },
+            { ShipAppendage::shaft_brackets, "Shaft Brackets" },
+            { ShipAppendage::skeg, "Skeg" },
+            { ShipAppendage::strut_bossing, "Strut Bossing" },
+            { ShipAppendage::hull_bossing, "Hull Bossing" },
+            { ShipAppendage::exposed_shafts_10_degree_with_buttocks,
+             "Exposed Shafts 10 Degree with Buttocks" },
+            { ShipAppendage::exposed_shafts_20_degree_with_buttocks,
+             "Exposed Shafts 20 Degree with Buttocks" },
+            { ShipAppendage::stabilizer_fins, "Stabilizer Fins" },
+            { ShipAppendage::dome, "Dome" },
+            { ShipAppendage::bilge_keels, "Bilge Keels" }
+        };
+        return appendageToString.value(appendage, "Unknown");
+    }
+
+    static ShipAppendage toEnumShipAppendage(const QString &appendageString) {
+        static const QMap<QString, ShipAppendage> stringToAppendage = {
+            { "Rudder Behind Skeg", ShipAppendage::rudder_behind_skeg },
+            { "Rudder Behind Stern", ShipAppendage::rudder_behind_stern },
+            { "Slender Twin Screw Rudder",
+             ShipAppendage::slender_twin_screw_rudder },
+            { "Thick Twin Screw Rudder",
+             ShipAppendage::thick_twin_screw_rudder },
+            { "Shaft Brackets", ShipAppendage::shaft_brackets },
+            { "Skeg", ShipAppendage::skeg },
+            { "Strut Bossing", ShipAppendage::strut_bossing },
+            { "Hull Bossing", ShipAppendage::hull_bossing },
+            { "Exposed Shafts 10 Degree with Buttocks",
+             ShipAppendage::exposed_shafts_10_degree_with_buttocks },
+            { "Exposed Shafts 20 Degree with Buttocks",
+             ShipAppendage::exposed_shafts_20_degree_with_buttocks },
+            { "Stabilizer Fins", ShipAppendage::stabilizer_fins },
+            { "Dome", ShipAppendage::dome },
+            { "Bilge Keels", ShipAppendage::bilge_keels }
+        };
+        return stringToAppendage.value(appendageString,
+                                       ShipAppendage::rudder_behind_skeg); // Default to rudder_behind_skeg if not found
+    }
+
+    static QStringList getAllAppendageTypes() {
+        return QStringList{
+            "Rudder Behind Skeg", "Rudder Behind Stern",
+            "Slender Twin Screw Rudder",
+            "Thick Twin Screw Rudder", "Shaft Brackets",
+            "Skeg", "Strut Bossing",
+            "Hull Bossing", "Exposed Shafts 10 Degree with Buttocks",
+            "Exposed Shafts 20 Degree with Buttocks", "Stabilizer Fins",
+            "Dome", "Bilge Keels"
+        };
+    }
+
 
     /**
      * @brief Defines the stern shape of the ship
@@ -143,6 +202,35 @@ public:
         NormalSections,
         UShapedSections
     };
+
+    static QString toString(CStern stern) {
+        static const QMap<CStern, QString> sternToString = {
+            { CStern::None, "None" },
+            { CStern::pramWithGondola, "Pram with Gondola" },
+            { CStern::VShapedSections, "V-Shaped Sections" },
+            { CStern::NormalSections, "Normal Sections" },
+            { CStern::UShapedSections, "U-Shaped Sections" }
+        };
+        return sternToString.value(stern, "Unknown");
+    }
+
+    static CStern toEnum(const QString &sternString) {
+        static const QMap<QString, CStern> stringToStern = {
+            { "None", CStern::None },
+            { "Pram with Gondola", CStern::pramWithGondola },
+            { "V-Shaped Sections", CStern::VShapedSections },
+            { "Normal Sections", CStern::NormalSections },
+            { "U-Shaped Sections", CStern::UShapedSections }
+        };
+        return stringToStern.value(sternString, CStern::None); // Default to CStern::None if not found
+    }
+
+    static QStringList getAllSternTypes() {
+        return QStringList{"Pram with Gondola",
+                           "V-Shaped Sections",
+                           "Normal Sections",
+                           "U-Shaped Sections" };
+    }
 
     // Declaration of a custom exception clas
     class ShipException : public std::exception {
