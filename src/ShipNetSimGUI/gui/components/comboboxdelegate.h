@@ -1,34 +1,25 @@
 #ifndef COMBOBOXDELEGATE_H
 #define COMBOBOXDELEGATE_H
-#include "qtablewidget.h"
 #include <QComboBox>
 #include <QStyledItemDelegate>
-#include <string>
-#include <array>
 
 class ComboBoxDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
 
 public:
-    template <std::size_t N>
-    ComboBoxDelegate(const std::string (&items)[N],
+    ComboBoxDelegate(const QStringList items,
                      QObject *parent = nullptr)
-        : QStyledItemDelegate(parent)
-    {
-        for (std::size_t i = 0; i < N; ++i) {
-            m_items.push_back(QString::fromStdString(items[i]));
-        }
-    }
+        : m_items(items), QStyledItemDelegate(parent)
+    {}
 
     QWidget *createEditor(QWidget *parent,
                           const QStyleOptionViewItem &option,
                           const QModelIndex &index) const override
     {
         QComboBox *editor = new QComboBox(parent);
-        for (const QString& item : m_items) {
-            editor->addItem(item);
-        }
+        editor->addItems(m_items);
+
 
         // Calculate the width based on the longest item
 //        int maxWidth = 0;
@@ -117,11 +108,11 @@ public:
 //        }
 //    }
 
-    std::vector<QString> getValues() {
+    QStringList getValues() {
         return m_items;
     }
 
 private:
-    std::vector<QString> m_items;
+    QStringList m_items;
 };
 #endif // COMBOBOXDELEGATE_H
