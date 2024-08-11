@@ -33,11 +33,13 @@ public:
 
     /**
      * @brief Sets the text with a timeout duration.
-     *        The text will be displayed for the specified duration in milliseconds and then cleared.
+     *        The text will be displayed for the specified duration
+     *        in milliseconds and then cleared.
      * @param text The text to display.
      * @param timeoutMs The timeout duration in milliseconds.
      */
-    void setTextWithTimeout(const QString &text, int timeoutMs);
+    void setTextWithTimeout(const QString &text, int timeoutMs = 3000,
+                            const QColor &color = Qt::black);
 
 private:
     QTimer m_timer; /**< Timer used to clear the text after the timeout duration. */
