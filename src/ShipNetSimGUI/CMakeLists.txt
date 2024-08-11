@@ -102,6 +102,12 @@ set(PROJECT_H_FILES
         gui/components/globalmapmanager.h
         gui/components/customprogressbar.h
         gui/components/portclickhandler.h
+        gui/components/textboxbuttondelegate.h
+        gui/components/enginepowerpopupform.h
+        gui/components/enginerpmefficiencypopupform.h
+        gui/components/generalPopupForm.h
+
+        ../third_party/qcustomplot/qcustomplot.h
 
 )
 
@@ -158,6 +164,8 @@ set(PROJECT_SOURCES
         gui/windowMangement/shipnetsim.cpp
         utils/errorhandler.cpp
 
+        ../third_party/qcustomplot/qcustomplot.cpp
+
         main.cpp
 )
 
@@ -173,6 +181,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_UI_FILES}
         ${PROJECT_SOURCES}
         gui/media/src.qrc
+
+
+
+
 
 
 
