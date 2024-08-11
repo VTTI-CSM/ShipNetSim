@@ -110,6 +110,12 @@ public:
         FuelType fuelType);
 
     /**
+     * @brief get fuel types supported in the simulator as a QStringList.
+     * @return a list of fuel types.
+     */
+    static QStringList getFuelTypeList();
+
+    /**
      * @brief get fuel types supported in the simulator as a vector.
      * @return a vector of fuel types.
      */

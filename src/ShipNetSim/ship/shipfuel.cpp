@@ -222,4 +222,12 @@ QVector<ShipFuel::FuelType> ShipFuel::getFuelTypes() {
     return mFuelTypes;
 };
 
+QStringList ShipFuel::getFuelTypeList() {
+    QStringList fuelTypes;
+    for (auto& ft: mFuelTypes) {
+        fuelTypes << convertFuelTypeToString(ft);
+    }
+    return fuelTypes;
+}
+
 };
