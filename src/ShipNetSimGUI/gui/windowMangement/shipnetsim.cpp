@@ -9,9 +9,13 @@
 #include "../components/numericdelegate.h"
 #include "../components/textboxdelegate.h"
 #include "../utils/data.h"
+#include "ShipNetSimGUI/gui/components/checkboxdelegate.h"
+#include "ShipNetSimGUI/gui/components/comboboxdelegate.h"
+#include "ShipNetSimGUI/gui/components/textboxbuttondelegate.h"
 #include "ShipNetSimGUI/gui/windowMangement/shipnetsimui.h"
 #include "gui/windowMangement/ui_shipnetsim.h"
 #include "ship/shipsList.h"
+#include "ship/ship.h"
 
 ShipNetSim::ShipNetSim(QWidget *parent)
     : QMainWindow(parent)
@@ -20,6 +24,9 @@ ShipNetSim::ShipNetSim(QWidget *parent)
     ui->setupUi(this);
 
     setupGenerals();
+
+    setupPage1();
+    setupPage2();
 }
 
 ShipNetSim::~ShipNetSim()
@@ -154,7 +161,7 @@ void ShipNetSim::setupPage1() {
     // get the trains file
     connect(ui->pushButton_trains, &QPushButton::clicked, [this]() {
         shipsFilename = ShipNetSimUI::browseFiles(this, ui->lineEdit_trains,
-                                                  "Select Trains File");
+                                                  "Select Ships File");
     });
 
     connect(ui->lineEdit_trains, &QLineEdit::textChanged,
@@ -230,6 +237,29 @@ void ShipNetSim::setupPage1() {
 
 }
 
+void ShipNetSim::setupPage2() {
+
+    QList<int> simulatorWidgetSizes;
+    simulatorWidgetSizes << 229 << 700;
+    ui->splitter_simulator->setSizes(simulatorWidgetSizes);
+
+    // make the trajectory lineedit not visible
+    ui->horizontalWidget_TrajFile->setVisible(false);
+
+    // select the output location
+    connect(ui->pushButton_selectoutputPath, &QPushButton::clicked, [this]() {
+        ShipNetSimUI::browseFolder(this,
+                                   ui->lineEdit_outputPath,
+                                   "Select the output path");
+    });
+
+    connect(ui->checkBox_exportTrajectory, &QCheckBox::stateChanged, [this]() {
+        ui->horizontalWidget_TrajFile->setVisible(
+            ui->checkBox_exportTrajectory->checkState() == Qt::Checked);
+    });
+
+}
+
 
 void ShipNetSim::clearForm() {
     QList<QLineEdit *> lineEdits = findChildren<QLineEdit *>();
@@ -255,14 +285,14 @@ void ShipNetSim::clearForm() {
 void ShipNetSim::setupShipsTable() {
 
     int i = 0;
-    // set the delegates for the ships table IDs
-    ui->table_newShips->setItemDelegateForColumn(
-        i, new NonEmptyDelegate("ID", this));
-    QString idToolTip = "The unique identifier of the train.";
+
+    // 1. ID column
+    ui->table_newShips->setItemDelegateForColumn(i, new NonEmptyDelegate("ID", this));
+    QString idToolTip = "The unique identifier of the ship.";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(idToolTip);
 
-    ui->table_newShips->
-        setItemDelegateForColumn(i, new TextBoxDelegate(this, "1,2"));
+    // 2. Path column
+    ui->table_newShips->setItemDelegateForColumn(i, new TextBoxDelegate(this, "1,2"));
     QString nodesToolTip = "All the coordinates the ship should path on. "
                            "You can define either the start and end nodes or "
                            "each point the ship must traverse. "
@@ -270,64 +300,276 @@ void ShipNetSim::setupShipsTable() {
                            "the 'Define Ships Path' tab";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(nodesToolTip);
 
+    // 3. Max Speed column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString maxSpeedToolTip = "Max speed (knots)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(maxSpeedToolTip);
+
+    // 4. LWL column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString lwlToolTip = "Vessel's waterline length (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lwlToolTip);
+
+    // 5. LPP column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString lppToolTip = "Length between perpendiculars (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lppToolTip);
+
+    // 6. Beam (B) column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString bToolTip = "Beam (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(bToolTip);
+
+    // 7. Draft Aft (TA) column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString taToolTip = "Draft at aft (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(taToolTip);
+
+    // 8. Draft Forward (TF) column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString tfToolTip = "Draft at forward (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(tfToolTip);
+
+    // 9. Volume (V) column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString vToolTip = "Volumetric Displacement (cubic meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(vToolTip);
+
+    // 10. Surface Area (S) column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString sToolTip = "Hull Surface Area (square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(sToolTip);
+
+    // 11. AV column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString avToolTip = "Cargo Vertical Projected Area in motion direction (square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(avToolTip);
+
+    // 12. hB column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString hbToolTip = "Height of the center of Area of the transverse section at the bow (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(hbToolTip);
+
+    // 13. ABT column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString abtToolTip = "Area of the transverse section at the bow (square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(abtToolTip);
+
+    // 14. iE column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
+    QString ieToolTip = "Entrance angle of the bow (degrees)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(ieToolTip);
+
+    // 15. kS column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000.0, 0, 3, 1.0, 0));
+    QString ksToolTip = "Roughness coefficient (μm)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(ksToolTip);
+
+    // 16. lCB column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString lcbToolTip = "Longitudinal center of buoyancy (fraction of LPP)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lcbToolTip);
+
+    // 17. stern column
+    QStringList sternTypes = ShipNetSimCore::Ship::getAllSternTypes();
+    ui->table_newShips->setItemDelegateForColumn(i, new ComboBoxDelegate(sternTypes, this));
+    QString sternToolTip = "Stern type";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(sternToolTip);
+
+    // 18. CM column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString cmToolTip = "Midship section coefficient (fraction)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cmToolTip);
+
+    // 19. CWP column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString cwpToolTip = "Waterplane area coefficient (fraction)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cwpToolTip);
+
+    // 20. CP column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString cpToolTip = "Prismatic coefficient (fraction)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cpToolTip);
+
+    // 21. CB column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString cbToolTip = "Block coefficient (fraction)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cbToolTip);
+
+    // 22. Fuel Type column
+    QStringList fuelTypes = QStringList() << "comboBox";
+    fuelTypes << ShipNetSimCore::ShipFuel::getFuelTypeList();
+    QVector<QStringList> fuelTypesDet;
+    fuelTypesDet.push_back(fuelTypes);
+    TextBoxButtonDelegate::FormDetails fFuelTypes =
+        TextBoxButtonDelegate::FormDetails(
+            "Select Fuel Tyes for Each Tier",
+            QStringList()<<"Fuel Type",
+            QStringList() << "Tier II" << "Tier III", fuelTypesDet);
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString maxSpeed = "Max speed (knots)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(maxSpeed);
+        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::General,
+                                     this, fFuelTypes));
+    QString fuelTypesToolTip = "fuel types for Tier II and III";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(fuelTypesToolTip);
 
+    // 23. Tank Size column
+    QStringList tankSizesDetails= QStringList() << "numericSpin";
+    tankSizesDetails << "1000000000.0" << "0.0" << "2" << "100" << "1000.0";
+    QVector<QStringList> tankSizeDet;
+    tankSizeDet.push_back(tankSizesDetails);
+    TextBoxButtonDelegate::FormDetails fText =
+        TextBoxButtonDelegate::FormDetails(
+            "Select Tank Sizes for Each Fuel Type",
+            QStringList()<<"Tank Size (liters)",
+            QStringList() << "Tier II" << "Tier III", tankSizeDet);
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString lwl = "Vessels water line length (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lwl);
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::General,
+            this, fText));
+    QString tankSizeToolTip = "Tank size (liters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(tankSizeToolTip);
 
+
+    // 24. Tank Initial Capacity column
+    QStringList tankcapDetails= QStringList() << "numericSpin";
+    tankcapDetails << "1.0" << "0.0" << "3" << "0.05" << "0.85";
+    QVector<QStringList> tankCapDet;
+    tankCapDet.push_back(tankcapDetails);
+    TextBoxButtonDelegate::FormDetails fCapText =
+        TextBoxButtonDelegate::FormDetails(
+            "Select Tank Initial Capacity (%) for Each Fuel Type",
+            QStringList()<<"Tank Initial Capacity (%)",
+            QStringList() << "Tier II" << "Tier III", tankCapDet);
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString lpp = "Length between perpendiculars (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lpp);
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::General,
+            this, fCapText));
+    QString tankInitCapacityToolTip = "Initial tank capacity (%)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(tankInitCapacityToolTip);
 
+    // 25. Tank Depth of Discharge column
+    TextBoxButtonDelegate::FormDetails fdepthText =
+        TextBoxButtonDelegate::FormDetails(
+            "Select Tank Depth of Discharge (%) for Each Fuel Type",
+            QStringList()<<"Tank Depth of Discharge (%)",
+        QStringList() << "Tier II" << "Tier III", tankCapDet);
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString b = "Beam (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(b);
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::General,
+            this, fCapText));
+    QString tankDepthOfDischargeToolTip = "Tank depth of discharge (%)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(tankDepthOfDischargeToolTip);
 
+    // 26. Engines Count Per Propeller column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 2, 0, 0, 1.0, 0));
+    QString enginesCountToolTip = "Number of engines per propeller";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(enginesCountToolTip);
+
+    // 27. Engine Brake Power to RPM Map column
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString da = "Draft at aft (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(da);
+        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::Power,
+                                     this));
+    QString engineBPRPMToolTip = "Engine brake power to RPM map (kW, #)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(engineBPRPMToolTip);
 
+    // 28. Engine Brake Power to Efficiency Map column
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString df = "Draft at forward (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(df);
+        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::
+                                     RPMEfficiency, this));
+    QString engineBPEffToolTip = "Engine brake power to efficiency map"
+                                 " for Tier II (kW, %)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(engineBPEffToolTip);
 
+    // 29. Engine Brake Power to Efficiency Map column
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString v = "Volumetric Desplacement (c. m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(v);
+        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::
+                                  RPMEfficiency, this));
+    QString engineBPEffTier3ToolTip = "Engine brake power to efficiency map "
+                                      "for Tier III (kW, %)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(engineBPEffTier3ToolTip);
 
+    // 30. Gearbox Ratio column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    QString gearboxRatioToolTip = "Gearbox ratio to 1";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(gearboxRatioToolTip);
+
+    // 31. Gearbox Efficiency column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString gearboxEffToolTip = "Gearbox efficiency (%)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(gearboxEffToolTip);
+
+    // 32. Shaft Efficiency column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString shaftEffToolTip = "Shaft efficiency (%)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(shaftEffToolTip);
+
+    // 33. Propeller Count column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
+    QString propellerCountToolTip = "Number of propellers";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerCountToolTip);
+
+    // 34. Propeller Diameter column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    QString propellerDiameterToolTip = "Propeller diameter (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerDiameterToolTip);
+
+    // 35. Propeller Pitch column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    QString propellerPitchToolTip = "Propeller pitch (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerPitchToolTip);
+
+    // 36. Propeller Blade Count column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
+    QString propellerBladeCountToolTip = "Number of propeller blades";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerBladeCountToolTip);
+
+    // 37. Propeller Expanded Area Ratio column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    QString propellerAreaRatioToolTip = "Propeller expanded area ratio";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerAreaRatioToolTip);
+
+    // 38. Stop if No Energy column
+    ui->table_newShips->setItemDelegateForColumn(i, new CheckboxDelegate(this));
+    QString stopIfNoEnergyToolTip = "Stop if there is no energy available?";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(stopIfNoEnergyToolTip);
+
+    // 39. Max Rudder Angle column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
+    QString maxRudderAngleToolTip = "Max rudder angle (degrees)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(maxRudderAngleToolTip);
+
+    // 40. Vessel Weight column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
+    QString vesselWeightToolTip = "Vessel weight (ton)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(vesselWeightToolTip);
+
+    // 41. Cargo Weight column
+    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
+    QString cargoWeightToolTip = "Cargo weight (ton)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cargoWeightToolTip);
+
+    QStringList appDetails1 = QStringList() << "comboBox";
+    appDetails1 << ShipNetSimCore::Ship::getAllAppendageTypes();
+    QStringList appDetails2 = QStringList() << "numericSpin";
+    appDetails2 << "10000.0" << "0.0" << "3" << "5" << "2.0";
+    QVector<QStringList> details;
+    details.push_back(appDetails1);
+    details.push_back(appDetails2);
+    // Appendages Surface Area Map column
+    TextBoxButtonDelegate::FormDetails fappText =
+        TextBoxButtonDelegate::FormDetails(
+            "Add appendages and their corresponding areas (sq. m):",
+        QStringList() << "Appendage" << "Area (sq. m)",
+            QStringList(), details);
     ui->table_newShips->setItemDelegateForColumn(
-        i, new NumericDelegate(this, 1000000000000.0, 0, 1, 100,0));
-    QString s = "Hull Surface Area (sq. m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(s);
-
-
-
-
-    // ui->table_newShips->setItemDelegateForColumn(
-    //     4, new IntNumericDelegate(this, 300, 1, 1, 1));
-    // QString locosToolTip = "Total number of locomotives in the train.";
-    // ui->table_newShips->horizontalHeaderItem(4)->setToolTip(locosToolTip);
-
-    // ui->table_newShips->setItemDelegateForColumn(
-    //     5, new IntNumericDelegate(this, 300, 1, 1, 1));
-    // QString carsToolTip = "Total number of cars in the train.";
-    // ui->table_newShips->horizontalHeaderItem(5)->setToolTip(carsToolTip);
-
-    // ui->table_newShips->setItemDelegateForColumn(
-    //     6, new NumericDelegate(this, 1, 0, 2, 0.05, 0.95));
-    // QString fricToolTip = "The friction coefficient of the train's "
-    //                       "wheels with the track.";
-    // ui->table_newShips->horizontalHeaderItem(6)->setToolTip(fricToolTip);
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::General,
+            this, fappText));
+    QString appendagesToolTip = "Appendages surface area map (ID, square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(appendagesToolTip);
 
     // ---------- insert a new row to Ships ----------
     ui->table_newShips->insertRow(0);
@@ -338,6 +580,9 @@ void ShipNetSim::setupShipsTable() {
     std::unique_ptr<QTableWidgetItem> newItemID_train(
         new QTableWidgetItem(QString::number(1)));
     ui->table_newShips->setItem(0, 0, newItemID_train.release());
+
+    ui->table_newShips->horizontalHeader()->
+        setSectionResizeMode(QHeaderView::ResizeToContents);
 }
 
 // update the combo_visualizeTrain

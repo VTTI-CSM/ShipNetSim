@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1590</width>
-    <height>804</height>
+    <width>1286</width>
+    <height>579</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -27,7 +27,7 @@
          <enum>QTabWidget::West</enum>
         </property>
         <property name="currentIndex">
-         <number>2</number>
+         <number>1</number>
         </property>
         <property name="tabsClosable">
          <bool>false</bool>
@@ -327,7 +327,7 @@
                <item row="1" column="0">
                 <widget class="QTabWidget" name="tabWidget_newTrainOD">
                  <property name="currentIndex">
-                  <number>1</number>
+                  <number>0</number>
                  </property>
                  <widget class="QWidget" name="tab_6">
                   <attribute name="title">
@@ -479,7 +479,7 @@
                        </column>
                        <column>
                         <property name="text">
-                         <string>Fuel Type</string>
+                         <string>Fuel Types</string>
                         </property>
                        </column>
                        <column>
@@ -504,12 +504,17 @@
                        </column>
                        <column>
                         <property name="text">
-                         <string>Engine Brake Power to RPM Map (kW, #)</string>
+                         <string>Engine Brake Powers (list of kW)</string>
                         </property>
                        </column>
                        <column>
                         <property name="text">
-                         <string>Engine Brake Power to Efficiency Map (kW, %)</string>
+                         <string>Engine Brake Power to Efficiency Map - Tier II (kW, %)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Engine Brake Power to Efficiency Map - Tier III (kW, %)</string>
                         </property>
                        </column>
                        <column>
@@ -684,9 +689,9 @@
             <widget class="QWidget" name="layoutWidget_2">
              <layout class="QHBoxLayout" name="horizontalLayout_18">
               <item>
-               <widget class="QGroupBox" name="groupBox">
+               <widget class="QGroupBox" name="simulationGroupBox">
                 <property name="sizePolicy">
-                 <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Ignored">
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
@@ -715,10 +720,25 @@
                      <height>0</height>
                     </size>
                    </property>
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>16777215</height>
+                    </size>
+                   </property>
                    <property name="title">
                     <string>Export options</string>
                    </property>
                    <layout class="QVBoxLayout" name="verticalLayout_8">
+                    <property name="spacing">
+                     <number>5</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>5</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>5</number>
+                    </property>
                     <item>
                      <layout class="QHBoxLayout" name="horizontalLayout_15">
                       <item>
@@ -827,179 +847,169 @@
                       </item>
                      </layout>
                     </item>
-                    <item>
-                     <spacer name="verticalSpacer_4">
-                      <property name="orientation">
-                       <enum>Qt::Vertical</enum>
-                      </property>
-                      <property name="sizeHint" stdset="0">
-                       <size>
-                        <width>20</width>
-                        <height>40</height>
-                       </size>
-                      </property>
-                     </spacer>
-                    </item>
                    </layout>
                   </widget>
                  </item>
                  <item row="0" column="0">
-                  <layout class="QVBoxLayout" name="verticalLayout_5">
-                   <item>
-                    <layout class="QHBoxLayout" name="horizontalLayout_8">
-                     <item>
-                      <widget class="QGroupBox" name="verticalGroupBox_61">
-                       <property name="minimumSize">
-                        <size>
-                         <width>350</width>
-                         <height>0</height>
-                        </size>
-                       </property>
-                       <property name="title">
-                        <string>General</string>
-                       </property>
-                       <layout class="QVBoxLayout" name="verticalLayout_6">
-                        <item>
-                         <layout class="QHBoxLayout" name="horizontalLayout_11">
-                          <item>
-                           <widget class="QLabel" name="label_7">
-                            <property name="minimumSize">
-                             <size>
-                              <width>150</width>
-                              <height>0</height>
-                             </size>
-                            </property>
-                            <property name="text">
-                             <string>Simulation time:</string>
-                            </property>
-                           </widget>
-                          </item>
-                          <item>
-                           <widget class="QDoubleSpinBox" name="doubleSpinBox">
-                            <property name="minimumSize">
-                             <size>
-                              <width>150</width>
-                              <height>0</height>
-                             </size>
-                            </property>
-                            <property name="toolTip">
-                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired end time for your simulation in this textbox. The simulation end time represents the point at which the simulation will conclude or stop running in seconds.&lt;/p&gt;&lt;p&gt;If you set the value to 0, the simulation will stop only when all trains have reached their respective destinations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                            </property>
-                            <property name="minimum">
-                             <double>0.000000000000000</double>
-                            </property>
-                            <property name="maximum">
-                             <double>999999999.000000000000000</double>
-                            </property>
-                            <property name="singleStep">
-                             <double>10.000000000000000</double>
-                            </property>
-                            <property name="value">
-                             <double>0.000000000000000</double>
-                            </property>
-                           </widget>
-                          </item>
-                         </layout>
-                        </item>
-                        <item>
-                         <layout class="QHBoxLayout" name="horizontalLayout_12">
-                          <item>
-                           <widget class="QLabel" name="label_9">
-                            <property name="minimumSize">
-                             <size>
-                              <width>150</width>
-                              <height>0</height>
-                             </size>
-                            </property>
-                            <property name="text">
-                             <string>Simulation time step:</string>
-                            </property>
-                           </widget>
-                          </item>
-                          <item>
-                           <widget class="QDoubleSpinBox" name="doubleSpinBox_timeStep">
-                            <property name="toolTip">
-                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the time step duration for your simulation in seconds. The time step represents the increment of time by which the simulation progresses with each iteration. A preferred time step for your simulation is 1.0 seconds. Adjusting the time step duration allows you to balance between simulation accuracy and performance. Keep in mind that smaller time steps provide more precise results but may increase computational load, while larger time steps prioritize performance over absolute accuracy. Find the optimal balance by experimenting with different values for your specific simulation requirements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                            </property>
-                            <property name="minimum">
-                             <double>0.100000000000000</double>
-                            </property>
-                            <property name="maximum">
-                             <double>10.000000000000000</double>
-                            </property>
-                            <property name="singleStep">
-                             <double>0.100000000000000</double>
-                            </property>
-                            <property name="value">
-                             <double>1.000000000000000</double>
-                            </property>
-                           </widget>
-                          </item>
-                         </layout>
-                        </item>
-                        <item>
-                         <layout class="QHBoxLayout" name="horizontalLayout_10">
-                          <item>
-                           <widget class="QLabel" name="label_10">
-                            <property name="minimumSize">
-                             <size>
-                              <width>150</width>
-                              <height>0</height>
-                             </size>
-                            </property>
-                            <property name="text">
-                             <string>Draw output every:</string>
-                            </property>
-                           </widget>
-                          </item>
-                          <item>
-                           <widget class="QSpinBox" name="spinBox_plotEvery">
-                            <property name="toolTip">
-                             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the interval for updating and drawing the simulation output. It determines how frequently the visual representation of the simulation is updated and displayed. A preferred value for your simulation is 100. Adjust this interval based on your preference for visual feedback and performance considerations.&lt;/p&gt;&lt;p&gt;For example, if you set it to 100, the simulation will update and redraw the output every 100 simulation steps or iterations, providing periodic visual updates. Modify this value according to your requirements, finding the optimal balance between real-time updates and potential performance impacts.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                            </property>
-                            <property name="maximum">
-                             <number>1000</number>
-                            </property>
-                            <property name="singleStep">
-                             <number>50</number>
-                            </property>
-                           </widget>
-                          </item>
-                         </layout>
-                        </item>
-                        <item>
-                         <spacer name="verticalSpacer_3">
-                          <property name="orientation">
-                           <enum>Qt::Vertical</enum>
-                          </property>
-                          <property name="sizeHint" stdset="0">
-                           <size>
-                            <width>20</width>
-                            <height>40</height>
-                           </size>
-                          </property>
-                         </spacer>
-                        </item>
-                       </layout>
-                      </widget>
-                     </item>
-                    </layout>
-                   </item>
-                  </layout>
+                  <widget class="QGroupBox" name="verticalGroupBox_61">
+                   <property name="minimumSize">
+                    <size>
+                     <width>350</width>
+                     <height>0</height>
+                    </size>
+                   </property>
+                   <property name="title">
+                    <string>General</string>
+                   </property>
+                   <layout class="QVBoxLayout" name="verticalLayout_6">
+                    <property name="spacing">
+                     <number>5</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>5</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>5</number>
+                    </property>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_11">
+                      <item>
+                       <widget class="QLabel" name="label_7">
+                        <property name="minimumSize">
+                         <size>
+                          <width>150</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="text">
+                         <string>Simulation time:</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QDoubleSpinBox" name="doubleSpinBox">
+                        <property name="minimumSize">
+                         <size>
+                          <width>150</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired end time for your simulation in this textbox. The simulation end time represents the point at which the simulation will conclude or stop running in seconds.&lt;/p&gt;&lt;p&gt;If you set the value to 0, the simulation will stop only when all trains have reached their respective destinations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="minimum">
+                         <double>0.000000000000000</double>
+                        </property>
+                        <property name="maximum">
+                         <double>999999999.000000000000000</double>
+                        </property>
+                        <property name="singleStep">
+                         <double>10.000000000000000</double>
+                        </property>
+                        <property name="value">
+                         <double>0.000000000000000</double>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_12">
+                      <item>
+                       <widget class="QLabel" name="label_9">
+                        <property name="minimumSize">
+                         <size>
+                          <width>150</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="text">
+                         <string>Simulation time step:</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QDoubleSpinBox" name="doubleSpinBox_timeStep">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the time step duration for your simulation in seconds. The time step represents the increment of time by which the simulation progresses with each iteration. A preferred time step for your simulation is 1.0 seconds. Adjusting the time step duration allows you to balance between simulation accuracy and performance. Keep in mind that smaller time steps provide more precise results but may increase computational load, while larger time steps prioritize performance over absolute accuracy. Find the optimal balance by experimenting with different values for your specific simulation requirements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="minimum">
+                         <double>0.100000000000000</double>
+                        </property>
+                        <property name="maximum">
+                         <double>10.000000000000000</double>
+                        </property>
+                        <property name="singleStep">
+                         <double>0.100000000000000</double>
+                        </property>
+                        <property name="value">
+                         <double>1.000000000000000</double>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_10">
+                      <item>
+                       <widget class="QLabel" name="label_10">
+                        <property name="minimumSize">
+                         <size>
+                          <width>150</width>
+                          <height>0</height>
+                         </size>
+                        </property>
+                        <property name="text">
+                         <string>Draw output every:</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QSpinBox" name="spinBox_plotEvery">
+                        <property name="toolTip">
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the interval for updating and drawing the simulation output. It determines how frequently the visual representation of the simulation is updated and displayed. A preferred value for your simulation is 100. Adjust this interval based on your preference for visual feedback and performance considerations.&lt;/p&gt;&lt;p&gt;For example, if you set it to 100, the simulation will update and redraw the output every 100 simulation steps or iterations, providing periodic visual updates. Modify this value according to your requirements, finding the optimal balance between real-time updates and potential performance impacts.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                        </property>
+                        <property name="maximum">
+                         <number>1000</number>
+                        </property>
+                        <property name="singleStep">
+                         <number>50</number>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </widget>
                  </item>
                  <item row="0" column="1">
                   <widget class="QGroupBox" name="groupBox_2">
                    <property name="minimumSize">
                     <size>
-                     <width>0</width>
+                     <width>400</width>
                      <height>0</height>
+                    </size>
+                   </property>
+                   <property name="maximumSize">
+                    <size>
+                     <width>400</width>
+                     <height>16777215</height>
                     </size>
                    </property>
                    <property name="title">
                     <string>Simulation Date and Time</string>
                    </property>
-                   <layout class="QGridLayout" name="gridLayout_3">
-                    <item row="0" column="0">
+                   <layout class="QVBoxLayout" name="verticalLayout_7">
+                    <property name="spacing">
+                     <number>5</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>5</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>5</number>
+                    </property>
+                    <item>
                      <layout class="QVBoxLayout" name="verticalLayout_3">
                       <item>
                        <widget class="QLabel" name="label_16">
@@ -1048,19 +1058,6 @@
                          </spacer>
                         </item>
                        </layout>
-                      </item>
-                      <item>
-                       <spacer name="verticalSpacer">
-                        <property name="orientation">
-                         <enum>Qt::Vertical</enum>
-                        </property>
-                        <property name="sizeHint" stdset="0">
-                         <size>
-                          <width>20</width>
-                          <height>40</height>
-                         </size>
-                        </property>
-                       </spacer>
                       </item>
                      </layout>
                     </item>
@@ -1364,7 +1361,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1590</width>
+     <width>1286</width>
      <height>25</height>
     </rect>
    </property>
