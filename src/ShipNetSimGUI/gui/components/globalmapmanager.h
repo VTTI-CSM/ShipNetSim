@@ -29,7 +29,6 @@
 #include <QString>
 #include "../../utils/defaults.h"
 #include "osgEarth/ObjectIndex"
-#include "portclickhandler.h"
 #include "utils/utils.h"
 #include "../network/seaport.h"
 
@@ -211,6 +210,50 @@ public:
         // printSceneGraph(root);
 
     }
+
+
+    std::vector<osgEarth::AnnotationNode*>
+    filterAnnotationsByTitle(const std::string& title)
+    {
+        std::vector<osgEarth::AnnotationNode*> results;
+        if (_mapNode) {
+            osg::NodeVisitor nv(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN);
+            nv.setNodeMaskOverride(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN);
+            _mapNode->accept(nv);
+
+            for (auto& node : nv.getNodePath())
+            {
+                osgEarth::AnnotationNode* annotation =
+                    dynamic_cast<osgEarth::AnnotationNode*>(node);
+                if (annotation && annotation->getName().find(title) !=
+                                      std::string::npos)
+                {
+                    results.push_back(annotation);
+                }
+            }
+        }
+        return results;
+    }
+
+    void navigateToAnnotation(osgEarth::AnnotationNode* annotation,
+                              osgViewer::Viewer* viewer)
+    {
+        if (annotation && viewer)
+        {
+            auto location = annotation->getBound().center();
+            // Cast the camera manipulator to EarthManipulator
+            osgEarth::Util::EarthManipulator* earthManipulator =
+                dynamic_cast<osgEarth::Util::EarthManipulator*>(
+                viewer->getCameraManipulator());
+            if (earthManipulator)
+            {
+                osgEarth::Viewpoint vp("Target", location.x(), location.y(),
+                                       location.z(), 0.0, -90.0, 1000.0);
+                earthManipulator->setViewpoint(vp);
+            }
+        }
+    }
+
 
     void printSceneGraph(const osg::Node* node, int level = 0) {
         if (!node) return; // Safety check
