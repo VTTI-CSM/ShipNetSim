@@ -30,7 +30,7 @@ class OSGEarthQtWidget : public osgQOpenGLWidget
 
 public:
     explicit OSGEarthQtWidget(QWidget *parent = 0);
-    virtual ~OSGEarthQtWidget();
+    ~OSGEarthQtWidget() override;
     void setMapNode(osg::ref_ptr<osg::Group> root);
     void addDefaultPorts();
 private:

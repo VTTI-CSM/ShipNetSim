@@ -26,10 +26,11 @@
 #include <osgEarth/ObjectIDPicker>
 #include <osgEarth/Feature>
 #include <osgEarth/FeatureIndex>
+#include <QToolTip>
+
 
 #include "globalmapmanager.h"
 
-#include "portclickhandler.h"
 namespace
 {
 struct MultiRealizeOperation : public osg::Operation
@@ -43,8 +44,8 @@ struct MultiRealizeOperation : public osg::Operation
 };
 }
 
-OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent) :
-    osgQOpenGLWidget(parent) {
+OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
+    : osgQOpenGLWidget(parent) {
 
     QObject::connect(this, &osgQOpenGLWidget::initialized, [this]
                      {
@@ -168,13 +169,74 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent) :
             }
         });
 
+
+        picker->onHover([&](const ObjectID& id) {
+            if (id != OSGEARTH_OBJECTID_EMPTY)
+            {
+                auto place = Registry::objectIndex()->get<AnnotationNode>(id);
+                if (place)
+                {
+                    // Retrieve custom data
+                    auto customData =
+                        dynamic_cast<GlobalMapManager::CustomData<
+                            std::shared_ptr<ShipNetSimCore::SeaPort>>*>(
+                            place->getUserData());
+
+                    if (customData)
+                    {
+                        std::shared_ptr<ShipNetSimCore::SeaPort> seaPortPtr =
+                            customData->getData();
+
+                        auto p = QCursor::pos();
+                        QString text =
+                            QString(
+                                "<html>"
+                                "<head/>"
+                                "<body>"
+                                "<div style='width: 300px; "
+                                           "font-family: Arial, sans-serif; "
+                                           "font-size: 12px;'>"
+                                "<p><strong>Port:</strong> %1 (%2)<br/>"
+                                "<strong>Country:</strong> %3</p>"
+                                "<p><strong>Has Rail Terminal:</strong> %4<br/>"
+                                "<strong>Has Road Terminal:</strong> %5<br/>"
+                                "<strong>Status of Entry:</strong> %6</p>"
+                                "</div>"
+                                "</body>"
+                                "</html>"
+                                )
+                                .arg(seaPortPtr->getPortName())
+                                .arg(seaPortPtr->getPortCode())
+                                .arg(seaPortPtr->getCountryName())
+                                .arg(seaPortPtr->getHasRailTerminal() ?
+                                                    "Yes" : "No")
+                                .arg(seaPortPtr->getHasRoadTerminal() ?
+                                                    "Yes" : "No")
+                                .arg(seaPortPtr->getStatusOfEntry());
+
+                        QToolTip::showText(p, text, this);
+
+                    }
+                }
+
+
+            }
+            else {
+                QToolTip::hideText();
+            }
+        });
+
         std::cout << "Picker onClick function connected." << std::endl;
     });
 
 
 }
 
-OSGEarthQtWidget::~OSGEarthQtWidget() {}
+OSGEarthQtWidget::~OSGEarthQtWidget() {
+    if (parent()) {
+        setParent(nullptr); // Detach from parent to prevent double deletion
+    }
+}
 
 
 void OSGEarthQtWidget::setMapNode(osg::ref_ptr<osg::Group> root)
@@ -249,7 +311,7 @@ OSGEarthQtWidget::configureView( osgViewer::View* view ) const
     view->addEventHandler(new osgViewer::ScreenCaptureHandler());
 
 
-    PortClickHandler* clickHandler = PortClickHandler::getInstance();
-    view->addEventHandler(clickHandler);
+    // PortClickHandler* clickHandler = PortClickHandler::getInstance();
+    // view->addEventHandler(clickHandler);
 
 }
