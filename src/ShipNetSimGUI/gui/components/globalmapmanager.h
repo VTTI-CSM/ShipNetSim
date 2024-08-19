@@ -262,7 +262,8 @@ public:
         std::string indent(level * 2, ' ');
 
         // Print the current node's name and class type
-        std::cout << indent << node->className() << ": " << node->getName() << std::endl;
+        std::cout << indent << node->className() << ": " <<
+            node->getName() << std::endl;
 
         // If the node is a Group, recursively print its children
         const osg::Group* group = node->asGroup();
