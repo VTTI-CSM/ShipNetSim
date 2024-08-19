@@ -150,6 +150,18 @@ public:
      */
     void studyShipsResistance();
 
+    /**
+     * @brief add a ship to simulator
+     * @param ship the new ship pointer to be simulated
+     */
+    void addShipToSimulation(std::shared_ptr<Ship> ship);
+
+    /**
+     * @brief add a ship to simulator
+     * @param ship the new ship to be simulated
+     */
+    void addShipToSimulation(Ship ship);
+
 
     /**
      * @brief set simulator time step
