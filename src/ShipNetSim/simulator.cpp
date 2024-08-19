@@ -127,6 +127,15 @@ void Simulator::studyShipsResistance()
     }
 }
 
+void Simulator::addShipToSimulation(std::shared_ptr<Ship> ship) {
+    mShips.push_back(ship);
+}
+
+
+void Simulator::addShipToSimulation(Ship ship) {
+    mShips.emplaceBack(std::make_shared<Ship>(ship));
+}
+
 // Setter for the time step of the simulation
 void Simulator::setTimeStep(units::time::second_t newTimeStep) {
     this->mTimeStep = newTimeStep;
