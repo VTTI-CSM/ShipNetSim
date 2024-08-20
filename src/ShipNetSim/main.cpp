@@ -13,7 +13,7 @@
 #include <QCoreApplication>
 #include <ogr_geometry.h>
 #include "simulator.h"
-#include "src/ShipNetSim/VersionConfig.h"
+#include "src/ShipNetSimCore/VersionConfig.h"
 #include "utils/logger.h"
 #include <QLocale>
 #include <QTranslator>
@@ -262,7 +262,6 @@ int main(int argc, char *argv[])
     {
         GDALAllRegister();
         // Assuming the default constructor for OGRSpatialReference is sufficient for WGS84
-        // or you can explicitly set it to WGS84 as needed.
         // OGRSpatialReference crc;
         // crc.SetWellKnownGeogCS("WGS84");
 

@@ -1,12 +1,13 @@
 #ifndef UPDATECHECKER_H
 #define UPDATECHECKER_H
 
+#include "../export.h"
 #include <QObject>
 #include <QNetworkAccessManager>
 
 namespace ShipNetSimCore
 {
-class UpdateChecker : public QObject {
+class SHIPNETSIM_EXPORT UpdateChecker : public QObject {
     Q_OBJECT
 
 public:

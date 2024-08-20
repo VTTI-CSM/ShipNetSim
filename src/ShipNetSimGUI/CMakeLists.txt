@@ -1,4 +1,5 @@
-project(${SHIPNETSIM_NAME}"GUI" VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
+set(SHIPNETSIM_GUI_NAME "ShipNetSimGUI" CACHE STRING "Project GUI name" FORCE)
+project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
@@ -12,8 +13,15 @@ include_directories("C:/Program Files/osgQt/include")
 link_directories("C:/Program Files/osgQt/lib")
 
 
+# Include directories for ShipNetSimCore
+# These include directories should point to where the headers are installed or located
+include_directories(
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
+    ${CMAKE_BINARY_DIR}/include
+)
+
 # Find all header files in the shipnetsim directory and its subdirectories
-file(GLOB_RECURSE HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../ShipNetSim/*.h)
+#file(GLOB_RECURSE HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../ShipNetSim/*.h)
 
 # Get unique directories from the list of header files
 set(INCLUDE_DIRS "")
@@ -38,76 +46,40 @@ if (NOT osgEarth_FOUND)
 endif()
 
 set(PROJECT_H_FILES
-        ../ShipNetSim/network/point.h
-        ../ShipNetSim/network/gpoint.h
-        ../ShipNetSim/network/seaport.h
-        ../ShipNetSim/network/line.h
-        ../ShipNetSim/network/gline.h
-        ../ShipNetSim/network/polygon.h
-        ../ShipNetSim/network/algebraicvector.h
-        ../ShipNetSim/network/galgebraicvector.h
-        ../ShipNetSim/network/networkdefaults.h
-        ../ShipNetSim/network/optimizedvisibilitygraph.h
-        ../ShipNetSim/network/quadtree.h
-        ../ShipNetSim/network/optimizednetwork.h
-        ../ShipNetSim/utils/data.h
+    utils/defaults.h
+    utils/errorhandler.h
+    utils/configurationmanager.h
+    utils/unittype.h
 
-        ../ShipNetSim/ship/battery.h
-        ../ShipNetSim/ship/defaults.h
-        ../ShipNetSim/ship/holtropmethod.h
-        ../ShipNetSim/ship/hydrology.h
-        ../ShipNetSim/ship/ienergyconsumer.h
-        ../ShipNetSim/ship/ienergysource.h
-        ../ShipNetSim/ship/ishipcalmresistancestrategy.h
-        ../ShipNetSim/ship/ishipdynamicresistancestrategy.h
-        ../ShipNetSim/ship/ishipengine.h
-        ../ShipNetSim/ship/ishipgearbox.h
-        ../ShipNetSim/ship/ishippropeller.h
-        ../ShipNetSim/ship/langmaomethod.h
-        ../ShipNetSim/ship/shipslist.h
-        ../ShipNetSim/ship/ship.h
-        ../ShipNetSim/ship/shipengine.h
-        ../ShipNetSim/ship/shipfuel.h
-        ../ShipNetSim/ship/shipgearbox.h
-        ../ShipNetSim/ship/shippropeller.h
-        ../ShipNetSim/ship/tank.h
+    gui/windowMangement/aboutwindow.h
+    gui/windowMangement/settingswindow.h
+    gui/windowMangement/shipnetsimui.h
+    gui/windowMangement/shipnetsim.h
 
-        ../ShipNetSim/simulator.h
+    gui/components/osgearthqtwidget.h
+    gui/components/checkboxdelegate.h
+    gui/components/ClickableLabel.h
+    gui/components/comboboxdelegate.h
+    gui/components/customprogressbar.h
+    gui/components/customtablewidget.h
+    gui/components/disappearinglabel.h
+    gui/components/intnumericdelegate.h
+    gui/components/nonemptydelegate.h
+    gui/components/numericdelegate.h
+    gui/components/osgwidget.cpp
+    gui/components/osgwidget.h
+    gui/components/simulationworker.h
+    gui/components/textboxdelegate.h
+    gui/components/togglebutton.h
+    gui/components/globalmapmanager.h
+    gui/components/customprogressbar.h
+    gui/components/portclickhandler.h
+    gui/components/textboxbuttondelegate.h
+    gui/components/enginepowerpopupform.h
+    gui/components/enginerpmefficiencypopupform.h
+    gui/components/generalPopupForm.h
 
-        utils/defaults.h
-        utils/errorhandler.h
-        utils/configurationmanager.h
-        utils/unittype.h
-
-        gui/windowMangement/aboutwindow.h
-        gui/windowMangement/settingswindow.h
-        gui/windowMangement/shipnetsimui.h
-        gui/windowMangement/shipnetsim.h
-
-        gui/components/osgearthqtwidget.h
-        gui/components/checkboxdelegate.h
-        gui/components/ClickableLabel.h
-        gui/components/comboboxdelegate.h
-        gui/components/customprogressbar.h
-        gui/components/customtablewidget.h
-        gui/components/disappearinglabel.h
-        gui/components/intnumericdelegate.h
-        gui/components/nonemptydelegate.h
-        gui/components/numericdelegate.h
-        gui/components/osgwidget.cpp
-        gui/components/osgwidget.h
-        gui/components/simulationworker.h
-        gui/components/textboxdelegate.h
-        gui/components/togglebutton.h
-        gui/components/globalmapmanager.h
-        gui/components/customprogressbar.h
-        gui/components/portclickhandler.h
-        gui/components/textboxbuttondelegate.h
-        gui/components/enginepowerpopupform.h
-        gui/components/enginerpmefficiencypopupform.h
-        gui/components/generalPopupForm.h
-
-        ../third_party/qcustomplot/qcustomplot.h
+    ../third_party/qcustomplot/qcustomplot.h
 
 )
 
@@ -118,55 +90,25 @@ set(PROJECT_UI_FILES
 )
 
 set(PROJECT_SOURCES
-        ../ShipNetSim/network/point.cpp
-        ../ShipNetSim/network/gpoint.cpp
-        ../ShipNetSim/network/seaport.cpp
-        ../ShipNetSim/network/line.cpp
-        ../ShipNetSim/network/gline.cpp
-        ../ShipNetSim/network/polygon.cpp
-        ../ShipNetSim/network/algebraicvector.cpp
-        ../ShipNetSim/network/galgebraicvector.cpp
-        ../ShipNetSim/network/optimizedvisibilitygraph.cpp
-        ../ShipNetSim/network/quadtree.cpp
-        ../ShipNetSim/network/optimizednetwork.cpp
-        ../ShipNetSim/utils/data.cpp
+    utils/defaults.cpp
+    utils/configurationmanager.cpp
 
-        ../ShipNetSim/ship/battery.cpp
-        ../ShipNetSim/ship/holtropmethod.cpp
-        ../ShipNetSim/ship/ienergyconsumer.cpp
-        ../ShipNetSim/ship/ishipengine.cpp
-        ../ShipNetSim/ship/ishipgearbox.cpp
-        ../ShipNetSim/ship/ishippropeller.cpp
-        ../ShipNetSim/ship/langmaomethod.cpp
-        ../ShipNetSim/ship/ship.cpp
-        ../ShipNetSim/ship/shipengine.cpp
-        ../ShipNetSim/ship/shipfuel.cpp
-        ../ShipNetSim/ship/shipgearbox.cpp
-        ../ShipNetSim/ship/shippropeller.cpp
-        ../ShipNetSim/ship/tank.cpp
+    gui/windowMangement/aboutwindow.cpp
+    gui/windowMangement/settingswindow.cpp
+    gui/windowMangement/shipnetsimui.cpp
 
-        ../ShipNetSim/simulator.cpp
+    gui/components/osgearthqtwidget.cpp
+    gui/components/clickablelabel.cpp
+    gui/components/customtablewidget.cpp
+    gui/components/disappearinglabel.cpp
+    gui/components/simulationworker.cpp
+    gui/components/togglebutton.cpp
+    gui/components/globalmapmanager.cpp
+    gui/windowMangement/shipnetsim.cpp
 
-        utils/defaults.cpp
-        utils/configurationmanager.cpp
+    ../third_party/qcustomplot/qcustomplot.cpp
 
-        gui/windowMangement/aboutwindow.cpp
-        gui/windowMangement/settingswindow.cpp
-        gui/windowMangement/shipnetsimui.cpp
-
-        gui/components/osgearthqtwidget.cpp
-        gui/components/clickablelabel.cpp
-        gui/components/customtablewidget.cpp
-        gui/components/disappearinglabel.cpp
-        gui/components/simulationworker.cpp
-        gui/components/togglebutton.cpp
-        gui/components/globalmapmanager.cpp
-        gui/windowMangement/shipnetsim.cpp
-        utils/errorhandler.cpp
-
-        ../third_party/qcustomplot/qcustomplot.cpp
-
-        main.cpp
+    main.cpp
 )
 
 # set configuration file
@@ -174,7 +116,7 @@ configure_file(VersionConfig.h.in VersionConfig.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(ShipNetSimGUI
+    qt_add_executable(${SHIPNETSIM_GUI_NAME}
         MANUAL_FINALIZATION
 
         ${PROJECT_H_FILES}
@@ -182,40 +124,40 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         gui/media/src.qrc
 
-
-
-
-
-
-
         # guiclasses/osgwidget.h guiclasses/osgwidget.cpp
     )
 # Define target properties for Android with Qt 6 as:
-#    set_property(TARGET ShipNetSimGUI APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
+#    set_property(TARGET ${SHIPNETSIM_GUI_NAME} APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
 # For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(ShipNetSimGUI SHARED
+        add_library(${SHIPNETSIM_GUI_NAME} SHARED
             ${PROJECT_SOURCES}
         )
 # Define properties for Android with Qt 5 after find_package() calls as:
 #    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
-        add_executable(ShipNetSimGUI
+        add_executable(${SHIPNETSIM_GUI_NAME}
             ${PROJECT_SOURCES}
         )
     endif()
 endif()
 
+# Ensure that ShipNetSimCore is built first by specifying it as a dependency
+add_dependencies(${SHIPNETSIM_GUI_NAME} ShipNetSimCore)
+
 # Add include directory
-target_include_directories(ShipNetSimGUI PRIVATE
+target_include_directories(${SHIPNETSIM_GUI_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSim
     ${osgEarth_INCLUDE_DIRS}
     ${OPENSCENEGRAPH_INCLUDE_DIRS}
 )
 
 
-target_link_libraries(ShipNetSimGUI PRIVATE
+target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
+    ShipNetSimCore
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::OpenGLWidgets
     Qt${QT_VERSION_MAJOR}::Concurrent
@@ -224,20 +166,20 @@ target_link_libraries(ShipNetSimGUI PRIVATE
     GeographicLib::GeographicLib
     GDAL::GDAL
     JKQTPlotter${QT_VERSION_MAJOR}::JKQTPlotter${QT_VERSION_MAJOR}
-    "C:/Program Files/OpenSceneGraph/lib/osgd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgDBd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgManipulatord.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgGAd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgUtild.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgViewerd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgSimd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgTextd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgUtild.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgDBd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgShadowd.lib"
-    "C:/Program Files/OSGEarth/lib/osgEarthd.lib"
-    "C:/Program Files/osgQt/lib/osg145-osgQOpenGLd.lib"
-    "C:/Program Files/OpenSceneGraph/lib/ot21-OpenThreadsd.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osg.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgDB.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgManipulator.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgGA.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgUtil.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgViewer.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgSim.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgText.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgUtil.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgDB.lib"
+    "C:/Program Files/OpenSceneGraph/lib/osgShadow.lib"
+    "C:/Program Files/OSGEarth/lib/osgEarth.lib"
+    "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib"
+    "C:/Program Files/OpenSceneGraph/lib/ot21-OpenThreads.lib"
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -246,7 +188,7 @@ target_link_libraries(ShipNetSimGUI PRIVATE
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.ShipNetSimGUI)
 endif()
-# set_target_properties(ShipNetSimGUI PROPERTIES
+# set_target_properties(${SHIPNETSIM_GUI_NAME} PROPERTIES
 #     ${BUNDLE_ID_OPTION}
 #     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
 #     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -255,12 +197,19 @@ endif()
 # )
 
 include(GNUInstallDirs)
-install(TARGETS ShipNetSimGUI
+install(TARGETS ${SHIPNETSIM_GUI_NAME}
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+
+# Ensure the ShipNetSimCore DLL is copied to the output directory
+add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSimGUI>
+)
+
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(ShipNetSimGUI)
+    qt_finalize_executable(${SHIPNETSIM_GUI_NAME})
 endif()

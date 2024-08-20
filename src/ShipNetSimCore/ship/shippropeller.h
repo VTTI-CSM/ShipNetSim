@@ -14,6 +14,8 @@
 #ifndef SHIPPROPELLER_H
 #define SHIPPROPELLER_H
 
+#include "../export.h"
+
 #include "ishipgearbox.h"
 #include "ishippropeller.h"
 
@@ -31,7 +33,7 @@ class Ship;  // Forward declaration of the class ship
  * and various propeller and shaft efficiencies to calculate these
  * parameters.
  */
-class ShipPropeller : public IShipPropeller
+class SHIPNETSIM_EXPORT ShipPropeller : public IShipPropeller
 {
 public:
     // IShipPropeller interface

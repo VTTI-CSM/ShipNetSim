@@ -20,6 +20,7 @@
 #include <QDir>
 #include <iostream>
 #include <QTextStream>
+#include "../export.h"
 
 namespace ShipNetSimCore
 {
@@ -31,7 +32,7 @@ namespace ShipNetSimCore
  * Qt-based applications. It can write logs to a file and to the
  * standard output based on specified minimum log levels.
  */
-class Logger : public QObject
+class SHIPNETSIM_EXPORT Logger : public QObject
 {
     Q_OBJECT
 public:

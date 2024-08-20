@@ -13,6 +13,8 @@
 
 #ifndef SHIP_H
 #define SHIP_H
+
+#include "../export.h"
 #include <iostream>
 #include <any>
 #include "../../third_party/units/units.h"
@@ -36,7 +38,7 @@ class IShipDynamicResistanceStrategy;
  * @brief Defines a ship and provides methods to
  * compute its properties and resistances.
  */
-class Ship : public QObject
+class SHIPNETSIM_EXPORT Ship : public QObject
 {
     Q_OBJECT
 public:

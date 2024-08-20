@@ -5,12 +5,15 @@ cmake_minimum_required(VERSION 3.24)
 # This can be used as the name of a library target in the project
 set(units_LIB_TARGET_NAME "unitsLib")
 
-# Core simulation engine
+# Core simulation engine DLL - build this first
+add_subdirectory(ShipNetSimCore)
+
+# Executable program
 add_subdirectory(ShipNetSim)
 
 if (BUILD_GUI)
-    # Graphical User Interface for the simulation
-    add_subdirectory(ShipNetSimGUI)
+   # Graphical User Interface for the simulation
+   add_subdirectory(ShipNetSimGUI)
 endif()
 
 # Third-party dependencies or shared libraries

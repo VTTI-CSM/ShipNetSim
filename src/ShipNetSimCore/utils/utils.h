@@ -5,6 +5,7 @@
 #include <QString>
 #include <QMap>
 #include <QDir>
+#include "../export.h"
 
 namespace ShipNetSimCore
 {
@@ -12,42 +13,9 @@ namespace ShipNetSimCore
 namespace Utils
 {
 
-inline QString getFirstExistingPathFromList(
+SHIPNETSIM_EXPORT QString getFirstExistingPathFromList(
     QVector<QString> filePaths,
-    QVector<QString> extensions = QVector<QString>())
-{
-    for (const QString& loc: filePaths)
-    {
-        QFileInfo fileInfo(loc);
-
-        // If the path is relative, resolve it to an absolute path
-        QString fullPath;
-        if (fileInfo.isRelative())
-        {
-            fullPath = QDir::current().absoluteFilePath(loc);
-        }
-        else
-        {
-            fullPath = loc;
-        }
-
-        // Check if the file exists
-        if (QFile::exists(fullPath))
-        {
-            // Get the extension of the file
-            QString ext = fileInfo.suffix().toLower();
-
-            // if it has the needed extension or no required extension,
-            // return the path
-            if (extensions.empty() ||
-                extensions.contains(ext, Qt::CaseInsensitive))
-            {
-                return fullPath;
-            }
-        }
-    }
-    return QString("");
-};
+    QVector<QString> extensions = QVector<QString>());
 
 /**
  * Format a QString by prepending a prefix and appending a filler string
@@ -61,30 +29,11 @@ inline QString getFirstExistingPathFromList(
  * @param length The target total length of the final string.
  * @return A formatted QString of the specified length.
  */
-inline QString formatString(const QString preString,
-                            const QString mainString,
-                            const QString postString,
-                            const QString filler,
-                            int length) {
-    // Start by concatenating preString and mainString
-    QString result = preString + mainString;
-
-    // Calculate remaining length to fill
-    int remainingLength = length - postString.length() - result.length();
-
-    // Append the filler string as many times as needed to reach the
-    // desired length excluding postString
-    while (remainingLength > 0) {
-        // Append only the necessary part of the filler
-        result.append(filler.left(remainingLength));
-        // Update remaining length
-        remainingLength = length - postString.length() - result.length();
-    }
-
-    result += postString;  // Append postString after filling
-
-    return result;  // Return the formatted string
-}
+SHIPNETSIM_EXPORT QString formatString(const QString preString,
+                                       const QString mainString,
+                                       const QString postString,
+                                       const QString filler,
+                                       int length);
 
 /**
  * Retrieve a value from a QMap with a specified key.
@@ -162,7 +111,8 @@ struct ValueGetter<double, double> {
 
 // Template function for linear interpolation
 template<typename T>
-inline T linearInterpolate(T x0, T y0, T x1, T y1, T x) {
+T linearInterpolate(T x0, T y0, T x1, T y1, T x)
+{
     if (x1 == x0) {
         throw std::invalid_argument("x0 and x1 cannot be the same, "
                                     "division by zero is not allowed!");
@@ -220,24 +170,11 @@ inline T linearInterpolateAtX(const QVector<T>& x_vals,
 
     throw std::logic_error("Interpolation interval not found, "
                            "which should be impossible!");
-}
+};
 
-inline std::vector<double> linspace_step(double start,
+std::vector<double> linspace_step(double start,
                                          double end,
-                                         double step = 1.0)
-{
-    std::vector<double> linspaced;
-    int numSteps = static_cast<int>(std::ceil((end - start) / step));
-
-    for(int i = 0; i <= numSteps; ++i){
-        double currentValue = start + i * step;
-        // To avoid floating point errors, we limit the value to 'end'
-        if(currentValue > end) currentValue = end;
-        linspaced.push_back(currentValue);
-    }
-
-    return linspaced;
-}
+                                         double step = 1.0);
 
 /**
  * Format duration from seconds into a customized string format.
@@ -259,7 +196,8 @@ inline std::vector<double> linspace_step(double start,
  */
 template<typename T>
 inline QString formatDuration(T seconds,
-                              const QString format = "%dd days %hh:%mm:%ss") {
+                       const QString format = "%dd days %hh:%mm:%ss")
+{
     int minutes = static_cast<int>(seconds) / 60;
     int hours = minutes / 60;
     int days = hours / 24;
@@ -287,7 +225,7 @@ inline QString formatDuration(T seconds,
     stream << tempFormat;
 
     return result;
-}
+};
 
 /**
  * Format a number by adding a thousand separator and
@@ -298,7 +236,8 @@ inline QString formatDuration(T seconds,
  * @returns Formatted string with thousand separators.
  */
 template <typename T>
-inline QString thousandSeparator(T n, int decimals = 3) {
+inline QString thousandSeparator(T n, int decimals = 3)
+{
     // Get the sign of the number and remove it
     int sign = (n < 0) ? -1 : 1;
     double approx = std::pow(static_cast<double>(10.0), decimals);
@@ -342,7 +281,7 @@ inline QString thousandSeparator(T n, int decimals = 3) {
     }
 
     return result;
-}
+};
 
 /**
  * Split a string into pairs based on newline characters
@@ -353,32 +292,9 @@ inline QString thousandSeparator(T n, int decimals = 3) {
  *                      splitting each line (default is ":").
  * @returns A QVector of QPairs containing the split string values.
  */
-inline QVector<QPair<QString, QString>>
+SHIPNETSIM_EXPORT QVector<QPair<QString, QString>>
 splitStringStream(const QString& inputString,
-                  const QString& delimiter = ":")
-{
-    QVector<QPair<QString, QString>> result;
-
-    // Split input string by newline characters
-    const auto& lines = inputString.split("\n", Qt::SkipEmptyParts);
-    for (const auto& line : lines)
-    {
-        // Split each line by the given delimiter and append to result
-        int delimiterPos = line.indexOf(delimiter);
-        if (delimiterPos != -1)
-        {
-            QString first = line.left(delimiterPos);
-            QString second = line.mid(delimiterPos + delimiter.size());
-            result.append(qMakePair(first, second));
-        }
-        else
-        {
-            result.append(qMakePair(line, ""));
-        }
-    }
-
-    return result;
-}
+                  const QString& delimiter = ":");
 
 /**
  * Retrieve the home directory path and ensures a
@@ -388,46 +304,16 @@ splitStringStream(const QString& inputString,
  *           the "Documents" directory.
  * @throws std::runtime_error if unable to retrieve the home directory.
  */
-inline QString getHomeDirectory()
-{
-    QString homeDir;
+SHIPNETSIM_EXPORT QString getHomeDirectory();
 
-// OS-dependent home directory retrieval
-#if defined(Q_OS_WIN)
-    homeDir = QDir::homePath();
-#elif defined(Q_OS_LINUX) || defined(Q_OS_MAC)
-    homeDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-#endif
-
-    if (!homeDir.isEmpty())
-    {
-        // Creating a path to ShipNetSim folder in the Documents directory
-        const QString documentsDir = QDir(homeDir).filePath("Documents");
-        const QString folder = QDir(documentsDir).filePath("ShipNetSim");
-
-        QDir().mkpath(folder); // Create the directory if it doesn't exist
-
-        return folder;
-    }
-
-    throw std::runtime_error("Error: Cannot retrieve home directory!");
-}
-
-inline bool stringToBool(const QString& str, bool* ok = nullptr)
-{
-    QString lowerStr = str.toLower();
-    if (lowerStr == "true" || str == "1") {
-        if (ok != nullptr) *ok = true;
-        return true;
-    } else if (lowerStr == "false" || str == "0") {
-        if (ok != nullptr) *ok = true;
-        return false;
-    } else {
-        if (ok != nullptr) *ok = false;
-        qWarning() << "Invalid boolean string:" << str;
-        return false;
-    }
-}
+/**
+ * Convert boolean string to a boolean value.
+ * @param str   The string that contains the bool value
+ * @param ok    A variable that holds the conversion result.
+ * 
+ * @return The boolean value of the string.
+ */
+SHIPNETSIM_EXPORT bool stringToBool(const QString& str, bool* ok = nullptr);
 
 }
 };

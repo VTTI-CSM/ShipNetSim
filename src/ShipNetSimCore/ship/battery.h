@@ -19,13 +19,14 @@
 #ifndef BATTERY_H
 #define BATTERY_H
 
+#include "../export.h"
 #include <iostream>
 #include "../../third_party/units/units.h"
 #include "ienergysource.h"
 
 namespace ShipNetSimCore
 {
-class Battery : public IEnergySource
+class SHIPNETSIM_EXPORT Battery : public IEnergySource
 {
 private:
     // Battery max capacity

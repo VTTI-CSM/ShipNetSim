@@ -21,6 +21,7 @@
 #ifndef GPOINT_H
 #define GPOINT_H
 
+#include "../export.h"
 #include <gdal.h>
 #include <ogr_geometry.h>
 #include <ogr_spatialref.h>
@@ -32,7 +33,7 @@ namespace ShipNetSimCore
 {
 class Point; // Forward declaration
 
-class GPoint : public BaseGeometry
+class SHIPNETSIM_EXPORT GPoint : public BaseGeometry
 {
 public:
     // Default constructor: initializes a point at the origin

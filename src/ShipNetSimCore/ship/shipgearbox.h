@@ -11,6 +11,8 @@
 #ifndef SHIPGEARBOX_H
 #define SHIPGEARBOX_H
 
+#include "../export.h"
+
 #include "ishipgearbox.h"
 
 namespace ShipNetSimCore
@@ -31,7 +33,7 @@ namespace ShipNetSimCore
  * set its parameters, and retrieve its output rotation speed and
  * power.
  */
-class ShipGearBox : public IShipGearBox
+class SHIPNETSIM_EXPORT ShipGearBox : public IShipGearBox
 {
 public:
     /**

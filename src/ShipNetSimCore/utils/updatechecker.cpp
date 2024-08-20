@@ -6,7 +6,7 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QDebug>
-#include "src/ShipNetSim/VersionConfig.h"
+#include "src/ShipNetSimCore/VersionConfig.h"
 
 namespace ShipNetSimCore
 {

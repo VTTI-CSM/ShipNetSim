@@ -8,7 +8,7 @@
 #include "../components/nonemptydelegate.h"
 #include "../components/numericdelegate.h"
 #include "../components/textboxdelegate.h"
-#include "../utils/data.h"
+#include "utils/data.h"
 #include "ShipNetSimGUI/gui/components/checkboxdelegate.h"
 #include "ShipNetSimGUI/gui/components/comboboxdelegate.h"
 #include "ShipNetSimGUI/gui/components/textboxbuttondelegate.h"

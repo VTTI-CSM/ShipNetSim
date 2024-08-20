@@ -25,12 +25,11 @@
 #include <osgEarth/Style>
 #include <osgEarth/Feature>
 #include <osgEarth/Registry>
-
 #include <QString>
 #include "../../utils/defaults.h"
 #include "osgEarth/ObjectIndex"
 #include "utils/utils.h"
-#include "../network/seaport.h"
+#include "network/seaport.h"
 
 class GlobalMapManager
 {

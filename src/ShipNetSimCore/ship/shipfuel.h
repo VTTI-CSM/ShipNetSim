@@ -9,6 +9,7 @@
 #ifndef SHIPFUEL_H
 #define SHIPFUEL_H
 
+#include "../export.h"
 #include <iostream>
 #include <map>
 #include <QVector>
@@ -21,7 +22,7 @@ namespace ShipNetSimCore
  * @class ShipFuel
  * @brief The ShipFuel class manages the ship's fuel operations.
  */
-class ShipFuel
+class SHIPNETSIM_EXPORT ShipFuel
 {
 
 
