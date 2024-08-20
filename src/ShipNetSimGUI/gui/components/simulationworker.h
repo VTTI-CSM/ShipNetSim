@@ -17,8 +17,8 @@
 #define SIMULATIONWORKER_H
 
 #include <QObject>
-#include "../ShipNetSim/simulator.h"
-#include "../ShipNetSim/network/gpoint.h"
+#include "simulator.h"
+#include "network/gpoint.h"
 
 /**
  * @class SimulationWorker

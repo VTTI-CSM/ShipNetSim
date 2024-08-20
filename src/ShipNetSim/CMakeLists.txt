@@ -1,8 +1,6 @@
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
 project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
-# Add the units library target
-add_library(${units_LIB_TARGET_NAME})
 
 # Define and find the required libraries for the project
 # Find Qt version 6 and include the Core, Concurent, Xml, Network components
@@ -10,58 +8,30 @@ find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Concurrent  Xml Network)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Concurrent  Xml Network)
 
 
+# Include directories for ShipNetSimCore
+# These include directories should point to where the headers are installed or located
+include_directories(${CMAKE_SOURCE_DIR}/src/ShipNetSimCore)
+include_directories(${CMAKE_BINARY_DIR}/include)
+
 # Define the executable target for the project,
 # listing the required source and header files
 add_executable(${SHIPNETSIM_NAME}
   main.cpp
-  ship/ship.h ship/ship.cpp
-  ship/hydrology.h
-  ship/ishipcalmresistancestrategy.h
-  ship/ishipdynamicresistancestrategy.h
-  ship/holtropmethod.h ship/holtropmethod.cpp
-  utils/logger.h utils/logger.cpp
-  network/basegeometry.h
-  network/point.h network/point.cpp
-  network/line.h network/line.cpp
-  network/polygon.h network/polygon.cpp
-  ship/ishippropeller.h ship/ishippropeller.cpp
-  ship/shippropeller.h ship/shippropeller.cpp
-  utils/utils.h
-  utils/data.h utils/data.cpp
-  ship/ienergysource.h
-  ship/battery.h ship/battery.cpp
-  ship/tank.h ship/tank.cpp
-  simulator.h simulator.cpp
-  network/algebraicvector.h network/algebraicvector.cpp
-  ship/shipfuel.h ship/shipfuel.cpp
-  ship/ienergyConsumer.h ship/ienergyconsumer.cpp
-  ship/ishipengine.h ship/ishipengine.cpp
-  ship/shipengine.h ship/shipengine.cpp
-  ship/ishipgearbox.h ship/ishipgearbox.cpp
-  ship/shipgearbox.h ship/shipgearbox.cpp
-  ship/shipsList.h
-  ship/defaults.h
-  network/quadtree.h network/quadtree.cpp
-  network/optimizedvisibilitygraph.h network/optimizedvisibilitygraph.cpp
-  network/optimizednetwork.h network/optimizednetwork.cpp
-  ship/langmaomethod.h ship/langmaomethod.cpp
-  network/gpoint.h network/gpoint.cpp
-  network/gline.h network/gline.cpp
-  network/galgebraicvector.h network/galgebraicvector.cpp
-  network/seaport.h network/seaport.cpp
-  utils/updatechecker.h utils/updatechecker.cpp
-  network/networkdefaults.h
-
 )
+
+# Ensure that ShipNetSimCore is built first by specifying it as a dependency
+add_dependencies(${SHIPNETSIM_NAME} ShipNetSimCore)
 
 # Include directories and link libraries are inherited from the parent scope
 target_include_directories(${SHIPNETSIM_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
     ${CMAKE_SOURCE_DIR}/src/ShipNetSim
     ${CMAKE_BINARY_DIR}
 )
 
 # Link the Boost and Qt libraries to the executable target
 target_link_libraries(${SHIPNETSIM_NAME}
+    ShipNetSimCore
     GeographicLib::GeographicLib
     GDAL::GDAL
     Qt${QT_VERSION_MAJOR}::Core
@@ -86,10 +56,14 @@ target_compile_options(${SHIPNETSIM_NAME} PRIVATE
     >
 )
 
-
+# Ensure the ShipNetSimCore DLL is copied to the output directory
+add_custom_command(TARGET ShipNetSim POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSim>
+)
 
 # set configuration file
-configure_file(VersionConfig.h.in VersionConfig.h @ONLY)
+# configure_file(VersionConfig.h.in VersionConfig.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Include the GNU installation directories,

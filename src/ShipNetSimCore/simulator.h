@@ -1,6 +1,7 @@
 #ifndef SIMULATOR_H
 #define SIMULATOR_H
 
+#include "export.h"
 #include "qmutex.h"
 #include "qwaitcondition.h"
 #include "network/optimizednetwork.h"
@@ -15,7 +16,7 @@
 namespace ShipNetSimCore
 {
 
-class Simulator : public QObject
+class SHIPNETSIM_EXPORT Simulator : public QObject
 {
     Q_OBJECT
 private:
@@ -155,13 +156,6 @@ public:
      * @param ship the new ship pointer to be simulated
      */
     void addShipToSimulation(std::shared_ptr<Ship> ship);
-
-    /**
-     * @brief add a ship to simulator
-     * @param ship the new ship to be simulated
-     */
-    void addShipToSimulation(Ship ship);
-
 
     /**
      * @brief set simulator time step

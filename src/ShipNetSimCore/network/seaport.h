@@ -1,12 +1,13 @@
 #ifndef SEAPORT_H
 #define SEAPORT_H
 
+#include "../export.h"
 #include "gpoint.h"
 #include <QString>
 
 namespace ShipNetSimCore
 {
-class SeaPort
+class SHIPNETSIM_EXPORT SeaPort
 {
 public:
     // SeaPort();

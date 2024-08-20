@@ -1,6 +1,7 @@
 #ifndef DATA_H
 #define DATA_H
 
+#include "../export.h"
 #include <QMap>
 #include <QVariant>
 #include <QString>
@@ -27,7 +28,7 @@ using Cell = QVariant;
 namespace Data
 {
 
-class Table
+class SHIPNETSIM_EXPORT Table
 {
 public:
     QVector<QString> headers;
@@ -150,7 +151,7 @@ public:
     }
 };
 
-class CSV {
+class SHIPNETSIM_EXPORT CSV {
 private:
     QString mFilePath;
     QFile mFile;
@@ -168,7 +169,7 @@ public:
     void close();
 };
 
-class TXT
+class SHIPNETSIM_EXPORT TXT
 {
 private:
     QString mFilePath;
@@ -187,7 +188,7 @@ public:
 };
 
 namespace ProjectFile {
-    struct ProjectDataFile {
+    struct SHIPNETSIM_EXPORT ProjectDataFile {
         QString projectName;
         QString networkName;
         QString authorName;
@@ -197,9 +198,9 @@ namespace ProjectFile {
         QString simPlotTime;
     };
 
-    void createProjectFile(const ProjectDataFile pf, QString& filename);
+    SHIPNETSIM_EXPORT void createProjectFile(const ProjectDataFile pf, QString& filename);
 
-    ProjectDataFile readProjectFile(const QString &filename);
+    SHIPNETSIM_EXPORT ProjectDataFile readProjectFile(const QString &filename);
 };
 }
 };

@@ -9,7 +9,7 @@
 #ifndef SHIPENGINE_H
 #define SHIPENGINE_H
 
-
+#include "../export.h"
 #include "ishipengine.h"
 #include "ienergysource.h"
 #include <QMap>
@@ -20,7 +20,7 @@ namespace ShipNetSimCore
  * @class ShipEngine
  * @brief The ShipEngine class manages the ship's engine operations.
  */
-class ShipEngine : public IShipEngine
+class SHIPNETSIM_EXPORT ShipEngine : public IShipEngine
 {
 public:
 

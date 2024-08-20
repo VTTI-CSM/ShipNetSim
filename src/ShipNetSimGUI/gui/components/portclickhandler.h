@@ -7,7 +7,7 @@
 #include <osg/Geode>
 #include <osg/ShapeDrawable>
 #include <osgGA/GUIEventHandler>
-#include "../network/seaport.h"
+#include "network/seaport.h"
 #include "qdebug.h"
 #include <osgViewer/ViewerEventHandlers>
 

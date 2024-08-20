@@ -1,6 +1,7 @@
 #ifndef GLINE_H
 #define GLINE_H
 
+#include "../export.h"
 #include "gpoint.h"
 #include "line.h"
 #include "basegeometry.h"
@@ -9,7 +10,7 @@ namespace ShipNetSimCore
 {
 class GAlgebraicVector;  // forward declaration
 
-class GLine : public BaseGeometry
+class SHIPNETSIM_EXPORT GLine : public BaseGeometry
 {
 
 private:

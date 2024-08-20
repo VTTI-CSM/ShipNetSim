@@ -1,7 +1,7 @@
 #ifndef OPTIMIZEDNETWORK_H
 #define OPTIMIZEDNETWORK_H
 
-
+#include "../export.h"
 #include "polygon.h"
 #include "optimizedvisibilitygraph.h"
 #include "QObject"
@@ -92,7 +92,7 @@ struct tiffFileData {
     }
 };
 
-class OptimizedNetwork : QObject
+class SHIPNETSIM_EXPORT OptimizedNetwork : QObject
 {
     Q_OBJECT
 private:

@@ -19,13 +19,14 @@
 #ifndef TANK_H
 #define TANK_H
 
+#include "../export.h"
 #include "shipfuel.h"
 #include "ienergysource.h"
 #include "../../third_party/units/units.h"
 
 namespace ShipNetSimCore
 {
-class Tank : public IEnergySource
+class SHIPNETSIM_EXPORT Tank : public IEnergySource
 {
 private:
     // Attributes related to the tank's capacity and fuel details
