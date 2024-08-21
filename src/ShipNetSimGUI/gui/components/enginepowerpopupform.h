@@ -1,7 +1,7 @@
 #ifndef ENGINEPOWERPOPUPFORM_H
 #define ENGINEPOWERPOPUPFORM_H
 
-#include "ShipNetSimGUI/gui/components/numericdelegate.h"
+#include "./numericdelegate.h"
 #include "qheaderview.h"
 #include <QStyledItemDelegate>
 #include <QTableWidget>

@@ -1,6 +1,6 @@
 #include "settingswindow.h"
-#include "ShipNetSimGUI/gui/windowMangement/shipnetsim.h"
-#include "ShipNetSimGUI/gui/windowMangement/shipnetsimui.h"
+#include "./shipnetsim.h"
+#include "./shipnetsimui.h"
 #include "ui_settingswindow.h"
 #include <QFileDialog>
 

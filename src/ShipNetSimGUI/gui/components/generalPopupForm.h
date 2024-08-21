@@ -1,9 +1,9 @@
 #ifndef GENERALPOPUPFORM_H
 #define GENERALPOPUPFORM_H
 
-#include "ShipNetSimGUI/gui/components/comboboxdelegate.h"
-#include "ShipNetSimGUI/gui/components/disappearinglabel.h"
-#include "ShipNetSimGUI/gui/components/numericdelegate.h"
+#include "./comboboxdelegate.h"
+#include "./disappearinglabel.h"
+#include "./numericdelegate.h"
 #include "qheaderview.h"
 #include <QStyledItemDelegate>
 #include <QTableWidget>

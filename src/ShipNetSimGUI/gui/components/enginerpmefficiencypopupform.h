@@ -1,8 +1,8 @@
 #ifndef ENGINERPMEFFICIENCYPOPUPFORM_H
 #define ENGINERPMEFFICIENCYPOPUPFORM_H
 
-#include "ShipNetSimGUI/gui/components/disappearinglabel.h"
-#include "ShipNetSimGUI/gui/components/numericdelegate.h"
+#include "./disappearinglabel.h"
+#include "./numericdelegate.h"
 #include "qheaderview.h"
 #include <QStyledItemDelegate>
 #include <QTableWidget>
