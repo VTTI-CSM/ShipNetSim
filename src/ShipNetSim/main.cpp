@@ -13,7 +13,7 @@
 #include <QCoreApplication>
 #include <ogr_geometry.h>
 #include "simulator.h"
-#include "src/ShipNetSimCore/VersionConfig.h"
+#include "./VersionConfig.h"
 #include "utils/logger.h"
 #include <QLocale>
 #include <QTranslator>
