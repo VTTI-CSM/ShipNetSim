@@ -91,20 +91,38 @@ public:
         FuelType fuelType);
 
     /**
-     * @brief convert liters to carbon dioxide in kg.
+     * @brief Convert the volume of fuel in liters to the equivalent
+     * carbon dioxide (CO2) content in kilograms.
+     *
+     * This function calculates the amount of carbon dioxide produced
+     * from burning a given volume of fuel, based on the carbon content
+     * of the specified fuel type. The function will throw an exception
+     * if the provided fuel type is not found in the fuel details.
+     *
      * @param volume The volume of the fuel in liters.
      * @param fuelType The type of the fuel.
-     * @return The equivalent CO2 content.
+     * @return The equivalent CO2 content in kilograms.
+     * @throws std::runtime_error If the fuel type is not found in
+     * the fuel details.
      */
     static units::mass::kilogram_t convertLitersToCarbonDioxide(
         units::volume::liter_t volume,
         FuelType fuelType);
 
     /**
-     * @brief convert liters to sulfur dioxide in kg.
+     * @brief Convert the volume of fuel in liters to the equivalent
+     * sulfur dioxide (SO2) content in kilograms.
+     *
+     * This function calculates the amount of sulfur dioxide produced
+     * from burning a given volume of fuel, based on the sulfur content
+     * of the specified fuel type. The function will throw an exception
+     * if the provided fuel type is not found in the fuel details.
+     *
      * @param volume The volume of the fuel in liters.
      * @param fuelType The type of the fuel.
-     * @return The equivalent SO2 content.
+     * @return The equivalent SO2 content in kilograms.
+     * @throws std::runtime_error If the fuel type is not found in
+     * the fuel details.
      */
     static units::mass::kilogram_t convertLitersToSulfurDioxide(
         units::volume::liter_t volume,
