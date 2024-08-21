@@ -77,7 +77,7 @@ target_compile_options(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:
         /W4
         $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-        $<$<CONFIG:Release>:/O3>   # Release flags
+        $<$<CONFIG:Release>:/Ox>   # Release flags
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:

@@ -4,47 +4,11 @@ project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
 
-set(BUILD_STATIC_LIBS ON)
-find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgGA osgUtil osgViewer HINTS ${OpenSceneGraph_ROOT_HINTS})
-find_package(osgEarth CONFIG REQUIRED)
+# Find OpenGL 
 find_package(OpenGL REQUIRED)
-find_package(JKQTPlotter6 REQUIRED HINTS "C:/Program Files/JKQTPlotter")
-include_directories("C:/Program Files/osgQt/include")
-link_directories("C:/Program Files/osgQt/lib")
 
 
-# Include directories for ShipNetSimCore
-# These include directories should point to where the headers are installed or located
-include_directories(
-    ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
-    ${CMAKE_BINARY_DIR}/include
-)
-
-# Find all header files in the shipnetsim directory and its subdirectories
-#file(GLOB_RECURSE HEADER_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../ShipNetSim/*.h)
-
-# Get unique directories from the list of header files
-set(INCLUDE_DIRS "")
-foreach(_headerFile ${HEADER_FILES})
-    get_filename_component(_dir ${_headerFile} PATH)
-    list(APPEND INCLUDE_DIRS ${_dir})
-endforeach()
-list(REMOVE_DUPLICATES INCLUDE_DIRS)
-
-# Include all directories found
-include_directories(${INCLUDE_DIRS}
-${CMAKE_SOURCE_DIR}/src
-)
-
-if(NOT OpenSceneGraph_FOUND)
-    message(FATAL_ERROR "GeographicLib not found in
-        the specific path: ${GEOGRAPHICLIB_ROOT}")
-endif()
-if (NOT osgEarth_FOUND)
-    message(FATAL_ERROR "osgEarth not found in
-        the specific path: ${GDAL_ROOT}")
-endif()
-
+# Define source and header files
 set(PROJECT_H_FILES
     utils/defaults.h
     utils/errorhandler.h
@@ -126,17 +90,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         # guiclasses/osgwidget.h guiclasses/osgwidget.cpp
     )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET ${SHIPNETSIM_GUI_NAME} APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
         add_library(${SHIPNETSIM_GUI_NAME} SHARED
             ${PROJECT_SOURCES}
         )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
         add_executable(${SHIPNETSIM_GUI_NAME}
             ${PROJECT_SOURCES}
@@ -147,15 +105,17 @@ endif()
 # Ensure that ShipNetSimCore is built first by specifying it as a dependency
 add_dependencies(${SHIPNETSIM_GUI_NAME} ShipNetSimCore)
 
-# Add include directory
+# Include necessary directories
 target_include_directories(${SHIPNETSIM_GUI_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
-    ${CMAKE_SOURCE_DIR}/src/ShipNetSim
-    ${osgEarth_INCLUDE_DIRS}
-    ${OPENSCENEGRAPH_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/src/ShipNetSimGUI     # Include the source files
+    ${osgEarth_INCLUDE_DIRS}                  # Include osgEarth headers
+    ${OpenSceneGraph_INCLUDE_DIRS}            # Include OpenSceneGraph headers
+    ${CMAKE_BINARY_DIR}/include
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-
+# Link necessary libraries
 target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     ShipNetSimCore
     Qt${QT_VERSION_MAJOR}::Widgets
@@ -163,24 +123,32 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::Concurrent
     Qt${QT_VERSION_MAJOR}::PrintSupport
     OpenGL::GL
+    ${OPENGL_gl_LIBRARY}
     GeographicLib::GeographicLib
     GDAL::GDAL
-    JKQTPlotter${QT_VERSION_MAJOR}::JKQTPlotter${QT_VERSION_MAJOR}
-    "C:/Program Files/OpenSceneGraph/lib/osg.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgDB.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgManipulator.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgGA.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgUtil.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgViewer.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgSim.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgText.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgUtil.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgDB.lib"
-    "C:/Program Files/OpenSceneGraph/lib/osgShadow.lib"
-    "C:/Program Files/OSGEarth/lib/osgEarth.lib"
-    "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib"
-    "C:/Program Files/OpenSceneGraph/lib/ot21-OpenThreads.lib"
+    ${osgEarth_LIBRARIES}                   # Link osgEarth libraries
+    ${OSGQT_LIBRARIES}
+    osg3::osg
+    osg3::osgDB
+    osg3::osgGA
+    osg3::osgManipulator
+    osg3::osgUtil
+    osg3::osgViewer
+    osg3::osgSim
+    osg3::osgText
+    osg3::osgShadow
+    osg3::OpenThreads
 )
+
+# Apply additional linker flags, if necessary
+if(osgEarth_LDFLAGS)
+    target_link_options(${PROJECT_NAME} PRIVATE ${osgEarth_LDFLAGS})
+endif()
+
+# Apply additional compiler definitions, if necessary
+if(osgEarth_DEFINITIONS)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ${osgEarth_DEFINITIONS})
+endif()
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
@@ -188,13 +156,7 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.ShipNetSimGUI)
 endif()
-# set_target_properties(${SHIPNETSIM_GUI_NAME} PROPERTIES
-#     ${BUNDLE_ID_OPTION}
-#     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-#     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-#     MACOSX_BUNDLE TRUE
-#     WIN32_EXECUTABLE TRUE
-# )
+
 
 include(GNUInstallDirs)
 install(TARGETS ${SHIPNETSIM_GUI_NAME}
@@ -203,6 +165,20 @@ install(TARGETS ${SHIPNETSIM_GUI_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+target_compile_options(${SHIPNETSIM_NAME} PRIVATE
+    # MSVC-specific flags
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4
+        $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
+        $<$<CONFIG:Release>:/Ox>   # Release flags
+    >
+    # GCC and Clang-specific flags
+    $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
+        -Wall
+        $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
+        $<$<CONFIG:Release>:-O3>   # Release flags
+    >
+)
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
 add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
