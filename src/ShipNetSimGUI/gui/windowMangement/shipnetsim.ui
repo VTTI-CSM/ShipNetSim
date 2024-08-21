@@ -1447,28 +1447,28 @@
   <customwidget>
    <class>OSGEarthQtWidget</class>
    <extends>QWidget</extends>
-   <header>../src/ShipNetSimGUI/gui/components/osgearthqtwidget.h</header>
+   <header>gui/components/osgearthqtwidget.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
    <class>CustomTableWidget</class>
    <extends>QTableWidget</extends>
-   <header>../src/ShipNetSimGUI/gui/components/customtablewidget.h</header>
+   <header>gui/components/customtablewidget.h</header>
   </customwidget>
   <customwidget>
    <class>DisappearingLabel</class>
    <extends>QLabel</extends>
-   <header>../src/ShipNetSimGUI/gui/components/disappearinglabel.h</header>
+   <header>gui/components/disappearinglabel.h</header>
   </customwidget>
   <customwidget>
    <class>CustomProgressBar</class>
    <extends>QProgressBar</extends>
-   <header>../src/ShipNetSimGUI/gui/components/customprogressbar.h</header>
+   <header>gui/components/customprogressbar.h</header>
   </customwidget>
   <customwidget>
    <class>ToggleButton</class>
    <extends>QPushButton</extends>
-   <header>../src/ShipNetSimGUI/gui/components/togglebutton.h</header>
+   <header>gui/components/togglebutton.h</header>
   </customwidget>
  </customwidgets>
  <resources>
