@@ -11,9 +11,9 @@ add_subdirectory(ShipNetSimCore)
 # Executable program
 add_subdirectory(ShipNetSim)
 
+# GUI components
 if (BUILD_GUI)
-   # Graphical User Interface for the simulation
-   add_subdirectory(ShipNetSimGUI)
+    add_subdirectory(ShipNetSimGUI)
 endif()
 
 # Third-party dependencies or shared libraries

@@ -10,26 +10,20 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Concurrent  Xml Netw
 
 # Include directories for ShipNetSimCore
 # These include directories should point to where the headers are installed or located
-include_directories(${CMAKE_SOURCE_DIR}/src/ShipNetSimCore)
-include_directories(${CMAKE_BINARY_DIR}/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/ShipNetSimCore ${CMAKE_BINARY_DIR}/include)
+
+# Generate the VersionConfig.h file from a template
+configure_file(${CMAKE_SOURCE_DIR}/src/ShipNetSimCore/VersionConfig.h.in
+               ${CMAKE_BINARY_DIR}/include/VersionConfig.h @ONLY)
 
 # Define the executable target for the project,
 # listing the required source and header files
-add_executable(${SHIPNETSIM_NAME}
-  main.cpp
-)
+add_executable(${SHIPNETSIM_NAME} main.cpp)
 
 # Ensure that ShipNetSimCore is built first by specifying it as a dependency
 add_dependencies(${SHIPNETSIM_NAME} ShipNetSimCore)
 
-# Include directories and link libraries are inherited from the parent scope
-target_include_directories(${SHIPNETSIM_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore
-    ${CMAKE_SOURCE_DIR}/src/ShipNetSim
-    ${CMAKE_BINARY_DIR}
-)
-
-# Link the Boost and Qt libraries to the executable target
+# Link required libraries to the executable target
 target_link_libraries(${SHIPNETSIM_NAME}
     ShipNetSimCore
     GeographicLib::GeographicLib
@@ -46,7 +40,7 @@ target_compile_options(${SHIPNETSIM_NAME} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:
         /W4
         $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-        $<$<CONFIG:Release>:/O3>   # Release flags
+        $<$<CONFIG:Release>:/Ox>   # Release flags
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
@@ -62,8 +56,6 @@ add_custom_command(TARGET ShipNetSim POST_BUILD
         $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSim>
 )
 
-# set configuration file
-# configure_file(VersionConfig.h.in VersionConfig.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 # Include the GNU installation directories,
