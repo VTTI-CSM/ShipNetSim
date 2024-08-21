@@ -76,7 +76,6 @@ QString ShipFuel::convertFuelTypeToString(ShipFuel::FuelType fuelType)
         break;
     default:
         throw std::runtime_error("Fuel Not Implemented");
-        return "";
     }
 }
 
@@ -196,6 +195,9 @@ units::mass::kilogram_t ShipFuel::convertLitersToCarbonDioxide(
         return
             units::mass::kilogram_t(CC * (44.0 / 12.0) * kg);
     }
+
+    // If fuelType is not found in fuelDetails, throw an exception
+    throw std::runtime_error("Fuel type not found in fuel details");
 };
 
 units::mass::kilogram_t ShipFuel::convertLitersToSulfurDioxide(
@@ -211,11 +213,14 @@ units::mass::kilogram_t ShipFuel::convertLitersToSulfurDioxide(
 
         auto CC = it->second.sulfureContent; // Get the Sulfur content as a fraction
 
-        // 44 is the molar mass of SO2,
-        // 12 is the molar mass of sulfur.
+        // 64 is the molar mass of SO2,
+        // 32 is the molar mass of sulfur.
         return
             units::mass::kilogram_t(CC * (64.0 / 32.0) * kg);
     }
+
+    // If fuelType is not found in fuelDetails, throw an exception
+    throw std::runtime_error("Fuel type not found in fuel details");
 }
 
 QVector<ShipFuel::FuelType> ShipFuel::getFuelTypes() {
