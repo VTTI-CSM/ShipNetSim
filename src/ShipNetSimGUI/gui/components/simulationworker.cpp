@@ -36,7 +36,7 @@ SimulationWorker::SimulationWorker(
     }
     this->sim->setExportIndividualizedShipsSummary(exportAllTrainsSummary);
 
-    connect(this->sim, &ShipNetSimCore::Simulator::finishedSimulation, this,
+    connect(this->sim, &ShipNetSimCore::Simulator::simulationResultsAvailable, this,
             &SimulationWorker::onSimulationFinished);
     connect(this->sim, &ShipNetSimCore::Simulator::plotShipsUpdated, this,
             &::SimulationWorker::onShipsCoordinatesUpdated);

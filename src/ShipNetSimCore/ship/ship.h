@@ -1400,6 +1400,8 @@ signals:
      */
     void slowSpeedOrStopped(QString msg);
 
+    void reachedDestination(const QString& shipID);
+
 private: signals:
     void stepDistanceChanged(units::length::meter_t newDistance,
                              units::time::second_t timeStep);

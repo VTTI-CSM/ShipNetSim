@@ -72,6 +72,8 @@ private:
     QString mSummaryFileName;
     /** Filename of the trajectory file */
     QString mTrajectoryFilename;
+    /** Full path of the trajectory file*/
+    QString mTrajectoryFullPath;
     /** The progress */
     int mProgress = 0;
     /** True to run simulation endlessly */
@@ -86,6 +88,8 @@ private:
     bool mExportIndividualizedTrainsSummary = false;
     /** The serial number of the current simulation run. */
     long long simulation_serial_number;
+    /** Time of when the simulation started. */
+    std::time_t mInitTime;
 
     /**
      * Determines if we can check all ships reached destination
@@ -96,7 +100,6 @@ private:
      * @returns	True if it succeeds, false if it fails.
      */
     bool checkAllShipsReachedDestination();
-
     /**
      * Play ship one time step
      *
@@ -150,6 +153,16 @@ public:
      * it only increments the ship speed and measures the resistance.
      */
     void studyShipsResistance();
+
+    /**
+     * Play all ships one time step and advance the simulator clock
+     *
+     * @author	Ahmed Aredah
+     * @date	2/28/2023
+     *
+     * @param 	ship	The ship.
+     */
+    void playShipsOneTimeStep();
 
     /**
      * @brief add a ship to simulator
@@ -258,19 +271,30 @@ signals:
         QVector<std::pair<QString, GPoint>> shipsPoints);
 
     /**
-     * @brief Signals that the simulation has finished.
+     * @brief Signals that a new simulation results is available.
      *
      * @param summaryData   A vector containing the summary
      *                      data of the simulation.
      * @param trajectoryFile The file path of the generated
      *                          trajectory file.
      */
-    void finishedSimulation(
+    void simulationResultsAvailable(
         const QVector<std::pair<QString,
                                 QString>>& summaryData,
         const QString& trajectoryFile);
 
+    /**
+     * @brief Signals that the simulation has finished.
+     */
+    void simulationFinished();
+
 public slots:
+
+    /**
+     * @brief initialize the simulator.
+     */
+    void initSimulation();
+
     /**
      * Executes the 'simulator' operation
      *
@@ -278,6 +302,11 @@ public slots:
      * @date	2/28/2023
      */
     void runSimulation();
+
+    /**
+     * @brief Close the simulator, open streams, and write summary file.
+     */
+    void exportSimulationResults(bool writeSummaryFile = true);
 
     /**
      * @brief pause the simulation
@@ -289,10 +318,16 @@ public slots:
      */
     void resumeSimulation();
 
+    /**
+     * @brief stop the simulation completely
+     */
+    void stopSimulation();
+
 private:
     QMutex mutex;
     QWaitCondition pauseCond;
-    bool mPauseFlag = false;
+    bool mIsSimulatorPaused = false;
+    bool mIsSimulatorRunning = true;
 
 };
 };

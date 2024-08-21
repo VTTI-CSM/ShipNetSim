@@ -13,6 +13,7 @@
 #include <QCoreApplication>
 #include <ogr_geometry.h>
 #include "simulator.h"
+#include "simulatorapi.h"
 #include "./VersionConfig.h"
 #include "utils/logger.h"
 #include <QLocale>
@@ -255,23 +256,13 @@ int main(int argc, char *argv[])
     // Simulator and network object setup.
     OptimizedNetwork* net = nullptr;
     QVector<std::shared_ptr<Ship>> ships;
-    std::unique_ptr<Simulator> sim;
+    Simulator* sim;
+    // Access the SimulatorAPI instance
+    SimulatorAPI& api = SimulatorAPI::getInstance();
 
     // Exception handling for simulator initialization.
     try
     {
-        GDALAllRegister();
-        // Assuming the default constructor for OGRSpatialReference is sufficient for WGS84
-        // OGRSpatialReference crc;
-        // crc.SetWellKnownGeogCS("WGS84");
-
-        // // Create the GPoint object with a unique ID, e.g., "Point1"
-        // GPoint p1( units::angle::degree_t(50.0), units::angle::degree_t(20.0), "Point1", crc);
-        // GPoint p2( units::angle::degree_t(20.0), units::angle::degree_t(20.0), "Point1", crc);
-        // std::cout << p1.distance(p2).value();
-        // exit(0);
-
-
         // Read and validate command-line options.
 
         // parse the ships file
@@ -343,9 +334,11 @@ int main(int argc, char *argv[])
             auto shipsDetails =
                 ShipsList::readShipsFile(shipsFile, nullptr, true);
             ships = ShipsList::loadShipsFromParameters(shipsDetails);
-            sim = std::make_unique<Simulator>(nullptr,
-                                              ships,
-                                              units::time::second_t(timeStep));
+            api.initializeSimulator(nullptr,
+                                    ships,
+                                    units::time::second_t(timeStep));
+            sim = &api.getSimulator();
+
             // The flag is set, study resistance
             sim->setExportInstantaneousTrajectory(true,
                                                   instaTrajFilename);
@@ -383,9 +376,11 @@ int main(int argc, char *argv[])
             ships = ShipsList::loadShipsFromParameters(shipsDetails);
 
             std::cout <<"\nPutting Things Together!       \n";
-            sim = std::make_unique<Simulator>(net,
-                                              ships,
-                                              units::time::second_t(timeStep));
+            api.initializeSimulator(net,
+                                    ships,
+                                    units::time::second_t(timeStep));
+            sim = &api.getSimulator();
+
             // Set up simulator output location.
             sim->setOutputFolderLocation(exportLocation);
             sim->setSummaryFilename(summaryFilename);

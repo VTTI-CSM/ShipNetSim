@@ -50,10 +50,11 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   network/seaport.h network/seaport.cpp
   utils/updatechecker.h utils/updatechecker.cpp
   network/networkdefaults.h
+  simulatorapi.h simulatorapi.cpp
 )
 
 # Define SHIPNETSIM_LIBRARY during compilation to activate symbol export
-target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE SHIPNETSIM_LIBRARY)
+target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE SHIPNETSIM_LIBRARY SHIPNETSIMCORE_EXPORTS)
 
 # Include directories and link libraries are inherited from the parent scope
 target_include_directories(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
@@ -105,5 +106,5 @@ install(TARGETS ${SHIPNETSIM_CORE_DLL_NAME}
 
 # Install header files
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore/
-        DESTINATION include/ShipNetSimCore
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ShipNetSimCore
         FILES_MATCHING PATTERN "*.h")

@@ -261,17 +261,19 @@ void Simulator::initializeAllShips()
 //    }
 }
 
-
-void Simulator::runSimulation()
+void Simulator::initSimulation()
 {
-    QString trajectoryFullPath = (mExportTrajectory)?
+    mTrajectoryFullPath = (mExportTrajectory)?
                                      QDir(mOutputLocation).filePath(
-                                     mTrajectoryFilename) : "";
+                                         mTrajectoryFilename) : "";
+
+    connect(this, &Simulator::simulationFinished,
+            this, [this]() { this->exportSimulationResults(true); });
 
     // define trajectory file and set it up
     if (this->mExportTrajectory)
     {
-        this->mTrajectoryFile.initCSV(trajectoryFullPath);
+        this->mTrajectoryFile.initCSV(mTrajectoryFullPath);
         QString exportLine;
         QTextStream stream(&exportLine);
         stream << "TStep_s,"
@@ -296,41 +298,35 @@ void Simulator::runSimulation()
         this->mTrajectoryFile.writeLine(exportLine);
     }
 
-    std::time_t init_time = std::chrono::system_clock::to_time_t(
+    mInitTime = std::chrono::system_clock::to_time_t(
         std::chrono::system_clock::now());
+}
+
+void Simulator::runSimulation()
+{
+
+    initSimulation();
 
     while (this->mSimulationTime <= this->mSimulationEndTime ||
            this->mRunSimulationEndlessly)
     {
         mutex.lock();
             // This will block the thread if pauseFlag is true
-        if (mPauseFlag) pauseCond.wait(&mutex);
+        if (mIsSimulatorPaused) pauseCond.wait(&mutex);
         mutex.unlock();
+
+        // Check if the simulation should continue running
+        if (!mIsSimulatorRunning) {
+            break;
+        }
 
         if (this->checkAllShipsReachedDestination()) {
             break;
         }
-        for (std::shared_ptr<Ship>& s : (this->mShips)) {
-            if (s->isReachedDestination()) { continue;  }
 
-            this->playShipOneTimeStep(s);
-        }
+        // one step simulation
+        playShipsOneTimeStep();
 
-        if (mPlotFrequency > 0.0 &&
-            ((int(this->mSimulationTime) * 10) % (mPlotFrequency * 10)) == 0)
-        {
-            QVector<std::pair<QString, GPoint>> shipsLocs;
-
-            for (std::shared_ptr <Ship>& s : (this->mShips)) {
-                if (! s->isLoaded()) { continue; }
-
-                GPoint nP = s->getCurrentPosition();
-                auto data = std::make_pair(s->getUserID(),
-                                           nP);
-                shipsLocs.push_back(data);
-            }
-            emit this->plotShipsUpdated(shipsLocs);
-        }
         // ##################################################################
         // #             start: show progress on console                    #
         // ##################################################################
@@ -338,16 +334,21 @@ void Simulator::runSimulation()
 
         this->ProgressBar(mShips);
 
-        this->mSimulationTime += this->mTimeStep;
-
     }
+
+    emit simulationFinished();
+
+}
+
+void Simulator::exportSimulationResults(bool writeSummaryFile)
+{
     // ##################################################################
     // #                       start: summary file                      #
     // ##################################################################
     time_t fin_time =
         std::chrono::system_clock::to_time_t(
         std::chrono::system_clock::now());
-    double difTime = difftime(fin_time, init_time);
+    double difTime = difftime(fin_time, mInitTime);
     QString exportLine;
     QTextStream stream(&exportLine);
 
@@ -462,11 +463,14 @@ void Simulator::runSimulation()
     }
 
     // Set up the summary file information
-    QString summaryFullPath =
-        QDir(mOutputLocation).filePath(mSummaryFileName);
-    this->mSummaryFile.initTXT(summaryFullPath);
-    // setup the summary file
-    this->mSummaryFile.writeFile(exportLine.replace("\x1D", ""));
+    if (writeSummaryFile) {
+        QString summaryFullPath =
+            QDir(mOutputLocation).filePath(mSummaryFileName);
+        this->mSummaryFile.initTXT(summaryFullPath);
+        // setup the summary file
+        this->mSummaryFile.writeFile(exportLine.replace("\x1D", ""));
+    }
+
     // ##################################################################
     // #                       end: summary file                      #
     // ##################################################################
@@ -474,14 +478,43 @@ void Simulator::runSimulation()
     QVector<std::pair<QString, QString>> shipsSummaryData;
     shipsSummaryData = Utils::splitStringStream(exportLine, "\x1D :");
 
-    // fire the signal of finished simulation
-    emit this->finishedSimulation(shipsSummaryData, trajectoryFullPath);
+    // fire the signal of available simulation results
+    emit this->simulationResultsAvailable(shipsSummaryData,
+                                          mTrajectoryFullPath);
 
     // make sure the files are closed!
     mTrajectoryFile.close();
-    mSummaryFile.close();
+
+    if (writeSummaryFile) {
+        mSummaryFile.close();
+    }
 }
 
+void Simulator::playShipsOneTimeStep() {
+    for (std::shared_ptr<Ship>& s : (this->mShips)) {
+        if (s->isReachedDestination()) { continue;  }
+
+        this->playShipOneTimeStep(s);
+    }
+
+    if (mPlotFrequency > 0.0 &&
+        ((int(this->mSimulationTime) * 10) % (mPlotFrequency * 10)) == 0)
+    {
+        QVector<std::pair<QString, GPoint>> shipsLocs;
+
+        for (std::shared_ptr <Ship>& s : (this->mShips)) {
+            if (! s->isLoaded()) { continue; }
+
+            GPoint nP = s->getCurrentPosition();
+            auto data = std::make_pair(s->getUserID(),
+                                       nP);
+            shipsLocs.push_back(data);
+        }
+        emit this->plotShipsUpdated(shipsLocs);
+    }
+
+    this->mSimulationTime += this->mTimeStep;
+}
 
 // This function simulates one time step for a given ship
 // in the simulation environment
@@ -656,14 +689,6 @@ units::time::second_t Simulator::getNotLoadedShipsMinStartTime()
     return *(std::min_element(st.begin(), st.end()));
 }
 
-
-
-
-
-
-
-
-
 void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
                             int bar_length)
 {
@@ -693,15 +718,23 @@ void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
 
 void Simulator::pauseSimulation() {
     mutex.lock();
-    mPauseFlag = true;
+    mIsSimulatorPaused = true;
     mutex.unlock();
 }
 
 void Simulator::resumeSimulation() {
     mutex.lock();
-    mPauseFlag = false;
+    mIsSimulatorPaused = false;
     mutex.unlock();
     pauseCond.wakeAll(); // This will wake up the thread
+}
+
+void Simulator::stopSimulation() {
+    mutex.lock();
+    mIsSimulatorRunning = false;  // Stop the simulation loop
+    mIsSimulatorPaused = false;   // Ensure the simulation is not paused
+    mutex.unlock();
+    pauseCond.wakeAll();  // Wake up any paused threads
 }
 
 }
