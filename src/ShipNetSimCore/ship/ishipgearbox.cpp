@@ -45,7 +45,7 @@ const Ship *IShipGearBox::getHost() const
 bool IShipGearBox::requestHigherEnginePower() {
     bool result = true;
     for (auto& engine: mEngines) {
-        result *= engine->requestHigherEnginePower();
+        result = result && engine->requestHigherEnginePower();
     }
 
     return result;
@@ -54,7 +54,7 @@ bool IShipGearBox::requestHigherEnginePower() {
 bool IShipGearBox::requestLowerEnginePower() {
     bool result = true;
     for (auto& engine: mEngines) {
-        result *= engine->requestLowerEnginePower();
+        result = result && engine->requestLowerEnginePower();
     }
 
     return result;
