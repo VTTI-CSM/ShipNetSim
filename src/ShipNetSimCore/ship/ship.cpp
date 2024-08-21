@@ -2212,6 +2212,7 @@ void Ship::moveShip(units::time::second_t &timeStep,
     {
         immediateStop(timeStep);
         mReachedDestination = true;
+        emit reachedDestination(mShipUserID);
     }
 
     // update operational power of the engine
