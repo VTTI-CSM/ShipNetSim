@@ -25,13 +25,14 @@ UpdateChecker::UpdateChecker(QObject *parent)
 void UpdateChecker::handleSslErrors(QNetworkReply *reply,
                                     const QList<QSslError> &errors) {
 #ifndef NDebug
+    Q_UNUSED(reply);
     qDebug() << "SSL Errors:";
     for (const QSslError &error : errors) {
         qDebug() << error.errorString();
     }
 #else
-    (void) reply;
-    (void) errors;
+    Q_UNUSED(reply);
+    Q_UNUSED(errors);
     return;
 #endif
 }
