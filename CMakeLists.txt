@@ -75,6 +75,10 @@ option(BUILD_GUI "Build the GUI components" ON)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
+# Option to build Server components
+option(BUILD_SERVER "Build the SERVER components" ON)
+# Cache the option so it's stored between runs
+set(BUILD_SERVER ${BUILD_SERVER} CACHE BOOL "Build the SERVER components" FORCE)
 
 # -------------------------------------------------------
 # --------------------- Libraries -----------------------

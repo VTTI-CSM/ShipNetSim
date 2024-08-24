@@ -16,6 +16,10 @@ if (BUILD_GUI)
     add_subdirectory(ShipNetSimGUI)
 endif()
 
+if (BUILD_SERVER)
+    add_subdirectory(ShipNetSimServer)
+endif()
+
 # Third-party dependencies or shared libraries
 add_subdirectory(third_party)
 
