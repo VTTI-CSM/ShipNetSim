@@ -82,6 +82,8 @@ bool OptimizedNetwork::loadFirstAvailableSeaPortsFile(
 
 OptimizedNetwork::OptimizedNetwork()
 {
+    GDALAllRegister();
+
     loadTiffData();
 }
 
@@ -93,6 +95,8 @@ OptimizedNetwork::OptimizedNetwork(
     mBoundaryType(boundariesType),
     mRegionName(regionName)
 {
+    GDALAllRegister();
+
     mVisibilityGraph =
         std::make_shared<OptimizedVisibilityGraph>(
         std::as_const(mBoundaries),
@@ -114,6 +118,8 @@ OptimizedNetwork::~OptimizedNetwork()
 
 OptimizedNetwork::OptimizedNetwork(QString filename)
 {
+
+    GDALAllRegister();
 
     QFileInfo fileInfo(filename);
 
@@ -150,6 +156,9 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
     // mVisibilityGraph->buildGraph();
 
     loadTiffData();
+
+    // send signal that the network is loaded and valid
+    emit NetworkLoaded();
 }
 
 void OptimizedNetwork::loadTxtFile(const QString& filename)
