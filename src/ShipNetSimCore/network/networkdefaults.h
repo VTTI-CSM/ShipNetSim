@@ -9,7 +9,14 @@ namespace ShipNetSimCore
 namespace NetworkDefaults
 {
 
-
+static const QVector<QString>& worldNetworkLocation() {
+    static QVector<QString> v
+        {
+        "D:/OneDrive - Virginia Tech/03.Work/02.VTTI/02.ResearchWork/"
+        "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/ne_110m_ocean.shp"
+        };
+    return v;
+}
 static const QVector<QString>& SalinityTiffLocations() {
     static QVector<QString> v
         {
