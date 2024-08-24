@@ -1,0 +1,12 @@
+#pragma once
+
+#define ShipNetSim_VERSION_MAJOR @ShipNetSim_VERSION_MAJOR@
+#define ShipNetSim_VERSION_MINOR @ShipNetSim_VERSION_MINOR@
+#define ShipNetSim_VERSION_PATCH @ShipNetSim_VERSION_PATCH@
+#define ShipNetSim_VERSION "@ShipNetSim_VERSION_MAJOR@.@ShipNetSim_VERSION_MINOR@.@ShipNetSim_VERSION_PATCH@"
+
+#define ShipNetSim_BUILD_DATE "@BUILD_DATE@"
+#define ShipNetSim_FULL_VERSION "@ShipNetSim_VERSION_MAJOR@.@ShipNetSim_VERSION_MINOR@.@ShipNetSim_VERSION_PATCH@ Build: @BUILD_DATE@"
+
+#define ShipNetSim_NAME "@SHIPNETSIM_NAME@"
+#define ShipNetSim_VENDOR "@SHIPNETSIM_VENDOR@"
