@@ -92,7 +92,7 @@ struct tiffFileData {
     }
 };
 
-class SHIPNETSIM_EXPORT OptimizedNetwork : QObject
+class SHIPNETSIM_EXPORT OptimizedNetwork : public QObject
 {
     Q_OBJECT
 private:
@@ -209,6 +209,11 @@ public:
      */
     static QVector<std::shared_ptr<SeaPort>>
     loadFirstAvailableSeaPorts();
+
+
+signals:
+    void NetworkLoaded();
+
 };
 };
 #endif // OPTIMIZEDNETWORK_H
