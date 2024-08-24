@@ -181,6 +181,12 @@ public:
     void setTimeStep(units::time::second_t newTimeStep);
 
     /**
+     * @brief Gets the current simulator time in seconds.
+     * @return simulator time (sec)
+     */
+    units::time::second_t getCurrentSimulatorTime();
+
+    /**
      * @brief Get the output folder directory.
      *
      * @author	Ahmed Aredah
