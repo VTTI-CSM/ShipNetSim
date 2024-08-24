@@ -5,8 +5,6 @@ void SimulatorAPI::initializeSimulator(
     QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
     units::time::second_t timeStep)
 {
-    // Register GDAL drivers
-    GDALAllRegister();
 
     simulator = std::make_unique<ShipNetSimCore::Simulator>(network, shipList, timeStep);
     ships.clear();
