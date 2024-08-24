@@ -137,6 +137,11 @@ void Simulator::setTimeStep(units::time::second_t newTimeStep) {
     this->mTimeStep = newTimeStep;
 }
 
+units::time::second_t Simulator::getCurrentSimulatorTime()
+{
+    return this->mSimulationTime;
+}
+
 // Setter for the end time of the simulation
 void Simulator::setEndTime(units::time::second_t newEndTime) {
     this->mSimulationEndTime = newEndTime;
