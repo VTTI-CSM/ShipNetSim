@@ -780,10 +780,25 @@ SHIPNETSIM_EXPORT QVector<QMap<QString, std::any>> readShipsFile(
     OptimizedNetwork* network = nullptr,
     bool isResistanceStudyOnly = false);
 
+
+/**
+ * @brief Reads a ship parameters from a string.
+ * @param str
+ * @param network
+ * @return
+ */
+SHIPNETSIM_EXPORT QMap<QString, std::any>
+readShipFromString(QString str,
+                   OptimizedNetwork* network = nullptr,
+                   bool isResistanceStudyOnly = false);
+
 SHIPNETSIM_EXPORT bool writeShipsFile(
     QString filename,
     const QVector<QMap<QString, std::any>>& ships);
 
+template<typename T>
+SHIPNETSIM_EXPORT std::shared_ptr<Ship>
+loadShipFromParameters(QMap<QString, T> shipsDetails);
 
 template<typename T>
 SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>

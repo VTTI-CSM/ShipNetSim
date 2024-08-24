@@ -59,73 +59,88 @@ QVector<QMap<QString, std::any>> readShipsFile(
             continue; // Skip empty or comment-only lines
         }
 
-        // Split the line into parts using the first delimiter
-        // in the delim list.
-        QStringList parts = line.split(delim[0]);
 
-        // Check if the number of parts matches the number
-        // of expected parameters.
-        if (parts.size() == FileOrderedparameters.size())
-        {
-            // Loop through each part and process it.
-            for (int i = 0; i < parts.size(); ++i)
-            {
-                // Use the converter function for the parameter
-                // to process the part and store the result
-                // in the parameters map.
-                parameters[FileOrderedparameters[i].name] =
-                    FileOrderedparameters[i].converter(
-                        parts[i],
-                        FileOrderedparameters[i].isOptional);
-            }
+        parameters = readShipFromString(line, network, isResistanceStudyOnly);
 
-            if (network != nullptr && !isResistanceStudyOnly)
-            {
-                auto pathPoints =
-                    Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
-                        parameters, "Path", QVector<std::shared_ptr<GPoint>>());
-                ShortestPathResult results =
-                    network->findShortestPath(pathPoints,
-                                              PathFindingAlgorithm::Dijkstra);
+        ships.push_back(parameters);
+        parameters.clear();
 
-                if (!results.isValid())
-                {
-                    qFatal("Could not find ship path!\n");
-                }
-
-                parameters["PathPoints"] = results.points;
-                parameters["PathLines"]  = results.lines;
-            }
-            if (network == nullptr || isResistanceStudyOnly)
-            {
-                QVector<std::shared_ptr<GPoint>> fakePoints;
-                QVector<std::shared_ptr<GLine>> fakeLines;
-
-                fakePoints.push_back(std::make_shared<GPoint>(
-                    units::angle::degree_t(0.0),
-                    units::angle::degree_t(0.0)));
-                fakePoints.push_back(std::make_shared<GPoint>(
-                    units::angle::degree_t(100.0),
-                    units::angle::degree_t(100.0)));
-                fakeLines.push_back(std::make_shared<GLine>(fakePoints[0],
-                                                           fakePoints[1]));
-                parameters["PathPoints"] = fakePoints;
-                parameters["PathLines"]  = fakeLines;
-            }
-
-
-
-            ships.push_back(parameters);
-            parameters.clear();
-        }
-        else
-        {
-            qFatal("Not all parameters are provided! "
-                   "\n Check the ships file");
-        }
     }
 
     return ships;
+}
+
+QMap<QString, std::any> readShipFromString(QString line,
+                                           OptimizedNetwork* network,
+                                           bool isResistanceStudyOnly)
+{
+
+    // Map to store parameters and their values.
+    QMap<QString, std::any> parameters;
+
+
+    // Split the line into parts using the first delimiter
+    // in the delim list.
+    QStringList parts = line.split(delim[0]);
+
+    // Check if the number of parts matches the number
+    // of expected parameters.
+    if (parts.size() == FileOrderedparameters.size())
+    {
+        // Loop through each part and process it.
+        for (int i = 0; i < parts.size(); ++i)
+        {
+            // Use the converter function for the parameter
+            // to process the part and store the result
+            // in the parameters map.
+            parameters[ShipsList::FileOrderedparameters[i].name] =
+                FileOrderedparameters[i].converter(
+                    parts[i],
+                    FileOrderedparameters[i].isOptional);
+        }
+
+        if (network != nullptr && !isResistanceStudyOnly)
+        {
+            auto pathPoints =
+                Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
+                    parameters, "Path", QVector<std::shared_ptr<GPoint>>());
+            ShortestPathResult results =
+                network->findShortestPath(pathPoints,
+                                          PathFindingAlgorithm::Dijkstra);
+
+            if (!results.isValid())
+            {
+                qFatal("Could not find ship path!\n");
+            }
+
+            parameters["PathPoints"] = results.points;
+            parameters["PathLines"]  = results.lines;
+        }
+        if (network == nullptr || isResistanceStudyOnly)
+        {
+            QVector<std::shared_ptr<GPoint>> fakePoints;
+            QVector<std::shared_ptr<GLine>> fakeLines;
+
+            fakePoints.push_back(std::make_shared<GPoint>(
+                units::angle::degree_t(0.0),
+                units::angle::degree_t(0.0)));
+            fakePoints.push_back(std::make_shared<GPoint>(
+                units::angle::degree_t(100.0),
+                units::angle::degree_t(100.0)));
+            fakeLines.push_back(std::make_shared<GLine>(fakePoints[0],
+                                                        fakePoints[1]));
+            parameters["PathPoints"] = fakePoints;
+            parameters["PathLines"]  = fakeLines;
+        }
+
+    }
+    else
+    {
+        qFatal("Not all parameters are provided! "
+               "\n Check the ships file");
+    }
+
+    return parameters;
 }
 
 bool writeShipsFile(
@@ -184,33 +199,53 @@ bool writeShipsFile(
 }
 
 template<typename T>
+std::shared_ptr<Ship>
+loadShipFromParameters(QMap<QString, T> shipDetails) {
+
+    QMap<QString, std::any> convertedParameters;
+
+    if constexpr (std::is_same_v<T, QString>) {
+        for (auto it = shipDetails.begin(); it != shipDetails.end(); ++it) {
+            QString key = it.key();
+            QString value = it.value();
+            auto param = findParamInfoByKey(key, FileOrderedparameters);
+            if (!param) {
+                throw std::runtime_error("Could not find ship parameter");
+            }
+            convertedParameters[key] = param->converter(value, param->isOptional);
+        }
+    } else {
+        convertedParameters = shipDetails;
+    }
+
+    return std::make_shared<Ship>(convertedParameters);
+
+
+}
+
+template<typename T>
 QVector<std::shared_ptr<Ship>>
 loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails) {
     QVector<std::shared_ptr<Ship>> ships;
 
     for (auto& parameters : shipsDetails) {
-        QMap<QString, std::any> convertedParameters;
+        auto ship = loadShipFromParameters(parameters);
 
-        if constexpr (std::is_same_v<T, QString>) {
-            for (auto it = parameters.begin(); it != parameters.end(); ++it) {
-                QString key = it.key();
-                QString value = it.value();
-                auto param = findParamInfoByKey(key, FileOrderedparameters);
-                if (!param) {
-                    throw std::runtime_error("Could not find ship parameter");
-                }
-                convertedParameters[key] = param->converter(value, param->isOptional);
-            }
-        } else {
-            convertedParameters = parameters;
-        }
-
-        auto ship = std::make_shared<Ship>(convertedParameters);
         ships.push_back(std::move(ship));
     }
 
     return ships;
 }
+
+
+// Explicit instantiation of the template for QString type
+template SHIPNETSIM_EXPORT std::shared_ptr<Ship>
+loadShipFromParameters<QString>(QMap<QString, QString> shipsDetails);
+
+// Explicit instantiation of the template for std::any type
+template SHIPNETSIM_EXPORT std::shared_ptr<Ship>
+loadShipFromParameters<std::any>(QMap<QString, std::any> shipDetails);
+
 
 // Explicit instantiation of the template for QString type
 template SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>
