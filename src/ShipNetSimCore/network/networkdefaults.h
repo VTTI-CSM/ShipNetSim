@@ -16,7 +16,8 @@ static const QVector<QString>& worldNetworkLocation() {
         "04.ShipModelling/01.Code/00.CPP/ShipNetSim/src/data/ne_110m_ocean.shp"
         };
     return v;
-}
+};
+
 static const QVector<QString>& SalinityTiffLocations() {
     static QVector<QString> v
         {
