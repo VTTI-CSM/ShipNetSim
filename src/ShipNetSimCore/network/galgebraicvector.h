@@ -68,7 +68,13 @@ public:
      *
      * @return The current position of the vector.
      */
-    GPoint getCurrentPosition();
+    GPoint getCurrentPosition() const;
+
+    /**
+     * @brief Sets the current position of the vector.
+     * @param newPosition the new position as a result of cyber attack.
+     */
+    void setCurrentPosition(GPoint newPosition);
 
     /**
      * @brief Checks whether the vector is rotating.
@@ -90,7 +96,13 @@ public:
 
     void setEnvironment(const AlgebraicVector::Environment env);
 
+    void setGPSUpdateState(bool isUpdating);
+
+    void restoreLatestCorrectPosition();
+
 private:
+    bool mIsUpdating = true;  ///< Is the GPS updating.
+    GLine mCurrentHeadingVector_backup; ///< this is a backup vector for attacks.
     GLine mCurrentHeadingVector; ///< The vector that holds the direction of movement.
     units::angle::degree_t
         mMaxROTPerSec_;  ///< Maximum rate of turn in degrees per second.
