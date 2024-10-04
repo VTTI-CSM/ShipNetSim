@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QDir>
 #include "utils/data.h"
+#include "utils/shipscommon.h"
 
 namespace ShipNetSimCore
 {
@@ -64,6 +65,8 @@ private:
     units::time::second_t mTimeStep;
     /** The network */
     OptimizedNetwork* mNetwork;
+    /** Allow the simulator to be externally controlled */
+    bool mIsExternallyControlled;
     /** The frequency of plotting the ships */
     int mPlotFrequency;
     /** The output location */
@@ -75,7 +78,7 @@ private:
     /** Full path of the trajectory file*/
     QString mTrajectoryFullPath;
     /** The progress */
-    int mProgress = 0;
+    int mProgress = -1;
     /** True to run simulation endlessly */
     bool mRunSimulationEndlessly;
     /** True to export trajectory */
@@ -141,10 +144,13 @@ public:
                        QVector<std::shared_ptr<Ship>> shipList,
                        units::time::second_t simulatorTimeStep =
                        DefaultTimeStep,
+                       bool isExternallyControlled = false,
                        QObject *parent = nullptr);
 
 
     ~Simulator();
+
+    void moveObjectToThread(QThread* thread);
 
     /**
      * @brief Study the ships resistance.
@@ -165,10 +171,16 @@ public:
     void playShipsOneTimeStep();
 
     /**
-     * @brief add a ship to simulator
+     * @brief add a ship to the simulator
      * @param ship the new ship pointer to be simulated
      */
     void addShipToSimulation(std::shared_ptr<Ship> ship);
+
+    /**
+     * @brief add ships to the simulator
+     * @param ships the new ships' pointers to be simulated
+     */
+    void addShipsToSimulation(QVector<std::shared_ptr<Ship>> ships);
 
     /**
      * @brief set simulator time step
@@ -179,6 +191,12 @@ public:
      * @param newTimeStep
      */
     void setTimeStep(units::time::second_t newTimeStep);
+
+    /**
+     * @brief Gets the time step of the simulator.
+     * @return time step in seconds.
+     */
+    units::time::second_t getSimulatorTimeStep();
 
     /**
      * @brief Gets the current simulator time in seconds.
@@ -258,6 +276,8 @@ public:
      */
     void setExportIndividualizedShipsSummary(bool exportAllTrainsSummary);
 
+    QJsonObject getCurrentStateAsJson();
+
 signals:
     /**
      * @brief Updates the progress of the simulation.
@@ -279,15 +299,15 @@ signals:
     /**
      * @brief Signals that a new simulation results is available.
      *
-     * @param summaryData   A vector containing the summary
-     *                      data of the simulation.
-     * @param trajectoryFile The file path of the generated
-     *                          trajectory file.
+     * @param results   The simulation results struct
      */
     void simulationResultsAvailable(
-        const QVector<std::pair<QString,
-                                QString>>& summaryData,
-        const QString& trajectoryFile);
+        ShipsResults& results);
+
+    /**
+     * @brief Signals that all ships in the simulator reached their destination.
+     */
+    void allShipsReachedDestination();
 
     /**
      * @brief Signals that the simulation has finished.
