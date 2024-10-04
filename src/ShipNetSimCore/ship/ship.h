@@ -2,13 +2,13 @@
  * @file Ship.h
  * @author Ahmed Aredah
  * @date 8/17/2023
- * @brief Provides an implementation of a ship with various methods to
- * calculate its properties and resistances.
+ * @brief Represents a ship in the simulation, managing its properties,
+ * movement, and energy consumption.
  *
- * This class encompasses a wide range of ship properties, coefficients,
- * and resistance values, providing methods to calculate and manipulate them.
- * It allows users to define ships with diverse physical characteristics
- * and employ different resistance strategies.
+ * The Ship class is responsible for calculating resistances, managing
+ * propellers, and simulating the ship's movement along a predefined path.
+ * It also handles the ship's energy consumption and other dynamic
+ * properties such as acceleration and speed.
  */
 
 #ifndef SHIP_H
@@ -23,11 +23,19 @@
 #include "tank.h"
 #include <QObject>
 #include <QMap>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include "../network/gline.h"
 #include "../network/galgebraicvector.h"
 
+#ifdef BUILD_SERVER_ENABLED
+#include "containermap.h"
+#endif
+
 namespace ShipNetSimCore
 {
+
 // Forward declaration of the cal water resistance Interface
 class IShipCalmResistanceStrategy;
 //Forward declaration of the dynamic resistance interface
@@ -246,7 +254,15 @@ public:
         std::string msg_;
     };
 
-
+    /**
+     * @brief Constructs a new Ship object with the given parameters.
+     * @param parameters A map of parameters used to initialize the ship,
+     * including strategies for calm and dynamic resistance.
+     * @param parent The parent QObject.
+     *
+     * Initializes various properties of the ship such as resistance
+     * strategies, dimensions, and energy sources.
+     */
     Ship(const QMap<QString, std::any>& parameters,
          QObject* parent = nullptr);
 
@@ -257,13 +273,20 @@ public:
      */
     ~Ship();
 
+    void moveObjectToThread(QThread *thread);
 
-    [[nodiscard]] QString getUserID();
 
     /**
-     * @brief Calculates the total resistance experienced by the ship.
-     * @param customSpeed   The custom speed to calculate resistance at.
-     * @return Total resistance in kilonewtons.
+     * @brief Calculates the total resistance experienced by the ship
+     * at a given speed.
+     * @param customSpeed The speed at which to calculate the resistance.
+     * @param totalResistance Optional pointer to store the total
+     *                        calculated resistance.
+     * @return The total resistance in newtons.
+     *
+     * This method calculates both calm water resistance and dynamic resistance
+     * using the strategies assigned to the ship. It also accounts for any
+     * dragged vessels that contribute to the overall resistance.
      */
     [[nodiscard]] units::force::newton_t
     calculateTotalResistance(units::velocity::meters_per_second_t customSpeed =
@@ -271,12 +294,15 @@ public:
                                  std::nan("unintialized")),
                              units::force::newton_t* totalResistance = nullptr);
 
-    [[nodiscard]] units::force::newton_t getTotalResistance();
-
-
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     // %%%%%%%%%%%%%%%%%%%%% GETTERS & SETTERS %%%%%%%%%%%%%%%%%%%%%
     // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    /**
+     * @brief Gets the ID that is defined by the user
+     * @return ID as a string
+     */
+    [[nodiscard]] QString getUserID();
 
     /**
      * @brief Retrieves the length of the ship at the waterline.
@@ -548,9 +574,6 @@ public:
      */
     void setSpeed(const units::velocity::meters_per_second_t &newSpeed);
 
-
-
-
     /**
      * @brief Retrieves the area of the immersed part of the transom.
      * @return Immersed transom area in square meters.
@@ -563,14 +586,11 @@ public:
      */
     void setImmersedTransomArea(const units::area::square_meter_t &newA_T);
 
-
-
-
-
     /**
-     * @brief Sets the calm resistance strategy used by the
-     *          ship for resistance calculations.
-     * @param newStrategy Pointer to the new strategy to be used.
+     * @brief Sets the calm water resistance strategy for the ship.
+     * @param newStrategy A pointer to the new calm resistance strategy.
+     *
+     * Deletes the existing strategy (if any) and assigns the new strategy.
      */
     void setCalmResistanceStrategy(
         IShipCalmResistanceStrategy* newStrategy);
@@ -605,20 +625,22 @@ public:
     [[nodiscard]] double getMainTankCurrentCapacity();
 
 
-   /**
+    /**
     * @brief Retrieves the lengthwise projected area
     *          of the ship above the waterline.
     * @return Lengthwise projection area in square meters.
     */
-   units::area::square_meter_t getLengthwiseProjectionArea() const;
-   /**
+    [[nodiscard]] units::area::square_meter_t
+    getLengthwiseProjectionArea() const;
+
+    /**
     * @brief Sets the lengthwise projected area of the
     *          ship above the waterline.
     * @param newLengthwiseProjectionArea New lengthwise
     *          projection area value in square meters.
     */
-   void setLengthwiseProjectionArea(
-       const units::area::square_meter_t &newLengthwiseProjectionArea);
+    void setLengthwiseProjectionArea(
+        const units::area::square_meter_t &newLengthwiseProjectionArea);
 
     /**
      * @brief Retrieves the surface roughness of the ship's hull.
@@ -670,156 +692,612 @@ public:
      */
     [[nodiscard]] units::force::newton_t getTotalThrust() const;
 
+    /**
+     * @brief Retrieves the vessel's own weight without cargo.
+     *
+     * @return The vessel's weight in metric tons.
+     */
     [[nodiscard]] units::mass::metric_ton_t getVesselWeight() const;
+
+    /**
+     * @brief Sets the vessel's own weight.
+     *
+     * @param newVesselWeight The new weight of the vessel in metric tons.
+     */
     void setVesselWeight(const units::mass::metric_ton_t &newVesselWeight);
 
+    /**
+     * @brief Retrieves the weight of the cargo on the vessel.
+     *
+     * @return The cargo weight in metric tons.
+     */
     [[nodiscard]] units::mass::metric_ton_t getCargoWeight() const;
+
+    /**
+     * @brief Sets the weight of the cargo on the vessel.
+     *
+     * @param newCargoWeight The new weight of the cargo in metric tons.
+     */
     void setCargoWeight(const units::mass::metric_ton_t &newCargoWeight);
 
-    units::mass::metric_ton_t calc_SurgeAddedMass() const;
+    /**
+     * @brief Calculates the surge added mass of the vessel.
+     *
+     * @note Surge added mass is an additional mass that must be accelerated
+     * when the vessel accelerates due to the added resistance of the
+     * surrounding water.
+     *
+     * @return The calculated surge added mass in metric tons.
+     */
+    [[nodiscard]] units::mass::metric_ton_t calc_SurgeAddedMass() const;
 
+    /**
+     * @brief Calculates the total static weight of the vessel, including
+     * both vessel weight and cargo weight.
+     *
+     * @return The total static weight of the vessel in metric tons.
+     */
     [[nodiscard]] units::mass::metric_ton_t getTotalVesselStaticWeight() const;
 
+    /**
+     * @brief Calculates the total dynamic weight of the vessel, including
+     * static weight and surge added mass.
+     *
+     * @return The total dynamic weight of the vessel in metric tons.
+     */
     [[nodiscard]] units::mass::metric_ton_t getTotalVesselDynamicWeight() const;
 
+    /**
+     * @brief Adds a propeller to the vessel.
+     *
+     * @param newPropeller Pointer to the propeller object to be added
+     *                     to the vessel.
+     */
     void addPropeller(IShipPropeller *newPropeller);
 
+    /**
+     * @brief Retrieves the list of propellers attached to the vessel.
+     *
+     * @return A pointer to a vector containing pointers to the propeller
+     * objects.
+     */
     [[nodiscard]] const QVector<IShipPropeller*> *getPropellers() const;
 
+    /**
+     * @brief Retrieves the list of vessels being dragged by this vessel.
+     *
+     * @return A pointer to a vector containing pointers to the dragged
+     * vessel objects.
+     */
     [[nodiscard]] QVector<Ship*> *draggedVessels();
 
+    /**
+     * @brief Retrieves the ship's path lines.
+     *
+     * @return A pointer to a vector of shared pointers to the GLine
+     * objects representing the ship's path.
+     */
     [[nodiscard]] QVector<std::shared_ptr<GLine>>* getShipPathLines();
+
+    /**
+     * @brief Retrieves the ship's path points.
+     *
+     * @return A pointer to a vector of shared pointers to the GPoint
+     * objects representing the ship's path.
+     */
     [[nodiscard]] QVector<std::shared_ptr<GPoint>>* getShipPathPoints();
+
+    /**
+     * @brief Sets the path that the ship will follow.
+     *
+     * @param points A vector of shared pointers to GPoint objects
+     *               representing the path points.
+     * @param lines A vector of shared pointers to GLine objects
+     *              representing the path lines.
+     *
+     * @warning The path must be defined before the ship starts moving.
+     *          It cannot be changed mid-journey.
+     */
     void setPath(const QVector<std::shared_ptr<GPoint>> points,
                  const QVector<std::shared_ptr<GLine>> lines);
 
 
+    /**
+     * @brief Checks if the vessel has reached its destination.
+     *
+     * @return `true` if the vessel has reached its destination,
+     * `false` otherwise.
+     */
     [[nodiscard]] bool isReachedDestination() const;
 
+    /**
+     * @brief Checks if the vessel has run out of energy.
+     *
+     * @return `true` if the vessel is out of energy, `false` otherwise.
+     */
     [[nodiscard]] bool isOutOfEnergy() const;
 
+    /**
+     * @brief Checks if the vessel is loaded with cargo.
+     *
+     * @return `true` if the vessel is loaded, `false` otherwise.
+     */
     [[nodiscard]] bool isLoaded() const;
+
+    /**
+     * @brief Marks the vessel as loaded with cargo.
+     *
+     * This method should be called once the vessel has been fully
+     * loaded and is ready for operation.
+     */
     void load();
+
+    /**
+     * @brief Marks the vessel as unloaded.
+     *
+     * This method should be called when the vessel has been
+     * completely unloaded.
+     */
     void unload();
 
+    /**
+     * @brief Retrieves the starting point of the vessel's path.
+     *
+     * @return A shared pointer to the GPoint object representing the
+     * start point of the vessel's path.
+     */
     [[nodiscard]] std::shared_ptr<GPoint> startPoint();
+
+    /**
+     * @brief Sets the starting point of the vessel's path.
+     *
+     * @param startPoint A shared pointer to the GPoint object
+     * representing the start point of the vessel's path.
+     *
+     * @warning This should only be set at the beginning of the journey.
+     */
     void setStartPoint(std::shared_ptr<GPoint> startPoint);
 
+    /**
+     * @brief Retrieves the endpoint of the vessel's path.
+     *
+     * @return A shared pointer to the GPoint object representing the
+     * end point of the vessel's path.
+     */
     [[nodiscard]] std::shared_ptr<GPoint> endPoint();
+
+    /**
+     * @brief Sets the endpoint of the vessel's path.
+     *
+     * @param endPoint A shared pointer to the GPoint object representing
+     * the end point of the vessel's path.
+     */
     void setEndPoint(std::shared_ptr<GPoint> endPoint);
 
+    void restoreLatestGPSCorrectPosition();
+
+    /**
+     * @brief Retrieves the current position of the vessel.
+     *
+     * @return The GPoint object representing the vessel's current position.
+     */
     [[nodiscard]] GPoint getCurrentPosition();
+
+    /**
+     * @brief Set current Position of the ship in case of a cyber attack.
+     * @param newPosition new position of the ship.
+     */
+    void setCurrentPosition(GPoint newPosition);
+
+    /**
+     *  @brief Disable the ship communications with surrounding ships
+     *  and GPS updates.
+     */
+    void disableCommunications();
+
+    /**
+     *  @brief Enable the ship communications with surrounding ships
+     *  and GPS updates.
+     */
+    void enableCommunications();
+
+    /**
+     * @brief Retrieves the current heading (orientation) of the vessel.
+     *
+     * @return The current heading of the vessel in degrees.
+     */
     [[nodiscard]] units::angle::degree_t getCurrentHeading() const;
+
+    /**
+     * @brief Retrieves the current target point that the vessel is
+     * navigating towards.
+     *
+     * @return The GPoint object representing the current target point.
+     */
     [[nodiscard]] GPoint getCurrentTarget();
+
+    /**
+     * @brief Retrieves the current environmental conditions affecting
+     * the vessel.
+     *
+     * @return The current environment as an AlgebraicVector::Environment
+     * object.
+     */
     [[nodiscard]] AlgebraicVector::Environment getCurrentEnvironment() const;
+
+    /**
+     * @brief Sets the current environmental conditions affecting the vessel.
+     *
+     * @param newEnv The new environmental conditions as an
+     * AlgebraicVector::Environment object.
+     */
     void setCurrentEnvironment(const AlgebraicVector::Environment newEnv);
+
+
 //    void setCurrentPosition(const Point& point);
 
+    /**
+     * @brief Retrieves the cumulative lengths of the path segments (links).
+     *
+     * @return A QVector containing the cumulative lengths of the path
+     * segments in meters.
+     */
     [[nodiscard]] QVector<units::length::meter_t> getLinksCumLengths() const;
+
+    /**
+     * @brief Retrieves the start time of the vessel's trip.
+     *
+     * @return The start time of the trip as a units::time::second_t object.
+     */
     [[nodiscard]] units::time::second_t getStartTime() const;
+
+    /**
+     * @brief Sets the start time of the vessel's trip.
+     *
+     * @param newStartTime The new start time of the trip as a
+     * units::time::second_t object.
+     */
     void setStartTime(const units::time::second_t &newStartTime);
 
-
+    /**
+     * @brief Adds to the cumulative consumed energy of the vessel.
+     *
+     * @param consumedkWh The amount of energy consumed in kilowatt-hours
+     * to be added to the cumulative total.
+     */
     void addToCummulativeConsumedEnergy(
         units::energy::kilowatt_hour_t consumedkWh);
-    units::energy::kilowatt_hour_t getCumConsumedEnergy() const;
 
-    std::map<ShipFuel::FuelType, units::volume::liter_t>
+    /**
+     * @brief Retrieves the cumulative consumed energy of the vessel.
+     *
+     * @return The cumulative consumed energy in kilowatt-hours.
+     */
+    [[nodiscard]] units::energy::kilowatt_hour_t getCumConsumedEnergy() const;
+
+    /**
+     * @brief Retrieves the cumulative fuel consumption of the vessel.
+     *
+     * @return A map where the key is the fuel type (ShipFuel::FuelType)
+     * and the value is the volume consumed in liters.
+     */
+    [[nodiscard]] std::map<ShipFuel::FuelType, units::volume::liter_t>
     getCumConsumedFuel() const;
 
-    units::unit_t<units::compound_unit<units::mass::metric_tons,
-                                       units::length::kilometers>>
+    /**
+     * @brief Retrieves the total cargo ton-kilometers traveled by the vessel.
+     *
+     * @return The total cargo ton-kilometers as a unit_t of mass in metric
+     * tons and distance in kilometers.
+     */
+    [[nodiscard]] units::unit_t<units::compound_unit<units::mass::metric_tons,
+                                                     units::length::kilometers>>
     getTotalCargoTonKm() const;
 
-    units::time::second_t getTripTime();
+    /**
+     * @brief Retrieves the total time elapsed since the start of
+     * the vessel's trip.
+     *
+     * @return The total trip time as a units::time::second_t object.
+     */
+    [[nodiscard]] units::time::second_t getTripTime();
 
-    double calculateRunningAverage(
+    /**
+     * @brief Calculates the running average for a given time step data.
+     *
+     * @param previousAverage The previous running average.
+     * @param currentTimeStepData The current time step data to be
+     * included in the average.
+     * @param timeStep The time step duration in seconds.
+     * @return The updated running average value.
+     */
+    [[nodiscard]] double calculateRunningAverage(
         double previousAverage, double currentTimeStepData, double timeStep);
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /**
+     * @brief Simulates the ship's sailing behavior for a given time step.
+     *
+     * This method calculates the ship's movement, speed, acceleration,
+     * and energy consumption during the given time step. It accounts for
+     * the free flow speed, the gap to the next critical point, whether
+     * the ship is following another ship, and the leader's speed. The ship's
+     * current environment, including water conditions, is also considered.
+     *
+     * @param timeStep The time step duration over
+     *                 which to simulate the sailing.
+     * @param freeFlowSpeed The free flow speed of the ship,
+     *                      typically its target cruising speed.
+     * @param gapToNextCriticalPoint A vector of distances to the
+     *                               next critical points along the
+     *                               ship's path.
+     * @param isFollowingAnotherShip A vector indicating whether
+     *                               the ship is following another
+     *                               ship at each critical point.
+     * @param leaderSpeeds A vector of speeds of the ships ahead
+     *                     (leaders) at each critical point.
+     * @param currentEnvironment The current environmental conditions
+     *                           affecting the ship, such as water
+     *                           density and salinity.
+     *
+     * This method updates the ship's position, speed, acceleration,
+     * and energy consumption. It also handles the turning and stopping
+     * behaviors based on the ship's path and whether it is following
+     * another vessel.
+     */
+    void sail(units::time::second_t &timeStep,
+              units::velocity::meters_per_second_t &freeFlowSpeed,
+              QVector<units::length::meter_t> &gapToNextCriticalPoint,
+              QVector<bool> &isFollowingAnotherShip,
+              QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
+              AlgebraicVector::Environment currentEnvironment);
 
-    void moveShip(units::time::second_t &timeStep,
-                  units::velocity::meters_per_second_t &freeFlowSpeed,
-                  QVector<units::length::meter_t> &gapToNextCriticalPoint,
-                  QVector<bool> &isFollowingAnotherShip,
-                  QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
-                  AlgebraicVector::Environment currentEnvironment);
-
+    /**
+     * @brief Calculates general statistics for the ship's trip based
+     * on the given time step.
+     *
+     * This function updates the running averages for speed and acceleration,
+     * as well as the total trip time, using the provided time step.
+     *
+     * @param timeStep The time step duration in seconds for which the
+     *                 statistics should be calculated.
+     */
     void calculateGeneralStats(units::time::second_t timeStep);
 
+    /**
+     * @brief Retrieves the total distance traveled by the ship.
+     *
+     * @return The total traveled distance in meters.
+     */
     [[nodiscard]] units::length::meter_t getTraveledDistance() const;
+
+    /**
+     * @brief Retrieves the total length of the ship's path.
+     *
+     * @return The total path length in meters.
+     */
     [[nodiscard]] units::length::meter_t getTotalPathLength() const;
 
+    /**
+     * @brief Resets the ship's internal state, including speed, acceleration,
+     * and traveled distance.
+     *
+     * This function resets various ship parameters to their initial states,
+     * preparing the ship for a new trip or simulation run.
+     */
     void reset();
 
+    /**
+     * @brief Retrieves the index of the previous path point that the
+     * ship has passed.
+     *
+     * @return The index of the previous path point.
+     */
     [[nodiscard]] size_t getPreviousPathPointIndex() const;
+
+    /**
+     * @brief Retrieves information about the next stopping point on
+     * the ship's path.
+     *
+     * @return A stopPointDefinition object containing details of the
+     * next stopping point.
+     */
     [[nodiscard]] stopPointDefinition getNextStoppingPoint();
+
+    /**
+     * @brief Calculates the distance from a specified path node index
+     * to the finish line.
+     *
+     * @param i The index of the path node from which the distance to the
+     * finish is calculated.
+     * @return The distance from the specified path node index to the
+     * finish in meters.
+     */
     units::length::meter_t distanceToFinishFromPathNodeIndex(qsizetype i);
+
+    /**
+     * @brief Calculates the distance between two specified path node indices.
+     *
+     * @param startIndex The index of the starting path node.
+     * @param endIndex The index of the ending path node.
+     * @return The distance between the two specified path node indices in
+     * meters.
+     */
     [[nodiscard]] units::length::meter_t
     distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
                                              qsizetype endIndex);
+
+    /**
+     * @brief Calculates the distance from the ship's current position
+     * to a specified path node index.
+     *
+     * @param endIndex The index of the ending path node.
+     * @return The distance from the ship's current position to the
+     * specified path node index in meters.
+     */
     [[nodiscard]] units::length::meter_t
     distanceFromCurrentPositionToNodePathIndex(qsizetype endIndex);
 
+    /**
+     * @brief Checks whether the ship is on the correct path.
+     *
+     * @return True if the ship is on the correct path, false otherwise.
+     */
     [[nodiscard]] bool isShipOnCorrectPath();
+
+    /**
+     * @brief Calculates the progress of the ship along its path as a percentage.
+     *
+     * @return The progress of the ship along its path, expressed as a
+     * value between 0.0 and 1.0.
+     */
     [[nodiscard]] double progress();
 
     // [[nodiscard]] units::velocity::meters_per_second_t getCurrentMaxSpeed();
     // [[nodiscard]] QHash<qsizetype, units::velocity::meters_per_second_t>
     // getAheadLowerSpeeds(qsizetype nextStopIndex);
 
+    /**
+     * @brief Moves the ship forward by a specified distance.
+     *
+     * This function updates the ship's position by moving it forward by
+     * the given distance over the specified time step.
+     *
+     * @param distance The distance in meters by which to move the ship
+     *                 forward.
+     * @param timeStep The time step duration in seconds over which the
+     *                 movement occurs.
+     */
     void kickForwardADistance(units::length::meter_t &distance,
                               units::time::second_t timeStep);
 
+    /**
+     * @brief Retrieves the ship's current acceleration.
+     *
+     * @return The current acceleration of the ship in meters per
+     * second squared.
+     */
     [[nodiscard]] units::acceleration::meters_per_second_squared_t
     getAcceleration() const;
 
 //    [[nodiscard]] units::velocity::meters_per_second_t getSpeed();
+
+    /**
+     * @brief Retrieves the ship's previous speed.
+     *
+     * @return The previous speed of the ship in meters per second.
+     */
     [[nodiscard]] units::velocity::meters_per_second_t getPreviousSpeed() const;
+
+    /**
+     * @brief Retrieves the ship's maximum speed.
+     *
+     * @return The maximum speed of the ship in meters per second.
+     */
     [[nodiscard]] units::velocity::meters_per_second_t getMaxSpeed() const;
 
+    /**
+     * @brief Calculates and retrieves the ship's maximum acceleration.
+     *
+     * @return The maximum acceleration of the ship in meters per
+     * second squared.
+     */
     [[nodiscard]] units::acceleration::meters_per_second_squared_t
     getMaxAcceleration();
 
+    /**
+     * @brief Retrieves the running average of the ship's acceleration
+     * over the trip.
+     *
+     * @return The running average acceleration of the ship in meters
+     * per second squared.
+     */
     [[nodiscard]] units::acceleration::meters_per_second_squared_t
     getTripRunningAverageAcceleration() const;
 
+    /**
+     * @brief Retrieves the running average of the ship's speed over the trip.
+     *
+     * @return The running average speed of the ship in meters per second.
+     */
     [[nodiscard]] units::velocity::meters_per_second_t
     getTripRunningAvergageSpeed() const;
 
+    /**
+     * @brief Calculates and retrieves the energy consumption per
+     * ton of cargo.
+     *
+     * @return The energy consumption per ton of cargo in kilowatt-hours
+     * per metric ton.
+     */
     [[nodiscard]] units::unit_t<
         units::compound_unit<units::energy::kilowatt_hour,
                              units::inverse<units::mass::metric_ton>>>
     getEnergyConsumptionPerTon() const;
 
-    units::unit_t<
+    /**
+     * @brief Calculates and retrieves the energy consumption per
+     * ton-kilometer of cargo.
+     *
+     * @return The energy consumption per ton-kilometer of cargo
+     * in kilowatt-hours per metric ton-kilometer.
+     */
+    [[nodiscard]] units::unit_t<
         units::compound_unit<units::energy::kilowatt_hour,
                              units::inverse<
                                  units::compound_unit<
                                      units::length::meter, units::mass::metric_ton>>>>
     getEnergyConsumptionPerTonKM() const;
 
-    units::volume::liter_t getOverallCumFuelConsumption() const;
+    /**
+     * @brief Retrieves the cumulative fuel consumption of the ship in liters.
+     *
+     * @return The overall cumulative fuel consumption of the ship in liters.
+     */
+    [[nodiscard]] units::volume::liter_t getOverallCumFuelConsumption() const;
 
-    units::unit_t<
+    /**
+     * @brief Calculates and retrieves the overall fuel consumption
+     * per ton of cargo.
+     *
+     * @return The overall fuel consumption per ton of cargo in
+     * liters per metric ton.
+     */
+    [[nodiscard]] units::unit_t<
         units::compound_unit<units::volume::liter,
                              units::inverse<units::mass::metric_ton>>>
     getOverallCumFuelConsumptionPerTon() const;
 
-    units::unit_t<
+    /**
+     * @brief Calculates and retrieves the overall fuel consumption
+     * per ton-kilometer of cargo.
+     *
+     * @return The overall fuel consumption per ton-kilometer of cargo
+     * in liters per metric ton-kilometer.
+     */
+    [[nodiscard]] units::unit_t<
         units::compound_unit<units::volume::liter,
                              units::inverse<
                                  units::compound_unit<
                                      units::length::meter, units::mass::metric_ton>>>>
     getOverallCumFuelConsumptionPerTonKM() const;
 
+    QJsonObject getCurrentStateAsJson() const;
+
+#ifdef BUILD_SERVER_ENABLED
+    QVector<ContainerCore::Container*> getLoadedContainers() const;
+    void addContainer(ContainerCore::Container *container);
+#endif
+
 
 private:
 
     //!< The ship ID
     QString mShipUserID;
+
+    bool mIsCommunicationActive = true;
 
     //!< Strategy used for calculating ship calm water resistance.
     IShipCalmResistanceStrategy* mCalmResistanceStrategy;
@@ -1087,6 +1565,9 @@ private:
                                            units::length::kilometers>>(0.0);
 
 
+#ifdef BUILD_SERVER_ENABLED
+    ContainerCore::ContainerMap mLoadedContainers;
+#endif
     /**
      * @brief Calculates the wet surface area of the ship.
      *
@@ -1209,7 +1690,7 @@ private:
 
     units::force::newton_t calc_Torque();
 
-
+    [[nodiscard]] units::force::newton_t getTotalResistance();
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~~~ Dynamics ~~~~~~~~~~~~~~~~~~~~~
@@ -1381,6 +1862,9 @@ private:
             units::velocity::meters_per_second_t speed);
     void computeStoppingPointIndices();
 
+
+public:
+
 signals:
 
     /**
@@ -1400,14 +1884,53 @@ signals:
      */
     void slowSpeedOrStopped(QString msg);
 
-    void reachedDestination(const QString& shipID);
+    /**
+     * @brief Signal emitted when the ship reaches its destination.
+     *
+     * This signal is emitted when the ship has successfully reached
+     * its final destination point along its path.
+     *
+     * @param shipDetails a json object that has all state details of the ship.
+     */
+    void reachedDestination(const QJsonObject shipDetails);
 
 private: signals:
+    /**
+     * @brief Signal emitted when the ship's traveled distance changes
+     * during a time step.
+     *
+     * This signal is emitted whenever the ship's traveled distance is
+     * updated, typically after moving along its path.
+     *
+     * @param newDistance The new distance traveled by the ship in
+     *                    the current time step, measured in meters.
+     * @param timeStep The duration of the current time step in seconds.
+     */
     void stepDistanceChanged(units::length::meter_t newDistance,
                              units::time::second_t timeStep);
+
+    /**
+     * @brief Signal emitted when the ship deviates from its intended path.
+     *
+     * This signal is emitted when the ship is detected to be off-course
+     * from its designated path, possibly due to navigation issues.
+     *
+     * @param msg A message describing the nature of the path deviation.
+     */
     void pathDeviation(QString msg);
 
 private slots:
+    /**
+     * @brief Slot to handle changes in the ship's traveled distance
+     * during a time step.
+     *
+     * This slot is connected to the `stepDistanceChanged` signal and
+     * processes the ship's movement, updating its position along the path.
+     *
+     * @param newTotalDistance The total distance traveled by the ship
+     * after the current time step, measured in meters.
+     * @param timeStep The duration of the current time step in seconds.
+     */
     void handleStepDistanceChanged(units::length::meter_t newTotalDistance,
                                    units::time::second_t timeStep);
 };
