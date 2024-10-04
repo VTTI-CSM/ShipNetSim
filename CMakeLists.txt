@@ -71,7 +71,7 @@ endif()
 # -------------------------------------------------------
 
 # Option to build GUI components
-option(BUILD_GUI "Build the GUI components" ON)
+option(BUILD_GUI "Build the GUI components" OFF)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
@@ -145,7 +145,30 @@ if(BUILD_GUI)
 
 endif()
 
+if(BUILD_SERVER)
+    set(CONTAINER_CMAKE_DIR "C:/Program Files/Container/cmake" CACHE PATH "Default path to container's library")
+    set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c")
 
+    # Find the installed Container library
+    find_package(Container REQUIRED PATHS ${CONTAINER_CMAKE_DIR} NO_DEFAULT_PATH)
+
+    if (NOT Container_FOUND)
+        message(FATAL_ERROR "Container not found. Please specify the correct path to the Container Library cmake installation.")
+    endif()
+
+    # Set and cache the path to the bin directory using CONTAINER_CMAKE_DIR
+    set(CONTAINER_BIN_DIR "${CONTAINER_CMAKE_DIR}/../bin" CACHE PATH "Path to the Container library's bin directory")
+
+    find_package(RabbitMQ-C REQUIRED CONFIG PATHS ${RABBITMQ_CMAKE_DIR})
+
+    if (NOT RabbitMQ-C_FOUND)
+        message(FATAL_ERROR "RabbitMQ-C not found. Please specify the correct path to the RabbitMQ-C cmake installation.")
+    endif()
+
+    # Set and cache the path to the RabbitMQ bin directory using RABBITMQ_CMAKE_DIR
+    set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+
+endif()
 
 # Library directories - Prompt users to set paths if libraries aren't found
 set(GDAL_ROOT_HINTS "" CACHE STRING "Path to GDAL root directory")
