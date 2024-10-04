@@ -161,6 +161,15 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
     emit NetworkLoaded();
 }
 
+
+void OptimizedNetwork::moveObjectToThread(QThread *thread)
+{
+    // Move Simulator object itself to the thread
+    this->moveToThread(thread);
+
+    // todo: define child object as QObject and move them to the new thread
+}
+
 void OptimizedNetwork::loadTxtFile(const QString& filename)
 {
     QFile file(filename);
