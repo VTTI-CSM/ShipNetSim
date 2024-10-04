@@ -3,7 +3,8 @@
 
 namespace ShipNetSimCore
 {
-IEnergyConsumer::IEnergyConsumer()
+
+IEnergyConsumer::IEnergyConsumer(QObject* parent) : QObject(parent)
 {
     mHost = nullptr;
     mCurrentEnergySource = nullptr;
@@ -14,6 +15,10 @@ IEnergyConsumer::~IEnergyConsumer()
 {
     mHost = nullptr;
     mCurrentEnergySource = nullptr;
+}
+
+void IEnergyConsumer::moveObjectToThread(QThread *thread) {
+    this->moveToThread(thread);
 }
 
 void IEnergyConsumer::setHost(Ship *host)
