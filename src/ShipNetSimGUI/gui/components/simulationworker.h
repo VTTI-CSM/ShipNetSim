@@ -68,9 +68,7 @@ signals:
      * @param summaryData The summary data of the simulation.
      * @param trajectoryFile The trajectory file path of the simulation.
      */
-    void simulationFinished(
-        const QVector<std::pair<QString, QString>>& summaryData,
-        const QString& trajectoryFile);
+    void simulationFinished(ShipsResults& results);
 
     /**
      * @brief Signal emitted when the coordinates of ships are updated.
@@ -117,13 +115,10 @@ public slots:
 
     /**
      * @brief Slot called when the simulation is finished.
-     * @param summaryData The summary data of the simulation.
+     * @param results The summary data of the simulation.
      * @param trajectoryFile The trajectory file path of the simulation.
      */
-    void onSimulationFinished(
-        const QVector<std::pair<QString,
-                                QString>> &summaryData,
-        const QString &trajectoryFile);
+    void onSimulationFinished(ShipsResults& results);
 
     /**
      * @brief Slot called to start the simulation work.
