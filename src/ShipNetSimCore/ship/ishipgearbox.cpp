@@ -22,6 +22,16 @@ IShipGearBox::~IShipGearBox()
     }
 }
 
+void IShipGearBox::moveObjectToThread(QThread *thread) {
+    this->moveToThread(thread);
+
+    for (auto& engine: mEngines) {
+        if (engine) {
+            engine->moveObjectToThread(thread);
+        }
+    }
+}
+
 void IShipGearBox::setHost(Ship *host)
 {
     mHost = host;
