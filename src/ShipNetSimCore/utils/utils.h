@@ -155,7 +155,12 @@ inline T linearInterpolateAtX(const QVector<T>& x_vals,
 
     // Ensure x is within the bounds
     if (x > x_vals.back()) {
-        throw std::out_of_range("x is out of the range of x_vals!");
+        std::ostringstream errorMessage;
+        errorMessage << "x (" << x << ") is out of the range of x_vals! "
+                     << "Bounds are ["
+                     << x_vals.front() << ", "
+                     << x_vals.back() << "]";
+        throw std::out_of_range(errorMessage.str());
     }
 
     // Find the correct interval
@@ -171,6 +176,34 @@ inline T linearInterpolateAtX(const QVector<T>& x_vals,
     throw std::logic_error("Interpolation interval not found, "
                            "which should be impossible!");
 };
+
+
+template<typename T>
+T bilinearInterpolation(const QVector<T>& x_vals,
+                        const QVector<T>& y_vals,
+                        const QVector<T>& f_vals, T x, T y)
+{
+    if (x_vals.size() != 2 || y_vals.size() != 2 || f_vals.size() != 4) {
+        throw std::invalid_argument("x_vals and y_vals must each have "
+                                    "2 elements and f_vals must have "
+                                    "4 elements.");
+    }
+
+    // Unpack the function values at the corners
+    T f00 = f_vals[0];  // Bottom-left (0, 0)
+    T f10 = f_vals[1];  // Bottom-right (1, 0)
+    T f01 = f_vals[2];  // Top-left (0, 1)
+    T f11 = f_vals[3];  // Top-right (1, 1)
+
+    // Interpolate along the x-direction at y = y_vals[0] (bottom row)
+    T f_x0 = linearInterpolate(x_vals[0], f00, x_vals[1], f10, x);
+
+    // Interpolate along the x-direction at y = y_vals[1] (top row)
+    T f_x1 = linearInterpolate(x_vals[0], f01, x_vals[1], f11, x);
+
+    // Interpolate between the two results along the y-direction
+    return linearInterpolate(y_vals[0], f_x0, y_vals[1], f_x1, y);
+}
 
 std::vector<double> linspace_step(double start,
                                          double end,
