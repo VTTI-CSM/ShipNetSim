@@ -86,7 +86,8 @@ public:
      * defined by the engine layout.
      * @return vector of RPM deining the lowest and highest values.
      */
-    QVector<units::angular_velocity::revolutions_per_minute_t>
+    QPair<units::angular_velocity::revolutions_per_minute_t,
+          units::angular_velocity::revolutions_per_minute_t>
     getOutputRPMRange() const override;
 
     /**
@@ -110,16 +111,18 @@ public:
     units::torque::newton_meter_t getOutputTorque() override;
 
     /**
-     * @brief set the engine speed (RPM)
+     * @brief set the engine new target state (max state) could be L1
      *
-     * @details This function sets the engine speed in RPM. The function
-     * is mainly designed to set the engine speed that maximizes the propeller
-     * efficiency.
+     * @details This function sets the engine target state. The function
+     * is mainly designed to set the engine target state that
+     * equates the engine power curve to the propeller curve.
      *
-     * @param targetRPM the target RPM that the engine should go by.
+     * @param newState the target state that the engine should abide by.
      */
-    void setEngineRPM(
-        units::angular_velocity::revolutions_per_minute_t targetRPM) override;
+    void setEngineTargetState(IShipEngine::EngineProperties newState) override;
+
+    void setEngineDefaultTargetState(
+        IShipEngine::EngineProperties newState) override;
 
     /**
      * @brief set the engine max power load.
@@ -141,6 +144,14 @@ public:
      * @return The output power in the previous time step, in kilowatts.
      */
     units::power::kilowatt_t getPreviousOutputPower() const override;
+
+    void updateGearboxOperationalState() override;
+
+    IShipEngine::EngineProperties getEngineOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm) override;
+
+    IShipEngine::EngineProperties getGearboxOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm) override;
 
 private:
 
