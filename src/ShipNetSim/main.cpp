@@ -257,8 +257,6 @@ int main(int argc, char *argv[])
     OptimizedNetwork* net = nullptr;
     QVector<std::shared_ptr<Ship>> ships;
     Simulator* sim;
-    // Access the SimulatorAPI instance
-    SimulatorAPI& api = SimulatorAPI::getInstance();
 
     // Exception handling for simulator initialization.
     try
@@ -334,10 +332,11 @@ int main(int argc, char *argv[])
             auto shipsDetails =
                 ShipsList::readShipsFile(shipsFile, nullptr, true);
             ships = ShipsList::loadShipsFromParameters(shipsDetails);
-            api.initializeSimulator(nullptr,
-                                    ships,
-                                    units::time::second_t(timeStep));
-            sim = &api.getSimulator();
+            SimulatorAPI::ContinuousMode::defineSimulator(
+                nullptr, ships,
+                units::time::second_t(timeStep), false);
+
+            sim = &SimulatorAPI::ContinuousMode::getSimulator();
 
             // The flag is set, study resistance
             sim->setExportInstantaneousTrajectory(true,
@@ -373,13 +372,21 @@ int main(int argc, char *argv[])
             std::cout <<"\nLoading Ships!                 \n";
             auto shipsDetails =
                 ShipsList::readShipsFile(shipsFile, net, false);
-            ships = ShipsList::loadShipsFromParameters(shipsDetails);
+            try {
+                ships =
+                    ShipsList::loadShipsFromParameters(shipsDetails,
+                                                       net,
+                                                       false);
+            } catch (std::exception &e) {
+                std::cout << e.what();
+            }
+
 
             std::cout <<"\nPutting Things Together!       \n";
-            api.initializeSimulator(net,
-                                    ships,
-                                    units::time::second_t(timeStep));
-            sim = &api.getSimulator();
+            SimulatorAPI::ContinuousMode::defineSimulator(
+                net, ships, units::time::second_t(timeStep), false);
+
+            sim = &SimulatorAPI::ContinuousMode::getSimulator();
 
             // Set up simulator output location.
             sim->setOutputFolderLocation(exportLocation);
@@ -389,7 +396,7 @@ int main(int argc, char *argv[])
                                                   instaTrajFilename);
             // run the actual simulation
             std::cout <<"\nStarting Simulation!           \n";
-            sim->runSimulation();
+            SimulatorAPI::ContinuousMode::runSimulation();
         }
         std::cout << "\nOutput folder: " <<
             sim->getOutputFolder().toStdString() << std::endl;
