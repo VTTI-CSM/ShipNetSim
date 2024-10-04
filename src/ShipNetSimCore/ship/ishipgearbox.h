@@ -19,6 +19,7 @@
 #ifndef ISHIPGEARBOX_H
 #define ISHIPGEARBOX_H
 
+#include <QObject>
 #include <QMap>
 #include <any>
 #include "ishipengine.h"
@@ -39,8 +40,10 @@ class Ship;         ///< Forward declaration of ship class.
  * takes the mechanical power from the engines and transmits
  * it to the ship's propulsion system.
  */
-class IShipGearBox
+class IShipGearBox : public QObject
 {
+    Q_OBJECT
+
 public:
     /**
      * @brief Constructor for the IShipGearBox interface.
@@ -51,6 +54,8 @@ public:
      * @brief Destructor for the IShipGearBox interface.
      */
     virtual ~IShipGearBox();
+
+    void moveObjectToThread(QThread *thread);
 
     /**
      * @brief Initialize the gearbox with the associated ship,
@@ -111,7 +116,8 @@ public:
      * defined by the engine layout.
      * @return vector of RPM deining the lowest and highest values.
      */
-    virtual QVector<units::angular_velocity::revolutions_per_minute_t>
+    virtual QPair<units::angular_velocity::revolutions_per_minute_t,
+                  units::angular_velocity::revolutions_per_minute_t>
     getOutputRPMRange() const = 0;
 
     /**
@@ -139,16 +145,19 @@ public:
     virtual units::power::kilowatt_t getPreviousOutputPower() const = 0;
 
     /**
-     * @brief set the engine speed (RPM)
+     * @brief set the engine new target state (max state) could be L1
      *
-     * @details This function sets the engine speed in RPM. The function
-     * is mainly designed to set the engine speed that maximizes the propeller
-     * efficiency.
+     * @details This function sets the engine target state. The function
+     * is mainly designed to set the engine target state that
+     * equates the engine power curve to the propeller curve.
      *
-     * @param targetRPM the target RPM that the engine should go by.
+     * @param newState the target state that the engine should abide by.
      */
-    virtual void setEngineRPM(
-        units::angular_velocity::revolutions_per_minute_t targetRPM) = 0;
+    virtual void setEngineTargetState(
+        IShipEngine::EngineProperties newState) = 0;
+
+    virtual void setEngineDefaultTargetState(
+        IShipEngine::EngineProperties newState) = 0;
 
     /**
      * @brief set the engine max power load.
@@ -160,6 +169,13 @@ public:
      * @param targetPowerLoad the target power load the engine should reach.
      */
     virtual void setEngineMaxPowerLoad(double targetPowerLoad) = 0;
+
+    virtual void updateGearboxOperationalState() = 0;
+
+    virtual IShipEngine::EngineProperties getEngineOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
+    virtual IShipEngine::EngineProperties getGearboxOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
 
     IShipEngine::EngineOperationalLoad getCurrentOperationalLoad();
 

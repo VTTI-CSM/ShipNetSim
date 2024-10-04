@@ -20,6 +20,13 @@ IShipPropeller::~IShipPropeller()
     }
 }
 
+void IShipPropeller::moveObjectToThread(QThread *thread) {
+    this->moveToThread(thread);
+
+    if (mGearBox) {
+        mGearBox->moveObjectToThread(thread);
+    }
+}
 
 void IShipPropeller::setHost(Ship *host)
 {
@@ -36,7 +43,7 @@ const Ship *IShipPropeller::getHost() const
     return mHost;
 }
 
-const IShipGearBox *IShipPropeller::getGearBox() const
+IShipGearBox *IShipPropeller::getGearBox() const
 {
     return mGearBox;
 }
@@ -106,6 +113,14 @@ int IShipPropeller::getPropellerBladesCount() const
 void IShipPropeller::setPropellerBladesCount(int newPropellerBladesCount)
 {
     mNumberOfblades = newPropellerBladesCount;
+}
+
+double IShipPropeller::getPropellerSlip() {
+    return mPropellerSlip;
+}
+
+void IShipPropeller::setPropellerSlip(double newSlip) {
+    mPropellerSlip = newSlip;
 }
 
 bool IShipPropeller::requestHigherEnginePower() {

@@ -22,6 +22,7 @@
 #include "../../third_party/units/units.h"
 #include "ishipengine.h"
 #include "ishipgearbox.h"
+#include <QObject>
 #include <QMap>
 #include <QString>
 #include <any>
@@ -35,8 +36,10 @@ class Ship;             ///< Forward declaration of ship class.
  *
  * Provides an interface to manage ships propellers
  */
-class IShipPropeller
+class IShipPropeller : public QObject
 {
+    Q_OBJECT
+
 public:
     /**
      * @brief Constructor for the IShipPropeller interface.
@@ -47,6 +50,8 @@ public:
      * @brief Destructor for the IShipPropeller interface.
      */
     virtual ~IShipPropeller();
+
+    void moveObjectToThread(QThread *thread);
 
     /**
      * @brief Initialize the propeller with the associated ship, gearbox,
@@ -85,7 +90,7 @@ public:
      *
      * @return The gearbox connected to the propeller.
      */
-    const IShipGearBox *getGearBox() const;
+    IShipGearBox *getGearBox() const;
 
     /**
      * @brief Set the parameters for setting up the propeller.
@@ -237,7 +242,9 @@ public:
      * @return The thrust coefficient of the propeller.
      */
     virtual double getThrustCoefficient(
-        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the torque coefficient of the propeller.
@@ -245,7 +252,9 @@ public:
      * @return The torque coefficient of the propeller.
      */
     virtual double getTorqueCoefficient(
-        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the advanced ratio of the propeller.
@@ -253,7 +262,9 @@ public:
      * @return The advanced ratio of the propeller.
      */
     virtual double getAdvanceRatio(
-        units::angular_velocity::revolutions_per_minute_t rpm) = 0;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the driving engines of the propeller.
@@ -274,11 +285,26 @@ public:
     virtual units::angular_velocity::revolutions_per_minute_t
     getOptimumRPM(units::velocity::meters_per_second_t speed) = 0;
 
+    virtual double getPropellerSlipToIdeal(
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(std::nan("unintialized")),
+        units::angular_velocity::revolutions_per_minute_t customRPM =
+        units::angular_velocity::revolutions_per_minute_t(
+            std::nan("unintialized"))) = 0;
+
+    double getPropellerSlip();
+    void setPropellerSlip(double newSlip);
+
     bool requestHigherEnginePower();
 
     bool requestLowerEnginePower();
 
     IShipEngine::EngineOperationalLoad getCurrentOperationalLoad();
+
+    virtual units::power::kilowatt_t getRequiredShaftPowerAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
 
 protected:
     Ship *mHost;            /**< The ship associated with the propeller. */
@@ -293,6 +319,8 @@ protected:
         mPropellerDiskArea; /**< The disk area of the propeller. */
     int mNumberOfblades; /**< Number of blades in the propeller. */
 
+
+    double mPropellerSlip;
     /**< The expanded area ratio of the propeller. */
     double
         mPropellerExpandedAreaRatio;
