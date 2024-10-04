@@ -221,6 +221,10 @@ public:
      */
     [[nodiscard]] bool operator==(const GPoint &other) const;
 
+    GPoint operator+(const GPoint& other) const;
+
+    GPoint operator-(const GPoint& other) const;
+
     // Custom hash function for GPoint
     struct Hash {
         std::size_t operator()(const std::shared_ptr<GPoint>& p) const;

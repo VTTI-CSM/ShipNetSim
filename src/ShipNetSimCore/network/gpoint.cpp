@@ -422,6 +422,21 @@ bool GPoint::operator==(const GPoint &other) const
            getLongitude() == other.getLongitude();
 }
 
+GPoint GPoint::operator+(const GPoint& other) const {
+    GPoint result;
+    result.setLatitude(this->getLatitude() + other.getLatitude());
+    result.setLongitude(this->getLongitude() + other.getLongitude());
+    return result;
+}
+
+// Overload the - operator for subtracting two GPoint instances
+GPoint GPoint::operator-(const GPoint& other) const {
+    GPoint result;
+    result.setLatitude(this->getLatitude() - other.getLatitude());
+    result.setLongitude(this->getLongitude() - other.getLongitude());
+    return result;
+}
+
 // Implementation of the nested Equal structure
 bool GPoint::Equal::operator()(const std::shared_ptr<GPoint>& lhs,
                               const std::shared_ptr<GPoint>& rhs) const
