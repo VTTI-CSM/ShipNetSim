@@ -396,6 +396,7 @@ static std::any toEnginePowerRPMEfficiencyT(const QString& str, bool isOptional)
 
     // Split the string into pairs.
     QStringList pointsData = str.split(delim[1]);
+
     for (const QString& pointData : pointsData)
     {
         // Split each pair into key and value.
@@ -703,6 +704,7 @@ static QString toString(const std::any& value) {
 static QVector<ParamInfo> FileOrderedparameters =
     {
     // Basic ship information parameters
+    // parameter key, type, isOptional
     {"ID", toQStringT, false},
     {"Path", toPathPointsT, false},
     {"MaxSpeed", toMeterPerSecond, false},
@@ -735,9 +737,10 @@ static QVector<ParamInfo> FileOrderedparameters =
 
     // Engine parameters
     {"EnginesCountPerPropeller", toIntT, false},
-    {"EngineOperationalPowerSettings", toEnginePowerVectorT, false},
     {"EngineTierIIPropertiesPoints", toEnginePowerRPMEfficiencyT, false},
     {"EngineTierIIIPropertiesPoints", toEnginePowerRPMEfficiencyT, true},
+    {"EngineTierIICurve", toEnginePowerRPMEfficiencyT, true},
+    {"EngineTierIIICurve", toEnginePowerRPMEfficiencyT, true},
 
     // Gearbox parameters
     {"GearboxRatio", toDoubleT, false},
@@ -798,11 +801,51 @@ SHIPNETSIM_EXPORT bool writeShipsFile(
 
 template<typename T>
 SHIPNETSIM_EXPORT std::shared_ptr<Ship>
-loadShipFromParameters(QMap<QString, T> shipsDetails);
+loadShipFromParameters(QMap<QString, T> shipsDetails,
+                       OptimizedNetwork* network = nullptr,
+                       bool isResistanceStudyOnly = false);
 
 template<typename T>
 SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>
-loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails);
+loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails,
+                        OptimizedNetwork* network = nullptr,
+                        bool isResistanceStudyOnly = false);
+
+/**
+ * @brief Loads a ship from a QJsonObject.
+ *
+ * This function extracts ship parameters from a JSON object,
+ * converts them to the appropriate types, and constructs a Ship object.
+ *
+ * @param shipJson The QJsonObject containing ship parameters.
+ * @param network A pointer to the OptimizedNetwork for finding ship paths.
+ * @param isResistanceStudyOnly Whether the loading is for resistance
+ *                              study only.
+ * @return A shared pointer to the Ship object.
+ */
+SHIPNETSIM_EXPORT std::shared_ptr<Ship>
+loadShipFromParameters(QJsonObject shipJson,
+                       OptimizedNetwork* network = nullptr,
+                       bool isResistanceStudyOnly = false);
+
+/**
+ * @brief Loads ships from a QJsonObject.
+ *
+ * This function extracts ship parameters from a JSON object, converts them
+ * to the appropriate types, and constructs a list of Ship objects.
+ *
+ * The JSON object is expected to contain an array of ships, each defined
+ * by a set of parameters.
+ *
+ * @param shipsJson The QJsonObject containing an array of ships.
+ * @param network A pointer to the OptimizedNetwork for finding ship paths.
+ * @param isResistanceStudyOnly Whether the loading is for resistance study only.
+ * @return A vector of shared pointers to the Ship objects.
+ */
+SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>
+loadShipsFromJson(const QJsonObject& shipsJson,
+                  OptimizedNetwork* network = nullptr,
+                  bool isResistanceStudyOnly = false);
 
 }
 };
