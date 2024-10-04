@@ -20,8 +20,6 @@ QVector<QMap<QString, std::any>> readShipsFile(
             qFatal("network cannot be null");
         }
     }
-    // Counter to keep track of ship IDs.
-//    static qsizetype idCounter = 0;
 
     // Map to store parameters and their values.
     QMap<QString, std::any> parameters;
@@ -200,7 +198,9 @@ bool writeShipsFile(
 
 template<typename T>
 std::shared_ptr<Ship>
-loadShipFromParameters(QMap<QString, T> shipDetails) {
+loadShipFromParameters(QMap<QString, T> shipDetails,
+                       OptimizedNetwork* network,
+                       bool isResistanceStudyOnly) {
 
     QMap<QString, std::any> convertedParameters;
 
@@ -212,24 +212,62 @@ loadShipFromParameters(QMap<QString, T> shipDetails) {
             if (!param) {
                 throw std::runtime_error("Could not find ship parameter");
             }
-            convertedParameters[key] = param->converter(value, param->isOptional);
+            convertedParameters[key] =
+                param->converter(value, param->isOptional);
         }
     } else {
         convertedParameters = shipDetails;
     }
 
+    if (network != nullptr && !isResistanceStudyOnly)
+    {
+        auto pathPoints =
+            Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
+                convertedParameters, "Path", QVector<std::shared_ptr<GPoint>>());
+        ShortestPathResult results =
+            network->findShortestPath(pathPoints,
+                                      PathFindingAlgorithm::Dijkstra);
+
+        if (!results.isValid())
+        {
+            qFatal("Could not find ship path!\n");
+        }
+
+        convertedParameters["PathPoints"] = results.points;
+        convertedParameters["PathLines"]  = results.lines;
+    }
+    if (network == nullptr || isResistanceStudyOnly)
+    {
+        QVector<std::shared_ptr<GPoint>> fakePoints;
+        QVector<std::shared_ptr<GLine>> fakeLines;
+
+        fakePoints.push_back(std::make_shared<GPoint>(
+            units::angle::degree_t(0.0),
+            units::angle::degree_t(0.0)));
+        fakePoints.push_back(std::make_shared<GPoint>(
+            units::angle::degree_t(100.0),
+            units::angle::degree_t(100.0)));
+        fakeLines.push_back(std::make_shared<GLine>(fakePoints[0],
+                                                    fakePoints[1]));
+        convertedParameters["PathPoints"] = fakePoints;
+        convertedParameters["PathLines"]  = fakeLines;
+    }
+
     return std::make_shared<Ship>(convertedParameters);
-
-
 }
 
 template<typename T>
 QVector<std::shared_ptr<Ship>>
-loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails) {
+loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails,
+                        OptimizedNetwork* network,
+                        bool isResistanceStudyOnly)
+{
     QVector<std::shared_ptr<Ship>> ships;
 
     for (auto& parameters : shipsDetails) {
-        auto ship = loadShipFromParameters(parameters);
+        auto ship = loadShipFromParameters(parameters,
+                                           network,
+                                           isResistanceStudyOnly);
 
         ships.push_back(std::move(ship));
     }
@@ -240,20 +278,127 @@ loadShipsFromParameters(QVector<QMap<QString, T>> shipsDetails) {
 
 // Explicit instantiation of the template for QString type
 template SHIPNETSIM_EXPORT std::shared_ptr<Ship>
-loadShipFromParameters<QString>(QMap<QString, QString> shipsDetails);
+loadShipFromParameters<QString>(QMap<QString, QString> shipsDetails,
+                                OptimizedNetwork* network,
+                                bool isResistanceStudyOnly);
 
 // Explicit instantiation of the template for std::any type
 template SHIPNETSIM_EXPORT std::shared_ptr<Ship>
-loadShipFromParameters<std::any>(QMap<QString, std::any> shipDetails);
+loadShipFromParameters<std::any>(QMap<QString, std::any> shipDetails,
+                                 OptimizedNetwork* network,
+                                 bool isResistanceStudyOnly);
 
 
 // Explicit instantiation of the template for QString type
 template SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>
-loadShipsFromParameters<QString>(QVector<QMap<QString, QString>> shipsDetails);
+loadShipsFromParameters<QString>(QVector<QMap<QString, QString>> shipsDetails,
+                                 OptimizedNetwork* network,
+                                 bool isResistanceStudyOnly);
 
 // Explicit instantiation of the template for std::any type
 template SHIPNETSIM_EXPORT QVector<std::shared_ptr<Ship>>
-loadShipsFromParameters<std::any>(QVector<QMap<QString, std::any>> shipsDetails);
+loadShipsFromParameters<std::any>(QVector<QMap<QString, std::any>> shipsDetails,
+                                  OptimizedNetwork* network,
+                                  bool isResistanceStudyOnly);
+
+
+std::shared_ptr<Ship> loadShipFromParameters(QJsonObject shipJson,
+                                             OptimizedNetwork* network,
+                                             bool isResistanceStudyOnly) {
+
+    // Map to store converted parameters
+    QMap<QString, std::any> convertedParameters;
+
+    // Iterate over all key-value pairs in the JSON object
+    for (auto it = shipJson.begin(); it != shipJson.end(); ++it) {
+        QString key = it.key();
+        QString value = it.value().toString();  // Convert JSON value to string
+
+        // Find the parameter converter based on the key
+        auto param = findParamInfoByKey(key, FileOrderedparameters);
+        if (!param) {
+            throw std::runtime_error("Could not find ship parameter "
+                                     "for key: " + key.toStdString());
+        }
+
+        // Convert the string value using the appropriate converter
+        convertedParameters[key] = param->converter(value, param->isOptional);
+    }
+
+    // Handle network-based path points if network is provided and
+    // not in resistance study mode
+    if (network != nullptr && !isResistanceStudyOnly) {
+        auto pathPoints =
+            Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
+                convertedParameters, "Path",
+                QVector<std::shared_ptr<GPoint>>());
+
+        // Use the network to find the shortest path
+        ShortestPathResult results =
+            network->findShortestPath(pathPoints,
+                                      PathFindingAlgorithm::Dijkstra);
+
+        if (!results.isValid()) {
+            qFatal("Could not find ship path!\n");
+        }
+
+        // Add path points and lines to the parameters map
+        convertedParameters["PathPoints"] = results.points;
+        convertedParameters["PathLines"]  = results.lines;
+    }
+
+    // Fallback for resistance study or missing network
+    if (network == nullptr || isResistanceStudyOnly) {
+        QVector<std::shared_ptr<GPoint>> fakePoints;
+        QVector<std::shared_ptr<GLine>> fakeLines;
+
+        fakePoints.push_back(std::make_shared<GPoint>(
+            units::angle::degree_t(0.0),
+            units::angle::degree_t(0.0)));
+        fakePoints.push_back(std::make_shared<GPoint>(
+            units::angle::degree_t(100.0),
+            units::angle::degree_t(100.0)));
+        fakeLines.push_back(std::make_shared<GLine>(fakePoints[0],
+                                                    fakePoints[1]));
+        convertedParameters["PathPoints"] = fakePoints;
+        convertedParameters["PathLines"]  = fakeLines;
+    }
+
+    // Create and return the Ship object using the converted parameters
+    return std::make_shared<Ship>(convertedParameters);
+}
+
+QVector<std::shared_ptr<Ship>> loadShipsFromJson(const QJsonObject& shipsJson,
+                                                 OptimizedNetwork* network,
+                                                 bool isResistanceStudyOnly) {
+    QVector<std::shared_ptr<Ship>> ships;
+
+    // The JSON object should contain an array of ships
+    if (!shipsJson.contains("ships") || !shipsJson["ships"].isArray()) {
+        qWarning("The JSON does not contain a valid 'ships' array.");
+        return ships;
+    }
+
+    // Extract the array of ships
+    QJsonArray shipsArray = shipsJson["ships"].toArray();
+
+    // Iterate over each ship object in the array
+    for (const QJsonValue& shipValue : shipsArray) {
+        if (!shipValue.isObject()) {
+            qWarning("Invalid ship definition in the JSON array.");
+            continue;
+        }
+
+        QJsonObject shipJson = shipValue.toObject();
+
+        // Load each ship from the JSON object
+        auto ship = loadShipFromParameters(shipJson, network,
+                                           isResistanceStudyOnly);
+        ships.push_back(ship);
+    }
+
+    return ships;
+}
 
 
 }
