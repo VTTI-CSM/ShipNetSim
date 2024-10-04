@@ -1,6 +1,7 @@
 #include "simulator.h"
 #include "ship/hydrology.h"
 #include "ship/ishipcalmresistancestrategy.h"
+#include "utils/shipscommon.h"
 #include "utils/utils.h"
 #include "ship/ship.h"
 #include "VersionConfig.h"
@@ -11,14 +12,15 @@ namespace ShipNetSimCore
 Simulator::Simulator(OptimizedNetwork* network,
                      QVector<std::shared_ptr<Ship>> shipList,
                      units::time::second_t simulatorTimeStep,
+                     bool isExternallyControlled,
                      QObject *parent)
     : QObject{parent},
     mShips(shipList),
     mSimulationTime(units::time::second_t(0.0)),
     mSimulationEndTime(DefaultEndTime),
     mTimeStep(simulatorTimeStep),
-
-    mNetwork(network)
+    mNetwork(network),
+    mIsExternallyControlled(isExternallyControlled)
 {
     mOutputLocation = Utils::getHomeDirectory();
     // Get a high-resolution time point
@@ -35,10 +37,29 @@ Simulator::Simulator(OptimizedNetwork* network,
     mSummaryFileName = DefaultSummaryFilename +
                        QString::number(simulation_serial_number) + ".txt";
 
+    qRegisterMetaType<ShipsResults>("ShipsResults");
 }
 
 Simulator::~Simulator() {
     mNetwork = nullptr;
+}
+
+void Simulator::moveObjectToThread(QThread *thread)
+{
+    // Move Simulator object itself to the thread
+    this->moveToThread(thread);
+
+    // Move network to the new thread
+    if (mNetwork) {
+        mNetwork->moveObjectToThread(thread);
+    }
+
+    // Move each Ship in mShips to the new thread
+    for (auto& ship : mShips) {
+        if (ship) {
+            ship->moveObjectToThread(thread);
+        }
+    }
 }
 
 void Simulator::studyShipsResistance()
@@ -63,15 +84,25 @@ void Simulator::studyShipsResistance()
               "TotalResistance_kN,"
               "ResistanceCoefficient";
 
+    // Make sure to flush the QTextStream and write the header
     this->mTrajectoryFile.writeLine(exportLine);
+    exportLine.clear(); // Clear after writing
+    stream.seek(0);  // Reset the stream position to avoid errors
 
     for (auto &ship: mShips)
     {
-        double s[] = {15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0};
+        // double s[] = {15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0};
 
-        for (double speedStep : s)  //Utils::linspace_step(0, ship->getMaxSpeed().value())
+        for (auto speedStep :
+             Utils::linspace_step(0, ship->getMaxSpeed().
+                                     convert<units::velocity::knot>().value()))
         {
-            units::velocity::meters_per_second_t ss = units::velocity::knot_t(speedStep).convert<units::velocity::meters_per_second>();
+            exportLine.clear();  // Ensure exportLine is cleared at the start of each speed
+            QTextStream stream(&exportLine);
+
+            units::velocity::meters_per_second_t ss =
+                units::velocity::knot_t(speedStep).
+                convert<units::velocity::meters_per_second>();
             ship->setSpeed(ss);
             // ship->setSpeed(units::velocity::meters_per_second_t(speedStep));
             auto speed = ss; //units::velocity::knot_t(speedStep).
@@ -82,59 +113,159 @@ void Simulator::studyShipsResistance()
             auto airRes =
                 ship->getCalmResistanceStrategy()->getAirResistance(*ship);
             auto bulbousRes =
-                ship->getCalmResistanceStrategy()->getBulbousBowResistance(*ship);
+                ship->getCalmResistanceStrategy()->
+                getBulbousBowResistance(*ship);
             auto transomRes =
                 ship->getCalmResistanceStrategy()->
-                              getImmersedTransomPressureResistance(*ship);
+                getImmersedTransomPressureResistance(*ship);
             auto appendageRes =
-                ship->getCalmResistanceStrategy()->getAppendageResistance(*ship);
+                ship->getCalmResistanceStrategy()->
+                getAppendageResistance(*ship);
             auto waveRes =
-                ship->getCalmResistanceStrategy()->getWaveResistance(*ship);
+                ship->getCalmResistanceStrategy()->
+                getWaveResistance(*ship);
             auto frictionalRes =
-                ship->getCalmResistanceStrategy()->getfrictionalResistance(*ship);
+                ship->getCalmResistanceStrategy()->
+                getfrictionalResistance(*ship);
             auto modelCorRes =
                 ship->getCalmResistanceStrategy()->
-                               getModelShipCorrelationResistance(*ship);
+                getModelShipCorrelationResistance(*ship);
             auto totalRes =
                 ship->calculateTotalResistance();
 
             auto totalResCoef =
                 ship->getCalmResistanceStrategy()->
-                                getCoefficientOfResistance(*ship);
+                getCoefficientOfResistance(*ship);
             
             auto FRI = ship->getCalmResistanceStrategy()->calc_F_n_i(*ship);
 
-            QString line;
-            QTextStream lineStream(&line);
-            lineStream << ship->getUserID() << ","
-                       << speed.convert<units::velocity::knot>().value() << ","
-                       << fraudNo << ","
-                       << FRI <<","
-                       << airRes.convert<units::force::kilonewton>().value() << ","
-                       << bulbousRes.convert<units::force::kilonewton>().value() << ","
-                       << transomRes.convert<units::force::kilonewton>().value() << ","
-                       << appendageRes.convert<units::force::kilonewton>().value() << ","
-                       << waveRes.convert<units::force::kilonewton>().value() << ","
-                       << frictionalRes.convert<units::force::kilonewton>().value() << ","
-                       << modelCorRes.convert<units::force::kilonewton>().value() << ","
-                       << totalRes.convert<units::force::kilonewton>().value() << ","
-                       << totalResCoef;
 
+            stream << ship->getUserID() << ","
+                   << speed.convert<units::velocity::knot>().value() << ","
+                   << fraudNo << ","
+                   << FRI <<","
+                   << airRes.convert<units::force::kilonewton>().value() << ","
+                   << bulbousRes.convert<units::force::kilonewton>().value() << ","
+                   << transomRes.convert<units::force::kilonewton>().value() << ","
+                   << appendageRes.convert<units::force::kilonewton>().value() << ","
+                   << waveRes.convert<units::force::kilonewton>().value() << ","
+                   << frictionalRes.convert<units::force::kilonewton>().value() << ","
+                   << modelCorRes.convert<units::force::kilonewton>().value() << ","
+                   << totalRes.convert<units::force::kilonewton>().value() << ","
+                   << totalResCoef;
 
-            mTrajectoryFile.writeLine(line);
+            // Write the data to the CSV file
+            mTrajectoryFile.writeLine(exportLine);
         }
+    }
 
+    mTrajectoryFile.writeLine("");
+    mTrajectoryFile.writeLine("");
+
+    exportLine.clear();
+    stream << "ShipNo,"
+              "Speed_knots,"
+              "RPM,"
+              "PropellerRequiredPower_kWh,"
+              "EnginePower_kWh,"
+              "EngineTorque_N.m";
+    mTrajectoryFile.writeLine(exportLine);
+    exportLine.clear();
+    stream.seek(0);  // Reset the stream position to avoid errors
+
+    for (auto &ship: mShips) {
+
+        // Step 1: Get the max speed of the ship
+        auto maxSpeed = ship->getMaxSpeed();
+
+        for (auto& speedStep :
+             Utils::linspace_step(
+                 0.0, maxSpeed.convert<units::velocity::knot>().value(), 1.0))
+        {
+
+            exportLine.clear();  // Ensure exportLine is cleared at the start of each speed
+            QTextStream stream(&exportLine);
+
+            // start with ID
+            stream << ship->getUserID() << ",";
+
+            units::velocity::meters_per_second_t ss =
+                units::velocity::knot_t(speedStep).
+                convert<units::velocity::meters_per_second>();
+            ship->setSpeed(ss);
+
+            // Use fixed-point notation with 2 decimals
+            stream << QString::number(speedStep, 'f', 2) << ",";
+
+            // Step 2: Calculate the speed of advance (SOA) using the
+            // ship's calm resistance strategy
+            auto SOA = ship->getCalmResistanceStrategy()->
+                       calc_SpeedOfAdvance(*ship);
+
+            // Step 3: Calculate the max RPM of the propeller based
+            // on max speed and shaft power
+            auto propeller = ship->getPropellers()->at(0);
+            units::angular_velocity::revolutions_per_minute_t rpm =
+                units::angular_velocity::revolutions_per_minute_t(
+                    60.0 * SOA.value() /
+                    (propeller->getPropellerPitch().value() *
+                     (1.0 - propeller->getPropellerSlip())));
+
+            // Write RPM to stream, with fixed-point format
+            stream << QString::number(rpm.value(), 'f', 2) << ",";
+
+            // Step 4: Write propeller shaft power at the calculated RPM
+            stream << QString::number(
+                propeller->getRequiredShaftPowerAtRPM(rpm).value(),
+                'f', 2) << ",";
+
+            for (auto& engine : propeller->getDrivingEngines()) {
+                if (engine->isRPMWithinOperationalRange(rpm)) {
+                    stream << QString::number(
+                        engine->getEnginePropertiesAtRPM(rpm).breakPower.value(),
+                        'f', 2) << ",";
+
+                    stream << QString::number(
+                        engine->getEngineTorqueByRPM(rpm).value(),
+                        'f', 2) << ",";
+                }
+                else { // if it is outside the range, do not export it
+                    continue;
+                }
+            }
+
+            mTrajectoryFile.writeLine(exportLine);
+        }
     }
 }
 
 void Simulator::addShipToSimulation(std::shared_ptr<Ship> ship) {
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     mShips.push_back(ship);
+}
+
+void Simulator::addShipsToSimulation(QVector< std::shared_ptr<Ship> > ships)
+{
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
+    for (auto &ship: ships) {
+        mShips.push_back(ship);
+    }
 }
 
 
 // Setter for the time step of the simulation
 void Simulator::setTimeStep(units::time::second_t newTimeStep) {
     this->mTimeStep = newTimeStep;
+}
+
+units::time::second_t Simulator::getSimulatorTimeStep()
+{
+    return this->mTimeStep;
 }
 
 units::time::second_t Simulator::getCurrentSimulatorTime()
@@ -232,12 +363,38 @@ Simulator::setExportIndividualizedShipsSummary(bool exportAllTrainsSummary) {
     mExportIndividualizedTrainsSummary = exportAllTrainsSummary;
 }
 
+QJsonObject Simulator::getCurrentStateAsJson()
+{
+    QMutexLocker locker(&mutex);
+
+    QJsonObject json;
+    QJsonArray shipsArray;
+
+    for (const auto& ship : mShips) {
+        if (ship) {
+            shipsArray.append(ship->getCurrentStateAsJson());
+        }
+    }
+    json["Ships"] = shipsArray;
+
+    json["CurrentSimulationTime"] = mSimulationTime.value();
+    json["Progress"] = mProgress;
+
+    return json;
+}
+
 // The checkAllShipsReachedDestination function checks if
 // all ships have reached their destinations.
 // If a ship has not reached its destination, it returns false;
 // otherwise, it returns true.
 bool Simulator::checkAllShipsReachedDestination()
 {
+    // give an opportunity for the external controller to add ships
+    if (mShips.empty() && mIsExternallyControlled) {
+        return false;
+    }
+
+
     for (std::shared_ptr<Ship>& s : (mShips))
     {
         if (s->isOutOfEnergy())
@@ -298,7 +455,9 @@ void Simulator::initSimulation()
                   "CumEnergyConsumption_KWH,"
                   "MainEnergySourceCapacityState_percent,"
                   "Position(id;long;lat),"
-                  "Course_deg";
+                  "Course_deg,"
+                  "MainEngineTargetState,"
+                  "MainEngineCurrentState";
 
         this->mTrajectoryFile.writeLine(exportLine);
     }
@@ -326,6 +485,17 @@ void Simulator::runSimulation()
         }
 
         if (this->checkAllShipsReachedDestination()) {
+
+            // Emit the signal when all ships have reached their destination
+            emit allShipsReachedDestination();
+
+            if (mIsExternallyControlled) {
+                // Pause the simulation to wait for new ships to be added
+                qDebug() << "All ships have reached their "
+                            "destination, pausing simulation.";
+                this->pauseSimulation();
+                continue;
+            }
             break;
         }
 
@@ -347,6 +517,8 @@ void Simulator::runSimulation()
 
 void Simulator::exportSimulationResults(bool writeSummaryFile)
 {
+    QMutexLocker locker(&mutex);
+
     // ##################################################################
     // #                       start: summary file                      #
     // ##################################################################
@@ -467,10 +639,11 @@ void Simulator::exportSimulationResults(bool writeSummaryFile)
             << "Total Energy Consumed                                                          \x1D : " << ship->getCumConsumedEnergy().value() << "\n";
     }
 
+    QString summaryFullPath =
+        QDir(mOutputLocation).filePath(mSummaryFileName);
+
     // Set up the summary file information
     if (writeSummaryFile) {
-        QString summaryFullPath =
-            QDir(mOutputLocation).filePath(mSummaryFileName);
         this->mSummaryFile.initTXT(summaryFullPath);
         // setup the summary file
         this->mSummaryFile.writeFile(exportLine.replace("\x1D", ""));
@@ -480,12 +653,14 @@ void Simulator::exportSimulationResults(bool writeSummaryFile)
     // #                       end: summary file                      #
     // ##################################################################
 
-    QVector<std::pair<QString, QString>> shipsSummaryData;
+    QVector<QPair<QString, QString>> shipsSummaryData;
     shipsSummaryData = Utils::splitStringStream(exportLine, "\x1D :");
 
+    ShipsResults rs =
+        ShipsResults(shipsSummaryData, mTrajectoryFullPath, summaryFullPath);
+
     // fire the signal of available simulation results
-    emit this->simulationResultsAvailable(shipsSummaryData,
-                                          mTrajectoryFullPath);
+    emit this->simulationResultsAvailable(rs);
 
     // make sure the files are closed!
     mTrajectoryFile.close();
@@ -496,9 +671,19 @@ void Simulator::exportSimulationResults(bool writeSummaryFile)
 }
 
 void Simulator::playShipsOneTimeStep() {
-    for (std::shared_ptr<Ship>& s : (this->mShips)) {
-        if (s->isReachedDestination()) { continue;  }
 
+    QVector<std::shared_ptr<Ship>> shipsToSimulate;
+
+
+    // Lock the mutex only for the duration of accessing or modifying the mShips list
+    {
+        QMutexLocker locker(&mutex);
+        shipsToSimulate = mShips;
+    }
+
+
+    for (std::shared_ptr<Ship>& s : shipsToSimulate) {
+        if (s->isReachedDestination()) { continue;  }
         this->playShipOneTimeStep(s);
     }
 
@@ -507,7 +692,7 @@ void Simulator::playShipsOneTimeStep() {
     {
         QVector<std::pair<QString, GPoint>> shipsLocs;
 
-        for (std::shared_ptr <Ship>& s : (this->mShips)) {
+        for (std::shared_ptr <Ship>& s : (shipsToSimulate)) {
             if (! s->isLoaded()) { continue; }
 
             GPoint nP = s->getCurrentPosition();
@@ -519,6 +704,17 @@ void Simulator::playShipsOneTimeStep() {
     }
 
     this->mSimulationTime += this->mTimeStep;
+
+    // Minimize waiting when no ships are on network
+    if (!mIsExternallyControlled && this->checkNoShipIsOnNetwork())
+    {
+        // get the next ships to enter the network time
+        auto shiftTime = this->getNotLoadedShipsMinStartTime();
+        if (shiftTime > this->mSimulationTime)
+        {
+            this->mSimulationTime = shiftTime;
+        }
+    }
 }
 
 // This function simulates one time step for a given ship
@@ -621,7 +817,7 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
             auto currentMaxSpeed =
                 units::velocity::meters_per_second_t(100.0); //ship->getCurrentMaxSpeed();
 
-            ship->moveShip(mTimeStep, currentMaxSpeed,
+            ship->sail(mTimeStep, currentMaxSpeed,
                            cp.gapToCriticalPoint,
                            cp.isFollowingAnotherShip,
                            cp.speedAtCriticalPoint,
@@ -652,21 +848,14 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                    << QString::number(ship->getCumConsumedEnergy().value(), 'f', 3) << ","
                    << QString::number(ship->getMainTankCurrentCapacity(), 'f', 3) << ","
                    << ship->getCurrentPosition().toString() << ","
-                   << QString::number(ship->getCurrentHeading().value(), 'f', 3);
+                   << QString::number(ship->getCurrentHeading().value(), 'f', 3) << ","
+                   << ship->getPropellers()->at(0)->getDrivingEngines().at(0)->getEngineTargetState() << ","
+                   << ship->getPropellers()->at(0)->getDrivingEngines().at(0)->getEngineCurrentState();
+
             mTrajectoryFile.writeLine(s);
         }
     }
 
-    // Minimize waiting when no ships are on network
-    if (this->checkNoShipIsOnNetwork())
-    {
-        // get the next ships to enter the network time
-        auto shiftTime = this->getNotLoadedShipsMinStartTime();
-        if (shiftTime > this->mSimulationTime)
-        {
-            this->mSimulationTime = shiftTime;
-        }
-    }
 }
 
 bool Simulator::checkNoShipIsOnNetwork() {
@@ -697,9 +886,8 @@ units::time::second_t Simulator::getNotLoadedShipsMinStartTime()
 void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
                             int bar_length)
 {
-
     double sum = 0.0;
-    for(const auto& ship : ships) {
+    for (const auto& ship : ships) {
         sum += ship->progress();
     }
 
@@ -707,19 +895,21 @@ void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
     int progressValue = static_cast<int>(fraction * bar_length);
     int progressPercent = static_cast<int>(fraction * 100);
 
-    QTextStream out(stdout);
-    QString bar = QString(progressValue, '-').append('>').
-                  append(QString(bar_length - progressValue, ' '));
-
-    QChar ending = (progressPercent >= 100) ? '\n' : '\r';
-
-    out << "Progress: [" << bar << "] " << progressPercent << "%" << ending;
-
+    // Only print and update when the progress percent changes
     if (progressPercent != this->mProgress) {
+        QTextStream out(stdout);
+        QString bar = QString(progressValue, '-').append('>')
+                          .append(QString(bar_length - progressValue, ' '));
+
+        QChar ending = (progressPercent >= 100) ? '\n' : '\r';
+
+        out << "Progress: [" << bar << "] " << progressPercent << "%" << ending;
+
         this->mProgress = progressPercent;
         emit this->progressUpdated(this->mProgress);
     }
 }
+
 
 void Simulator::pauseSimulation() {
     mutex.lock();
