@@ -53,11 +53,8 @@ void SimulationWorker::onShipsCoordinatesUpdated(
     emit shipsCoordinatesUpdated(trainsStartEndPoints);
 }
 
-void SimulationWorker::onSimulationFinished(
-    const QVector<std::pair<QString,
-                            QString>>& summaryData,
-    const QString& trajectoryFile) {
-    emit simulationFinished(summaryData, trajectoryFile);
+void SimulationWorker::onSimulationFinished(ShipsResults &results) {
+    emit simulationFinished(results);
 }
 
 void SimulationWorker::doWork() {
