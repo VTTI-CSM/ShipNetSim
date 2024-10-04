@@ -31,9 +31,7 @@ Data::CSV::CSV(const QString &filePath) :
     mFilePath(filePath), mFile(filePath) {}
 
 Data::CSV::~CSV() {
-    if(mFile.isOpen()) {
-        mFile.close();
-    }
+    close();
 }
 
 void Data::CSV::initCSV(const QString &filePath) {
@@ -149,6 +147,7 @@ void Data::CSV::close()
 {
     if (mFile.isOpen())
     {
+        mOutStream.flush();  // Ensure stream is flushed
         mFile.close();
     }
 }
@@ -200,9 +199,7 @@ Data::TXT::TXT(const QString &filePath) :
     mFilePath(filePath), mFile(filePath) {}
 
 Data::TXT::~TXT() {
-    if(mFile.isOpen()) {
-        mFile.close();
-    }
+    close();
 }
 
 void Data::TXT::initTXT(const QString &filePath) {
@@ -337,11 +334,11 @@ void Data::ProjectFile::createProjectFile(const ProjectDataFile pf,
     authorElement.appendChild(authorText);
     root.appendChild(authorElement);
 
-    // Create trains file name element and set its text
-    QDomElement trainsElement = doc.createElement("ShipsFileName");
-    QDomText trainsText = doc.createTextNode(pf.shipsFileName);
-    trainsElement.appendChild(trainsText);
-    root.appendChild(trainsElement);
+    // Create ships file name element and set its text
+    QDomElement shipsElement = doc.createElement("ShipsFileName");
+    QDomText shipsText = doc.createTextNode(pf.shipsFileName);
+    shipsElement.appendChild(shipsText);
+    root.appendChild(shipsElement);
 
     // Create simEndTime name element and set its text
     QDomElement ElementSimEndTime = doc.createElement("simEndTime");
@@ -406,7 +403,7 @@ Data::ProjectFile::readProjectFile(const QString& filename)
     QDomElement projectElement      = root.firstChildElement("ProjectName");
     QDomElement networkElement      = root.firstChildElement("NetworkName");
     QDomElement authorElement       = root.firstChildElement("AuthorName");
-    QDomElement trainsElement       = root.firstChildElement("ShipssFileName");
+    QDomElement shipsElement       = root.firstChildElement("ShipssFileName");
     QDomElement simEndTimeElement   = root.firstChildElement("simEndTime");
     QDomElement simTimestepElement  = root.firstChildElement("simTimestep");
     QDomElement simPlotTimeElement  = root.firstChildElement("simPlotTime");
@@ -416,7 +413,7 @@ Data::ProjectFile::readProjectFile(const QString& filename)
     pf.projectName       = projectElement.text();
     pf.networkName       = networkElement.text();
     pf.authorName        = authorElement.text();
-    pf.shipsFileName    = trainsElement.text();
+    pf.shipsFileName    = shipsElement.text();
     pf.simEndTime        = simEndTimeElement.text();
     pf.simTimestep       = simTimestepElement.text();
     pf.simPlotTime       = simPlotTimeElement.text();
