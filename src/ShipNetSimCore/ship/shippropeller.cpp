@@ -220,6 +220,9 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
         qFatal("Shaft efficiency is not defined!");
     }
 
+    mPropellerSlip = Utils::getValueFromMap<double>(parameters,
+                                                    "PropellerSlip", 0.1);
+
     // Process Propeller Diameter & Disk Area
     mPropellerDiameter =
         Utils::getValueFromMap<units::length::meter_t>(
@@ -290,7 +293,7 @@ double ShipPropeller::getOpenWaterEfficiency(
         K_Q = getTorqueCoefficient(getRPM());
     }
 
-    return (JRatio / 2.0 * units::constants::pi.value()) * (K_T / K_Q);
+    return (JRatio / (2.0 * units::constants::pi.value())) * (K_T / K_Q);
 }
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -346,7 +349,10 @@ double ShipPropeller::getPropellerEfficiency()
     }
     else
     {
-        mGearBox->setEngineMaxPowerLoad(getOptimumJ(mHost->getSpeed()));
+        // find intersection of engine curve and propeller curve.
+        auto newP = solveEnginePropellerIntersection();
+        mGearBox->setEngineTargetState(newP);
+        // mGearBox->setEngineMaxPowerLoad(getOptimumJ(mHost->getSpeed()));
         return getOpenWaterEfficiency() * getRelativeEfficiency();
     }
 }
@@ -403,13 +409,21 @@ units::torque::newton_meter_t ShipPropeller::getTorque()
 }
 
 double ShipPropeller::getThrustCoefficient(
-    units::angular_velocity::revolutions_per_minute_t rpm)
+    units::angular_velocity::revolutions_per_minute_t rpm,
+    units::velocity::meters_per_second_t speed)
 {
 
-    double J = getAdvanceRatio(rpm);
+    double J = getAdvanceRatio(rpm, speed);
     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
     auto env = mHost->getCurrentEnvironment();
-    double RN = hydrology::R_n(mHost->getSpeed(),
+    units::velocity::meters_per_second_t spd;
+    if (!isnan(speed.value())) {
+        spd = speed;
+    }
+    else {
+        spd = mHost->getSpeed();
+    }
+    double RN = hydrology::R_n(spd,
                                mHost->getLengthInWaterline(),
                                env.salinity, env.temperature);
     double result =  KT.getResult(J, PD, getPropellerExpandedAreaRatio(),
@@ -429,12 +443,20 @@ double ShipPropeller::getThrustCoefficient(
 }
 
 double ShipPropeller::getTorqueCoefficient(
-    units::angular_velocity::revolutions_per_minute_t rpm)
+    units::angular_velocity::revolutions_per_minute_t rpm,
+    units::velocity::meters_per_second_t speed)
 {
     double J = getAdvanceRatio(rpm);
     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
     auto env = mHost->getCurrentEnvironment();
-    double RN = hydrology::R_n(mHost->getSpeed(),
+    units::velocity::meters_per_second_t spd;
+    if (!isnan(speed.value())) {
+        spd = speed;
+    }
+    else {
+        spd = mHost->getSpeed();
+    }
+    double RN = hydrology::R_n(spd,
                                mHost->getLengthInWaterline(),
                                env.salinity, env.temperature);
     double result = KQ.getResult(J, PD, getPropellerExpandedAreaRatio(),
@@ -453,33 +475,46 @@ double ShipPropeller::getTorqueCoefficient(
     }
 }
 
-double ShipPropeller::getPropellerSlip()
+double ShipPropeller::getPropellerSlipToIdeal(
+    units::velocity::meters_per_second_t customSpeed,
+    units::angular_velocity::revolutions_per_minute_t customRPM)
 {
     return 1.0 - (mHost->getCalmResistanceStrategy()->
-                  calc_SpeedOfAdvance(*mHost).value() /
-                  getIdealAdvanceSpeed().value());
+                  calc_SpeedOfAdvance(*mHost, customSpeed).value() /
+                  getIdealAdvanceSpeed(customRPM).value());
 }
 
 units::velocity::meters_per_second_t
-ShipPropeller::getIdealAdvanceSpeed()
+ShipPropeller::getIdealAdvanceSpeed(
+    units::angular_velocity::revolutions_per_minute_t customRPM)
 {
+    units::angular_velocity::revolutions_per_second_t rps;
+    if (!std::isnan(customRPM.value())) {
+        rps =
+            customRPM
+                  .convert<units::angular_velocity::revolutions_per_second>();
+    }
+    else {
+        rps =
+            getRPM()
+                  .convert<units::angular_velocity::revolutions_per_second>();
+    }
     return units::velocity::meters_per_second_t(
-        getRPM().
-        convert<units::angular_velocity::revolutions_per_second>().
-        value() * mPropellerPitch.value());
+        rps.value() * mPropellerPitch.value());
 }
 
 double ShipPropeller::getAdvanceRatio(
-    units::angular_velocity::revolutions_per_minute_t rpm)
+    units::angular_velocity::revolutions_per_minute_t rpm,
+    units::velocity::meters_per_second_t speed)
 {
     double speedOfAdvance = mHost->getCalmResistanceStrategy()->
-                          calc_SpeedOfAdvance(*mHost).value();
+                          calc_SpeedOfAdvance(*mHost, speed).value();
     double n = rpm.
                convert<units::angular_velocity::revolutions_per_second>().
                value();
 
-    double j = ( speedOfAdvance /
-            ( n * getPropellerDiameter().value()));
+    double j = (n != 0.0) ? ( speedOfAdvance /
+                             ( n * getPropellerDiameter().value())) : 0.0;
 
     // confine j to be with [0, 1]
     // if (j < 0) { return 0.0;}
@@ -612,5 +647,118 @@ ShipPropeller::getOptimumRPM(units::velocity::meters_per_second_t speed)
 
     return getRPMFromAdvanceRatioAndShipSpeed(bestJ, speed);
 }
+
+units::power::kilowatt_t ShipPropeller::getRequiredShaftPowerAtRPM(
+    units::angular_velocity::revolutions_per_minute_t rpm,
+    units::velocity::meters_per_second_t speed)
+{
+    // Calculate advance ratio (J) based on RPM and ship's speed
+    double J = getAdvanceRatio(rpm, speed);
+
+    // Get thrust and torque coefficients for the given RPM (J ratio)
+    double KT_v = getThrustCoefficient(rpm, speed);
+    double KQ_v = getTorqueCoefficient(rpm, speed);
+
+    // Calculate open water efficiency based on these coefficients
+    double openWaterEfficiency = getOpenWaterEfficiency(J, KT_v, KQ_v);
+
+    // Torque is related to power and RPM
+    units::torque::newton_meter_t torque =
+        units::torque::newton_meter_t(
+            KQ_v *
+            hydrology::get_waterDensity(
+                mHost->getCurrentEnvironment().salinity,
+                mHost->getCurrentEnvironment().temperature).value() *
+            std::pow(getPropellerDiameter().value(), 5) *
+            std::pow(rpm.convert<units::angular_velocity::
+                                 revolutions_per_second>().value(), 2));
+
+    // Calculate shaft power (P = 2π * n * torque)
+    units::power::kilowatt_t shaftPower =
+        units::power::watt_t(
+            2.0f * units::constants::pi.value() *
+            rpm.convert<units::angular_velocity::radians_per_second>().value() *
+            torque.convert<units::torque::newton_meter>().value()).
+                                          convert<units::power::kilowatt>();
+
+    // Return the required shaft power, adjusted by propeller
+    // efficiency and shaft efficiency
+    return shaftPower * openWaterEfficiency * getShaftEfficiency();
+}
+
+IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
+{
+    // Get the min and max RPM values from the gearbox
+    auto [minRPM, maxRPM] = mGearBox->getOutputRPMRange();
+
+    const double step = 1.0;  // Step size for the search
+
+    auto calculateDifference = [this](double currentRPM) {
+        // Get engine power at the current RPM (from engine operational state)
+        units::angular_velocity::revolutions_per_minute_t rpm(currentRPM);
+        IShipEngine::EngineProperties enginePropertiesAtShaft =
+            mGearBox->getGearboxOperationalPropertiesAtRPM(rpm);
+        units::power::kilowatt_t enginePowerAtShaft =
+            enginePropertiesAtShaft.breakPower * mShaftEfficiency;
+
+        // Get the propeller's required shaft power at the same RPM
+        units::power::kilowatt_t propellerPower =
+            getRequiredShaftPowerAtRPM(rpm);
+
+        // Calculate the absolute difference between engine and propeller power
+        return std::abs(enginePowerAtShaft.value() -
+                        propellerPower.value());
+    };
+
+    // Start within the valid range
+    double n = std::clamp(mLastBestN, minRPM.value(), maxRPM.value());
+    double bestDiff = calculateDifference(n);
+
+    bool searchPositive = true; // Initially, let's assume we
+                                // search in the positive direction.
+    bool updated = false;       // If the algorithm finds a better
+                                // diff, it will keep searching.
+
+    do {
+        updated = false;
+        double newN = n + (searchPositive ? step : -step);
+
+        // Ensure the new RPM is within the bounds of minRPM and maxRPM
+        if (newN <= maxRPM.value() && newN >= minRPM.value()) {
+            double newDiff = calculateDifference(newN);
+            if (newDiff < bestDiff) {
+                bestDiff = newDiff;
+                n = newN;
+                updated = true;  // Found a better diff, continue
+                                 // searching in the same direction
+            } else {
+                // Switch search direction if no improvement
+                searchPositive = !searchPositive;
+                newN = n + (searchPositive ? step : -step);
+
+                if (newN <= maxRPM.value() && newN >= minRPM.value()) {
+                    newDiff = calculateDifference(newN);
+                    if (newDiff < bestDiff) {
+                        bestDiff = newDiff;
+                        n = newN;
+                        updated = true;  // Found a better diff,
+                                         // continue searching in
+                                         // this new direction
+                    }
+                }
+            }
+        }
+    } while (updated);
+
+    // Update the last known best RPM
+    mLastBestN = n;
+
+    // Return the engine's operational properties at the best RPM
+    return mGearBox->getGearboxOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t(n));
+}
+
+
+
 
 };

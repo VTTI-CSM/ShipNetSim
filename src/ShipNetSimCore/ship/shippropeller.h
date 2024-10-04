@@ -168,7 +168,9 @@ public:
      * @return The thrust coefficient of the propeller.
      */
     double getThrustCoefficient(
-        units::angular_velocity::revolutions_per_minute_t rpm) override;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
 
     /**
      * @brief Gets the torque coefficient of the propeller.
@@ -181,7 +183,9 @@ public:
      * @return The torque coefficient of the propeller.
      */
     double getTorqueCoefficient(
-        units::angular_velocity::revolutions_per_minute_t rpm) override;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
 
     /**
      * @brief Gets the theoritical ideal advance speed (V_a) of the ship.
@@ -193,7 +197,10 @@ public:
      *
      * @return the speed of advance in m/s.
      */
-    units::velocity::meters_per_second_t getIdealAdvanceSpeed();
+    units::velocity::meters_per_second_t getIdealAdvanceSpeed(
+        units::angular_velocity::revolutions_per_minute_t customRPM =
+        units::angular_velocity::revolutions_per_minute_t(
+            std::nan("uninitialized")));
 
     /**
      * @brief Gets the advance ratio of the propeller.
@@ -206,7 +213,9 @@ public:
      * @return The advance ratio of the propeller.
      */
     double getAdvanceRatio(
-        units::angular_velocity::revolutions_per_minute_t rpm) override;
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
 
     /**
      * @brief Gets the propeller slip value.
@@ -217,7 +226,12 @@ public:
      *
      * @return The propeller slip.
      */
-    double getPropellerSlip();
+    double getPropellerSlipToIdeal(
+        units::velocity::meters_per_second_t customSpeed =
+        units::velocity::meters_per_second_t(std::nan("unintialized")),
+        units::angular_velocity::revolutions_per_minute_t customRPM =
+        units::angular_velocity::revolutions_per_minute_t(
+            std::nan("unintialized"))) override;
 
     /**
      * @brief Gets the driving engines of the propeller.
@@ -241,6 +255,8 @@ public:
 
     units::angular_velocity::revolutions_per_minute_t
     getOptimumRPM(units::velocity::meters_per_second_t speed) override;
+
+
 private:
     struct KCoef
     {
@@ -270,6 +286,7 @@ private:
         mPreviousEffectivePower;  ///< Previous effective power.
 
     double mLastBestJ = 0.8; // Default starting point if no bestJ known
+    double mLastBestN = 10;
 
     // Private helper functions for calculating
     // various propeller-related parameters.
@@ -279,6 +296,13 @@ private:
                                   double KQ = std::nan("undefined"));
     double getRelativeEfficiency();
     double getHullEfficiency();
+
+    units::power::kilowatt_t getRequiredShaftPowerAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm,
+        units::velocity::meters_per_second_t speed =
+        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
+
+    IShipEngine::EngineProperties solveEnginePropellerIntersection();
 
 };
 };
