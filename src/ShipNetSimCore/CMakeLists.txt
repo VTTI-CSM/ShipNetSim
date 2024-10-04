@@ -7,8 +7,8 @@ add_library(${units_LIB_TARGET_NAME})
 
 # Define and find the required libraries for the project
 # Find Qt version 6 and include the Core, Concurrent, Xml, Network components
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Concurrent Xml Network)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Concurrent Xml Network)
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Concurrent Xml Network Sql)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Concurrent Xml Network Sql)
 
 # Define the shared library target for the project,
 # listing the required source and header files
@@ -51,6 +51,8 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   utils/updatechecker.h utils/updatechecker.cpp
   network/networkdefaults.h
   simulatorapi.h simulatorapi.cpp
+  utils/shipscommon.h
+  ship/cyberattack.h ship/cyberattack.cpp
 )
 
 # Define SHIPNETSIM_LIBRARY during compilation to activate symbol export
@@ -63,14 +65,22 @@ target_include_directories(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
 )
 
 # Link the Boost and Qt libraries to the shared library target
-target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME}
+target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
     GeographicLib::GeographicLib
     GDAL::GDAL
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Concurrent
     Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::Xml
+    Qt${QT_VERSION_MAJOR}::Sql
 )
+
+# Conditionally include Container library only if BUILD_SERVER is ON
+if(BUILD_SERVER)
+    target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE Container::Container)
+    target_include_directories(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
+    target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE BUILD_SERVER_ENABLED)
+endif()
 
 # Set compiler options for different build types using generator expressions
 target_compile_options(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
