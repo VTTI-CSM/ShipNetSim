@@ -33,6 +33,7 @@ GAlgebraicVector::GAlgebraicVector()
                                         units::angle::degree_t(0.0)));
 
     mCurrentHeadingVector = GLine(currentPos, targetPos);
+    mCurrentHeadingVector_backup = mCurrentHeadingVector;
 
     mCurrentCourse = units::angle::degree_t(0.0);
     // Initialize rotation status to false
@@ -50,6 +51,7 @@ GAlgebraicVector::GAlgebraicVector(const GPoint startPoint,
         std::make_shared<GPoint>(endPoint);
 
     mCurrentHeadingVector = GLine(currentPos, targetPos);
+    mCurrentHeadingVector_backup = mCurrentHeadingVector;
 
     mCurrentCourse = mCurrentHeadingVector.forwardAzimuth();
 
@@ -78,6 +80,7 @@ void GAlgebraicVector::setTargetAndMaxROT(const GPoint& target,
     std::shared_ptr<GPoint> targetPos =
         std::make_shared<GPoint>(target);
     mCurrentHeadingVector.setEndPoint(targetPos);
+    mCurrentHeadingVector_backup.setEndPoint(targetPos);
 
     // Set maximum rate of turn
     mMaxROTPerSec_ = maxROTPerSec;
@@ -93,6 +96,7 @@ void GAlgebraicVector::setHeadingByEndPoint(const GPoint& endPoint)
 {
     std::shared_ptr<GPoint> ePoint = std::make_shared<GPoint>(endPoint);
     mCurrentHeadingVector.setEndPoint(ePoint);
+    mCurrentHeadingVector_backup.setEndPoint(ePoint);
 
     // Set orientation based on endPoint
     mCurrentCourse = mCurrentHeadingVector.forwardAzimuth();
@@ -111,20 +115,51 @@ void GAlgebraicVector::moveByDistance(units::length::meter_t distance,
     // Perform rotation to the target by max ROT
     rotateToTargetByMaxROT(*mCurrentHeadingVector.endPoint(),
                            mMaxROTPerSec_, timeStep);
+    mCurrentHeadingVector_backup = mCurrentHeadingVector;
 
-    std::shared_ptr<GPoint> newCurrentPos =
-        std::make_shared<GPoint>(
-        mCurrentHeadingVector.startPoint()->
-            pointAtDistanceAndHeading(distance,
-                                      mCurrentCourse));
+    if (mIsUpdating) {
+        std::shared_ptr<GPoint> newCurrentPos =
+            std::make_shared<GPoint>(
+                mCurrentHeadingVector.startPoint()->
+                pointAtDistanceAndHeading(distance,
+                                          mCurrentCourse));
 
-    mCurrentHeadingVector.setStartPoint(newCurrentPos);
+        mCurrentHeadingVector.setStartPoint(newCurrentPos);
+    }
+    else {
+        std::shared_ptr<GPoint> newCurrentPos =
+            std::make_shared<GPoint>(
+                mCurrentHeadingVector.startPoint()->
+                pointAtDistanceAndHeading(distance,
+                                          mCurrentCourse));
+
+        mCurrentHeadingVector_backup.setStartPoint(newCurrentPos);
+    }
 }
 
 // Get current position
-GPoint GAlgebraicVector::getCurrentPosition()
+GPoint GAlgebraicVector::getCurrentPosition() const
 {
     return *mCurrentHeadingVector.startPoint();  // Return current position
+}
+
+void GAlgebraicVector::setCurrentPosition(GPoint newPosition) {
+    auto newStartPoint = std::make_shared<GPoint>(newPosition);
+
+    // Get the current start and end points
+    auto currentStartPoint = mCurrentHeadingVector.startPoint();
+    auto currentEndPoint = mCurrentHeadingVector.endPoint();
+
+    // Calculate the direction vector (end - start)
+    GPoint directionVector = *currentEndPoint - *currentStartPoint;
+
+    // Set the new start point
+    mCurrentHeadingVector.setStartPoint(newStartPoint);
+
+    // Calculate and set the new end point (new start + direction vector)
+    GPoint newEndPoint = *newStartPoint + directionVector;
+    auto newEndPointPtr = std::make_shared<GPoint>(newEndPoint);
+    mCurrentHeadingVector.setEndPoint(newEndPointPtr);
 }
 
 // Rotate to target point within maximum allowable rate of turn
@@ -179,5 +214,17 @@ AlgebraicVector::Environment GAlgebraicVector::getEnvironment() const
 void GAlgebraicVector::setEnvironment(const AlgebraicVector::Environment env)
 {
     mStateEnv = env;
+}
+
+void GAlgebraicVector::setGPSUpdateState(bool isUpdating)
+{
+    if (isUpdating && !mIsUpdating) {
+        mCurrentHeadingVector = mCurrentHeadingVector_backup;
+    }
+    mIsUpdating = isUpdating;
+}
+
+void GAlgebraicVector::restoreLatestCorrectPosition() {
+    mCurrentHeadingVector = mCurrentHeadingVector_backup;
 }
 };
