@@ -164,6 +164,8 @@ public:
 
     AlgebraicVector::Environment getEnvironmentFromPosition(GPoint p);
 
+    void moveObjectToThread(QThread *thread);
+
     // Destructor.
     ~OptimizedNetwork();
 
