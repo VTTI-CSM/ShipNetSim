@@ -19,10 +19,12 @@
 
 #include "../../third_party/units/units.h"
 #include "ienergysource.h"
+#include <QObject>
 #include <QString>
 #include <QVector>
 #include <any>
 #include "../../third_party/units/units.h"
+#include "qthread.h"
 
 namespace ShipNetSimCore
 {
@@ -41,18 +43,22 @@ class Ship;  // Forward declaration of the class ship
  * the ship it is a part of and an energy source that provides the
  * energy it consumes.
  */
-class IEnergyConsumer
+class IEnergyConsumer : public QObject
 {
+    Q_OBJECT
+
 public:
     /**
      * @brief Constructor for the IEnergyConsumer interface.
      */
-    IEnergyConsumer();
+    IEnergyConsumer(QObject* parent = nullptr);
 
     /**
      * @brief Destructor for the IEnergyConsumer interface.
      */
     virtual ~IEnergyConsumer();
+
+    virtual void moveObjectToThread(QThread *thread);
 
     /**
      * @brief Initialize the energy-consuming component.
