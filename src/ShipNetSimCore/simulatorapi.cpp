@@ -3,10 +3,20 @@
 void SimulatorAPI::initializeSimulator(
     ShipNetSimCore::OptimizedNetwork* network,
     QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
-    units::time::second_t timeStep)
+    units::time::second_t timeStep,
+    bool runAsAServer)
 {
+    // Set locale to US format (comma for thousands separator, dot for decimals)
+    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+    std::locale::global(std::locale("en_US.UTF-8"));
+    std::cout.imbue(std::locale());
 
-    simulator = std::make_unique<ShipNetSimCore::Simulator>(network, shipList, timeStep);
+    simulator =
+        std::make_unique<ShipNetSimCore::Simulator>(network,
+                                                    shipList,
+                                                    timeStep,
+                                                    runAsAServer,
+                                                    this);
     ships.clear();
 
     for (const auto& ship : shipList) {
@@ -28,11 +38,9 @@ ShipNetSimCore::Simulator& SimulatorAPI::getSimulator() {
 }
 
 
-void SimulatorAPI::handleSimulationResults(
-    const QVector<std::pair<QString, QString>>& summaryData,
-    const QString& trajectoryFile) 
+void SimulatorAPI::handleSimulationResults(ShipsResults &results)
 {   
-    emit simulationResultsAvailable(summaryData, trajectoryFile);
+    emit simulationResultsAvailable(results);
 }
 
 void SimulatorAPI::initSimulation() {
@@ -56,6 +64,10 @@ void SimulatorAPI::resumeSimulation() {
 void SimulatorAPI::endSimulation() {
     if (simulator) {
         simulator->stopSimulation();
+    }
+
+    if (apiThread && apiThread->isRunning()) {
+        apiThread->terminate(); // Forcefully kill the thread
     }
 }
 
@@ -97,6 +109,89 @@ SimulatorAPI::getAllShips() const {
 }
 
 
-void SimulatorAPI::handleShipReachedDestination(const QString& shipID) {
-    emit shipReachedDestination(shipID);
+void SimulatorAPI::handleShipReachedDestination(const QJsonObject shipStatus) {
+    emit shipReachedDestination(shipStatus);
+}
+
+
+// Implementation for InteractiveMode class
+
+void SimulatorAPI::InteractiveMode::defineSimulator(
+    ShipNetSimCore::OptimizedNetwork* network,
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
+    units::time::second_t timeStep,
+    bool runAsAServer)
+{
+    SimulatorAPI::getInstance().initializeSimulator(network, shipList,
+                                                    timeStep, runAsAServer);
+}
+
+ShipNetSimCore::Simulator& SimulatorAPI::InteractiveMode::getSimulator() {
+    return SimulatorAPI::getInstance().getSimulator();
+}
+
+void SimulatorAPI::InteractiveMode::initSimulation() {
+    SimulatorAPI::getInstance().getSimulator().initSimulation();
+}
+
+void SimulatorAPI::InteractiveMode::runOneTimeStep() {
+    SimulatorAPI::getInstance().getSimulator().playShipsOneTimeStep();
+}
+
+void SimulatorAPI::InteractiveMode::endSimulation() {
+    SimulatorAPI::getInstance().endSimulation();
+}
+
+void SimulatorAPI::InteractiveMode::requestSimulationCurrentResults() {
+    SimulatorAPI::getInstance().requestSimulationCurrentResults();
+}
+
+std::shared_ptr<ShipNetSimCore::Ship>
+SimulatorAPI::InteractiveMode::getShipByID(const QString& shipID) {
+    return SimulatorAPI::getInstance().getShipByID(shipID);
+}
+
+QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+SimulatorAPI::InteractiveMode::getAllShips() {
+    return SimulatorAPI::getInstance().getAllShips();
+}
+
+
+// Implementation for ContinuousMode class
+
+void SimulatorAPI::ContinuousMode::defineSimulator(
+    ShipNetSimCore::OptimizedNetwork* network,
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
+    units::time::second_t timeStep,
+    bool runAsAServer)
+{
+    SimulatorAPI::getInstance().initializeSimulator(network, shipList,
+                                                    timeStep, runAsAServer);
+}
+
+
+ShipNetSimCore::Simulator& SimulatorAPI::ContinuousMode::getSimulator() {
+    return SimulatorAPI::getInstance().getSimulator();
+}
+
+void SimulatorAPI::ContinuousMode::runSimulation() {
+    SimulatorAPI::getInstance().getSimulator().runSimulation();
+}
+
+void SimulatorAPI::ContinuousMode::pauseSimulation() {
+    SimulatorAPI::getInstance().pauseSimulation();
+}
+
+void SimulatorAPI::ContinuousMode::resumeSimulation() {
+    SimulatorAPI::getInstance().resumeSimulation();
+}
+
+std::shared_ptr<ShipNetSimCore::Ship>
+SimulatorAPI::ContinuousMode::getShipByID(const QString& shipID) {
+    return SimulatorAPI::getInstance().getShipByID(shipID);
+}
+
+QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+SimulatorAPI::ContinuousMode::getAllShips() {
+    return SimulatorAPI::getInstance().getAllShips();
 }
