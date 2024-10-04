@@ -21,6 +21,16 @@ namespace ShipNetSimCore
 Ship::Ship(const QMap<QString, std::any>& parameters,
            QObject* parent) : QObject(parent)
 {
+#ifdef BUILD_SERVER_ENABLED
+    try {
+        mLoadedContainers =
+            ContainerCore::ContainerMap(this);
+    } catch (std::exception &e) {
+        throw e;
+    }
+
+#endif
+
     if (parameters.contains("CalmWaterResistanceStrategy"))
     {
         try {
@@ -315,41 +325,6 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
         mEnergySources.push_back(mainEnergySource);
     }
 
-    QVector<IEnergySource*> rawVector = [&](){ QVector<IEnergySource*> r; for(auto& sp : mEnergySources) r.push_back(sp.get()); return r; }();
-    for (int i = 0; i < propellerCount; i++)
-    {
-
-        ShipGearBox* gearbox = new ShipGearBox();
-        QVector<IShipEngine *> engines;
-        engines.reserve(engineCountPerPropeller); // Reserve space
-
-        for (int j = 0; j < engineCountPerPropeller; j++)
-        {
-            ShipEngine *engine = new ShipEngine();
-            try {
-                engine->initialize(
-                    this,
-                    rawVector,
-                    parameters);
-            } catch (...) {
-                delete engine;
-                throw; // Rethrow the exception after cleaning up
-            }
-            engines.push_back(engine);
-        }
-        gearbox->initialize(this, engines, parameters);
-
-        // Create, initialize, and add the propeller to the ship
-        auto prop = new ShipPropeller();
-        try {
-            prop->initialize(this, gearbox, parameters);
-        } catch (...) {
-            delete prop;
-            throw; // Rethrow the exception after cleaning up
-        }
-        mPropellers.push_back(prop); // add the propeller to the ship
-    }
-
     mStopIfNoEnergy =
         Utils::getValueFromMap<bool>(
             parameters,
@@ -405,6 +380,73 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
     initializeDefaults();
     reset();
 
+
+    QVector<IEnergySource*> rawVector = [&](){ QVector<IEnergySource*> r; for(auto& sp : mEnergySources) r.push_back(sp.get()); return r; }();
+    for (int i = 0; i < propellerCount; i++)
+    {
+        qDebug() << "--- > defining the propellers!";
+
+        ShipGearBox* gearbox = new ShipGearBox();
+        QVector<IShipEngine *> engines;
+        engines.reserve(engineCountPerPropeller); // Reserve space
+
+        for (int j = 0; j < engineCountPerPropeller; j++)
+        {
+            ShipEngine *engine = new ShipEngine();
+            try {
+                qDebug() << "----> Initting the engine!";
+                engine->initialize(
+                    this,
+                    rawVector,
+                    parameters);
+            } catch (...) {
+                delete engine;
+                throw; // Rethrow the exception after cleaning up
+            }
+            engines.push_back(engine);
+        }
+        gearbox->initialize(this, engines, parameters);
+
+        // Create, initialize, and add the propeller to the ship
+        auto prop = new ShipPropeller();
+        try {
+            prop->initialize(this, gearbox, parameters);
+        } catch (...) {
+            delete prop;
+            throw; // Rethrow the exception after cleaning up
+        }
+        mPropellers.push_back(prop); // add the propeller to the ship
+    }
+
+    for (auto& propeller : mPropellers) {
+        // define the target point of the engine
+        auto maxTotalRes = getCalmResistanceStrategy()->
+                           getTotalResistance(*this, getMaxSpeed());
+        units::velocity::meters_per_second_t Va =
+            getCalmResistanceStrategy()->
+            calc_SpeedOfAdvance(*this, getMaxSpeed());
+        units::power::kilowatt_t maxEffectivePower = maxTotalRes * Va;
+        double nH = getCalmResistanceStrategy()->getHullEffeciency(*this);
+
+        auto p = maxEffectivePower/ nH;
+
+        if (propeller->getGearBox()->getEngines().at(0)->getCurrentOperationalLoad() ==
+            IShipEngine::EngineOperationalLoad::Default) {
+            units::angular_velocity::revolutions_per_minute_t n =
+                units::angular_velocity::revolutions_per_minute_t(
+                    60.0 * Va.value() / (propeller->getPropellerPitch().value() *
+                                         (1.0 - propeller->getPropellerSlip())));
+            IShipEngine::EngineProperties ep;
+            ep.RPM = n;
+            ep.breakPower = p;
+
+            propeller->getGearBox()->setEngineDefaultTargetState(ep);
+            propeller->getGearBox()->setEngineTargetState(ep);
+        }
+    }
+
+
+
     QObject::connect(this, &Ship::stepDistanceChanged,
                      this, &Ship::handleStepDistanceChanged);
 }
@@ -438,6 +480,19 @@ Ship::~Ship()
             vessel = nullptr;
         }
     }
+}
+
+void Ship::moveObjectToThread(QThread *thread)
+{
+    // Move Simulator object itself to the thread
+    this->moveToThread(thread);
+
+    for (auto& propeller: mPropellers) {
+        if (propeller) {
+            propeller->moveObjectToThread(thread);
+        }
+    }
+
 }
 
 QString Ship::getUserID()
@@ -1581,6 +1636,26 @@ GPoint Ship::getCurrentPosition()
     return mCurrentState.getCurrentPosition();
 }
 
+void Ship::restoreLatestGPSCorrectPosition() {
+    mCurrentState.restoreLatestCorrectPosition();
+}
+
+void Ship::setCurrentPosition(GPoint newPosition) {
+    mCurrentState.setCurrentPosition(newPosition);
+}
+
+void Ship::disableCommunications()
+{
+    mIsCommunicationActive = false;
+    mCurrentState.setGPSUpdateState(false);
+}
+
+void Ship::enableCommunications()
+{
+    mIsCommunicationActive = true;
+    mCurrentState.setGPSUpdateState(true);
+}
+
 units::angle::degree_t Ship::getCurrentHeading() const
 {
     return mCurrentState.getVectorAzimuth();
@@ -1963,22 +2038,7 @@ Ship::accelerate(const units::length::meter_t &gap,
     units::acceleration::meters_per_second_squared_t a =
         an1 * (1.0 - gamma) +
         gamma * units::math::min(-1.0f * an2, amax); // todo: check
-    // qDebug() << "gap: " << gap.value()
-    //          << ", mingap: " << mingap.value()
-    //          << ", Speed: " << speed.value()
-    //          << ", leaderSpeed: " << leaderSpeed.value()
-    //          << ", freeFlowSpeed: " << freeFlowSpeed.value()
-    //          << ", Safe Gap: " << safeGap.value()
-    //          << ", T_s" << mT_s.value()
-    //          << ", Dec: " << calc_decelerationAtSpeed(speed).value()
-    //          << ", Eq. Fric Coef: " << calc_decelerationAtSpeed(speed).value() / 9.81f
-    //          << ", u_hat: " << u_hat.value() << ", TTC: " << TTC_s.value()
-    //          << ", an11: " << an11.value() << ", an12: " << an12.value()
-    //          << ", an13: " << an13.value() << ", an14: " << an14.value()
-    //          << ", an1: " << an1.value() << ", an2: " << an2.value()
-    //          << ", beta1: " << beta1 << ", beta2: " << beta2
-    //          << ", du: " << du.value() << ", gamma: " << gamma
-    //          << ", a: " << a.value();
+
     return a;
 }
 
@@ -2128,13 +2188,18 @@ Ship::getStepAcceleration(
 
 }
 
-void Ship::moveShip(units::time::second_t &timeStep,
+void Ship::sail(units::time::second_t &timeStep,
                     units::velocity::meters_per_second_t &freeFlowSpeed,
                     QVector<units::length::meter_t> &gapToNextCriticalPoint,
                     QVector<bool> &isFollowingAnotherShip,
                     QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
                     AlgebraicVector::Environment currentEnvironment)
 {
+    // // update the engine state first
+    // for (auto& propeller: mPropellers) {
+    //     propeller->getGearBox()->updateGearboxOperationalState();
+    // }
+
     // set the environment before doing anything
     setCurrentEnvironment(currentEnvironment);
 
@@ -2212,23 +2277,25 @@ void Ship::moveShip(units::time::second_t &timeStep,
     {
         immediateStop(timeStep);
         mReachedDestination = true;
-        emit reachedDestination(mShipUserID);
+
+        auto json = getCurrentStateAsJson();
+        emit reachedDestination(json);
     }
 
     // update operational power of the engine
-    if (mTotalThrust < mTotalResistance &&
-        getSpeed() < getMaxSpeed() * 0.8) {
-        for (auto& propeller: mPropellers) {
-            propeller->requestHigherEnginePower();
-        }
-    }
-    else if (mTotalThrust.value() > 1.25 * mTotalResistance.value() &&
-             mPropellers[0]->getCurrentOperationalLoad() >
-                 IShipEngine::EngineOperationalLoad::Economic) {
-        for (auto& propeller: mPropellers) {
-            propeller->requestLowerEnginePower();
-        }
-    }
+    // if (mTotalThrust < mTotalResistance &&
+    //     getSpeed() < getMaxSpeed() * 0.8) {
+    //     for (auto& propeller: mPropellers) {
+    //         propeller->requestHigherEnginePower();
+    //     }
+    // }
+    // else if (mTotalThrust.value() > 1.25 * mTotalResistance.value() &&
+    //          mPropellers[0]->getCurrentOperationalLoad() >
+    //              IShipEngine::EngineOperationalLoad::Economic) {
+    //     for (auto& propeller: mPropellers) {
+    //         propeller->requestLowerEnginePower();
+    //     }
+    // }
 }
 
 void Ship::calculateGeneralStats(units::time::second_t timeStep) {
@@ -2277,10 +2344,12 @@ void Ship::reset()
     mTraveledDistance = units::length::meter_t(0.0);
     mTripTime = units::time::second_t(0.0);
     mCumConsumedEnergy = units::energy::kilowatt_hour_t(0.0);
+
     mCumConsumedFuel.clear();
     for (auto& ft: ShipFuel::getFuelTypes()) {
         mCumConsumedFuel.insert({ft, units::volume::liter_t(0.0)});
     }
+
     mIsOn = true;
     mOffLoaded = false;
     mReachedDestination = false;
@@ -2292,14 +2361,11 @@ void Ship::reset()
     mCurrentState = GAlgebraicVector(sp, ep);
 
     mPreviousPathPointIndex = 0;
-
     mTotalResistance = units::force::newton_t(0.0);
 
     // reset the energy source
-    for (auto& propeller: mPropellers)
-    {
-        for (auto& engine : propeller->getGearBox()->getEngines())
-        {
+    for (auto& propeller: mPropellers) {
+        for (auto& engine : propeller->getGearBox()->getEngines()) {
             engine->getCurrentEnergySource()->reset();
         }
     }
@@ -2367,7 +2433,8 @@ units::unit_t<
     units::compound_unit<units::energy::kilowatt_hour,
                          units::inverse<
                              units::compound_unit<
-                                 units::length::meter, units::mass::metric_ton>>>>
+                                 units::length::meter,
+                                 units::mass::metric_ton>>>>
 Ship::getEnergyConsumptionPerTonKM() const
 {
     return getCumConsumedEnergy() / getTotalCargoTonKm();
@@ -2394,11 +2461,106 @@ units::unit_t<
     units::compound_unit<units::volume::liter,
                          units::inverse<
                              units::compound_unit<
-                                 units::length::meter, units::mass::metric_ton>>>>
+                                 units::length::meter,
+                                 units::mass::metric_ton>>>>
 Ship::getOverallCumFuelConsumptionPerTonKM() const
 {
     return getOverallCumFuelConsumption() / getTotalCargoTonKm();
 }
+
+QJsonObject Ship::getCurrentStateAsJson() const
+{
+    QJsonObject json;
+
+    // Add simple attributes
+    json["ShipID"] = mShipUserID;
+    json["TravelledDistance"] = mTraveledDistance.value();
+    json["CurrentAcceleration"] = mAcceleration.value();
+    json["PreviousAcceleration"] = mPreviousAcceleration.value();
+    json["CurrentSpeed"] = mSpeed.value();
+    json["PreviousSpeed"] = mPreviousSpeed.value();
+    json["TotalThrust"] = mTotalThrust.value();
+    json["TotalResistance"] = mTotalResistance.value();
+    json["VesselWeight"] = mVesselWeight.value();
+    json["CargoWeight"] = mCargoWeight.value();
+    json["IsOn"] = mIsOn;
+    json["OutOfEnergy"] = mOutOfEnergy;
+    json["Loaded"] = mLoaded;
+    json["ReachedDestination"] = mReachedDestination;
+    QJsonObject stateJson;
+    stateJson["EenergyConsumption"] = mCumConsumedEnergy.value();
+    QJsonArray fuelConsumptionArray;
+    for (const auto& fuelEntry : mCumConsumedFuel) {
+        QJsonObject fuelJson;
+        fuelJson["FuelType"] =
+            ShipFuel::convertFuelTypeToString(fuelEntry.first);
+        fuelJson["ConsumedVolumeLiters"] = fuelEntry.second.value();
+        fuelConsumptionArray.append(fuelJson);
+    }
+    stateJson["FuelConsumption"] = fuelConsumptionArray;
+    json["Consumption"] = stateJson;
+
+    // Add energy sources (as an array)
+    QJsonArray energySourcesArray;
+    for (const auto& energySource : mEnergySources) {
+        // You can expand this if `IEnergySource` has more
+        // detailed information to add
+        QJsonObject energySourceJson;
+        energySourceJson["Capacity"] =
+            energySource->getCurrentCapacityState();
+        energySourceJson["FuelType"] =
+            ShipFuel::convertFuelTypeToString(energySource->getFuelType());
+        energySourceJson["EnergyConsumed"] =
+            energySource->getTotalEnergyConsumed().value();
+        energySourceJson["Weight"] = energySource->getCurrentWeight().value();
+        energySourcesArray.append(energySourceJson);
+    }
+    json["EnergySources"] = energySourcesArray;
+
+    QJsonObject posJson;
+    auto cp = mCurrentState.getCurrentPosition();
+    posJson["Latitude"] = cp.getLatitude().value();
+    posJson["Longitude"] = cp.getLongitude().value();
+    QJsonArray xyPosition;
+    xyPosition.append(cp.getLatitude().value());
+    xyPosition.append(cp.getLongitude().value());
+    posJson["Position"] = xyPosition;
+    json["Position"] = posJson;
+
+    // Environment conditions
+    QJsonObject envJson;
+    envJson["WaterDepth"] = mCurrentState.getEnvironment().waterDepth.value();
+    envJson["Salinity"] = mCurrentState.getEnvironment().salinity.value();
+    envJson["Temperature"] = mCurrentState.getEnvironment().temperature.value();
+    envJson["WaveHeight"] = mCurrentState.getEnvironment().waveHeight.value();
+    envJson["WaveLength"] = mCurrentState.getEnvironment().waveLength.value();
+    envJson["WaveAngularFrequency"] =
+        mCurrentState.getEnvironment().waveAngularFrequency.value();
+    json["Environment"] = envJson;
+
+#ifdef BUILD_SERVER_ENABLED
+    json["ContainerMap"] = mLoadedContainers.toJson();
+#endif
+
+    // Convert to JSON document
+    return json;
+}
+
+#ifdef BUILD_SERVER_ENABLED
+QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
+    QVector<ContainerCore::Container*> containerList;
+    for (auto &container : mLoadedContainers.containers()) {
+        containerList.append(container);
+    }
+    return containerList;
+}
+
+void Ship::addContainer(ContainerCore::Container* container) {
+    if (container) {
+        mLoadedContainers.addContainer(container->getContainerID(), container);
+    }
+}
+#endif
 
 QVector<units::length::meter_t> Ship::generateCumLinesLengths()
 {
