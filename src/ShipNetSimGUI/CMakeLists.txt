@@ -1,8 +1,8 @@
 set(SHIPNETSIM_GUI_NAME "ShipNetSimGUI" CACHE STRING "Project GUI name" FORCE)
 project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport )
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport Sql)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport Sql)
 
 # Find OpenGL 
 find_package(OpenGL REQUIRED)
@@ -122,11 +122,12 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::OpenGLWidgets
     Qt${QT_VERSION_MAJOR}::Concurrent
     Qt${QT_VERSION_MAJOR}::PrintSupport
+    Qt${QT_VERSION_MAJOR}::Sql
     OpenGL::GL
     ${OPENGL_gl_LIBRARY}
     GeographicLib::GeographicLib
     GDAL::GDAL
-    ${osgEarth_LIBRARIES}                   # Link osgEarth libraries
+    osgEarth
     ${OSGQT_LIBRARIES}
     osg3::osg
     osg3::osgDB
@@ -150,13 +151,19 @@ if(osgEarth_DEFINITIONS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE ${osgEarth_DEFINITIONS})
 endif()
 
+# Conditionally include Container library only if BUILD_SERVER is ON
+if(BUILD_SERVER)
+    target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE Container::Container)
+    target_include_directories(${SHIPNETSIM_GUI_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
+    target_compile_definitions(${SHIPNETSIM_GUI_NAME} PRIVATE BUILD_SERVER_ENABLED)
+endif()
+
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.ShipNetSimGUI)
 endif()
-
 
 include(GNUInstallDirs)
 install(TARGETS ${SHIPNETSIM_GUI_NAME}
@@ -179,6 +186,26 @@ target_compile_options(${SHIPNETSIM_NAME} PRIVATE
         $<$<CONFIG:Release>:-O3>   # Release flags
     >
 )
+
+# Conditionally include Container library only if BUILD_SERVER is ON
+if(BUILD_SERVER)
+    # Ensure the ShipNetSimCore DLL is copied to the output directory
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        # Copy container.dll only in Release mode
+        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_BIN_DIR}/container.dll"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
+        )
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Copy containerd.dll only in Debug mode
+        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_BIN_DIR}/containerd.dll"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
+        )
+    endif()
+endif()
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
 add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
