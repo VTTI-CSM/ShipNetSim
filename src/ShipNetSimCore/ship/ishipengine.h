@@ -19,6 +19,7 @@
 #define IENGINE_H
 
 #include "ienergyconsumer.h"
+#include <QObject>
 #include "../utils/utils.h"
 
 namespace ShipNetSimCore
@@ -36,6 +37,8 @@ namespace ShipNetSimCore
  */
 class IShipEngine : public IEnergyConsumer
 {
+    Q_OBJECT
+
 public:
 
     /**
@@ -48,20 +51,48 @@ public:
 
         // Static member function for comparing by breakPower
         static bool compareByBreakPower(const EngineProperties& a,
-                                        const EngineProperties& b) {
-            return a.breakPower < b.breakPower;
+                                        const EngineProperties& b,
+                                        const bool ascending = true) {
+            if (ascending) return a.breakPower < b.breakPower;
+            return a.breakPower > b.breakPower;
         }
 
         // Static member function for comparing by RPM
         static bool compareByRPM(const EngineProperties& a,
-                                 const EngineProperties& b) {
-            return a.RPM < b.RPM;
+                                 const EngineProperties& b,
+                                 const bool ascending = true) {
+            if (ascending) return a.RPM < b.RPM;
+            return a.RPM > b.RPM;
         }
 
         // Static member function for comparing by efficiency
         static bool compareByEfficiency(const EngineProperties& a,
-                                        const EngineProperties& b) {
-            return a.efficiency < b.efficiency;
+                                        const EngineProperties& b,
+                                        const bool ascending = true) {
+            if (ascending) return a.efficiency < b.efficiency;
+            return a.efficiency > b.efficiency;
+        }
+
+        // Equality operator
+        bool operator==(const EngineProperties& other) const {
+            return breakPower == other.breakPower &&
+                   RPM == other.RPM && efficiency == other.efficiency;
+        }
+
+        // Inequality operator
+        bool operator!=(const EngineProperties& other) const {
+            return !(*this == other);
+        }
+
+        // Overload the << operator for QTextStream
+        friend QTextStream& operator<<(QTextStream& stream,
+                                       const EngineProperties& ep) {
+            stream << "EngineProperties("
+                   << "Break Power(kW): " << ep.breakPower.value() << "; "
+                   << "RPM: " << ep.RPM.value() << "; "
+                   << "Efficiency: " << ep.efficiency
+                   << ")";
+            return stream;
         }
     };
 
@@ -95,7 +126,9 @@ public:
         Low = 0,
         Economic = 1,
         ReducedMCR = 2,
-        MCR = 3
+        MCR = 3,
+        Default = 4,
+        UserDefined = 5
     };
 
     /**
@@ -164,7 +197,8 @@ public:
      * @brief get RPM Range defined by the engine layout
      * @return vector of RPM deining the highest and lowest values.
      */
-    virtual QVector<units::angular_velocity::revolutions_per_minute_t>
+    virtual QPair<units::angular_velocity::revolutions_per_minute_t,
+                  units::angular_velocity::revolutions_per_minute_t>
     getRPMRange() = 0;
 
     /**
@@ -208,21 +242,35 @@ public:
     virtual bool
     selectCurrentEnergySourceByFuelType(ShipFuel::FuelType fuelType) = 0;
 
-    virtual void setEngineRPM(
-        units::angular_velocity::revolutions_per_minute_t targetRPM) = 0;
+    virtual QVector<EngineProperties> estimateEnginePowerCurve() = 0;
+
+    /**
+     * @brief Updates the current step of the engine's operation.
+     */
+    virtual void updateEngineOperationalState() = 0;
 
     bool requestHigherEnginePower();
 
     bool requestLowerEnginePower();
 
+
+
+    EngineOperationalTier getCurrentOperationalTier();
     EngineOperationalLoad getCurrentOperationalLoad();
 
-    void setCurrentEngineProperties(EngineOperationalLoad targetLoad);
+    void setEngineOperationalLoad(EngineOperationalLoad targetLoad);
+
+    IShipEngine::EngineProperties
+    getEnginePropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm);
 
     EngineProperties getEnginePropertiesAtPower(units::power::kilowatt_t p,
                                                 EngineOperationalTier tier);
 
-    bool changeTier(EngineOperationalTier targetTier);
+    units::torque::newton_meter_t getEngineTorqueByRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm);
+
+    bool setEngineOperationalTier(EngineOperationalTier targetTier);
 
     static QVector<EngineOperationalLoad>
     getEngineOperationalLoads();
@@ -230,41 +278,48 @@ public:
     static QVector<EngineOperationalTier>
     getEngineOperationalTiers();
 
-private:
-    void setEngineProperitesSetting(QVector<EngineProperties> engineSettings);
+    virtual void setEngineTargetState(EngineProperties newState);
+
+    void setEngineTierIICurve(QVector<EngineProperties> newCurve);
+    void setEngineTierIIICurve(QVector<EngineProperties> newCurve);
+
+    void setEngineDefaultTargetState(EngineProperties newState);
+    EngineProperties getEngineDefaultTargetState();
+    EngineProperties getEngineTargetState();
+    void setEnginePreviousState(EngineProperties newState);
+    EngineProperties getEnginePreviousState();
+    void setEngineCurrentState(EngineProperties newState);
+    EngineProperties getEngineCurrentState();
+
+    bool isRPMWithinOperationalRange(
+        units::angular_velocity::revolutions_per_minute_t rpm);
+
+    bool isPowerWithinOperationalRange(units::power::kilowatt_t power);
+
+    virtual void turnOffEngine() = 0;
+    virtual void turnOnEngine() = 0;
 
 protected:
 
     double mMaxPowerRatio = 1.0;
 
-    /// the engine operational power vector holds the engine power
-    /// at the engine layout corners in the following order L4, L2, L3, L1
-    QVector<units::power::kilowatt_t> mEngineOperationalPowerSettings;
+
+    // the current power curve data the engine is following
+    QVector<EngineProperties> mEngineCurve;
+    QVector<EngineProperties> mUserEngineCurveInDefaultTier;
+    QVector<EngineProperties> mUserEngineCurveInNOxReducedTier;
 
     /// The engine properties vector holds the engine properties
     /// at the engine power-rpm-efficiency curves for Tier II
     QVector<EngineProperties> mEngineDefaultTierPropertiesPoints;
 
+
     /// The engine properties vector holds the engine properties
     /// at the engine power-rpm-efficiency curves for Tier III
     QVector<EngineProperties> mEngineNOxReducedTierPropertiesPoints;
 
-    /// The max power the engine is current set at.
-    units::power::kilowatt_t mCurrentOperationalPowerSetting;
 
-    /// The current rpm of the engine
-    units::angular_velocity::revolutions_per_minute_t
-        mRPM;
-
-    /// The tier that is currently the engine is running by.
-    EngineOperationalTier mCurrentOperationalTier;
-
-    /// The current operational load the engine is set to
-    /// run at.
-    EngineOperationalLoad mCurrentOperationalLoad;
-
-
-
+    void setEngineProperitesSetting(QVector<EngineProperties> engineSettings);
 
 private:
     /// Memorization
@@ -272,11 +327,48 @@ private:
     QVector<double> mRPMList = QVector<double>();
     QVector<double> mEfficiencyList = QVector<double>();
 
+    /// The target state for the default operational load (load is not set to a specific
+    /// zone point L1, L2, L3, L4) but set to a specific point in between.
+    EngineProperties mEngineDefaultTargetState;
+
+    /// The target state (max point properties of the engine) the engine is
+    /// current set at.
+    EngineProperties mEngineTargetState;
+
+    /// The previous engine state of power, rpm, efficiency
+    EngineProperties mEnginePreviousState;
+
+    /// The current engine state of power, rpm, efficiency
+    EngineProperties mEngineCurrentState;
+
+    /// The tier that is currently the engine is running by.
+    EngineOperationalTier mCurrentOperationalTier = EngineOperationalTier::tierII;
+
+    /// The current operational load the engine is set to
+    /// run at.
+    EngineOperationalLoad mCurrentOperationalLoad = EngineOperationalLoad::Default;
+
+
+
+
     static QVector<EngineOperationalLoad>
         mEngineOperationalLoad;
 
     static QVector<EngineOperationalTier>
         mEngineOperationalTier;
+
+signals:
+    // Signal to emit when the current state gets changed
+    void engineTargetStateChanged(EngineProperties targetState);
+
+    // Signal to emit when the max target point of engine change
+    void engineCurrentStateChanged(EngineProperties newState);
+
+    // Signal to emit when the operational load changes
+    void operationalLoadChanged(EngineOperationalLoad newLoad);
+
+    // Signal to emit when the tier changes
+    void engineOperationalTierChanged(EngineOperationalTier newTier);
 
 };
 };

@@ -22,6 +22,8 @@ namespace ShipNetSimCore
  */
 class SHIPNETSIM_EXPORT ShipEngine : public IShipEngine
 {
+    Q_OBJECT
+
 public:
 
     /**
@@ -30,6 +32,8 @@ public:
     ShipEngine();
 
     ~ShipEngine() override;
+
+    void moveObjectToThread(QThread *thread) override;
 
     /**
      * @brief Initializes the ship engine with the necessary parameters.
@@ -89,7 +93,8 @@ public:
      * @brief Get RPM Range defined by the engine layout
      * @return vector of RPM deining the highest and lowest values.
      */
-    QVector<units::angular_velocity::revolutions_per_minute_t>
+    QPair<units::angular_velocity::revolutions_per_minute_t,
+          units::angular_velocity::revolutions_per_minute_t>
     getRPMRange() override;
 
     /**
@@ -138,8 +143,17 @@ public:
 
     units::energy::kilowatt_hour_t getCumEnergyConsumption() override;
 
-    void setEngineRPM(
-        units::angular_velocity::revolutions_per_minute_t targetRPM) override;
+    void setEngineTargetState(EngineProperties newState) override;
+
+    QVector<IShipEngine::EngineProperties> estimateEnginePowerCurve() override;
+
+    /**
+     * @brief Updates the current step of the engine's operation.
+     */
+    void updateEngineOperationalState() override;
+
+    void turnOffEngine();
+    void turnOnEngine();
 
 private:
     unsigned int mId; ///< ID of the engine
@@ -147,16 +161,12 @@ private:
 
     unsigned int counter = 0; ///< keep track of new ids
 
-    double mEfficiency; ///< current efficiency of the engine
 
 
-    units::power::kilowatt_t mCurrentOutputPower; ///< power
-    units::power::kilowatt_t mPreviousOutputPower; ///< previous power
+private slots:
+    void handleTargetStateChange();
 
-    /**
-     * @brief Updates the current step of the engine's operation.
-     */
-    void updateCurrentStep();
+    void handleOperationalDetailsChange();
 };
 };
 #endif // SHIPENGINE_H

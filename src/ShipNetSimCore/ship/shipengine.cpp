@@ -1,4 +1,5 @@
 #include "shipengine.h"
+#include "ishipcalmresistancestrategy.h"
 #include "ship.h"
 #include <QFile>
 #include <QStringList>
@@ -18,21 +19,95 @@ ShipEngine::ShipEngine()
 
 ShipEngine::~ShipEngine()
 {
-    // empty
+}
+
+void ShipEngine::moveObjectToThread(QThread *thread)
+{
+    this->moveToThread(thread);
 }
 
 void ShipEngine::initialize(Ship *host, QVector<IEnergySource*> energySources,
                 const QMap<QString, std::any> &parameters)
 {
+
     mHost = host;
 
     mEnergySources = energySources;
     mCurrentEnergySource = energySources[0];
 
+    connect(this, &ShipEngine::operationalLoadChanged,
+            this, &ShipEngine::handleOperationalDetailsChange,
+            Qt::QueuedConnection);
+
+    connect(this, &ShipEngine::engineTargetStateChanged,
+            this, &ShipEngine::handleTargetStateChange,
+            Qt::QueuedConnection);
+
+    connect(this, &ShipEngine::engineOperationalTierChanged,
+            this, &ShipEngine::handleOperationalDetailsChange,
+            Qt::QueuedConnection);
+
     // set the engines parameters
     setParameters(parameters);
 
     counter++; // increment the counter
+
+}
+
+void ShipEngine::handleTargetStateChange() {
+
+    if (getCurrentOperationalLoad() ==
+        IShipEngine::EngineOperationalLoad::UserDefined)
+    {
+        if (getCurrentOperationalTier() ==
+            IShipEngine::EngineOperationalTier::tierII)
+        {
+            mEngineCurve = mUserEngineCurveInDefaultTier;
+        }
+        else
+        {
+            mEngineCurve = mUserEngineCurveInNOxReducedTier;
+        }
+        setEngineProperitesSetting(mEngineCurve);
+
+    }
+    else
+    {
+        mEngineCurve = estimateEnginePowerCurve();
+        setEngineProperitesSetting(mEngineCurve);
+    }
+}
+
+void ShipEngine::handleOperationalDetailsChange()
+{
+    // change target state
+
+    if (getCurrentOperationalLoad() == EngineOperationalLoad::Default)
+    {
+        setEngineTargetState(getEngineDefaultTargetState());
+    }
+    else if (getCurrentOperationalLoad() ==
+             EngineOperationalLoad::UserDefined)
+    {
+        if (getCurrentOperationalTier() ==
+            IShipEngine::EngineOperationalTier::tierII)
+        {
+            setEngineTargetState(mUserEngineCurveInDefaultTier.back());
+        }
+        else
+        {
+            setEngineTargetState(mUserEngineCurveInNOxReducedTier.back());
+        }
+    }
+    else
+    {
+        auto props = (getCurrentOperationalTier() ==
+                      EngineOperationalTier::tierII) ?
+                         mEngineDefaultTierPropertiesPoints :
+                         mEngineNOxReducedTierPropertiesPoints;
+        int index = static_cast<int>(getCurrentOperationalLoad()) + 1;
+        setEngineTargetState(props.at(index));
+    }
 }
 
 void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
@@ -42,50 +117,82 @@ void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
                                              "EngineID",
                                              counter);
 
-    mEngineOperationalPowerSettings =
-        Utils::getValueFromMap<QVector<units::power::kilowatt_t>>
-        (parameters, "EngineOperationalPowerSettings", {});
 
-    if (mEngineOperationalPowerSettings.size() != 4)
-    {
-        qCritical() << "Engine max power properties is not defined! "
-                       "Engine Properties (BrakePower, RPM, Efficiency) "
-                       "must be defined at the"
-                       " corners of the engine layout!";
-    }
-
-    mEngineDefaultTierPropertiesPoints = Utils::getValueFromMap<QVector<EngineProperties>>
+    mEngineDefaultTierPropertiesPoints =
+        Utils::getValueFromMap<QVector<EngineProperties>>
         (parameters, "EngineTierIIPropertiesPoints", {});
-
-    if (mEngineDefaultTierPropertiesPoints.size() < 2)
+    if (mEngineDefaultTierPropertiesPoints.size() != 4)
     {
-        qFatal("Engine Properties points are not defined! "
-               "2 Engine Properties (BrakePower, RPM, Efficiency) "
-               "must be defined at least!");
+        qFatal("Engine safe operational zone properties is not defined! "
+               "Engine Properties (BrakePower, RPM, Efficiency) "
+               "must be defined at the"
+               " corners of the engine layout!");
     }
 
-    mEngineNOxReducedTierPropertiesPoints = Utils::getValueFromMap<QVector<EngineProperties>>
+    // set initial value
+    setEngineCurrentState(
+        {units::power::kilowatt_t(0.0),
+         units::angular_velocity::revolutions_per_minute_t(0.0f),
+         0.001f});
+
+    mEngineNOxReducedTierPropertiesPoints =
+        Utils::getValueFromMap<QVector<EngineProperties>>
         (parameters, "EngineTierIIIPropertiesPoints", {});
 
-    // sort the engine properties
-    std::sort(mEngineOperationalPowerSettings.begin(),
-              mEngineOperationalPowerSettings.end());
+    setEngineTierIICurve(Utils::getValueFromMap<QVector<EngineProperties>>
+                         (parameters, "EngineTierIICurve", {}));
+    setEngineTierIIICurve(Utils::getValueFromMap<QVector<EngineProperties>>
+                          (parameters, "EngineTierIIICurve", {}));
+
+    // sort the engine properties (L1, L2, L3, L4 points)
     std::sort(mEngineDefaultTierPropertiesPoints.begin(),
               mEngineDefaultTierPropertiesPoints.end(),
-              EngineProperties::compareByBreakPower);
-    if (!mEngineDefaultTierPropertiesPoints.empty())
+              [](const EngineProperties& a, const EngineProperties& b) {
+                  return EngineProperties::compareByBreakPower(a, b, true);
+              });
+
+    if (!mEngineNOxReducedTierPropertiesPoints.empty())
     {
         std::sort(mEngineNOxReducedTierPropertiesPoints.begin(),
                   mEngineNOxReducedTierPropertiesPoints.end(),
-                  EngineProperties::compareByBreakPower);
+                  [](const EngineProperties& a, const EngineProperties& b) {
+                      return EngineProperties::compareByBreakPower(a, b, true);
+                  });
     }
 
-    setCurrentEngineProperties(EngineOperationalLoad::Economic);
 
-    // set initial value
-    mEfficiency = 0.001f;
-    mRPM = units::angular_velocity::revolutions_per_minute_t(0.0f);
-    mCurrentOutputPower = units::power::kilowatt_t(0.0);
+    if (!mUserEngineCurveInDefaultTier.empty()) {
+
+        setEngineOperationalLoad(EngineOperationalLoad::UserDefined);
+
+        std::sort(mUserEngineCurveInDefaultTier.begin(),
+                  mUserEngineCurveInDefaultTier.end(),
+                  [](const EngineProperties& a, const EngineProperties& b) {
+                      return EngineProperties::compareByBreakPower(a, b, true);
+                  });
+
+        setEngineOperationalTier(EngineOperationalTier::tierII);
+        setEngineTargetState(mUserEngineCurveInDefaultTier.back());
+    }
+    else if (mUserEngineCurveInDefaultTier.empty() &&
+               !mUserEngineCurveInNOxReducedTier.empty()) {
+        setEngineOperationalLoad(EngineOperationalLoad::UserDefined);
+
+        std::sort(mUserEngineCurveInNOxReducedTier.begin(),
+                  mUserEngineCurveInNOxReducedTier.end(),
+                  [](const EngineProperties& a, const EngineProperties& b) {
+                      return EngineProperties::compareByBreakPower(a, b, true);
+                  });
+
+        setEngineOperationalTier(EngineOperationalTier::TierIII);
+        setEngineTargetState(mUserEngineCurveInNOxReducedTier.back());
+    }
+    else {
+        setEngineOperationalLoad(EngineOperationalLoad::Default);
+        setEngineOperationalTier(EngineOperationalTier::tierII);
+    }
+
+
 }
 
 void ShipEngine::setEngineMaxPowerLoad(double targetRatio)
@@ -93,7 +200,7 @@ void ShipEngine::setEngineMaxPowerLoad(double targetRatio)
     mMaxPowerRatio = targetRatio;
 
     // get the power
-    updateCurrentStep();
+    updateEngineOperationalState();
 }
 
 double ShipEngine::getEngineMaxPowerRatio()
@@ -123,7 +230,8 @@ ShipEngine::consumeUsedEnergy(units::time::second_t timeStep)
     // this value should be calculated by the SOF as reported by
     // the manufacturer
     units::energy::kilowatt_hour_t energy =
-        (mCurrentOutputPower / mEfficiency) *
+        (getEngineCurrentState().breakPower /
+         getEngineCurrentState().efficiency) *
         timeStep.convert<units::time::hour>();
 
     // consume the energy and return not consumed energy
@@ -149,22 +257,23 @@ units::energy::kilowatt_hour_t ShipEngine::getCumEnergyConsumption() {
 
 double ShipEngine::getEfficiency()
 {
-    return mEfficiency;
+    return getEngineCurrentState().efficiency;
 }
 
 
-void ShipEngine::updateCurrentStep()
+void ShipEngine::updateEngineOperationalState()
 {
     // update the previous power
-    mPreviousOutputPower = mCurrentOutputPower;
+    setEnginePreviousState(getEngineCurrentState());
 
-    units::power::kilowatt_t mRawPower;  ///< power without considering eff
     // ensure the RPM is up to date
     if (!mIsWorking) {
-        mRPM = units::angular_velocity::revolutions_per_minute_t(0.0);
-        mRawPower = units::power::kilowatt_t(0.0);
-        mCurrentOutputPower = mRawPower;
-        mEfficiency = 0.0;
+        IShipEngine::EngineProperties ep;
+        ep.RPM =
+            units::angular_velocity::revolutions_per_minute_t(0.0);
+        ep.breakPower = units::power::kilowatt_t(0.0);
+        ep.efficiency = 0.0f;
+        setEngineCurrentState(ep);
         return;
     }
 
@@ -172,47 +281,45 @@ void ShipEngine::updateCurrentStep()
 
     // Calculating power without considering efficiency
     // as the efficiency is only for calculating fuel consumption
-    mRawPower = lambda * mCurrentOperationalPowerSetting;
-    if (mRawPower > mCurrentOperationalPowerSetting)
+    units::power::kilowatt_t mRawPower = lambda * getEngineTargetState().breakPower;
+    if (mRawPower > getEngineTargetState().breakPower)
     {
-        mRawPower = mCurrentOperationalPowerSetting;
+        mRawPower = getEngineTargetState().breakPower;
     }
-
-    auto r = getEnginePropertiesAtPower(mRawPower, mCurrentOperationalTier);
 
     // Getting efficiency based on raw power without
     // checks or using stored values
-    mEfficiency = (r.efficiency <= 0.0) ? 0.0001 : r.efficiency;
-    mRPM = r.RPM;
+    auto r = getEnginePropertiesAtPower(mRawPower, getCurrentOperationalTier());
 
-    // the engine output power is what is reported by the manufacturer
-    mCurrentOutputPower = mRawPower;
+    setEngineCurrentState({mRawPower, r.RPM,
+                           (r.efficiency <= 0.0) ? 0.0001 : r.efficiency});
 
 }
 
-
 units::power::kilowatt_t ShipEngine::getBrakePower()
 {
-    return mCurrentOutputPower;
+    return getEngineCurrentState().breakPower;
 }
 
 units::torque::newton_meter_t ShipEngine::getBrakeTorque()
 {
     units::torque::newton_meter_t result =
         units::torque::newton_meter_t(
-        (mCurrentOutputPower.convert<units::power::watt>().value()) /
-            mRPM.convert<
-                units::angular_velocity::radians_per_second>().value());
+            (getEngineCurrentState().breakPower
+             .convert<units::power::watt>().value()) /
+            getEngineCurrentState().RPM.
+            convert<units::angular_velocity::radians_per_second>().value());
 
     return result;
 }
 
 units::angular_velocity::revolutions_per_minute_t ShipEngine::getRPM()
 {
-    return mRPM;
+    return getEngineCurrentState().RPM;
 }
 
-QVector<units::angular_velocity::revolutions_per_minute_t>
+QPair<units::angular_velocity::revolutions_per_minute_t,
+      units::angular_velocity::revolutions_per_minute_t>
 ShipEngine::getRPMRange()
 {
     return {mEngineDefaultTierPropertiesPoints.front().RPM,
@@ -250,28 +357,76 @@ int ShipEngine::getEngineID()
     return mId;
 }
 
-void ShipEngine::setEngineRPM(
-    units::angular_velocity::revolutions_per_minute_t targetRPM)
+void ShipEngine::setEngineTargetState(EngineProperties newState)
 {
 
-    // set the new RPM
-    mRPM =
-        units::math::max(mEngineDefaultTierPropertiesPoints.front().RPM,
-                         units::math::min(targetRPM,
-                                          mEngineDefaultTierPropertiesPoints.back().RPM));
+    // set the new state
+    IShipEngine::setEngineTargetState(newState);
+
+    // qDebug() << "----> Engine Target State changed!!!!";
+    handleTargetStateChange();
 
     // get the power
-    updateCurrentStep();
+    updateEngineOperationalState();
 
 }
 
 units::power::kilowatt_t ShipEngine::getPreviousBrakePower()
 {
-    return mPreviousOutputPower;
+    return getEnginePreviousState().breakPower;
 }
 
 bool ShipEngine::isEngineWorking()
 {
     return mIsWorking;
 }
+
+QVector<IShipEngine::EngineProperties> ShipEngine::estimateEnginePowerCurve() {
+
+
+    double P_M = getEngineTargetState().breakPower.value();
+    double omega_M = getEngineTargetState().RPM.
+                     convert<units::angular_velocity::radians_per_second>().
+                     value();
+    double P1 = 0.87 * P_M / omega_M;
+    double P2 = 1.13 * P_M / std::powf(omega_M, 2);
+    double P3 = -P_M / std::powf(omega_M, 3);
+
+    QVector<EngineProperties> engineProps;
+    std::vector<double> omegas = Utils::linspace_step(0.0, omega_M, 10);
+
+
+    for (const auto &omega : omegas) {
+        EngineProperties ep;
+        /// This estimation is from:
+        /// Yehia, W., & Moustafa, M. M. (2014, October).
+        /// Practical considerations for marine propeller sizing.
+        /// In International Marine and Offshore Engineering Conference,
+        /// Portugal.
+        ep.breakPower =
+            units::power::kilowatt_t(P1 * omega +
+                                     P2 * std::powf(omega, 2) +
+                                     P3 * std::powf(omega, 3));
+
+        ep.RPM = units::angular_velocity::radians_per_second_t(omega).
+                 convert<units::angular_velocity::revolutions_per_minute>();
+
+        // Estimation using the simple equation proposed by
+        // Institute of Marine Engineering, Science and Technology (IMarEST)
+        ep.efficiency = (ep.breakPower / P_M).value() *
+                        getEngineTargetState().efficiency;
+
+        engineProps.push_back(ep);
+    }
+
+    return engineProps;
+}
+
+void ShipEngine::turnOffEngine() {
+    mIsWorking = false;
+}
+void ShipEngine::turnOnEngine() {
+    mIsWorking = true;
+}
+
 };
