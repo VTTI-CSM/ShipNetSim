@@ -10,7 +10,14 @@
 #include <QJsonObject>
 #include <amqp.h>
 #include <amqp_tcp_socket.h>
-
+#ifdef _WIN32
+struct timeval {
+    long tv_sec;  // seconds
+    long tv_usec; // microseconds
+};
+#else
+#include <sys/time.h>  // Unix-like systems
+#endif
 using ShipParamsMap = QMap<QString, QString>;
 Q_DECLARE_METATYPE(ShipParamsMap)
 
@@ -21,13 +28,14 @@ public:
     explicit SimulationServer(QObject *parent = nullptr);
     ~SimulationServer();
     void startRabbitMQServer(const std::string &hostname, int port);
-    void sendRabbitMQMessage(const QString &queue, const QJsonObject &message);
+    void sendRabbitMQMessage(const QString &routingKey, const QJsonObject &message);
     void stopRabbitMQServer();  // stop RabbitMQ server cleanly
 
 signals:
     void dataReceived(QJsonObject message);
     void shipReachedDestination(const QString &shipID);
     void simulationResultsAvailable(ShipsResults &results);
+    void stopConsuming();
 
 private slots:
     void onDataReceivedFromRabbitMQ(const QJsonObject &message,
@@ -51,17 +59,20 @@ private slots:
     void onErrorOccurred(const QString& errorMessage);
 
 private:
-
     std::string mHostname;
     int mPort;
+    QMutex mMutex;  // Mutex for protecting access to mWorkerBusy
+    bool mWorkerBusy;  // To control the server run loop
+    QThread *mRabbitMQThread;
+    QWaitCondition mWaitCondition;
+    amqp_connection_state_t mRabbitMQConnection;
+    std::unique_ptr<StepSimulationWorker> mSimulationWorker;  // Declare the worker
 
     void processCommand(const QJsonObject &jsonMessage);
+    void consumeFromRabbitMQ();  // Function for consuming RabbitMQ messages
+    void startConsumingMessages();
+    void reconnectToRabbitMQ();
 
-    amqp_connection_state_t mRabbitMQConnection;
-    std::unique_ptr<ContinuousSimulationWorker> mSimulationWorker;  // Declare the worker
-    bool mWorkerBusy;  // To control the server run loop
-
-    QQueue<QJsonObject> mCommandQueue;  // Queue to store incoming commands
 };
 
 #endif // SIMULATIONSERVER_H
