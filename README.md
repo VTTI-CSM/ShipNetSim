@@ -1,2 +1,100 @@
-# ShipNetSim
-An open-source ship network simulator.
+<h1 align="center">
+  <a href="https://github.com/VTTI-CSM/ShipNetSim">
+    <img src="https://github.com/VTTI-CSM/NeTrainSim/assets/77444744/98776173-7574-404d-8eb4-bfdebe99f1cb" alt="NeTrainSim"/>
+  </a>
+  <br/>
+  ShipNetSim [Network Ships Simulator]
+</h1>
+
+<p align="center">
+  <a href="http://dx.doi.org/10.2139/ssrn.4377164">
+    <img src="https://zenodo.org/badge/DOI/10.2139/ssrn.4377164.svg" alt="DOI">
+  </a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0">
+    <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GNU GPL v3">
+  </a>
+  <a href="https://github.com/VTTI-CSM/ShipNetSim/releases">
+    <img alt="GitHub tag (latest by date)" src="https://img.shields.io/github/v/tag/VTTI-CSM/ShipNetSim.svg?label=latest">
+  </a>
+  <img alt="GitHub All Releases" src="https://img.shields.io/github/downloads/VTTI-CSM/ShipNetSim/total.svg">
+  <a href="">
+    <img src="https://img.shields.io/badge/CLA-CLA%20Required-red" alt="CLA Required">
+    <a href="https://cla-assistant.io/VTTI-CSM/ShipNetSim"><img src="https://cla-assistant.io/readme/badge/VTTI-CSM/ShipNetSim" alt="CLA assistant" /></a>
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/VTTI-CSM/ShipNetSim/releases" target="_blank">Download NeTrainSim</a> |
+  <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a> |
+  <a href="https://join.slack.com/t/ShipNetSim/shared_invite/zt-2913nksde-mmvbGCdz8k8GgjdfeQBXZQ" target="_blank">Slack</a>
+</p>
+
+# Ship Network Simulator (ShipNetSim)
+ShipNetSim is an open-source simulation software designed to analyze ship energy consumption and emissions in extensive maritime networks. Built with a modular and adaptable structure using Qt6, it integrates propulsion-resistance models, real-time environmental data, and advanced path-finding algorithms for longitudinal vessel motion analysis.
+
+## How to Cite
+
+```bibtex
+@article{aredah2024shipnetsim,
+  title={Modeling Longitudinal Dynamics, Energy Efficiency, and Carbon Footprint of Cargo Vessels},
+  author={Aredah, Ahmed S and Rakha, Hesham A},
+  conference={TRB AM 2025},
+  year={2025},
+}
+```
+
+## Features
+
+- **Open Access**: ShipNetSim is freely accessible and openly modifiable to support community collaboration.
+- **Modular and Flexible**: Ships of varying types, sizes, and fuel types can be analyzed, with scalability to support evolving policies and technological advancements.
+- **Environmental Sensitivity**: Capable of simulating operational strategies like reduced speeds and alternate fueling to comply with International Maritime Organization (IMO) standards.
+- **Cybersecurity Modeling**: Analyzes risks like GPS spoofing and network disruptions, simulating impact on ship navigation and energy efficiency.
+- **Real-time Analytics**: Tracks energy consumption, emissions, and vessel dynamics for each ship, enabling data-driven decisions.
+- **Adaptable Pathfinding**: Integrates visibility graphs and QuadTree indexing to optimize navigation and obstacle avoidance on real-world routes.
+
+## Getting Started
+Download the latest release version on the releases page.
+
+## Prerequisites
+ShipNetSim requires no additional setup, as all third-party dependencies are bundled within the installer.
+
+## Installation
+
+- Download the installer file.
+- Double-click to open and follow the setup prompts. The default path is C:\Program Files\ShipNetSim, but this can be adjusted as needed.
+
+## Running
+
+### GUI Interface
+- Launch the 'ShipNetSimGUI' application from the Start Menu or Desktop.
+- For a full breakdown of options and settings, refer to the in-app 'Help' menu.
+
+### Shell Interface
+- Open a terminal or command prompt.
+
+- Navigate to the installation folder:
+
+```shell
+cd "C:\Program Files\ShipNetSim"
+Type ShipNetSim -h to view command options.
+```
+
+```shell
+ShipNetSim.exe -s "path\to\ships\file"
+```
+
+## Collaborators
+
+- Ahmed Aredah, M.Sc.:
+Ph.D. student, Dept. of Civil and Environmental Engineering, Virginia Tech
+Graduate Research Assistant at Virginia Tech Transportation Institute
+
+- Hesham A. Rakha, Ph.D. P.Eng., F.IEEE:
+Samuel Reynolds Pritchard Professor of Engineering, Virginia Tech Transportation Institute
+Fellow of the Canadian Academy of Engineering, Fellow of IEEE
+
+## Contributing
+Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
+
+## License
+ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
