@@ -8,18 +8,6 @@ SimulationWorker::SimulationWorker(QObject *parent)
     : QObject(parent) {}
 
 
-void SimulationWorker::endSimulation() {
-    if (simulator) {
-        simulator->stopSimulation();
-        emit simulatorEnded();
-        emit workerReady();
-    } else {
-        emit errorOccurred("Simulator not initialized.");
-        emit workerReady();
-    }
-}
-
-
 void SimulationWorker::requestSimulationCurrentResults() {
     if (simulator) {
         simulator->exportSimulationResults(false);
@@ -209,10 +197,10 @@ void StepSimulationWorker::restartSimulator(double timeStep_sec,
     }
 }
 
-void StepSimulationWorker::runOneTimeStep() {
+void StepSimulationWorker::runSimulator(double byTimeSteps) {
     if (simulator) {
         try {
-            simulator->playShipsOneTimeStep();
+            simulator->runBy(units::time::second_t(byTimeSteps));
             double currentSimTime = simulator->getCurrentSimulatorTime().value();
             emit simulationAdvanced(currentSimTime);
             emit workerReady();
@@ -221,6 +209,17 @@ void StepSimulationWorker::runOneTimeStep() {
             emit workerReady();
         }
 
+    } else {
+        emit errorOccurred("Simulator not initialized.");
+        emit workerReady();
+    }
+}
+
+void StepSimulationWorker::endSimulator() {
+    if (simulator) {
+        simulator->endSimulation();
+        emit simulatorEnded();
+        emit workerReady();
     } else {
         emit errorOccurred("Simulator not initialized.");
         emit workerReady();
@@ -362,6 +361,18 @@ void ContinuousSimulationWorker::resumeSimulator() {
     if (simulator) {
         simulator->resumeSimulation();
         emit simulationResumed();
+        emit workerReady();
+    } else {
+        emit errorOccurred("Simulator not initialized.");
+        emit workerReady();
+    }
+}
+
+
+void ContinuousSimulationWorker::endSimulation() {
+    if (simulator) {
+        simulator->stopSimulation();
+        emit simulatorEnded();
         emit workerReady();
     } else {
         emit errorOccurred("Simulator not initialized.");
