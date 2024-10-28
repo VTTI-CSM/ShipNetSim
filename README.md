@@ -8,7 +8,7 @@
 </h1>
 
 <p align="center">
-  <a href="http://dx.doi.org/10.2139/ssrn.4377164">
+  <a href="">
     <img src="https://zenodo.org/badge/DOI/10.2139/ssrn.4377164.svg" alt="DOI">
   </a>
   <a href="https://www.gnu.org/licenses/gpl-3.0">
