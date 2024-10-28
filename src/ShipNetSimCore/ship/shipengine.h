@@ -110,7 +110,8 @@ public:
      * @return The hyperbolic throttle coefficient.
      */
     double getHyperbolicThrottleCoef(
-        units::velocity::meters_per_second_t ShipSpeed);
+        units::velocity::meters_per_second_t ShipSpeed,
+        bool isExperiencingHighResistance);
 
     /**
      * @brief Get engine unique ID
@@ -160,6 +161,13 @@ private:
     bool mIsWorking = true; ///< a boolean to indicate the engine is working
 
     unsigned int counter = 0; ///< keep track of new ids
+
+    /** If the ship experienced high resistance, its speed will be reduced
+     *  and hence the power.
+        This will holds the lamda when the ship is not experiencing high
+        resistance to keep the engine working with high power even in high
+        resistance.  */
+    double mNormalLambda = 1.0;
 
 
 
