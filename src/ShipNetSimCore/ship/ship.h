@@ -1147,6 +1147,8 @@ public:
      */
     [[nodiscard]] bool isShipOnCorrectPath();
 
+    [[nodiscard]] bool isShipStillMoving();
+
     /**
      * @brief Calculates the progress of the ship along its path as a percentage.
      *
@@ -1154,6 +1156,8 @@ public:
      * value between 0.0 and 1.0.
      */
     [[nodiscard]] double progress();
+
+    [[nodiscard]] bool isExperiencingHighResistance();
 
     // [[nodiscard]] units::velocity::meters_per_second_t getCurrentMaxSpeed();
     // [[nodiscard]] QHash<qsizetype, units::velocity::meters_per_second_t>
@@ -1298,6 +1302,10 @@ private:
     QString mShipUserID;
 
     bool mIsCommunicationActive = true;
+
+
+    //!< Counter to track how many steps the ship has not moved.
+    int mInactivityStepCount = 0;
 
     //!< Strategy used for calculating ship calm water resistance.
     IShipCalmResistanceStrategy* mCalmResistanceStrategy;
@@ -1526,6 +1534,10 @@ private:
     units::angle::degree_t mRudderAngle = units::angle::degree_t(25.0);
 
     bool mBrakingThrustAvailable = true;
+
+    bool mHighResistanceOccuring = false;
+
+    bool mIsShipMoving = true;
 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ~~~~~~~~~~~~~~~~~~ Ship Memorization ~~~~~~~~~~~~~~~~~~~
