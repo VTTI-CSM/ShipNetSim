@@ -16,7 +16,7 @@ class SimulationWorker : public QObject {
 public:
     explicit SimulationWorker(QObject *parent = nullptr);
 
-    Q_INVOKABLE void endSimulation();
+
     Q_INVOKABLE void requestSimulationCurrentResults();
     Q_INVOKABLE void addShipsToSimulation(QJsonObject shipParams);
     Q_INVOKABLE void requestShipCurrentState(QString shipID);
@@ -63,7 +63,8 @@ public:
 
     Q_INVOKABLE void restartSimulator(double timeStep_sec,
                                       QJsonObject shipsParams = QJsonObject());
-    Q_INVOKABLE void runOneTimeStep();  // Run simulation step-by-step
+    Q_INVOKABLE void runSimulator(double byTimeSteps);
+    Q_INVOKABLE void endSimulator();
 
 signals:
     void simulationAdvanced(double newSimulationTime);  // Notify when the simulation advances
@@ -86,6 +87,7 @@ public:
     Q_INVOKABLE void runSimulation();  // Run simulation continuously
     Q_INVOKABLE void pauseSimulator();
     Q_INVOKABLE void resumeSimulator();
+    Q_INVOKABLE void endSimulation();
 
 signals:
     void simulationPaused();
