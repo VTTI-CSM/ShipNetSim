@@ -18,6 +18,10 @@
 
 namespace ShipNetSimCore
 {
+static const int NOT_MOVING_THRESHOLD = 10;
+static const double DISTANCE_NOT_COUNTED_AS_MOVING = 0.0001;
+
+
 Ship::Ship(const QMap<QString, std::any>& parameters,
            QObject* parent) : QObject(parent)
 {
@@ -507,7 +511,8 @@ units::force::newton_t Ship::calculateTotalResistance(
     units::force::newton_t totalResis =
         mCalmResistanceStrategy->getTotalResistance(*this, customSpeed);
 
-    if (mDynamicResistanceStrategy != nullptr)
+    if (mDynamicResistanceStrategy != nullptr &&
+        getCurrentEnvironment().checkEnvironmentValidity())
     {
         totalResis += mDynamicResistanceStrategy->getTotalResistance(*this);
     }
@@ -1699,12 +1704,23 @@ Ship::calc_maxAcceleration(
 
     auto acceleration = (thrust - resistance) /
            getTotalVesselDynamicWeight().convert<units::mass::kilogram>();
+
+    if (acceleration.value() <= 0) {
+        mHighResistanceOccuring = true;
+    } else {
+        mHighResistanceOccuring = false;
+    }
+
     if (maxAccel) {
         *maxAccel =
             units::acceleration::meters_per_second_squared_t(
             acceleration.value());
     }
     return acceleration;
+}
+
+bool Ship::isExperiencingHighResistance() {
+    return mHighResistanceOccuring;
 }
 
 units::acceleration::meters_per_second_squared_t
@@ -2195,7 +2211,7 @@ void Ship::sail(units::time::second_t &timeStep,
                     QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
                     AlgebraicVector::Environment currentEnvironment)
 {
-    // // update the engine state first
+    // update the engine state first
     // for (auto& propeller: mPropellers) {
     //     propeller->getGearBox()->updateGearboxOperationalState();
     // }
@@ -2282,6 +2298,17 @@ void Ship::sail(units::time::second_t &timeStep,
         emit reachedDestination(json);
     }
 
+    // If the ship has not moved
+    if (lastStepDistance.value() < DISTANCE_NOT_COUNTED_AS_MOVING) {
+        mInactivityStepCount++;
+        if (mInactivityStepCount >= NOT_MOVING_THRESHOLD) {
+            mIsShipMoving = false;
+        }
+    } else {
+        // Reset inactivity counter when the ship moves
+        mInactivityStepCount = 0;
+    }
+
     // update operational power of the engine
     // if (mTotalThrust < mTotalResistance &&
     //     getSpeed() < getMaxSpeed() * 0.8) {
@@ -2344,6 +2371,7 @@ void Ship::reset()
     mTraveledDistance = units::length::meter_t(0.0);
     mTripTime = units::time::second_t(0.0);
     mCumConsumedEnergy = units::energy::kilowatt_hour_t(0.0);
+    mStartTime = units::time::second_t(0);
 
     mCumConsumedFuel.clear();
     for (auto& ft: ShipFuel::getFuelTypes()) {
@@ -2369,6 +2397,9 @@ void Ship::reset()
             engine->getCurrentEnergySource()->reset();
         }
     }
+
+    mHighResistanceOccuring = false;
+    mIsShipMoving = true;
 }
 
 std::size_t Ship::getPreviousPathPointIndex() const
@@ -2549,7 +2580,7 @@ QJsonObject Ship::getCurrentStateAsJson() const
 #ifdef BUILD_SERVER_ENABLED
 QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
     QVector<ContainerCore::Container*> containerList;
-    for (auto &container : mLoadedContainers.containers()) {
+    for (auto &container : mLoadedContainers.getAllContainers()) {
         containerList.append(container);
     }
     return containerList;
@@ -2557,7 +2588,8 @@ QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
 
 void Ship::addContainer(ContainerCore::Container* container) {
     if (container) {
-        mLoadedContainers.addContainer(container->getContainerID(), container);
+        mLoadedContainers.addContainer(container->getContainerID(), container,
+                                       std::nan(""), std::nan(""));
     }
 }
 #endif
@@ -2896,6 +2928,11 @@ bool Ship::isShipOnCorrectPath()
     // }
 
     // return true; // The ship is on path
+}
+
+bool Ship::isShipStillMoving()
+{
+    return mIsShipMoving;
 }
 
 
