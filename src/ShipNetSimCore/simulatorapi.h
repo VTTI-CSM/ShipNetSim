@@ -14,8 +14,11 @@ public:
 signals:
     void shipReachedDestination(const QJsonObject shipStatus);
     void simulationResultsAvailable(ShipsResults& results);
+    void simulationReachedReportingTime(units::time::second_t simulationTime);
 
 private slots:
+    void handleSimulationReachedReportingTime(
+        units::time::second_t simulationTime);
     void handleShipReachedDestination(const QJsonObject shipStatus);
     void handleSimulationResults(ShipsResults& results);
 
@@ -81,6 +84,7 @@ public:
 
         static void initSimulation();
         static void runOneTimeStep();
+        static void runSimulation(double byTimeSteps);
         static void endSimulation();
 
         static void requestSimulationCurrentResults();

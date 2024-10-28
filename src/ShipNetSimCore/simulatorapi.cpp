@@ -31,12 +31,21 @@ void SimulatorAPI::initializeSimulator(
     connect(simulator.get(),
             &ShipNetSimCore::Simulator::simulationResultsAvailable,
             this, &SimulatorAPI::handleSimulationResults);
+    connect(simulator.get(),
+            &ShipNetSimCore::Simulator::simulationReachedReportingTime,
+            this, &SimulatorAPI::handleSimulationReachedReportingTime);
 }
 
 ShipNetSimCore::Simulator& SimulatorAPI::getSimulator() {
     return *simulator;
 }
 
+
+void SimulatorAPI::
+    handleSimulationReachedReportingTime(units::time::second_t simulationTime)
+{
+    emit simulationReachedReportingTime(simulationTime);
+}
 
 void SimulatorAPI::handleSimulationResults(ShipsResults &results)
 {   
@@ -136,6 +145,11 @@ void SimulatorAPI::InteractiveMode::initSimulation() {
 
 void SimulatorAPI::InteractiveMode::runOneTimeStep() {
     SimulatorAPI::getInstance().getSimulator().playShipsOneTimeStep();
+}
+
+void SimulatorAPI::InteractiveMode::runSimulation(double byTimeSteps) {
+    SimulatorAPI::getInstance().getSimulator().
+        runBy(units::time::second_t(byTimeSteps));
 }
 
 void SimulatorAPI::InteractiveMode::endSimulation() {
