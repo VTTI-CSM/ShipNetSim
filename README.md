@@ -1,6 +1,7 @@
 <h1 align="center">
   <a href="https://github.com/VTTI-CSM/ShipNetSim">
-    <img src="https://github.com/VTTI-CSM/NeTrainSim/assets/77444744/98776173-7574-404d-8eb4-bfdebe99f1cb" alt="NeTrainSim"/>
+    <img src="https://github.com/user-attachments/assets/684d42b8-9fbb-44b6-a088-44698ab26831" alt="NeTrainSim"/>
+
   </a>
   <br/>
   ShipNetSim [Network Ships Simulator]
@@ -24,9 +25,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/VTTI-CSM/ShipNetSim/releases" target="_blank">Download NeTrainSim</a> |
+  <a href="https://github.com/VTTI-CSM/ShipNetSim/releases" target="_blank">Download ShipNetSim</a> |
   <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a> |
-  <a href="https://join.slack.com/t/ShipNetSim/shared_invite/zt-2913nksde-mmvbGCdz8k8GgjdfeQBXZQ" target="_blank">Slack</a>
 </p>
 
 # Ship Network Simulator (ShipNetSim)
