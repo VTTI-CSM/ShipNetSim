@@ -98,7 +98,7 @@ void Simulator::studyShipsResistance()
                                      convert<units::velocity::knot>().value()))
         {
             exportLine.clear();  // Ensure exportLine is cleared at the start of each speed
-            QTextStream stream(&exportLine);
+            QTextStream stream1(&exportLine);
 
             units::velocity::meters_per_second_t ss =
                 units::velocity::knot_t(speedStep).
@@ -140,7 +140,7 @@ void Simulator::studyShipsResistance()
             auto FRI = ship->getCalmResistanceStrategy()->calc_F_n_i(*ship);
 
 
-            stream << ship->getUserID() << ","
+            stream1 << ship->getUserID() << ","
                    << speed.convert<units::velocity::knot>().value() << ","
                    << fraudNo << ","
                    << FRI <<","
@@ -184,10 +184,10 @@ void Simulator::studyShipsResistance()
         {
 
             exportLine.clear();  // Ensure exportLine is cleared at the start of each speed
-            QTextStream stream(&exportLine);
+            QTextStream stream2(&exportLine);
 
             // start with ID
-            stream << ship->getUserID() << ",";
+            stream2 << ship->getUserID() << ",";
 
             units::velocity::meters_per_second_t ss =
                 units::velocity::knot_t(speedStep).
@@ -195,7 +195,7 @@ void Simulator::studyShipsResistance()
             ship->setSpeed(ss);
 
             // Use fixed-point notation with 2 decimals
-            stream << QString::number(speedStep, 'f', 2) << ",";
+            stream2 << QString::number(speedStep, 'f', 2) << ",";
 
             // Step 2: Calculate the speed of advance (SOA) using the
             // ship's calm resistance strategy
@@ -212,20 +212,20 @@ void Simulator::studyShipsResistance()
                      (1.0 - propeller->getPropellerSlip())));
 
             // Write RPM to stream, with fixed-point format
-            stream << QString::number(rpm.value(), 'f', 2) << ",";
+            stream2 << QString::number(rpm.value(), 'f', 2) << ",";
 
             // Step 4: Write propeller shaft power at the calculated RPM
-            stream << QString::number(
+            stream2 << QString::number(
                 propeller->getRequiredShaftPowerAtRPM(rpm).value(),
                 'f', 2) << ",";
 
             for (auto& engine : propeller->getDrivingEngines()) {
                 if (engine->isRPMWithinOperationalRange(rpm)) {
-                    stream << QString::number(
+                    stream2 << QString::number(
                         engine->getEnginePropertiesAtRPM(rpm).breakPower.value(),
                         'f', 2) << ",";
 
-                    stream << QString::number(
+                    stream2 << QString::number(
                         engine->getEngineTorqueByRPM(rpm).value(),
                         'f', 2) << ",";
                 }
@@ -397,7 +397,7 @@ bool Simulator::checkAllShipsReachedDestination()
 
     for (std::shared_ptr<Ship>& s : (mShips))
     {
-        if (s->isOutOfEnergy())
+        if (s->isOutOfEnergy() || !s->isShipStillMoving())
         {
             continue;
         }
@@ -484,6 +484,14 @@ void Simulator::runSimulation()
             break;
         }
 
+        if (this->checkAllShipsAreNotMoving()) {
+            if (mIsExternallyControlled) {
+                continue;
+            }
+            qWarning() << "All ships do not move!";
+            break;
+        }
+
         if (this->checkAllShipsReachedDestination()) {
 
             // Emit the signal when all ships have reached their destination
@@ -511,8 +519,29 @@ void Simulator::runSimulation()
 
     }
 
-    emit simulationFinished();
+    endSimulation();
 
+}
+
+bool Simulator::checkAllShipsAreNotMoving() {
+    return std::all_of(mShips.begin(), mShips.end(), [](const auto& s) {
+        return !s->isShipStillMoving();
+    });
+}
+
+void Simulator::runBy(units::time::second_t timeSteps) {
+    units::time::second_t initSimTime = this->mSimulationTime;
+
+    while(mSimulationTime - initSimTime <= timeSteps) {
+        // one step simulation
+        playShipsOneTimeStep();
+    }
+
+    emit simulationReachedReportingTime(mSimulationTime);
+}
+
+void Simulator::endSimulation() {
+    emit simulationFinished();
 }
 
 void Simulator::exportSimulationResults(bool writeSummaryFile)
@@ -683,7 +712,7 @@ void Simulator::playShipsOneTimeStep() {
 
 
     for (std::shared_ptr<Ship>& s : shipsToSimulate) {
-        if (s->isReachedDestination()) { continue;  }
+        if (s->isReachedDestination() || !s->isShipStillMoving()) { continue; }
         this->playShipOneTimeStep(s);
     }
 

@@ -93,6 +93,9 @@ private:
     long long simulation_serial_number;
     /** Time of when the simulation started. */
     std::time_t mInitTime;
+    /** Number of ships that are inactive due to high resistance */
+    int mInactiveShipsCount = 0;
+
 
     /**
      * Determines if we can check all ships reached destination
@@ -138,6 +141,8 @@ private:
      * @return
      */
     units::time::second_t getNotLoadedShipsMinStartTime();
+
+    bool checkAllShipsAreNotMoving();
 
 public:
     explicit Simulator(OptimizedNetwork* network,
@@ -314,6 +319,8 @@ signals:
      */
     void simulationFinished();
 
+    void simulationReachedReportingTime(units::time::second_t simulationTime);
+
 public slots:
 
     /**
@@ -328,6 +335,12 @@ public slots:
      * @date	2/28/2023
      */
     void runSimulation();
+
+    /**
+     * @brief run the simulation by specific number of steps
+     * @param timeSteps number of steps to run the simulation.
+     */
+    void runBy(units::time::second_t timeSteps);
 
     /**
      * @brief Close the simulator, open streams, and write summary file.
@@ -348,6 +361,11 @@ public slots:
      * @brief stop the simulation completely
      */
     void stopSimulation();
+
+    /**
+     * @brief end the simulation and export summary.
+     */
+    void endSimulation();
 
 private:
     QMutex mutex;
