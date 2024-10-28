@@ -277,7 +277,8 @@ void ShipEngine::updateEngineOperationalState()
         return;
     }
 
-    double lambda = getHyperbolicThrottleCoef(mHost->getSpeed());
+    bool expHgRes = mHost->isExperiencingHighResistance();
+    double lambda = getHyperbolicThrottleCoef(mHost->getSpeed(), expHgRes);
 
     // Calculating power without considering efficiency
     // as the efficiency is only for calculating fuel consumption
@@ -322,13 +323,19 @@ QPair<units::angular_velocity::revolutions_per_minute_t,
       units::angular_velocity::revolutions_per_minute_t>
 ShipEngine::getRPMRange()
 {
-    return {mEngineDefaultTierPropertiesPoints.front().RPM,
-            mEngineDefaultTierPropertiesPoints.back().RPM};
+    return {mEngineCurve.front().RPM, mEngineCurve.back().RPM};
+    // return {mEngineDefaultTierPropertiesPoints.front().RPM,
+    //         mEngineDefaultTierPropertiesPoints.back().RPM};
 }
 
 double ShipEngine::getHyperbolicThrottleCoef(
-    units::velocity::meters_per_second_t ShipSpeed)
+    units::velocity::meters_per_second_t ShipSpeed,
+    bool isExperiencingHighResistance)
 {
+    if (isExperiencingHighResistance) {
+        return mNormalLambda;
+    }
+
     double dv;
     // ratio of current speed by the max speed
     dv = (ShipSpeed / mHost->getMaxSpeed()).value();
@@ -348,6 +355,7 @@ double ShipEngine::getHyperbolicThrottleCoef(
         lambda = mMaxPowerRatio;
     }
 
+    mNormalLambda = lambda;
     return lambda;
 
 }
