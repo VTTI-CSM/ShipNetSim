@@ -52,6 +52,15 @@ const Ship *IShipGearBox::getHost() const
     return mHost;
 }
 
+QVector<IShipEngine::EngineProperties> IShipGearBox::getEnginesRatingProperties()
+{
+    QVector<IShipEngine::EngineProperties> results;
+    for (auto& engine: mEngines) {
+        results.push_back(engine->getEngineRatingProperties());
+    }
+    return results;
+}
+
 bool IShipGearBox::requestHigherEnginePower() {
     bool result = true;
     for (auto& engine: mEngines) {
