@@ -33,6 +33,10 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
         qFatal("Tiff file may not have an assigned SRS!");
         return false;
     }
+
+    // Calculate geographic extents (min/max lat/long)
+    variable.calculateGeographicExtents();
+
     variable.band = variable.dataset->GetRasterBand(1);
     return true;
 
@@ -455,17 +459,40 @@ OptimizedNetwork::mapCoordinatesToTiffIndecies(tiffFileData& data, GPoint p)
 {
     size_t pixelX, pixelY;
 
-    double inv_det = 1.0 /
-                     (data.adfGeoTransform[1] * data.adfGeoTransform[5] -
-                      data.adfGeoTransform[2] * data.adfGeoTransform[4]);
-    double x = p.getLongitude().value() - data.adfGeoTransform[0];
-    double y = p.getLatitude().value() - data.adfGeoTransform[3];
+    // Get the longitude and latitude from the GPoint p
+    double longitude = p.getLongitude().value();
+    double latitude = p.getLatitude().value();
 
-    // Using the inverse of the geotransform matrix to convert
+    // Handle the longitude wrapping within the GeoTIFF's bounds (minLong, maxLong)
+    if (longitude < data.minLong) {
+        longitude = data.maxLong - (data.minLong - longitude);
+    }
+    else if (longitude > data.maxLong) {
+        longitude = data.minLong + (longitude - data.maxLong);
+    }
+
+    // Clamp the latitude to the nearest valid value if it goes outside the bounds
+    if (latitude < data.minLat) {
+        latitude = data.minLat;
+    }
+    else if (latitude > data.maxLat) {
+        latitude = data.maxLat;
+    }
+
+    // Adjust the coordinates using the geo-transform array
+    double x = longitude - data.adfGeoTransform[0];
+    double y = latitude - data.adfGeoTransform[3];
+
+    // Compute the determinant inverse for transformation
+    double inv_det = 1.0 / (data.adfGeoTransform[1] * data.adfGeoTransform[5] -
+                            data.adfGeoTransform[2] * data.adfGeoTransform[4]);
+
+    // Use the inverse of the geo-transform matrix to map coordinates to pixel indices
     pixelX = static_cast<size_t>((x * data.adfGeoTransform[5] -
                                   y * data.adfGeoTransform[2]) * inv_det);
     pixelY = static_cast<size_t>((-x * data.adfGeoTransform[4] +
                                   y * data.adfGeoTransform[1]) * inv_det);
+
     return std::make_pair(pixelX, pixelY);
 }
 
@@ -491,81 +518,6 @@ GDALDataset *OptimizedNetwork::readTIFFFile(
 
     return dataset;
 
-    // GDALRasterBand *band = dataset->GetRasterBand(1); // Get the first band
-
-    // int width = band->GetXSize();
-    // int height = band->GetYSize();
-
-    // std::vector<std::vector<float>> imageData(height,
-    //                                           std::vector<float>(width));
-
-    // float *image = new float[width * height];
-    // // Read the raster data into the buffer
-    // if(band->RasterIO(GF_Read, 0, 0, width, height,
-    //                    image, width, height, GDT_Float32, 0, 0) != CE_None)
-    // {
-    //     delete[] image;
-    //     GDALClose(dataset);
-    //     qFatal("Failed to read the raster data from the TIFF file."
-    //            "The Tiff file must be grey scale with only one band!");
-    // }
-
-    // // Convert from the 1D buffer to 2D buffer
-    // for (int row = 0; row < height; ++row) {
-    //     for (int col = 0; col < width; ++col) {
-    //         // Calculate the index for the 1D array (image)
-    //         int index = row * width + col;
-    //         // Assign the value from the 1D array to the 2D vector
-    //         imageData[row][col] = image[index];
-    //     }
-    // }
-
-    // delete[] image;
-    // GDALClose(dataset); // Ensure the dataset is properly closed
-
-    // return imageData; // Return the populated 2D vector
-
-
-    // TinyTIFFReaderFile* tiffr = TinyTIFFReader_open(filename);
-    // if (!tiffr) {
-    //     std::cerr << "Error opening file: " << filename << std::endl;
-    //     return {}; // Return an empty vector on failure
-    // }
-
-    // // Check for the number of frames/bands in the TIFF file
-    // if (TinyTIFFReader_countFrames(tiffr) > 1) {
-    //     TinyTIFFReader_close(tiffr); // Close the file before throwing
-    //     throw std::runtime_error("TIFF file contains more than one band or "
-    //                              "frame, which is not supported.");
-    // }
-
-    // uint32_t width = TinyTIFFReader_getWidth(tiffr);
-    // uint32_t height = TinyTIFFReader_getHeight(tiffr);
-
-    // std::vector<std::vector<float>> imageData(height,
-    //                                           std::vector<float>(width));
-
-    // float* image = (float*)calloc(width * height, sizeof(float));
-    // // fill in all the array with nan values
-    // std::fill_n(image, width * height, std::nan(""));
-
-    // // load all the data from the tiff image
-    // TinyTIFFReader_getSampleData(tiffr, image, 0);
-
-    // // convert from the 1D buffer to 2D buffer
-    // for (uint32_t row = 0; row < height; ++row) {
-    //     for (uint32_t col = 0; col < width; ++col) {
-    //         // Calculate the index for the 1D array (image)
-    //         uint32_t index = row * width + col;
-    //         // Assign the value from the 1D array to the 2D vector
-    //         imageData[row][col] = image[index];
-    //     }
-    // }
-    // free(image);
-
-    // TinyTIFFReader_close(tiffr); // Ensure the file is properly closed
-
-    // return imageData; // Return the populated 2D vector
 }
 
 QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* filename)
@@ -684,47 +636,89 @@ AlgebraicVector::Environment OptimizedNetwork::
 
         auto index = mapCoordinatesToTiffIndecies(data, p);
         float value;
+        double noDataValue = data.band->GetNoDataValue(nullptr);
         data.band->RasterIO(GF_Read, index.first, index.second, 1, 1,
                        &value, 1, 1, GDT_Float32, 0, 0);
-        return value;
+        // Check if the value matches the NoData value
+        if (std::isnan(value) || value == static_cast<float>(noDataValue)) {
+            return std::nan("noData"); // Return NaN
+        }
+        return value; // Otherwise, return the valid value
     };
 
+    // Clamp function to handle max/min values
+    auto clamp = [](double value, double min, double max) -> double {
+        return std::max(min, std::min(max, value));
+    };
+
+    // Salinity (pptd)
     double salinityValue = getValue(salinityTiffData);
-    salinityValue = std::isnan(salinityValue)? 35.0: salinityValue; // default value if nan
+    // salinityValue = std::isnan(salinityValue) ? 35.0 : salinityValue;
+    // // Clamping salinity between 0.0 and 40.0 pptd
+    // salinityValue = clamp(salinityValue, 0.0, 40.0);
     env.salinity = units::concentration::pptd_t(salinityValue);
 
+    // Wave height (meters)
     double waveHeightValue = getValue(waveHeightTiffData);
-    waveHeightValue = std::isnan(waveHeightValue)? 0.0 : waveHeightValue;
+    // waveHeightValue = std::isnan(waveHeightValue) ? 0.0 : waveHeightValue;
+    // // Clamping wave height between 0.0 and 30.0 meters
+    // waveHeightValue = clamp(waveHeightValue, 0.0, 30.0);
     env.waveHeight = units::length::meter_t(waveHeightValue);
 
+    // Wave period (seconds) and frequency (hertz)
     double wavePeriodValue = getValue(wavePeriodTiffData);
-    wavePeriodValue = (wavePeriodValue <= 0.0 || std::isnan(wavePeriodValue))?
-        40.0 : wavePeriodValue;  //40 seconds
-    double waveFrequency = 1.0f / wavePeriodValue;
+    // wavePeriodValue = (wavePeriodValue <= 0.0 ||
+    //                    std::isnan(wavePeriodValue)) ? 40.0 : wavePeriodValue;
+    // // Clamping wave period between 1.0 and 60.0 seconds
+    // wavePeriodValue = clamp(wavePeriodValue, 1.0, 60.0);
+    double waveFrequency = 0.0;
+    if (std::isnan(wavePeriodValue)) {
+        waveFrequency = std::nan("noData");
+    }
+    else {
+        waveFrequency = 1.0 / wavePeriodValue;
+    }
     env.waveFrequency = units::frequency::hertz_t(waveFrequency);
-    env.waveAngularFrequency =
-        units::angular_velocity::radians_per_second_t(
-        (double)2.0 * units::constants::pi.value() * waveFrequency);
+    env.waveAngularFrequency = units::angular_velocity::radians_per_second_t(
+        2.0 * units::constants::pi.value() * waveFrequency);
 
+    // Wind speed (Northward and Eastward, m/s)
     double windSpeed_Northward = getValue(windNorthTiffData);
-    if (std::isnan(windSpeed_Northward)) { windSpeed_Northward = 0.0; };
+    // windSpeed_Northward =
+    //     std::isnan(windSpeed_Northward) ? 0.0 : windSpeed_Northward;
+    // // Clamping wind speed between -50.0 and 50.0 m/s
+    // windSpeed_Northward = clamp(windSpeed_Northward, -50.0, 50.0);
     env.windSpeed_Northward =
         units::velocity::meters_per_second_t(windSpeed_Northward);
 
     double windSpeed_Eastward = getValue(windEastTiffData);
-    if (std::isnan(windSpeed_Eastward)) { windSpeed_Eastward = 0.0; };
+    // windSpeed_Eastward =
+    //     std::isnan(windSpeed_Eastward) ? 0.0 : windSpeed_Eastward;
+    // // Clamping wind speed between -50.0 and 50.0 m/s
+    // windSpeed_Eastward = clamp(windSpeed_Eastward, -50.0, 50.0);
     env.windSpeed_Eastward =
         units::velocity::meters_per_second_t(windSpeed_Eastward);
 
-    double waveSpeedResultant = sqrt(std::pow(windSpeed_Northward, 2) +
-                                     std::pow(windSpeed_Eastward, 2));
-
-    double waveLength = waveSpeedResultant / waveFrequency;
+    // Calculate resultant wave speed and wavelength
+    double waveSpeedResultant =
+        sqrt(pow(windSpeed_Northward, 2) + pow(windSpeed_Eastward, 2));
+    double waveLength;
+    if (std::isnan(waveFrequency)) {
+        waveLength = std::nan("noData");
+    }
+    else {
+        waveLength = waveSpeedResultant / waveFrequency;
+    }
+    // Clamping wavelength between 1.0 and 500.0 meters
+    // waveLength = clamp(waveLength, 1.0, 500.0);
     env.waveLength = units::length::meter_t(waveLength);
 
-
+    // Water depth (meters)
     double depthV = getValue(waterDepthTiffData);
-    if (std::isnan(depthV)) { depthV = 50.0; };
+    // depthV = std::isnan(depthV) ? 50.0 : depthV;
+    // // Clamping water depth between 0.0 and
+    // // 11,000 meters (e.g., Mariana Trench)
+    // depthV = clamp(depthV, 0.0, 11000.0);
     env.waterDepth = units::length::meter_t(depthV);
 
     return env;
