@@ -177,6 +177,8 @@ public:
     virtual IShipEngine::EngineProperties getGearboxOperationalPropertiesAtRPM(
         units::angular_velocity::revolutions_per_minute_t rpm) = 0;
 
+    QVector<IShipEngine::EngineProperties> getEnginesRatingProperties();
+
     IShipEngine::EngineOperationalLoad getCurrentOperationalLoad();
 
     bool requestHigherEnginePower();
