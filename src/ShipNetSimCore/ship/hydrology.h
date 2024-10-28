@@ -30,8 +30,8 @@ inline units::density::kilograms_per_cubic_meter_t
 get_waterDensity(units::concentration::pptd_t salinity,
                  units::temperature::celsius_t temperature)
 {
-    double S = salinity.value();
-    double T = temperature.value();
+    double S = std::isnan(salinity.value()) ? 35.0 : salinity.value();
+    double T = std::isnan(temperature.value()) ? 15.0 : temperature.value();
 
     // Coefficients for EOS-80
     double a0 = 999.842594, a1 = 6.793952e-2, a2 = -9.095290e-3,
@@ -62,6 +62,10 @@ get_waterDensity(units::concentration::pptd_t salinity,
 inline units::velocity::meters_per_second_t get_nue(
     double salinity, units::temperature::celsius_t temp)
 {
+
+    salinity = std::isnan(salinity) ? 35.0 : salinity;
+    temp = std::isnan(temp.value()) ?
+                 units::temperature::celsius_t(15.0) : temp;
 
     if (salinity < 0.0)
     {
@@ -110,7 +114,7 @@ inline double R_n(units::velocity::meters_per_second_t ship_speed,
                   double salinity = 0.035,
                   units::temperature::celsius_t temp =
                   units::temperature::celsius_t(15))
-{
+{   
     if (ship_speed.value() < 0.0)
     {
         qCritical() << "Ship speed must be greater than 0 knots!";

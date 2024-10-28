@@ -55,6 +55,18 @@ public:
                                            waveDirectionAz);
         }
 
+        bool checkEnvironmentValidity() const {
+            return !(std::isnan(temperature.value()) ||
+                     std::isnan(salinity.value()) ||
+                     std::isnan(waveHeight.value()) ||
+                     std::isnan(waveFrequency.value()) ||
+                     std::isnan(waveAngularFrequency.value()) ||
+                     std::isnan(waveLength.value()) ||
+                     std::isnan(windSpeed_Northward.value()) ||
+                     std::isnan(windSpeed_Eastward.value()) ||
+                     std::isnan(waterDepth.value()));
+        }
+
     private:
         // Function to calculate the wave encounter angle
         units::angle::degree_t calculateEncounterAngle(
