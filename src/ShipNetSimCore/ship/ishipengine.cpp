@@ -17,6 +17,11 @@ QVector<IShipEngine::EngineOperationalTier>
     IShipEngine::EngineOperationalTier::TierIII
 };
 
+IShipEngine::EngineProperties IShipEngine::getEngineRatingProperties()
+{
+    return mEngineDefaultTierPropertiesPoints.back();
+}
+
 bool
 IShipEngine::requestHigherEnginePower()
 {

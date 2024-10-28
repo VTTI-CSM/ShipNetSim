@@ -244,6 +244,8 @@ public:
 
     virtual QVector<EngineProperties> estimateEnginePowerCurve() = 0;
 
+    IShipEngine::EngineProperties getEngineRatingProperties();
+
     /**
      * @brief Updates the current step of the engine's operation.
      */
