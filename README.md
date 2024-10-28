@@ -85,13 +85,19 @@ ShipNetSim.exe -s "path\to\ships\file"
 
 ## Collaborators
 
-- Ahmed Aredah, M.Sc.:
-Ph.D. student, Dept. of Civil and Environmental Engineering, Virginia Tech
-Graduate Research Assistant at Virginia Tech Transportation Institute
+- **Ahmed Aredah, M.Sc.**: 
+     - Ph.D. student, Dept. of Civil and Environmental Engineering, Virginia Tech  
+     - M.Sc. Student, Dept. of Computer Science | Engineering, Virginia Tech  
+     - Graduate Research Assistant at Virginia Tech Transportation Institute
 
-- Hesham A. Rakha, Ph.D. P.Eng., F.IEEE:
-Samuel Reynolds Pritchard Professor of Engineering, Virginia Tech Transportation Institute
-Fellow of the Canadian Academy of Engineering, Fellow of IEEE
+- **Hesham A. Rakha, Ph.D. P.Eng., F.IEEE**: 
+     - Samuel Reynolds Pritchard Professor of Engineering, Charles E. Via, Jr. Dept. of Civil and Environmental Engineering
+     - Courtesy Professor, Bradley Department of Electrical and Computer Engineering
+     - Director, Center for Sustainable Mobility at the Virginia Tech Transportation Institute
+     - Fellow of Asia Pacific Artificial Intelligence Association
+     - Fellow of the American Society of Civil Engineers
+     - Fellow of the Canadian Academy of Engineering
+     - Fellow of IEEE
 
 ## Contributing
 Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
