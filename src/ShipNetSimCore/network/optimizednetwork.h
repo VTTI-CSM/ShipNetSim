@@ -79,16 +79,50 @@ struct tiffFileData {
      */
     GDALRasterBand* band;
 
+    double minLong; ///< Minimum longitude (x)
+    double maxLong; ///< Maximum longitude (x)
+    double minLat;  ///< Minimum latitude (y)
+    double maxLat;  ///< Maximum latitude (y)
+
     tiffFileData()
+        : dataset(nullptr),
+        band(nullptr),
+        minLong(std::nan("no value")),
+        maxLong(std::nan("no value")),
+        minLat(std::nan("no value")),
+        maxLat(std::nan("no value"))
     {
         std::fill_n(adfGeoTransform, 6, std::nan("no value"));
-        dataset = nullptr;
-        band = nullptr;
     }
 
     ~tiffFileData() {
         // Cleanup
         GDALClose(dataset);
+    }
+
+    /**
+     * Calculate min/max longitude and latitude from the geo-transform and dataset size
+     */
+    void calculateGeographicExtents() {
+        if (!dataset) {
+            qFatal("Dataset is null, cannot calculate geographic extents.");
+            return;
+        }
+
+        // Get image dimensions (width and height)
+        int rasterWidth = dataset->GetRasterXSize();
+        int rasterHeight = dataset->GetRasterYSize();
+
+        // Extract geo-transform values
+        double* gt = adfGeoTransform;
+
+        // Top-left corner (origin)
+        minLong = gt[0];      // Top-left x (longitude)
+        maxLat = gt[3];       // Top-left y (latitude)
+
+        // Bottom-right corner
+        maxLong = gt[0] + rasterWidth * gt[1] + rasterHeight * gt[2];
+        minLat = gt[3] + rasterWidth * gt[4] + rasterHeight * gt[5];
     }
 };
 
