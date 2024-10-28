@@ -302,7 +302,14 @@ private:
         units::velocity::meters_per_second_t speed =
         units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
 
+    double calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm);
+    IShipEngine::EngineProperties
+        getMinEngineCharacteristicsForPropellerAtRPM(
+            units::angular_velocity::revolutions_per_minute_t rpm);
     IShipEngine::EngineProperties solveEnginePropellerIntersection();
+
+    bool mAllowPropellerEngineOptimization = false;
 
 };
 };
