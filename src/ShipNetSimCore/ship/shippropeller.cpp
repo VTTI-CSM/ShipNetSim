@@ -261,6 +261,10 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
         qFatal("Propeller expanded area ratio is not defined!");
     }
 
+    mAllowPropellerEngineOptimization =
+        Utils::getValueFromMap<bool>(parameters,
+        "AllowPropellerEngineOptimization", false);
+
     mExpandedBladeArea =
         mPropellerExpandedAreaRatio * mPropellerDiskArea;
 
@@ -349,9 +353,38 @@ double ShipPropeller::getPropellerEfficiency()
     }
     else
     {
-        // find intersection of engine curve and propeller curve.
-        auto newP = solveEnginePropellerIntersection();
-        mGearBox->setEngineTargetState(newP);
+        if (mAllowPropellerEngineOptimization) {
+            // find intersection of engine curve and propeller curve.
+            auto newP = solveEnginePropellerIntersection();
+            for (auto& engine : mGearBox->getEngines()) {
+                auto newPR =
+                    newP.breakPower.value() /
+                    engine->getEngineRatingProperties().breakPower.value();
+                engine->setEngineMaxPowerLoad(newPR);
+            }
+            // mGearBox->setEngineTargetState(newP);
+        }
+        else {
+            // check if engine power at this rpm is sufficient to rotate the
+            // propeller
+            if (calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(
+                    getRPM()) < 0)
+            {
+                auto newP =
+                    getMinEngineCharacteristicsForPropellerAtRPM(getRPM());
+                for (auto& engine : mGearBox->getEngines()) {
+                    auto newPR =
+                        newP.breakPower.value() /
+                        engine->getEngineRatingProperties().breakPower.value();
+                    engine->setEngineMaxPowerLoad(newPR);
+                }
+            } else {
+                mGearBox->setEngineMaxPowerLoad(1.0);
+            }
+
+            // keep the engine updated
+            mGearBox->updateGearboxOperationalState();
+        }
         // mGearBox->setEngineMaxPowerLoad(getOptimumJ(mHost->getSpeed()));
         return getOpenWaterEfficiency() * getRelativeEfficiency();
     }
@@ -434,6 +467,20 @@ double ShipPropeller::getThrustCoefficient(
     }
     else
     {
+        double speedOfAdvance = mHost->getCalmResistanceStrategy()->
+                                calc_SpeedOfAdvance(*mHost, speed).value();
+        double n = rpm.
+                   convert<units::angular_velocity::revolutions_per_second>().
+                   value();
+        std::cout << "ERROR AT " << "J: " << J
+                  << ", PD: " <<  PD
+                  << ", Va: " << speedOfAdvance
+                  << ", N: " << n
+                  << ", A/A: " << getPropellerExpandedAreaRatio()
+                  << ", salinity: " << env.salinity.value()
+                  << ", temp: " << env.temperature.value()
+                  << ", Z: " << getPropellerBladesCount()
+                  << ", RN: " << RN << "\n";
         // return 0.0;
         qFatal("Thrust Coefficient cannot be a negative value!"
                " Use a custom efficiency curve for the propeller "
@@ -517,8 +564,8 @@ double ShipPropeller::getAdvanceRatio(
                              ( n * getPropellerDiameter().value())) : 0.0;
 
     // confine j to be with [0, 1]
-    // if (j < 0) { return 0.0;}
-    // else if (j > 0) { return 1.0;}
+    if (j < 0.0) { return 0.0;}
+    else if (j > 1.0) { return 1.0;}
     return j;
 }
 
@@ -549,31 +596,6 @@ ShipPropeller::getRPMFromAdvanceRatioAndShipSpeed(
     return units::angular_velocity::revolutions_per_minute_t(n);
 }
 
-// double ShipPropeller::getOptimumJ(units::velocity::meters_per_second_t speed)
-// {
-//     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
-//     auto env = mHost->getCurrentEnvironment();
-//     double RN =
-//         hydrology::R_n(speed, mHost->getLengthBetweenPerpendiculars(),
-//                        env.salinity, env.temperature);
-//     double j = 0.0;
-//     double bestEff = 0.0, bestJ = 0.0;
-//     while (j < 1.0)
-//     {
-//         double approxKT = KT.getResult(j, PD, mPropellerExpandedAreaRatio,
-//                                        mNumberOfblades, RN);
-//         double approxKQ = KQ.getResult(j, PD, mPropellerExpandedAreaRatio,
-//                                        mNumberOfblades, RN);
-//         double eff = getOpenWaterEfficiency(j, approxKT, approxKQ);
-//         if (eff > bestEff)
-//         {
-//             bestEff = eff;
-//             bestJ = j;
-//         }
-//         j += 0.05;
-//     }
-//     return bestJ;
-// }
 
 double ShipPropeller::getOptimumJ(units::velocity::meters_per_second_t speed) {
     double PD = (getPropellerPitch()/getPropellerDiameter()).value();
@@ -653,37 +675,97 @@ units::power::kilowatt_t ShipPropeller::getRequiredShaftPowerAtRPM(
     units::velocity::meters_per_second_t speed)
 {
     // Calculate advance ratio (J) based on RPM and ship's speed
-    double J = getAdvanceRatio(rpm, speed);
+    // double J = getAdvanceRatio(rpm, speed);
 
     // Get thrust and torque coefficients for the given RPM (J ratio)
-    double KT_v = getThrustCoefficient(rpm, speed);
+    // double KT_v = getThrustCoefficient(rpm, speed);
     double KQ_v = getTorqueCoefficient(rpm, speed);
 
     // Calculate open water efficiency based on these coefficients
-    double openWaterEfficiency = getOpenWaterEfficiency(J, KT_v, KQ_v);
+    //double openWaterEfficiency = getOpenWaterEfficiency(J, KT_v, KQ_v);
+
+    auto waterDensity = hydrology::get_waterDensity(
+                            mHost->getCurrentEnvironment().salinity,
+                            mHost->getCurrentEnvironment().temperature).value();
+    auto prop5 = std::pow(getPropellerDiameter().value(), 5);
+    auto rps2 = std::pow(rpm.convert<units::angular_velocity::
+                                    revolutions_per_second>().value(), 2);
 
     // Torque is related to power and RPM
     units::torque::newton_meter_t torque =
         units::torque::newton_meter_t(
             KQ_v *
-            hydrology::get_waterDensity(
-                mHost->getCurrentEnvironment().salinity,
-                mHost->getCurrentEnvironment().temperature).value() *
-            std::pow(getPropellerDiameter().value(), 5) *
-            std::pow(rpm.convert<units::angular_velocity::
-                                 revolutions_per_second>().value(), 2));
+            waterDensity *
+            prop5 *
+            rps2);
 
-    // Calculate shaft power (P = 2π * n * torque)
+    // Calculate shaft power (P = 2π * n * torque)  ==> rad = rev * 2π
     units::power::kilowatt_t shaftPower =
         units::power::watt_t(
-            2.0f * units::constants::pi.value() *
             rpm.convert<units::angular_velocity::radians_per_second>().value() *
             torque.convert<units::torque::newton_meter>().value()).
                                           convert<units::power::kilowatt>();
 
+    // std::cout << KQ_v << ", " <<waterDensity << ", " << prop5 << ", " << rps2
+    //           << ", " << torque.value() << ", " << shaftPower.value() << "\n";
+
     // Return the required shaft power, adjusted by propeller
     // efficiency and shaft efficiency
-    return shaftPower * openWaterEfficiency * getShaftEfficiency();
+    return shaftPower; // * openWaterEfficiency * getShaftEfficiency();
+}
+
+double ShipPropeller::calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(
+    units::angular_velocity::revolutions_per_minute_t rpm)
+{
+    IShipEngine::EngineProperties enginePropertiesAtShaft =
+        mGearBox->getGearboxOperationalPropertiesAtRPM(rpm);
+    units::power::kilowatt_t enginePowerAtShaft =
+        enginePropertiesAtShaft.breakPower * mShaftEfficiency;
+
+    // Get the propeller's required shaft power at the same RPM
+    units::power::kilowatt_t propellerPower =
+        getRequiredShaftPowerAtRPM(rpm);
+
+    // Calculate the absolute difference between engine and propeller power
+    return enginePowerAtShaft.value() -
+           propellerPower.value();
+}
+
+IShipEngine::EngineProperties ShipPropeller::
+    getMinEngineCharacteristicsForPropellerAtRPM(
+    units::angular_velocity::revolutions_per_minute_t rpm)
+{
+    // Get the min and max RPM values from the gearbox
+    auto [minRPM, maxRPM] = mGearBox->getOutputRPMRange();
+
+    const double step = 1.0;  // Step size for the search
+
+    std::vector<std::pair<double, double>> mtemp;
+    for (double rpm = minRPM.value(); rpm < maxRPM.value(); rpm += step) {
+        auto r = units::angular_velocity::revolutions_per_minute_t(rpm);
+        mtemp.emplace_back(
+            rpm, calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(r));
+    }
+    auto it = std::min_element(mtemp.begin(), mtemp.end(),
+                               [](const std::pair<double, double>& a, const std::pair<double, double>& b) {
+                                   // Compare only non-negative differences
+                                   if (a.second < 0 && b.second < 0) return false; // Ignore both if negative
+                                   if (a.second < 0) return false; // Ignore a if negative
+                                   if (b.second < 0) return true;  // Ignore b if negative
+                                   return a.second < b.second;    // Standard comparison otherwise
+                               });
+    if (it != mtemp.end() && it->second >= 0) {
+        return mGearBox->getGearboxOperationalPropertiesAtRPM(
+            units::angular_velocity::revolutions_per_minute_t(it->first));
+    } else {
+        QString errorMessage =
+            QString("The required power to rotate the propeller within "
+                    "the RPM range (%1, %2) exceeds the engine's "
+                    "available power at these RPMs.")
+                .arg(minRPM.value())
+                .arg(maxRPM.value());
+        qFatal(errorMessage.toLocal8Bit().constData());
+    }
 }
 
 IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
@@ -693,31 +775,21 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
 
     const double step = 1.0;  // Step size for the search
 
-    auto calculateDifference = [this](double currentRPM) {
-        // Get engine power at the current RPM (from engine operational state)
-        units::angular_velocity::revolutions_per_minute_t rpm(currentRPM);
-        IShipEngine::EngineProperties enginePropertiesAtShaft =
-            mGearBox->getGearboxOperationalPropertiesAtRPM(rpm);
-        units::power::kilowatt_t enginePowerAtShaft =
-            enginePropertiesAtShaft.breakPower * mShaftEfficiency;
-
-        // Get the propeller's required shaft power at the same RPM
-        units::power::kilowatt_t propellerPower =
-            getRequiredShaftPowerAtRPM(rpm);
-
-        // Calculate the absolute difference between engine and propeller power
-        return std::abs(enginePowerAtShaft.value() -
-                        propellerPower.value());
+    auto calculateDifference = [this](double rpm) {
+        auto r = units::angular_velocity::revolutions_per_minute_t(rpm);
+        return calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(r);
     };
 
     // Start within the valid range
     double n = std::clamp(mLastBestN, minRPM.value(), maxRPM.value());
-    double bestDiff = calculateDifference(n);
 
-    bool searchPositive = true; // Initially, let's assume we
-                                // search in the positive direction.
-    bool updated = false;       // If the algorithm finds a better
-                                // diff, it will keep searching.
+    double bestDiff = calculateDifference(n);
+    bool validRPMFound = bestDiff >= 0; // Track if a valid RPM has been found
+
+    // Initially, let's assume we search in the positive direction.
+    bool searchPositive = true;
+    // If the algorithm finds a better diff, it will keep searching.
+    bool updated = false;
 
     do {
         updated = false;
@@ -726,11 +798,15 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
         // Ensure the new RPM is within the bounds of minRPM and maxRPM
         if (newN <= maxRPM.value() && newN >= minRPM.value()) {
             double newDiff = calculateDifference(newN);
-            if (newDiff < bestDiff) {
+
+            // Only consider newDiff if it's >= 0
+            if (newDiff >= 0 && newDiff < bestDiff) {
                 bestDiff = newDiff;
                 n = newN;
-                updated = true;  // Found a better diff, continue
-                                 // searching in the same direction
+                // Found a better diff, continue searching
+                // in the same direction
+                updated = true;
+                validRPMFound = true; // Mark that a valid RPM was found
             } else {
                 // Switch search direction if no improvement
                 searchPositive = !searchPositive;
@@ -738,17 +814,32 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
 
                 if (newN <= maxRPM.value() && newN >= minRPM.value()) {
                     newDiff = calculateDifference(newN);
-                    if (newDiff < bestDiff) {
+
+                    // Only accept newDiff if it's >= 0
+                    if (newDiff >= 0 && newDiff < bestDiff) {
                         bestDiff = newDiff;
                         n = newN;
-                        updated = true;  // Found a better diff,
-                                         // continue searching in
-                                         // this new direction
+                        // Found a better diff, continue searching
+                        // in this new direction
+                        updated = true;
+                        // Mark that a valid RPM was found
+                        validRPMFound = true;
                     }
                 }
             }
         }
     } while (updated);
+
+    // If no valid RPM was found, throw an error or handle it appropriately
+    if (!validRPMFound) {
+        QString errorMessage =
+            QString("The required power to rotate the propeller within "
+                    "the RPM range (%1, %2) exceeds the engine's "
+                    "available power at these RPMs.")
+                .arg(minRPM.value())
+                .arg(maxRPM.value());
+        qFatal(errorMessage.toLocal8Bit().constData());
+    }
 
     // Update the last known best RPM
     mLastBestN = n;
@@ -757,6 +848,7 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
     return mGearBox->getGearboxOperationalPropertiesAtRPM(
         units::angular_velocity::revolutions_per_minute_t(n));
 }
+
 
 
 
