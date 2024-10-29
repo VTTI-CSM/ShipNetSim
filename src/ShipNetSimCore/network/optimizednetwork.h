@@ -138,6 +138,8 @@ private:
     tiffFileData windNorthTiffData;
     tiffFileData windEastTiffData;
     tiffFileData waterDepthTiffData;
+    tiffFileData waveSpeedNorthwardTiffData;
+    tiffFileData waveSpeedEastwardTiffData;
 
     // Holds all the boundaries as polygons
     QVector<std::shared_ptr<Polygon>> mBoundaries;
