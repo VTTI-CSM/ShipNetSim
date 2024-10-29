@@ -452,6 +452,12 @@ void OptimizedNetwork::loadTiffData() {
 
     loadFirstAvailableTiffFile(
         waterDepthTiffData, NetworkDefaults::waterDepthTiffLocations());
+
+    loadFirstAvailableTiffFile(
+        waveSpeedNorthwardTiffData, NetworkDefaults::waveNorthSpeedTiffLocations());
+
+    loadFirstAvailableTiffFile(
+        waveSpeedEastwardTiffData, NetworkDefaults::waveEastSpeedTiffLocations());
 }
 
 std::pair<size_t, size_t>
@@ -699,15 +705,29 @@ AlgebraicVector::Environment OptimizedNetwork::
     env.windSpeed_Eastward =
         units::velocity::meters_per_second_t(windSpeed_Eastward);
 
+    double waveStokeSpeed_Eastward = getValue(waveSpeedEastwardTiffData);
+    double waveStokeSpeed_Northward = getValue(waveSpeedNorthwardTiffData);
+
+    double waveStokeSpeedResultant;
+    if (std::isnan(waveStokeSpeed_Eastward) ||
+        std::isnan(waveStokeSpeed_Northward)) {
+        waveStokeSpeedResultant = std::nan("noData");
+    } else {
+        waveStokeSpeedResultant =
+            sqrt(pow(waveStokeSpeed_Northward, 2) +
+                 pow(waveStokeSpeed_Eastward, 2));
+    }
+
     // Calculate resultant wave speed and wavelength
-    double waveSpeedResultant =
-        sqrt(pow(windSpeed_Northward, 2) + pow(windSpeed_Eastward, 2));
     double waveLength;
-    if (std::isnan(waveFrequency)) {
+    if (std::isnan(waveFrequency) || std::isnan(waveStokeSpeedResultant)
+        || std::isnan(waveHeightValue)) {
         waveLength = std::nan("noData");
     }
     else {
-        waveLength = waveSpeedResultant / waveFrequency;
+        waveLength = ( 2.0 * std::pow(units::constants::pi.value(), 2.0) *
+                      std::pow(waveHeightValue, 2.0) * waveFrequency ) /
+                     (waveStokeSpeedResultant);
     }
     // Clamping wavelength between 1.0 and 500.0 meters
     // waveLength = clamp(waveLength, 1.0, 500.0);
