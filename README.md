@@ -66,8 +66,7 @@ ShipNetSim requires no additional setup, as all third-party dependencies are bun
 ## Running
 
 ### GUI Interface
-- Launch the 'ShipNetSimGUI' application from the Start Menu or Desktop.
-- For a full breakdown of options and settings, refer to the in-app 'Help' menu.
+- The GUI is still under developement. 
 
 ### Shell Interface
 - Open a terminal or command prompt.
