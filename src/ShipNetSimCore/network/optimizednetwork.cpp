@@ -452,12 +452,6 @@ void OptimizedNetwork::loadTiffData() {
 
     loadFirstAvailableTiffFile(
         waterDepthTiffData, NetworkDefaults::waterDepthTiffLocations());
-
-    loadFirstAvailableTiffFile(
-        waveSpeedNorthwardTiffData, NetworkDefaults::waveNorthSpeedTiffLocations());
-
-    loadFirstAvailableTiffFile(
-        waveSpeedEastwardTiffData, NetworkDefaults::waveEastSpeedTiffLocations());
 }
 
 std::pair<size_t, size_t>
@@ -659,24 +653,14 @@ AlgebraicVector::Environment OptimizedNetwork::
 
     // Salinity (pptd)
     double salinityValue = getValue(salinityTiffData);
-    // salinityValue = std::isnan(salinityValue) ? 35.0 : salinityValue;
-    // // Clamping salinity between 0.0 and 40.0 pptd
-    // salinityValue = clamp(salinityValue, 0.0, 40.0);
     env.salinity = units::concentration::pptd_t(salinityValue);
 
     // Wave height (meters)
     double waveHeightValue = getValue(waveHeightTiffData);
-    // waveHeightValue = std::isnan(waveHeightValue) ? 0.0 : waveHeightValue;
-    // // Clamping wave height between 0.0 and 30.0 meters
-    // waveHeightValue = clamp(waveHeightValue, 0.0, 30.0);
     env.waveHeight = units::length::meter_t(waveHeightValue);
 
     // Wave period (seconds) and frequency (hertz)
     double wavePeriodValue = getValue(wavePeriodTiffData);
-    // wavePeriodValue = (wavePeriodValue <= 0.0 ||
-    //                    std::isnan(wavePeriodValue)) ? 40.0 : wavePeriodValue;
-    // // Clamping wave period between 1.0 and 60.0 seconds
-    // wavePeriodValue = clamp(wavePeriodValue, 1.0, 60.0);
     double waveFrequency = 0.0;
     if (std::isnan(wavePeriodValue)) {
         waveFrequency = std::nan("noData");
@@ -690,59 +674,30 @@ AlgebraicVector::Environment OptimizedNetwork::
 
     // Wind speed (Northward and Eastward, m/s)
     double windSpeed_Northward = getValue(windNorthTiffData);
-    // windSpeed_Northward =
-    //     std::isnan(windSpeed_Northward) ? 0.0 : windSpeed_Northward;
-    // // Clamping wind speed between -50.0 and 50.0 m/s
-    // windSpeed_Northward = clamp(windSpeed_Northward, -50.0, 50.0);
     env.windSpeed_Northward =
         units::velocity::meters_per_second_t(windSpeed_Northward);
 
     double windSpeed_Eastward = getValue(windEastTiffData);
-    // windSpeed_Eastward =
-    //     std::isnan(windSpeed_Eastward) ? 0.0 : windSpeed_Eastward;
-    // // Clamping wind speed between -50.0 and 50.0 m/s
-    // windSpeed_Eastward = clamp(windSpeed_Eastward, -50.0, 50.0);
     env.windSpeed_Eastward =
         units::velocity::meters_per_second_t(windSpeed_Eastward);
 
-    double waveStokeSpeed_Eastward = getValue(waveSpeedEastwardTiffData);
-    double waveStokeSpeed_Northward = getValue(waveSpeedNorthwardTiffData);
-
-    double waveStokeSpeedResultant;
-    if (std::isnan(waveStokeSpeed_Eastward) ||
-        std::isnan(waveStokeSpeed_Northward)) {
-        waveStokeSpeedResultant = std::nan("noData");
-    } else {
-        waveStokeSpeedResultant =
-            sqrt(pow(waveStokeSpeed_Northward, 2) +
-                 pow(waveStokeSpeed_Eastward, 2));
-    }
-
     // Calculate resultant wave speed and wavelength
     double waveLength;
-    if (std::isnan(waveFrequency) || std::isnan(waveStokeSpeedResultant)
-        || std::isnan(waveHeightValue)) {
+    if (std::isnan(wavePeriodValue)) {
         waveLength = std::nan("noData");
     }
     else {
-        waveLength = ( 2.0 * std::pow(units::constants::pi.value(), 2.0) *
-                      std::pow(waveHeightValue, 2.0) * waveFrequency ) /
-                     (waveStokeSpeedResultant);
+        waveLength = (units::constants::g.value() *
+                     std::pow(wavePeriodValue, 2.0)) /
+                     (2.0 * units::constants::pi);
     }
-    // Clamping wavelength between 1.0 and 500.0 meters
-    // waveLength = clamp(waveLength, 1.0, 500.0);
     env.waveLength = units::length::meter_t(waveLength);
 
     // Water depth (meters)
     double depthV = getValue(waterDepthTiffData);
-    // depthV = std::isnan(depthV) ? 50.0 : depthV;
-    // // Clamping water depth between 0.0 and
-    // // 11,000 meters (e.g., Mariana Trench)
-    // depthV = clamp(depthV, 0.0, 11000.0);
     env.waterDepth = units::length::meter_t(depthV);
 
     return env;
-
 }
 
 void OptimizedNetwork::setBoundaries(
@@ -784,5 +739,10 @@ ShortestPathResult OptimizedNetwork::findShortestPath(
 QString OptimizedNetwork::getRegionName()
 {
     return mRegionName;
+}
+
+void OptimizedNetwork::setRegionName(QString newName)
+{
+    mRegionName = newName;
 }
 };
