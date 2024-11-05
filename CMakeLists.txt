@@ -80,10 +80,16 @@ option(BUILD_SERVER "Build the SERVER components" ON)
 # Cache the option so it's stored between runs
 set(BUILD_SERVER ${BUILD_SERVER} CACHE BOOL "Build the SERVER components" FORCE)
 
+option(BUILD_INSTALLER "Build the installer" ON)
+set(BUILD_INSTALLER ${BUILD_INSTALLER} CACHE BOOL "Build the INSTALLER components" FORCE)
+
 # -------------------------------------------------------
 # --------------------- Libraries -----------------------
 # --------------- Define Default Paths ------------------
 # -------------------------------------------------------
+
+# Allow the user to specify the Qt binary directory
+set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary directory")
 
 if(BUILD_GUI)
     # Manually specify paths for osgEarth, OpenSceneGraph, and osgQt
