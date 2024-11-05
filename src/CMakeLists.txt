@@ -27,5 +27,6 @@ add_subdirectory(third_party)
 # add_subdirectory(test)
 
 # Add the subdirectory 'ShipNetSimInstaller' to the build.
-#add_subdirectory(ShipNetSimInstaller)
-
+if(BUILD_INSTALLER)
+    add_subdirectory(ShipNetSimInstaller)
+endif()
