@@ -423,14 +423,18 @@ void Simulator::initializeAllShips()
 //    }
 }
 
-void Simulator::initSimulation()
+void Simulator::initializeSimulation()
 {
+    connect(this, &Simulator::simulationFinished,
+            this, [this]() {
+                generateSummaryData();
+                exportSummaryToTXTFile();
+                finalizeSimulation();
+            });
+
     mTrajectoryFullPath = (mExportTrajectory)?
                                      QDir(mOutputLocation).filePath(
                                          mTrajectoryFilename) : "";
-
-    connect(this, &Simulator::simulationFinished,
-            this, [this]() { this->exportSimulationResults(true); });
 
     // define trajectory file and set it up
     if (this->mExportTrajectory)
@@ -469,7 +473,7 @@ void Simulator::initSimulation()
 void Simulator::runSimulation()
 {
 
-    initSimulation();
+    initializeSimulation();
 
     while (this->mSimulationTime <= this->mSimulationEndTime ||
            this->mRunSimulationEndlessly)
@@ -508,7 +512,7 @@ void Simulator::runSimulation()
         }
 
         // one step simulation
-        playShipsOneTimeStep();
+        runOneTimeStep();
 
         // ##################################################################
         // #             start: show progress on console                    #
@@ -534,7 +538,7 @@ void Simulator::runBy(units::time::second_t timeSteps) {
 
     while(mSimulationTime - initSimTime <= timeSteps) {
         // one step simulation
-        playShipsOneTimeStep();
+        runOneTimeStep();
     }
 
     emit simulationReachedReportingTime(mSimulationTime);
@@ -544,7 +548,24 @@ void Simulator::endSimulation() {
     emit simulationFinished();
 }
 
-void Simulator::exportSimulationResults(bool writeSummaryFile)
+void Simulator::restartSimulation()
+{
+    mInactiveShipsCount = 0;
+    mSimulationTime = units::time::second_t(0);
+    mProgress = -1;
+    mSummaryTextData = "";
+    for (auto &ship : mShips) {
+        ship->reset();
+    }
+    mIsSimulatorPaused = false;
+    mIsSimulatorRunning = true;
+    mTrajectoryFile.clearFile();
+    mSummaryFile.clearFile();
+
+    emit simulationRestarted();
+}
+
+void Simulator::generateSummaryData()
 {
     QMutexLocker locker(&mutex);
 
@@ -555,8 +576,8 @@ void Simulator::exportSimulationResults(bool writeSummaryFile)
         std::chrono::system_clock::to_time_t(
         std::chrono::system_clock::now());
     double difTime = difftime(fin_time, mInitTime);
-    QString exportLine;
-    QTextStream stream(&exportLine);
+    QString mSummaryTextData;
+    QTextStream stream(&mSummaryTextData);
 
     stream
         << "~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~.~\n"
@@ -668,38 +689,36 @@ void Simulator::exportSimulationResults(bool writeSummaryFile)
             << "Total Energy Consumed                                                          \x1D : " << ship->getCumConsumedEnergy().value() << "\n";
     }
 
-    QString summaryFullPath =
+    mSummaryFullPath =
         QDir(mOutputLocation).filePath(mSummaryFileName);
-
-    // Set up the summary file information
-    if (writeSummaryFile) {
-        this->mSummaryFile.initTXT(summaryFullPath);
-        // setup the summary file
-        this->mSummaryFile.writeFile(exportLine.replace("\x1D", ""));
-    }
 
     // ##################################################################
     // #                       end: summary file                      #
     // ##################################################################
 
     QVector<QPair<QString, QString>> shipsSummaryData;
-    shipsSummaryData = Utils::splitStringStream(exportLine, "\x1D :");
+    shipsSummaryData = Utils::splitStringStream(mSummaryTextData, "\x1D :");
 
     ShipsResults rs =
-        ShipsResults(shipsSummaryData, mTrajectoryFullPath, summaryFullPath);
+        ShipsResults(shipsSummaryData, mTrajectoryFullPath, mSummaryFullPath);
 
     // fire the signal of available simulation results
     emit this->simulationResultsAvailable(rs);
-
-    // make sure the files are closed!
-    mTrajectoryFile.close();
-
-    if (writeSummaryFile) {
-        mSummaryFile.close();
-    }
 }
 
-void Simulator::playShipsOneTimeStep() {
+void Simulator::exportSummaryToTXTFile() {
+    this->mSummaryFile.initTXT(mSummaryFullPath);
+    // setup the summary file
+    this->mSummaryFile.writeFile(mSummaryTextData.replace("\x1D", ""));
+    // Close the file
+    this->mSummaryFile.close();
+}
+
+void Simulator::finalizeSimulation() {
+    this->mTrajectoryFile.close();
+}
+
+void Simulator::runOneTimeStep() {
 
     QVector<std::shared_ptr<Ship>> shipsToSimulate;
 
@@ -944,6 +963,8 @@ void Simulator::pauseSimulation() {
     mutex.lock();
     mIsSimulatorPaused = true;
     mutex.unlock();
+
+    emit simulationPaused();
 }
 
 void Simulator::resumeSimulation() {
@@ -951,6 +972,8 @@ void Simulator::resumeSimulation() {
     mIsSimulatorPaused = false;
     mutex.unlock();
     pauseCond.wakeAll(); // This will wake up the thread
+
+    emit simulationResumed();
 }
 
 void Simulator::stopSimulation() {
@@ -959,6 +982,8 @@ void Simulator::stopSimulation() {
     mIsSimulatorPaused = false;   // Ensure the simulation is not paused
     mutex.unlock();
     pauseCond.wakeAll();  // Wake up any paused threads
+
+    emit simulationStopped();
 }
 
 }

@@ -96,6 +96,9 @@ private:
     /** Number of ships that are inactive due to high resistance */
     int mInactiveShipsCount = 0;
 
+    QString mSummaryTextData = "";
+    QString mSummaryFullPath = "";
+
 
     /**
      * Determines if we can check all ships reached destination
@@ -165,15 +168,6 @@ public:
      */
     void studyShipsResistance();
 
-    /**
-     * Play all ships one time step and advance the simulator clock
-     *
-     * @author	Ahmed Aredah
-     * @date	2/28/2023
-     *
-     * @param 	ship	The ship.
-     */
-    void playShipsOneTimeStep();
 
     /**
      * @brief add a ship to the simulator
@@ -319,6 +313,14 @@ signals:
      */
     void simulationFinished();
 
+    void simulationPaused();
+
+    void simulationResumed();
+
+    void simulationStopped();
+
+    void simulationRestarted();
+
     void simulationReachedReportingTime(units::time::second_t simulationTime);
 
 public slots:
@@ -326,7 +328,21 @@ public slots:
     /**
      * @brief initialize the simulator.
      */
-    void initSimulation();
+    void initializeSimulation();
+
+    /**
+     * Play all ships one time step and advance the simulator clock
+     *
+     * @author	Ahmed Aredah
+     * @date	2/28/2023
+     *
+     * @param 	ship	The ship.
+     */
+    void runOneTimeStep();
+
+    void generateSummaryData();
+    void exportSummaryToTXTFile();
+    void finalizeSimulation();
 
     /**
      * Executes the 'simulator' operation
@@ -341,11 +357,6 @@ public slots:
      * @param timeSteps number of steps to run the simulation.
      */
     void runBy(units::time::second_t timeSteps);
-
-    /**
-     * @brief Close the simulator, open streams, and write summary file.
-     */
-    void exportSimulationResults(bool writeSummaryFile = true);
 
     /**
      * @brief pause the simulation
@@ -366,6 +377,11 @@ public slots:
      * @brief end the simulation and export summary.
      */
     void endSimulation();
+
+    /**
+     * @brief restart the Simulation.
+     */
+    void restartSimulation();
 
 private:
     QMutex mutex;
