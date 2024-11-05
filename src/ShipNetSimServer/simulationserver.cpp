@@ -16,45 +16,51 @@ static const std::string RECEIVING_ROUTING_KEY = "CargoNetSim.Command.ShipNetSim
 static const std::string PUBLISHING_ROUTING_KEY = "CargoNetSim.Response.ShipNetSim";
 
 SimulationServer::SimulationServer(QObject *parent) :
-    QObject(parent), mWorkerBusy(false),
-    mSimulationWorker(new StepSimulationWorker(this))
+    QObject(parent), mWorkerBusy(false)
 {
     qRegisterMetaType<ShipParamsMap>("ShipParamsMap");
 
     // Connect the worker ready signal to resume RabbitMQ consumption
-    connect(mSimulationWorker.get(), &SimulationWorker::workerReady,
-            this, &SimulationServer::onWorkerReady);
+    // connect(&SimulatorAPI::InteractiveMode::getInstance(),
+    //         &SimulatorAPI::workersReady, this,
+    //         &SimulationServer::onWorkerReady);
     // Connect worker signals to slots
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulatorNetworkLoaded, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::networkLoaded, this,
             &SimulationServer::onSimulationNetworkLoaded);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulatorDefined, this,
-            &SimulationServer::onSimulationInitialized);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulatorRestarted, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::simulationCreated, this,
+            &SimulationServer::onSimulationCreated);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::simulationAdvanced, this,
+            &SimulationServer::onSimulationAdvanced);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::simulationsRestarted, this,
             &SimulationServer::onSimulationRestarted);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulatorEnded, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &::SimulatorAPI::simulationsEnded, this,
             &SimulationServer::onSimulationEnded);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::shipAddedToSimulator, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &::SimulatorAPI::shipsAddedToSimulation, this,
             &SimulationServer::onShipAddedToSimulator);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::shipReachedDestination, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &::SimulatorAPI::shipsReachedDestination, this,
             &SimulationServer::onShipReachedDestination);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulationResultsAvailable, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::simulationResultsAvailable, this,
             &SimulationServer::onSimulationResultsAvailable);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::shipCurrentStateRequested, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::shipCurrentStateAvailable, this,
             &SimulationServer::onShipStateAvailable);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::simulatorCurrentStateRequested, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::simulationCurrentStateAvailable, this,
             &SimulationServer::onSimulatorStateAvailable);
-    connect(mSimulationWorker.get(),
-            &StepSimulationWorker::errorOccurred, this,
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::errorOccurred, this,
             &SimulationServer::onErrorOccurred);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::containersAddedToShip, this,
+            &SimulationServer::onContainersAddedToShip);
 }
 
 SimulationServer::~SimulationServer() {
@@ -375,7 +381,7 @@ void SimulationServer::consumeFromRabbitMQ() {
 }
 
 void SimulationServer::onDataReceivedFromRabbitMQ(
-    const QJsonObject &message,
+    QJsonObject &message,
     const amqp_envelope_t &envelope) {
 
     {
@@ -394,41 +400,62 @@ void SimulationServer::onDataReceivedFromRabbitMQ(
 }
 
 
-void SimulationServer::processCommand(const QJsonObject &jsonMessage) {
+void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     QString command = jsonMessage["command"].toString();
 
     if (command == "defineSimulator") {
+        QString networkPath =
+            jsonMessage["networkFilePath"].toString();
+        QString networkName =
+            jsonMessage["networkName"].toString();
         double timeStepValue = jsonMessage["timeStep"].toDouble();
 
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "defineSimulator",
-            Qt::QueuedConnection,
-            Q_ARG(double, timeStepValue),
-            Q_ARG(QJsonObject, jsonMessage));
-    } else if (command == "restartSimulator") {
-        double timeStepValue = jsonMessage["timeStep"].toDouble();
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "restartSimulator",
-            Qt::QueuedConnection, Q_ARG(double, timeStepValue));
+        auto net =
+            SimulatorAPI::InteractiveMode::loadNetwork(networkPath,
+                                                       networkName);
+
+        auto shipsList = SimulatorAPI::loadShips(jsonMessage, net);
+
+        SimulatorAPI::InteractiveMode::createNewSimulationEnvironment(
+            net, shipsList, units::time::second_t(timeStepValue), true,
+            SimulatorAPI::Mode::Async);
     } else if (command == "runSimulator") {
+        QVector<QString> nets;
+        QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
+        // Iterate over the QJsonArray and populate the QVector<QString>
+        for (const QJsonValue &value : networkNamesArray) {
+            if (value.isString()) {
+                nets.append(value.toString());
+            }
+        }
         double runBy = jsonMessage["byTimeSteps"].toDouble(60);
-        QMetaObject::invokeMethod(mSimulationWorker.get(), "runSimulation",
-                                  Qt::QueuedConnection, Q_ARG(double, runBy));
-    } else if (command == "pauseSimulator") {
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "pauseSimulator", Qt::QueuedConnection);
-    } else if (command == "resumeSimulator") {
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "resumeSimulator", Qt::QueuedConnection);
+        SimulatorAPI::InteractiveMode::runSimulation(
+            nets, units::time::second_t(runBy));
     } else if (command == "endSimulator") {
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "endSimulator", Qt::QueuedConnection);
-    } else if (command == "addShips") {
-        QMetaObject::invokeMethod(
-            mSimulationWorker.get(), "addShipsToSimulation",
-            Qt::QueuedConnection, Q_ARG(QJsonObject, jsonMessage));
-    }else {
+        QVector<QString> nets;
+        QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
+        // Iterate over the QJsonArray and populate the QVector<QString>
+        for (const QJsonValue &value : networkNamesArray) {
+            if (value.isString()) {
+                nets.append(value.toString());
+            }
+        }
+        SimulatorAPI::InteractiveMode::endSimulation(nets);
+    } else if (command == "addShipsToSimulator") {
+        QString net =
+            jsonMessage["networkName"].toString();
+        auto ships = SimulatorAPI::loadShips(jsonMessage, net);
+        SimulatorAPI::InteractiveMode::addShipToSimulation(net, ships);
+    } else if (command == "addContainers") {
+        QString net =
+            jsonMessage["networkName"].toString();
+        QString shipID =
+            jsonMessage["shipID"].toString();
+        SimulatorAPI::InteractiveMode::addContainersToShip(net, shipID,
+                                                           jsonMessage);
+    } else {
         qWarning() << "Unrecognized command:" << command;
+        onWorkerReady();
     }
 
 }
@@ -467,61 +494,107 @@ void SimulationServer::sendRabbitMQMessage(const QString &routingKey,
 
 
 // simulation events handling
-void SimulationServer::onSimulationNetworkLoaded() {
+void SimulationServer::onSimulationNetworkLoaded(QString networkName) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationNetworkLoaded";
+    jsonMessage["networkName"] = networkName;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationInitialized() {
+void SimulationServer::onSimulationCreated(QString networkName) {
     QJsonObject jsonMessage;
-    jsonMessage["event"] = "simulationInitialized";
+    jsonMessage["event"] = "simulationCreated";
+    jsonMessage["networkName"] = networkName;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationPaused() {
+void SimulationServer::onSimulationPaused(QVector<QString> networkNames) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationPaused";
+    QJsonArray networkNamesArray;
+    for (const QString &name : networkNames) {
+        networkNamesArray.append(name);
+    }
+    jsonMessage["networkNames"] = networkNamesArray;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationResumed() {
+void SimulationServer::onSimulationResumed(QVector<QString> networkNames) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationResumed";
+    QJsonArray networkNamesArray;
+    for (const QString &name : networkNames) {
+        networkNamesArray.append(name);
+    }
+    jsonMessage["networkNames"] = networkNamesArray;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationRestarted() {
+void SimulationServer::onSimulationRestarted(QVector<QString> networkNames) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationRestarted";
+    QJsonArray networkNamesArray;
+    for (const QString &name : networkNames) {
+        networkNamesArray.append(name);
+    }
+    jsonMessage["networkNames"] = networkNamesArray;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationEnded() {
+void SimulationServer::onSimulationEnded(QVector<QString> networkNames) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationEnded";
+    QJsonArray networkNamesArray;
+    for (const QString &name : networkNames) {
+        networkNamesArray.append(name);
+    }
+    jsonMessage["networkNames"] = networkNamesArray;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationAdvanced(double newSimulationTime) {
+void SimulationServer::onSimulationAdvanced(
+    QMap<QString, units::time::second_t> newSimulationTime) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationAdvanced";
-    jsonMessage["newSimulationTime"] = newSimulationTime;
     jsonMessage["host"] = ShipNetSim_NAME;
+
+    QJsonObject jsonNetworkTimes;
+    for (auto it = newSimulationTime.constBegin();
+         it != newSimulationTime.constEnd(); ++it) {
+        // Add each network name (key) and its corresponding
+        // simulation time (value) to the jsonNetworkTimes object
+        jsonNetworkTimes[it.key()] = it.value().value();
+    }
+    // Add the network names to the JSON message
+    jsonMessage["networkNamesTimes"] = jsonNetworkTimes;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
 void SimulationServer::onSimulationProgressUpdate(int progressPercentage)
@@ -532,15 +605,24 @@ void SimulationServer::onSimulationProgressUpdate(int progressPercentage)
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onShipAddedToSimulator(const QString shipID) {
+void SimulationServer::onShipAddedToSimulator(const QString networkName,
+                                              const QVector<QString> shipIDs) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "shipAddedToSimulator";
-    jsonMessage["shipID"] = shipID;
+    QJsonArray shipsJson;
+    for (const auto& shipID : shipIDs) {
+        shipsJson.append(shipID);
+    }
+    jsonMessage["shipIDs"] = shipsJson;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
 void SimulationServer::onShipReachedDestination(const QJsonObject shipStatus) {
@@ -550,6 +632,8 @@ void SimulationServer::onShipReachedDestination(const QJsonObject shipStatus) {
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
 void SimulationServer::onShipStateAvailable(const QJsonObject shipState)  {
@@ -559,6 +643,8 @@ void SimulationServer::onShipStateAvailable(const QJsonObject shipState)  {
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
 void SimulationServer::
@@ -570,20 +656,40 @@ void SimulationServer::
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }
 
-void SimulationServer::onSimulationResultsAvailable(ShipsResults& results) {
+void SimulationServer::onSimulationResultsAvailable(
+    QMap<QString, ShipsResults> &results)
+{
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationResultsAvailable";
 
-    // Add the results to the JSON
     QJsonObject resultData;
-    resultData = results.toJson();
-
+    for (auto it = results.constBegin(); it != results.constEnd(); ++it) {
+        resultData.insert(it.key(), it.value().toJson());
+    }
     jsonMessage["results"] = resultData;
+
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
+}
+
+void SimulationServer::onContainersAddedToShip(QString networkName,
+                                                QString shipID)
+{
+    QJsonObject jsonMessage;
+    jsonMessage["event"] = "containersAddedToTrain";
+    jsonMessage["networkName"] = networkName;
+    jsonMessage["trainID"] = shipID;
+
+    sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
+                        jsonMessage);
+    onWorkerReady();
 }
 
 void SimulationServer::onErrorOccurred(const QString &errorMessage) {
@@ -593,4 +699,6 @@ void SimulationServer::onErrorOccurred(const QString &errorMessage) {
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
+
+    onWorkerReady();
 }

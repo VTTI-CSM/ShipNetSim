@@ -2,7 +2,7 @@
 #include "ship/shipsList.h"
 #include "network/networkdefaults.h"
 #include "utils/utils.h"
-#include "simulatorapi.h"
+#include "osimulatorapi.h"
 
 SimulationWorker::SimulationWorker(QObject *parent)
     : QObject(parent) {}
