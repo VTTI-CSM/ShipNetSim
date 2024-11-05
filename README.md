@@ -35,12 +35,16 @@ ShipNetSim is an open-source simulation software designed to analyze ship energy
 ## How to Cite
 
 ```bibtex
-@article{aredah2024shipnetsim,
-  title={Modeling Longitudinal Dynamics, Energy Efficiency, and Carbon Footprint of Cargo Vessels},
-  author={Aredah, Ahmed S and Rakha, Hesham A},
-  conference={TRB AM 2025},
-  year={2025},
-}
+@INPROCEEDINGS{10733439,
+  author={Aredah, Ahmed and Rakha, Hesham A.},
+  booktitle={2024 IEEE International Conference on Smart Mobility (SM)}, 
+  title={ShipNetSim: A Multi-Ship Simulator for Evaluating Longitudinal Motion, Energy Consumption, and Carbon Footprint of Ships}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={116-121},
+  keywords={Measurement;Energy consumption;Adaptation models;Carbon dioxide;Trajectory;Fuels;Marine vehicles;Greenhouse gases;Carbon footprint;ShipNetSim;Ships Large-Scale Simulation;Ships Longitudinal Motion;Energy Consumption;Environmental Footprint},
+  doi={10.1109/SM63044.2024.10733439}}
 ```
 
 ## Features
