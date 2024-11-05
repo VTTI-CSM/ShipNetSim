@@ -23,6 +23,10 @@
 #include "ship/shipsList.h"
 #include "utils/utils.h"
 #include "utils/updatechecker.h"
+#include <QObject>
+#include <QEventLoop>
+#include "utils/shipscommon.h"
+
 
 // Compilation date and time are set by the preprocessor.
 const std::string compilation_date = __DATE__;
@@ -79,6 +83,7 @@ int main(int argc, char *argv[])
     UpdateChecker updateChecker;
     QEventLoop loop; // event loop for the checker
 
+    qRegisterMetaType<ShipsResults>("ShipsResults");
 
     // Internationalization support: Translator object
     // and loading translation files.
@@ -332,11 +337,11 @@ int main(int argc, char *argv[])
             auto shipsDetails =
                 ShipsList::readShipsFile(shipsFile, nullptr, true);
             ships = ShipsList::loadShipsFromParameters(shipsDetails);
-            SimulatorAPI::ContinuousMode::defineSimulator(
+            SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
                 nullptr, ships,
                 units::time::second_t(timeStep), false);
 
-            sim = &SimulatorAPI::ContinuousMode::getSimulator();
+            sim = SimulatorAPI::ContinuousMode::getSimulator("Not Defined");
 
             // The flag is set, study resistance
             sim->setExportInstantaneousTrajectory(true,
@@ -367,7 +372,8 @@ int main(int argc, char *argv[])
             std::cout <<"\nLoading Networks!              \n";
 
             // Initialize network and simulator with config.
-            net = new OptimizedNetwork(waterBoundariesFile);
+            net = SimulatorAPI::ContinuousMode::loadNetwork(
+                waterBoundariesFile, "Global Network");
 
             std::cout <<"\nLoading Ships!                 \n";
             auto shipsDetails =
@@ -383,10 +389,14 @@ int main(int argc, char *argv[])
 
 
             std::cout <<"\nPutting Things Together!       \n";
-            SimulatorAPI::ContinuousMode::defineSimulator(
+            SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
                 net, ships, units::time::second_t(timeStep), false);
 
-            sim = &SimulatorAPI::ContinuousMode::getSimulator();
+            sim = SimulatorAPI::ContinuousMode::getSimulator("Global Network");
+
+            if (!sim) {
+                qFatal("Error in initializing the simulation!");
+            }
 
             // Set up simulator output location.
             sim->setOutputFolderLocation(exportLocation);
@@ -396,7 +406,20 @@ int main(int argc, char *argv[])
                                                   instaTrajFilename);
             // run the actual simulation
             std::cout <<"\nStarting Simulation!           \n";
-            SimulatorAPI::ContinuousMode::runSimulation();
+
+            QEventLoop loop;
+            QObject::connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                             &SimulatorAPI::simulationFinished,
+                             &loop, &QEventLoop::quit);
+            QObject::connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                             &SimulatorAPI::errorOccurred,
+                             &loop, [&loop](QString error) {
+                                 std::cout << "Error Occured: "
+                                           << error.toStdString() << "\n";
+                                 loop.quit();
+                             });
+            SimulatorAPI::ContinuousMode::runSimulation({"Global Network"});
+            loop.exec();
         }
         std::cout << "\nOutput folder: " <<
             sim->getOutputFolder().toStdString() << std::endl;
