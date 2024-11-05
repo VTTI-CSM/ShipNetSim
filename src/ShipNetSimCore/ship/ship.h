@@ -1293,6 +1293,7 @@ public:
 #ifdef BUILD_SERVER_ENABLED
     QVector<ContainerCore::Container*> getLoadedContainers() const;
     void addContainer(ContainerCore::Container *container);
+    void addContainers(QJsonObject json);
 #endif
 
 

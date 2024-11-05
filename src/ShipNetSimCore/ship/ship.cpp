@@ -388,8 +388,6 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
     QVector<IEnergySource*> rawVector = [&](){ QVector<IEnergySource*> r; for(auto& sp : mEnergySources) r.push_back(sp.get()); return r; }();
     for (int i = 0; i < propellerCount; i++)
     {
-        qDebug() << "--- > defining the propellers!";
-
         ShipGearBox* gearbox = new ShipGearBox();
         QVector<IShipEngine *> engines;
         engines.reserve(engineCountPerPropeller); // Reserve space
@@ -398,7 +396,6 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
         {
             ShipEngine *engine = new ShipEngine();
             try {
-                qDebug() << "----> Initting the engine!";
                 engine->initialize(
                     this,
                     rawVector,
@@ -2591,6 +2588,10 @@ void Ship::addContainer(ContainerCore::Container* container) {
         mLoadedContainers.addContainer(container->getContainerID(), container,
                                        std::nan(""), std::nan(""));
     }
+}
+
+void Ship::addContainers(QJsonObject json) {
+    mLoadedContainers.addContainers(json);
 }
 #endif
 
