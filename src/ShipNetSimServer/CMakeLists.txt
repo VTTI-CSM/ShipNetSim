@@ -21,7 +21,7 @@ configure_file(${CMAKE_SOURCE_DIR}/src/ShipNetSimServer/VersionConfig.h.in
 # listing the required source and header files
 add_executable(${SHIPNETSIM_SERVER_NAME}
     simulationserver.h simulationserver.cpp
-    simulationworker.h simulationworker.cpp
+    # simulationworker.h simulationworker.cpp
     main.cpp
 )
 
