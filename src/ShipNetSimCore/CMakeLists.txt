@@ -50,9 +50,9 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   network/seaport.h network/seaport.cpp
   utils/updatechecker.h utils/updatechecker.cpp
   network/networkdefaults.h
-  simulatorapi.h simulatorapi.cpp
   utils/shipscommon.h
   ship/cyberattack.h ship/cyberattack.cpp
+  simulatorapi.h simulatorapi.cpp
 )
 
 # Define SHIPNETSIM_LIBRARY during compilation to activate symbol export
