@@ -105,5 +105,17 @@ ShipNetSim.exe -s "path\to\ships\file"
 ## Contributing
 Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
 
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END
+
+
 ## License
 ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
