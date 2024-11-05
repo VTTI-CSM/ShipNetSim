@@ -1,6 +1,25 @@
 {
   "projectName": "ShipNetSim",
-  "projectOwner": ["VTTI-CSM", "AhmedAredah"],
-  "repo": "https://github.com/VTTI-CSM/ShipNetSim",
-  "contributors": []
+  "projectOwner": "AhmedAredah",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": true,
+  "commitConvention": "angular",
+  "contributors": [
+    {
+      "login": "AhmedAredah",
+      "name": "Ahmed Aredah",
+      "avatar_url": "https://avatars.githubusercontent.com/u/77444744?v=4",
+      "profile": "https://github.com/AhmedAredah",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "linkToUsage": true
 }
