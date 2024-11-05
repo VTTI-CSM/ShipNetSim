@@ -166,6 +166,7 @@ public:
                const bool hasHeaders = false,
                const QString& separator = ",");
     bool writeLine(const QString &line);
+    bool clearFile();
     void close();
 };
 
@@ -184,6 +185,7 @@ public:
     Table read(const QVector<QString>& typeSequence,
                       const QString& separator = ",");
     bool writeFile(QString &data);
+    bool clearFile();
     void close();
 };
 

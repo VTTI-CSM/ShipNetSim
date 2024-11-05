@@ -59,6 +59,23 @@ bool Data::CSV::writeLine(const QString &line) {
     return true;
 }
 
+bool Data::CSV::clearFile()
+{
+    if (mFile.isOpen()) {
+        mFile.close();  // Close the file if it’s open
+    }
+
+    // Open the file in write-only mode without append to truncate its content
+    if (!mFile.open(QIODevice::WriteOnly |
+                    QIODevice::Text |
+                    QIODevice::Truncate)) {
+        return false;  // Return false if unable to open the file
+    }
+
+    mFile.close();  // Close immediately after truncation
+    return true;    // Indicate success
+}
+
 Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
                             const bool hasHeaders,
                             const QString& separator)
@@ -296,6 +313,23 @@ bool Data::TXT::writeFile(QString &data)
     }
 
     return true;
+}
+
+bool Data::TXT::clearFile()
+{
+    if (mFile.isOpen()) {
+        mFile.close();  // Close the file if it’s open
+    }
+
+    // Open the file in write-only mode without append to truncate its content
+    if (!mFile.open(QIODevice::WriteOnly |
+                    QIODevice::Text |
+                    QIODevice::Truncate)) {
+        return false;  // Return false if unable to open the file
+    }
+
+    mFile.close();  // Close immediately after truncation
+    return true;    // Indicate success
 }
 
 void Data::TXT::close()
