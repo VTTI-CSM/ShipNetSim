@@ -102,6 +102,9 @@ ShipNetSim.exe -s "path\to\ships\file"
      - Fellow of the Canadian Academy of Engineering
      - Fellow of IEEE
 
+## License
+ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
+
 ## Contributing
 Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
 
@@ -110,20 +113,11 @@ Interested in contributing? Please see our CONTRIBUTING.md file for guidelines o
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/AhmedAredah"><img src="https://avatars.githubusercontent.com/u/77444744?v=4?s=100" width="100px;" alt="Ahmed Aredah"/><br /><sub><b>Ahmed Aredah</b></sub></a><br /><a href="#projectManagement-AhmedAredah" title="Code">📆</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/heshamrakha"><img src="https://avatars.githubusercontent.com/u/11538915?v=4?s=100" width="100px;" alt="Hesham Rakha"/><br /><sub><b>Hesham Rakha</b></sub></a><br /><a href="#projectManagement-heshamrakha" title="Project Management">📆</a></td>
-    </tr>
-  </tbody>
-</table>
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
 
-<!-- ALL-CONTRIBUTORS-LIST:END
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 
-## License
-ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
+
