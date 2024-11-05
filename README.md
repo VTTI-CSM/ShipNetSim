@@ -35,12 +35,16 @@ ShipNetSim is an open-source simulation software designed to analyze ship energy
 ## How to Cite
 
 ```bibtex
-@article{aredah2024shipnetsim,
-  title={Modeling Longitudinal Dynamics, Energy Efficiency, and Carbon Footprint of Cargo Vessels},
-  author={Aredah, Ahmed S and Rakha, Hesham A},
-  conference={TRB AM 2025},
-  year={2025},
-}
+@INPROCEEDINGS{10733439,
+  author={Aredah, Ahmed and Rakha, Hesham A.},
+  booktitle={2024 IEEE International Conference on Smart Mobility (SM)}, 
+  title={ShipNetSim: A Multi-Ship Simulator for Evaluating Longitudinal Motion, Energy Consumption, and Carbon Footprint of Ships}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={116-121},
+  keywords={Measurement;Energy consumption;Adaptation models;Carbon dioxide;Trajectory;Fuels;Marine vehicles;Greenhouse gases;Carbon footprint;ShipNetSim;Ships Large-Scale Simulation;Ships Longitudinal Motion;Energy Consumption;Environmental Footprint},
+  doi={10.1109/SM63044.2024.10733439}}
 ```
 
 ## Features
@@ -66,8 +70,7 @@ ShipNetSim requires no additional setup, as all third-party dependencies are bun
 ## Running
 
 ### GUI Interface
-- Launch the 'ShipNetSimGUI' application from the Start Menu or Desktop.
-- For a full breakdown of options and settings, refer to the in-app 'Help' menu.
+- The GUI is still under developement. 
 
 ### Shell Interface
 - Open a terminal or command prompt.
@@ -99,8 +102,46 @@ ShipNetSim.exe -s "path\to\ships\file"
      - Fellow of the Canadian Academy of Engineering
      - Fellow of IEEE
 
+## License
+ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
+
 ## Contributing
 Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
 
-## License
-ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/AhmedAredah"><img src="https://avatars.githubusercontent.com/u/77444744?v=4?s=100" width="100px;" alt="Ahmed Aredah"/><br /><sub><b>Ahmed Aredah</b></sub></a><br /><a href="https://github.com/AhmedAredah/ShipNetSim/commits?author=AhmedAredah" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/heshamrakha"><img src="https://avatars.githubusercontent.com/u/11538915?v=4?s=100" width="100px;" alt="Hesham Rakha"/><br /><sub><b>Hesham Rakha</b></sub></a><br /><a href="#projectManagement-heshamrakha" title="Project Management">📆</a></td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td align="center" size="13px" colspan="7">
+        <img src="https://raw.githubusercontent.com/all-contributors/all-contributors-cli/1b8533af435da9854653492b1327a23a4dbd0a10/assets/logo-small.svg">
+          <a href="https://all-contributors.js.org/docs/en/bot/usage">Add your contributions</a>
+        </img>
+      </td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+
+
