@@ -1,7 +1,4 @@
 <h1 align="center">
-<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
   <a href="https://github.com/VTTI-CSM/ShipNetSim">
     <img src="https://github.com/user-attachments/assets/60d3ed30-01fa-4f21-832e-93d72749031b" alt="NeTrainSim"/>
 
