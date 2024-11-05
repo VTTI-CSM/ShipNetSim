@@ -2,9 +2,12 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include "SimulationServer.h"
+#include "utils/shipscommon.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+
+    qRegisterMetaType<ShipsResults>("ShipsResults");
 
     // Set up the command-line parser
     QCommandLineParser parser;
