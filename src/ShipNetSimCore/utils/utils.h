@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QDir>
 #include "../export.h"
+#include <QCoreApplication>
 
 namespace ShipNetSimCore
 {
@@ -13,6 +14,57 @@ namespace ShipNetSimCore
 namespace Utils
 {
 
+/**
+ * @brief Retrieves the directory containing the executable.
+ *
+ * This function uses Qt's QCoreApplication to find the absolute path
+ * of the directory where the executable is located. This is useful for
+ * accessing resources or other files relative to the executable's location.
+ *
+ * @return QString Returns the absolute path of the executable directory.
+ */
+SHIPNETSIM_EXPORT QString getExecutableDirectory();
+
+/**
+ * @brief Retrieves the root directory path of the application.
+ *
+ * This function determines the root directory by navigating up two levels
+ * from the executable directory, typically used to access the project's
+ * root directory where configuration or shared resources are stored.
+ *
+ * @return QString Returns the absolute path of the root directory.
+ */
+SHIPNETSIM_EXPORT QString getRootDirectory();
+
+/**
+ * @brief Retrieves the data directory path relative to the root directory.
+ *
+ * This function constructs the path to a commonly used 'data' directory,
+ * which is assumed to be located within the root directory of the application.
+ * It is primarily used to store and retrieve application data files like
+ * configurations, databases, and other user or application specific files.
+ *
+ * @return QString Returns the absolute path of the data directory.
+ */
+SHIPNETSIM_EXPORT QString getDataDirectory();
+
+/**
+ * @brief Searches a list of file paths and extensions to find the first
+ * existing file.
+ *
+ * This function iterates over a list of file paths, appending provided
+ * extensions to each path, and checks for the existence of these files
+ * in the system. It returns the first path-extension combination found
+ * to exist. If no existing file is found, an empty string is returned.
+ *
+ * @param filePaths A QVector of QStrings, representing the base paths
+ *        to check.
+ * @param extensions A QVector of QStrings (optional), representing
+ *        the file extensions to append to each base path. If no
+ *        extensions are provided, the base paths are checked as they are.
+ * @return QString Returns the absolute path of the first existing file
+ *        found, or an empty string if none of the files exist.
+ */
 SHIPNETSIM_EXPORT QString getFirstExistingPathFromList(
     QVector<QString> filePaths,
     QVector<QString> extensions = QVector<QString>());
