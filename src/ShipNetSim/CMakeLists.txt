@@ -45,8 +45,14 @@ endif()
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
 add_custom_command(TARGET ShipNetSim POST_BUILD
+    # Command to copy core library
     COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSim>
+
+    # Command to copy the data directory
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/src/data $<TARGET_FILE_DIR:ShipNetSim>/../data
+
     DEPENDS $<TARGET_FILE:ShipNetSimCore>
 )
 
