@@ -45,7 +45,8 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
 QVector<std::shared_ptr<SeaPort>>
 OptimizedNetwork::loadFirstAvailableSeaPorts()
 {
-    QVector<QString> seaPortsLocs = NetworkDefaults::seaPortsLocations();
+    QVector<QString> seaPortsLocs =
+        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory());
 
     QString filePath =
         Utils::getFirstExistingPathFromList(seaPortsLocs,
@@ -110,7 +111,8 @@ OptimizedNetwork::OptimizedNetwork(
 
     // load the sea ports
     bool loadedSeaPorts =
-        loadFirstAvailableSeaPortsFile(NetworkDefaults::seaPortsLocations());
+        loadFirstAvailableSeaPortsFile(
+        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
     if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
@@ -152,7 +154,8 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
 
     // load the sea ports
     bool loadedSeaPorts =
-        loadFirstAvailableSeaPortsFile(NetworkDefaults::seaPortsLocations());
+        loadFirstAvailableSeaPortsFile(
+        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
     if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
@@ -436,22 +439,28 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
 
 void OptimizedNetwork::loadTiffData() {
     loadFirstAvailableTiffFile(
-        salinityTiffData, NetworkDefaults::SalinityTiffLocations());
+        salinityTiffData,
+        NetworkDefaults::SalinityTiffLocations(Utils::getDataDirectory()));
 
     loadFirstAvailableTiffFile(
-        waveHeightTiffData, NetworkDefaults::WaveHeightTiffLocations());
+        waveHeightTiffData,
+        NetworkDefaults::WaveHeightTiffLocations(Utils::getDataDirectory()));
 
     loadFirstAvailableTiffFile(
-        wavePeriodTiffData, NetworkDefaults::wavePeriodTiffLocations());
+        wavePeriodTiffData,
+        NetworkDefaults::wavePeriodTiffLocations(Utils::getDataDirectory()));
 
     loadFirstAvailableTiffFile(
-        windNorthTiffData, NetworkDefaults::windSpeedNorthTiffLocations());
+        windNorthTiffData,
+        NetworkDefaults::windSpeedNorthTiffLocations(Utils::getDataDirectory()));
 
     loadFirstAvailableTiffFile(
-        windEastTiffData, NetworkDefaults::windSpeedEastTiffLocations());
+        windEastTiffData,
+        NetworkDefaults::windSpeedEastTiffLocations(Utils::getDataDirectory()));
 
     loadFirstAvailableTiffFile(
-        waterDepthTiffData, NetworkDefaults::waterDepthTiffLocations());
+        waterDepthTiffData,
+        NetworkDefaults::waterDepthTiffLocations(Utils::getDataDirectory()));
 }
 
 std::pair<size_t, size_t>
