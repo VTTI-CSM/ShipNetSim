@@ -5,6 +5,34 @@ namespace ShipNetSimCore
 namespace Utils
 {
 
+QString getExecutableDirectory() {
+    // Return the absolute path
+    return QCoreApplication::applicationDirPath();
+}
+
+QString getRootDirectory() {
+    QDir execDir(QCoreApplication::applicationDirPath());
+    execDir.cdUp();
+
+    // Return the absolute path
+    return execDir.absolutePath();
+}
+
+QString getDataDirectory() {
+    QString parentDir = getRootDirectory();
+    // Navigate to the 'data' directory within the parent
+    QDir dataDir(QDir(parentDir).filePath("data"));
+
+    // Check if the 'data' directory exists
+    if (!dataDir.exists()) {
+        qDebug() << "Data directory does not exist.";
+        return QString();  // Return an empty string or handle as appropriate
+    }
+
+    // Return the absolute path of the 'data' directory
+    return dataDir.absolutePath();
+}
+
 // Definition of the function
 QString getFirstExistingPathFromList(
     QVector<QString> filePaths,
