@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://github.com/VTTI-CSM/ShipNetSim/releases" target="_blank">Download ShipNetSim</a> |
-  <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a> |
+  <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a>
 </p>
 
 # Ship Network Simulator (ShipNetSim)
