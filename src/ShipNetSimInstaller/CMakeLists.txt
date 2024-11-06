@@ -80,6 +80,13 @@ if(BUILD_INSTALLER)
             COMPONENT ShipNetSimCore_COMP
         )
 
+        install(
+            DIRECTORY ${CMAKE_SOURCE_DIR}/src/data/
+            DESTINATION data
+            COMPONENT ShipNetSimCore_COMP
+            PATTERN "*"
+        )
+
         # If BUILD_SERVER is ON, also install the container.dll
         if(BUILD_SERVER)
             # Install container.dll
