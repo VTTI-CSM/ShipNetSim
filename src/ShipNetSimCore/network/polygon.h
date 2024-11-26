@@ -13,7 +13,7 @@
 #define POLYGON_H
 
 #include "basegeometry.h"
-#include "GPoint.h"
+#include "gpoint.h"
 #include <QVector>
 #include "gdal_priv.h"
 #include "ogr_spatialref.h"
