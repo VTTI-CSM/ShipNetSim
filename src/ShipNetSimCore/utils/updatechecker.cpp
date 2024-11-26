@@ -1,4 +1,4 @@
-#include "UpdateChecker.h"
+#include "updatechecker.h"
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QJsonDocument>
