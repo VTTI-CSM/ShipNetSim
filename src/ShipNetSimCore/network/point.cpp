@@ -105,14 +105,14 @@ void Point::setDefaultProjectionReference(std::string wellknownCS)
     OGRErr err = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
     if (err != OGRERR_NONE) {
         // Exit the function on failure
-        qFatal("Failed to interpret the provided spatial reference: %",
+        qFatal("Failed to interpret the provided spatial reference: %s",
                qPrintable(QString::fromStdString(wellknownCS)));
     }
 
     // Check if the spatial reference is geodetic
     if (!tempRef->IsProjected()) {
         // Exit the function if not projected
-        qFatal("The provided spatial reference is not projected: %",
+        qFatal("The provided spatial reference is not projected: %s",
                qPrintable(QString::fromStdString(wellknownCS)));
     }
 
