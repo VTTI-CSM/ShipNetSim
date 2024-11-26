@@ -1,5 +1,5 @@
 #include "optimizednetwork.h"
-#include "GPoint.h"
+#include "gpoint.h"
 #include "qdebug.h"      // Debugging utilities
 #include <QCoreApplication>  // Core application utilities
 #include <QFile>             // File input/output utilities
@@ -536,7 +536,7 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
     GDALDataset* dataset = static_cast<GDALDataset*>(
         GDALOpenEx(filename, GDAL_OF_VECTOR, nullptr, nullptr, nullptr));
     if (dataset == nullptr) {
-        qWarning("Failed to open file: %", qPrintable(filename));
+        qWarning("Failed to open file: %s", qPrintable(filename));
         return seaPorts;
     }
 
@@ -618,7 +618,7 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
                     sp.setStatusOfEntry(statusText);
                 } catch (std::exception& e)
                 {
-                    qWarning(e.what());
+                    qWarning("%s", e.what());
                 }
 
                 seaPorts.push_back(std::make_shared<SeaPort>(sp));
@@ -653,11 +653,6 @@ AlgebraicVector::Environment OptimizedNetwork::
             return std::nan("noData"); // Return NaN
         }
         return value; // Otherwise, return the valid value
-    };
-
-    // Clamp function to handle max/min values
-    auto clamp = [](double value, double min, double max) -> double {
-        return std::max(min, std::min(max, value));
     };
 
     // Salinity (pptd)

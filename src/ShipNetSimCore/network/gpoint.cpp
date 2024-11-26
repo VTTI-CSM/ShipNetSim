@@ -96,14 +96,14 @@ void GPoint::setDefaultReprojectionReference(std::string wellknownCS)
     OGRErr err = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
     if (err != OGRERR_NONE) {
         // Exit the function on failure
-        qFatal("Failed to interpret the provided spatial reference: %",
+        qFatal("Failed to interpret the provided spatial reference: %s",
                qPrintable(QString::fromStdString(wellknownCS)));
     }
 
     // Check if the spatial reference is geodetic
     if (!tempRef->IsGeographic()) {
         // Exit the function if not geodetic
-        qFatal("The provided spatial reference is not geodetic: %",
+        qFatal("The provided spatial reference is not geodetic: %s",
                qPrintable(QString::fromStdString(wellknownCS)));
     }
 
