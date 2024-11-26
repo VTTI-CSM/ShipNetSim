@@ -33,7 +33,7 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   simulator.h simulator.cpp
   network/algebraicvector.h network/algebraicvector.cpp
   ship/shipfuel.h ship/shipfuel.cpp
-  ship/ienergyConsumer.h ship/ienergyconsumer.cpp
+  ship/ienergyconsumer.h ship/ienergyconsumer.cpp
   ship/ishipengine.h ship/ishipengine.cpp
   ship/shipengine.h ship/shipengine.cpp
   ship/ishipgearbox.h ship/ishipgearbox.cpp
