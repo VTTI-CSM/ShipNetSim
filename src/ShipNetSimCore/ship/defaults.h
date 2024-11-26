@@ -12,7 +12,7 @@
 #define DEFAULTS_H
 
 #include "../../third_party/units/units.h"
-#include <qstring>
+#include <QString>
 
 namespace Defaults
 {
