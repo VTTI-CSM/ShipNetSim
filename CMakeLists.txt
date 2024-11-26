@@ -152,8 +152,21 @@ if(BUILD_GUI)
 endif()
 
 if(BUILD_SERVER)
-    set(CONTAINER_CMAKE_DIR "C:/Program Files/Container/cmake" CACHE PATH "Default path to container's library")
-    set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c")
+    if(WIN32)
+        # Windows-specific paths
+        set(CONTAINER_CMAKE_DIR "C:/Program Files/Container/cmake" CACHE PATH "Default path to container's library")
+        set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c" CACHE PATH "Default path to RabbitMQ-C library on Windows")
+    elseif(APPLE)
+        # macOS-specific paths
+        set(CONTAINER_CMAKE_DIR "/usr/local/cmake" CACHE PATH "Default path to container's library on macOS")
+        set(RABBITMQ_CMAKE_DIR "/usr/local/lib/rabbitmq-c/cmake" CACHE PATH "Default path to RabbitMQ-C library on macOS")
+    elseif(UNIX)
+        # Linux-specific paths
+        set(CONTAINER_CMAKE_DIR "/usr/local/cmake" CACHE PATH "Default path to container's library on Linux")
+        set(RABBITMQ_CMAKE_DIR "/usr/local/lib/cmake/rabbitmq-c" CACHE PATH "Default path to RabbitMQ-C library on Linux")
+    else()
+        message(FATAL_ERROR "Unsupported platform. Please set paths for CONTAINER_CMAKE_DIR and RABBITMQ_CMAKE_DIR manually.")
+    endif()
 
     # Find the installed Container library
     find_package(Container REQUIRED PATHS ${CONTAINER_CMAKE_DIR} NO_DEFAULT_PATH)
@@ -162,8 +175,17 @@ if(BUILD_SERVER)
         message(FATAL_ERROR "Container not found. Please specify the correct path to the Container Library cmake installation.")
     endif()
 
-    # Set and cache the path to the bin directory using CONTAINER_CMAKE_DIR
-    set(CONTAINER_BIN_DIR "${CONTAINER_CMAKE_DIR}/../bin" CACHE PATH "Path to the Container library's bin directory")
+    if(WIN32)
+        # For Windows, use /bin
+        set(CONTAINER_SHRD_LIB_DIR "${CONTAINER_CMAKE_DIR}/../bin" CACHE PATH "Path to the Container library's bin directory")
+    elseif(UNIX AND NOT APPLE)
+        # For Linux, use /lib or /lib64 (adjust based on your setup)
+        set(CONTAINER_SHRD_LIB_DIR "${CONTAINER_CMAKE_DIR}/../lib" CACHE PATH "Path to the Container library's bin directory")
+    elseif(APPLE)
+        # For macOS, use /lib or /lib64 (adjust based on your setup)
+        set(CONTAINER_SHRD_LIB_DIR "${CONTAINER_CMAKE_DIR}/../lib" CACHE PATH "Path to the Container library's bin directory")
+    endif()
+
 
     find_package(RabbitMQ-C REQUIRED CONFIG PATHS ${RABBITMQ_CMAKE_DIR})
 
@@ -172,8 +194,16 @@ if(BUILD_SERVER)
     endif()
 
     # Set and cache the path to the RabbitMQ bin directory using RABBITMQ_CMAKE_DIR
-    set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
-
+    if(WIN32)
+        # For Windows, use /bin
+        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+    elseif(UNIX AND NOT APPLE)
+        # For Linux, use /lib or /lib64 (adjust based on your setup)
+        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+    elseif(APPLE)
+        # For macOS, use /lib or /lib64 (adjust based on your setup)
+        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+    endif()
 endif()
 
 # Library directories - Prompt users to set paths if libraries aren't found
