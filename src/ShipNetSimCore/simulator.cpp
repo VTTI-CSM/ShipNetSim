@@ -624,7 +624,7 @@ void Simulator::generateSummaryData()
                                                                                                                                                  })/this->mShips.size(), 4) << "\n"
         << "    |_ Average Travelled Distance (km)                                          \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
                                                                                                                                                  [](double total, const auto& s) {
-                                                                                                                                                     return total + (s->getTraveledDistance().convert<units::length::kilometers>().value());
+                                                                                                                                                     return total + (s->getTraveledDistance().value()) / 1000.0;
                                                                                                                                                  })/this->mShips.size()) << "\n"
         << "    |_ Consumed and Regenerated Energy:\n"
         << "        |_ Total Net Energy Consumed (KW.h)                                     \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,

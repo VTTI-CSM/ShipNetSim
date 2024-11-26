@@ -32,7 +32,7 @@
 #include <QtConcurrent>
 #include <QVector>
 #include <QMap>
-#include "Polygon.h"
+#include "polygon.h"
 #include "gline.h"
 #include "quadtree.h"
 #include "seaport.h"
