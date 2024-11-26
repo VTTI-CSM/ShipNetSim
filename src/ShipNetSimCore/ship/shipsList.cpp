@@ -30,7 +30,7 @@ QVector<QMap<QString, std::any>> readShipsFile(
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
         // Log an error message if file cannot be opened.
-        qFatal(QString("Failed to open the ships file %1.")
+        qFatal("%s", QString("Failed to open the ships file %s.")
                    .arg(filename).toLocal8Bit().constData());
         return ships;
     }
@@ -149,7 +149,7 @@ bool writeShipsFile(
     // Open the file for writing.
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qFatal(QString("Failed to open the ships file %1 for writing.")
+        qFatal("%s", QString("Failed to open the ships file %1 for writing.")
                    .arg(filename).toLocal8Bit().constData());
         return false;
     }

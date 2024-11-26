@@ -6,6 +6,7 @@
 #include <QTextStream>
 #include <QDebug>
 #include <QMap>
+#include <cmath>
 #include "../utils/utils.h"
 
 namespace ShipNetSimCore
@@ -397,8 +398,8 @@ QVector<IShipEngine::EngineProperties> ShipEngine::estimateEnginePowerCurve() {
                      convert<units::angular_velocity::radians_per_second>().
                      value();
     double P1 = 0.87 * P_M / omega_M;
-    double P2 = 1.13 * P_M / std::powf(omega_M, 2);
-    double P3 = -P_M / std::powf(omega_M, 3);
+    double P2 = 1.13 * P_M / std::pow(omega_M, 2);
+    double P3 = -P_M / std::pow(omega_M, 3);
 
     QVector<EngineProperties> engineProps;
     std::vector<double> omegas = Utils::linspace_step(0.0, omega_M, 10);
@@ -413,8 +414,8 @@ QVector<IShipEngine::EngineProperties> ShipEngine::estimateEnginePowerCurve() {
         /// Portugal.
         ep.breakPower =
             units::power::kilowatt_t(P1 * omega +
-                                     P2 * std::powf(omega, 2) +
-                                     P3 * std::powf(omega, 3));
+                                     P2 * std::pow(omega, 2) +
+                                     P3 * std::pow(omega, 3));
 
         ep.RPM = units::angular_velocity::radians_per_second_t(omega).
                  convert<units::angular_velocity::revolutions_per_minute>();
