@@ -91,7 +91,7 @@ if(BUILD_INSTALLER)
         if(BUILD_SERVER)
             # Install container.dll
             install(
-                FILES "${CONTAINER_BIN_DIR}/container.dll"
+                FILES "${CONTAINER_SHRD_LIB_DIR}/container.dll"
                 DESTINATION bin
                 COMPONENT ShipNetSimCore_COMP
             )
