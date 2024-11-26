@@ -216,7 +216,7 @@ inline T linearInterpolateAtX(const QVector<T>& x_vals,
     }
 
     // Find the correct interval
-    for (std::size_t i = 0; i < x_vals.size() - 1; ++i) {
+    for (qsizetype i = 0; i < x_vals.size() - 1; ++i) {
         if (x >= x_vals[i] && x <= x_vals[i + 1]) {
             return linearInterpolate(x_vals[i],
                                      y_vals[i],
