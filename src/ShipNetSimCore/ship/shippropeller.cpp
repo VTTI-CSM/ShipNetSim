@@ -764,7 +764,7 @@ IShipEngine::EngineProperties ShipPropeller::
                     "available power at these RPMs.")
                 .arg(minRPM.value())
                 .arg(maxRPM.value());
-        qFatal(errorMessage.toLocal8Bit().constData());
+        qFatal("%s", errorMessage.toLocal8Bit().constData());
     }
 }
 
@@ -838,7 +838,7 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
                     "available power at these RPMs.")
                 .arg(minRPM.value())
                 .arg(maxRPM.value());
-        qFatal(errorMessage.toLocal8Bit().constData());
+        qFatal("%s", errorMessage.toLocal8Bit().constData());
     }
 
     // Update the last known best RPM
