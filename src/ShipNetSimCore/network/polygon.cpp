@@ -45,7 +45,7 @@ void Polygon::validateRing(const OGRLinearRing& ring,
     // Check for sufficient number of points
     if (ring.getNumPoints() < 3)
     {
-        qFatal("% is degenerate: requires at "
+        qFatal("%s is degenerate: requires at "
                "least 3 unique points.", qPrintable(description));
     }
 
@@ -85,7 +85,7 @@ void Polygon::validateRing(const OGRLinearRing& ring,
                                std::make_shared<GPoint>(p2)))
         // if (arePointsCollinear(points[0], points[1], points[2]))
         {
-            qFatal("% is degenerate: points "
+            qFatal("%s is degenerate: points "
                    "are collinear.", qPrintable(description));
         }
     }
