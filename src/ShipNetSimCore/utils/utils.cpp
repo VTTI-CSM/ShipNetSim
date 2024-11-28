@@ -13,7 +13,10 @@ QString getExecutableDirectory() {
 
 QString getRootDirectory() {
     QDir execDir(QCoreApplication::applicationDirPath());
+
+#ifdef NDEBUG // Release build
     execDir.cdUp();
+#endif
 
     // Return the absolute path
     return execDir.absolutePath();
@@ -24,14 +27,22 @@ QString getDataDirectory() {
     // Navigate to the 'data' directory within the parent
     QDir dataDir(QDir(parentDir).filePath("data"));
 
-    // Check if the 'data' directory exists
-    if (!dataDir.exists()) {
-        qDebug() << "Data directory does not exist.";
-        return QString();  // Return an empty string or handle as appropriate
+    // Check if the 'data' directory exists in the runtime location
+    if (dataDir.exists()) {
+        return dataDir.absolutePath();
     }
 
-    // Return the absolute path of the 'data' directory
-    return dataDir.absolutePath();
+// Fall back to the 'src/data' directory in the source directory
+#ifdef SOURCE_DIRECTORY
+    QDir sourceDataDir(QDir(SOURCE_DIRECTORY).filePath("src/data"));
+    if (sourceDataDir.exists()) {
+        qDebug() << "Using data directory from source: " << sourceDataDir.absolutePath();
+        return sourceDataDir.absolutePath();
+    }
+#endif
+
+    qDebug() << "Data directory not found.";
+    return QString();  // Return an empty string or handle as appropriate
 }
 
 // Definition of the function
