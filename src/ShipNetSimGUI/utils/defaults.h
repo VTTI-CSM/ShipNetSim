@@ -7,9 +7,9 @@
 namespace Defaults
 {
 
-extern QVector<QString> earthTifPaths;
+QVector<QString> getEarthTifPaths(const QString &basePath);
 
-extern QVector<QString> iconPath;
+QVector<QString> getIconPaths(const QString &basePath);
 
 }
 
