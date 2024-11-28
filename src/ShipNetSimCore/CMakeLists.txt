@@ -75,6 +75,9 @@ target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::Sql
 )
 
+# make the source directory availabe in code
+target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
+
 # Conditionally include Container library only if BUILD_SERVER is ON
 if(BUILD_SERVER)
     target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE Container::Container)

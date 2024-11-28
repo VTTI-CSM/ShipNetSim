@@ -71,7 +71,7 @@ endif()
 # -------------------------------------------------------
 
 # Option to build GUI components
-option(BUILD_GUI "Build the GUI components" OFF)
+option(BUILD_GUI "Build the GUI components" ON)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
@@ -93,13 +93,40 @@ set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary d
 
 if(BUILD_GUI)
     # Manually specify paths for osgEarth, OpenSceneGraph, and osgQt
-    set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
-    set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
-    set(OSGQT_INCLUDE_DIR "C:/Program Files/osgQt/include" CACHE PATH "Path to osgQt include directory")
-    set(OSGQOPENGL_LIB "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib" CACHE FILEPATH "Path to osgQt library")
+    if(WIN32)
+        set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
+    elseif(APPLE)
+        set(osgEarth_DIR "/usr/local/lib/cmake/osgEarth" CACHE PATH "Default path to osgEarth's cmake directory")
+    elseif(UNIX)
+        set(osgEarth_DIR "/usr/local/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
+    endif()
+
+    if(WIN32)
+        set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+    elseif(APPLE)
+        set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+    elseif(UNIX)
+        set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+    endif()
+
+    if(WIN32)
+        set(OSGQT_INCLUDE_DIR "C:/Program Files/osgQt/include" CACHE PATH "Path to osgQt include directory")
+    elseif(APPLE)
+        set(OSGQT_INCLUDE_DIR "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt include directory")
+    elseif(UNIX)
+        set(OSGQT_INCLUDE_DIR "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt include directory")
+    endif()
+
+    if(WIN32)
+        set(OSGQOPENGL_LIB "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib" CACHE PATH "Path to osgQt library")
+    elseif(APPLE)
+        set(OSGQOPENGL_LIB "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt library")
+    elseif(UNIX)
+        set(OSGQOPENGL_LIB "/usr/local/lib/libosgQOpenGLd.a" CACHE PATH "Path to osgQt library")
+    endif()
 
     # Use these paths to find osgEarth and OpenSceneGraph
-    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgText osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
+    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
 
     find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")

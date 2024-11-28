@@ -1,8 +1,8 @@
 set(SHIPNETSIM_GUI_NAME "ShipNetSimGUI" CACHE STRING "Project GUI name" FORCE)
 project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
-
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport Sql)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets OpenGLWidgets concurrent PrintSupport Sql)
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
+find_package(Fontconfig REQUIRED)
 
 # Find OpenGL 
 find_package(OpenGL REQUIRED)
@@ -136,9 +136,10 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     osg3::osgUtil
     osg3::osgViewer
     osg3::osgSim
-    osg3::osgText
+    # osg3::osgText
     osg3::osgShadow
     osg3::OpenThreads
+    Fontconfig::Fontconfig
 )
 
 # Apply additional linker flags, if necessary
@@ -189,22 +190,25 @@ target_compile_options(${SHIPNETSIM_NAME} PRIVATE
 
 # Conditionally include Container library only if BUILD_SERVER is ON
 if(BUILD_SERVER)
-    # Ensure the ShipNetSimCore DLL is copied to the output directory
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Copy container.dll only in Release mode
-        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_BIN_DIR}/container.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
-        )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Copy containerd.dll only in Debug mode
-        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_BIN_DIR}/containerd.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
-        )
+    if(WIN32) # Windows-specific logic
+        # Ensure the ShipNetSimCore DLL is copied to the output directory
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            # Copy container.dll only in Release mode
+            add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CONTAINER_BIN_DIR}/container.dll"
+                    "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
+            )
+        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            # Copy containerd.dll only in Debug mode
+            add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CONTAINER_BIN_DIR}/containerd.dll"
+                    "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
+            )
+        endif()
     endif()
+
 endif()
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
