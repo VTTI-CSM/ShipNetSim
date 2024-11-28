@@ -1,5 +1,5 @@
 #include "simulationworker.h"
-#include "ship/shipslist.h"
+#include "ship/shipsList.h"
 
 template<typename T>
 SimulationWorker::SimulationWorker(

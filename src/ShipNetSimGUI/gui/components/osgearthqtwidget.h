@@ -3,7 +3,7 @@
 
 #include "osgEarth/AnnotationNode"
 #include "qcoreapplication.h"
-#include <osgQOpenGL/osgQOpenGLWidget>
+#include <osgQOpenGL/osgQOpenGLWidget.h>
 #include <osgViewer/Viewer>
 #include <osgDB/ReadFile>
 #include <osgGA/TrackballManipulator>
