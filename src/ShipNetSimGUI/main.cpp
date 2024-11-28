@@ -2,7 +2,7 @@
 
 #include "gui/windowMangement/shipnetsim.h"
 #include "gui/windowMangement/ui_shipnetsim.h"
-#include <osgQOpenGL/osgQOpenGLWidget>
+#include <osgQOpenGL/osgQOpenGLWidget.h>
 
 #include <osgDB/ReadFile>
 #include <osgUtil/Optimizer>
@@ -36,7 +36,12 @@
 #include <QSurfaceFormat>
 #include <QWindow>
 
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <iostream>
 
 #include "./gui/components/globalmapmanager.h"

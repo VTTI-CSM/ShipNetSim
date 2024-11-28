@@ -13,7 +13,8 @@
 #include <osgGA/TrackballManipulator>
 #include <osgDB/WriteFile>
 #include <osgViewer/ViewerEventHandlers>
-#include "OSGWidget.h"
+#include <osgQOpenGLWidget.h>
+// #include <OSGWidget.h>
 
 #include <osgEarth/MapNode>
 #include <osgEarth/EarthManipulator>
