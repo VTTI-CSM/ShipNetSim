@@ -54,9 +54,10 @@ public:
     void preloadEarthModel() {
         if (!_mapNode) { // Prevent reloading if already loaded
             // get the earth file path
+            auto dataDir = ShipNetSimCore::Utils::getDataDirectory();
             QString filePath =
                 ShipNetSimCore::Utils::getFirstExistingPathFromList(
-                    Defaults::earthTifPaths);
+                    Defaults::getEarthTifPaths(dataDir));
 
             loadEarthModel(filePath);
         }
@@ -72,6 +73,13 @@ public:
 
     void loadEarthModel(const QString &filename)
     {
+        // Check if the file exists using QFile
+        if (!QFile::exists(filename)) {
+            qFatal() << "Error: File does not exist - "
+                      << filename.toStdString();
+            return;
+        }
+
         // read in the Earth file:
         osg::ref_ptr<osg::Node> node =
             osgDB::readRefNodeFile(filename.toStdString());
@@ -141,11 +149,12 @@ public:
         // pointStyle.getOrCreate<osgEarth::IconSymbol>()->url()->setLiteral("path/to/icon.png");
         // pointStyle.getOrCreate<osgEarth::IconSymbol>()->declutter() = true;
 
+        auto dataDir = ShipNetSimCore::Utils::getDataDirectory();
 
         // Path for icon
         std::string icon =
             ShipNetSimCore::Utils::
-            getFirstExistingPathFromList(Defaults::iconPath).toStdString();
+            getFirstExistingPathFromList(Defaults::getIconPaths(dataDir)).toStdString();
 
         // Style for place node marker
         osgEarth::Style pm;
