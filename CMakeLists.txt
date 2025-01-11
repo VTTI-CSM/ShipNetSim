@@ -125,11 +125,22 @@ if(BUILD_GUI)
         set(OSGQOPENGL_LIB "/usr/local/lib/libosgQOpenGLd.a" CACHE PATH "Path to osgQt library")
     endif()
 
+    if(WIN32)
+        set(KDREPORTS_DIR "C:/Program Files/KDAB/KDReports/cmake" CACHE PATH "Path to KDReports CMake directory")
+    elseif(APPLE)
+        set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+    elseif(UNIX)
+        set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+    endif()
+
     # Use these paths to find osgEarth and OpenSceneGraph
     find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
 
     find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")
+
+    # Use the KDReports CMake package
+    find_package(KDReports-qt6 REQUIRED CONFIG PATHS ${KDREPORTS_DIR})
 
     # If osgEarth is not found, manually specify the include and library paths
     if(NOT osgEarth_FOUND)
