@@ -31,6 +31,7 @@
 // Compilation date and time are set by the preprocessor.
 const std::string compilation_date = __DATE__;
 const std::string compilation_time = __TIME__;
+static QString MAIN_SIMULATION_NAME = "MAIN";
 
 using namespace ShipNetSimCore;
 
@@ -172,7 +173,7 @@ int main(int argc, char *argv[])
             "main",
             "[Optional] bool to show summary of "
             "all ships in the summary file. \nDefault is 'false'."),
-        "summarizeAllTrains", "false");
+        "summarizeAllShips", "false");
     parser.addOption(summaryExportAllOption);
 
     // Define command-line option for exporting instantaneous trajectory.
@@ -247,9 +248,6 @@ int main(int argc, char *argv[])
 
     // Start the event loop and wait for the update check to complete
     loop.exec();
-
-    // Start checking for updates
-    updateChecker.checkForUpdates();
 
     // Define variables for storing command-line option values.
     QString waterBoundariesFile, shipsFile,
@@ -338,7 +336,7 @@ int main(int argc, char *argv[])
                 ShipsList::readShipsFile(shipsFile, nullptr, true);
             ships = ShipsList::loadShipsFromParameters(shipsDetails);
             SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
-                nullptr, ships,
+                MAIN_SIMULATION_NAME, ships,
                 units::time::second_t(timeStep), false);
 
             sim = SimulatorAPI::ContinuousMode::getSimulator("Not Defined");
@@ -373,7 +371,7 @@ int main(int argc, char *argv[])
 
             // Initialize network and simulator with config.
             net = SimulatorAPI::ContinuousMode::loadNetwork(
-                waterBoundariesFile, "Global Network");
+                waterBoundariesFile, MAIN_SIMULATION_NAME);
 
             std::cout <<"\nLoading Ships!                 \n";
             auto shipsDetails =
@@ -389,10 +387,14 @@ int main(int argc, char *argv[])
 
 
             std::cout <<"\nPutting Things Together!       \n";
+            SimulatorAPI::ContinuousMode::setConnectionType(
+                Qt::QueuedConnection);
             SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
-                net, ships, units::time::second_t(timeStep), false);
+                MAIN_SIMULATION_NAME, ships, units::time::second_t(timeStep),
+                false);
 
-            sim = SimulatorAPI::ContinuousMode::getSimulator("Global Network");
+            sim = SimulatorAPI::ContinuousMode::getSimulator(
+                MAIN_SIMULATION_NAME);
 
             if (!sim) {
                 qFatal("Error in initializing the simulation!");
@@ -418,7 +420,7 @@ int main(int argc, char *argv[])
                                            << error.toStdString() << "\n";
                                  loop.quit();
                              });
-            SimulatorAPI::ContinuousMode::runSimulation({"Global Network"});
+            SimulatorAPI::ContinuousMode::runSimulation({MAIN_SIMULATION_NAME});
             loop.exec();
         }
         std::cout << "\nOutput folder: " <<
@@ -436,5 +438,5 @@ int main(int argc, char *argv[])
     Logger::detach();
     return app.exec();
 
-
+    
 }
