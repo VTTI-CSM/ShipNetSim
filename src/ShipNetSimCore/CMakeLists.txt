@@ -53,6 +53,10 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   utils/shipscommon.h
   ship/cyberattack.h ship/cyberattack.cpp
   simulatorapi.h simulatorapi.cpp
+  ship/iaisinterface.h ship/iaisinterface.cpp
+  ship/aisinterface.h ship/aisinterface.cpp
+  simulatorworker.h simulatorworker.cpp
+  shiploaderworker.h shiploaderworker.cpp
 )
 
 # Define SHIPNETSIM_LIBRARY during compilation to activate symbol export
