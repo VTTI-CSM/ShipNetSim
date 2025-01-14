@@ -42,6 +42,10 @@ set(PROJECT_H_FILES
     gui/components/enginepowerpopupform.h
     gui/components/enginerpmefficiencypopupform.h
     gui/components/generalPopupForm.h
+    gui/components/reportwidget.h
+    gui/components/customplot.h
+
+    utils/guiutils.h
 
     ../third_party/qcustomplot/qcustomplot.h
 
@@ -55,11 +59,13 @@ set(PROJECT_UI_FILES
 
 set(PROJECT_SOURCES
     utils/defaults.cpp
+    utils/errorhandler.cpp
     utils/configurationmanager.cpp
 
     gui/windowMangement/aboutwindow.cpp
     gui/windowMangement/settingswindow.cpp
     gui/windowMangement/shipnetsimui.cpp
+    gui/windowMangement/shipnetsim.cpp
 
     gui/components/osgearthqtwidget.cpp
     gui/components/clickablelabel.cpp
@@ -68,7 +74,8 @@ set(PROJECT_SOURCES
     gui/components/simulationworker.cpp
     gui/components/togglebutton.cpp
     gui/components/globalmapmanager.cpp
-    gui/windowMangement/shipnetsim.cpp
+    gui/components/reportwidget.cpp
+    gui/components/customplot.cpp
 
     ../third_party/qcustomplot/qcustomplot.cpp
 
@@ -140,6 +147,7 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     osg3::osgShadow
     osg3::OpenThreads
     Fontconfig::Fontconfig
+    KDReports::kdreports
 )
 
 # Apply additional linker flags, if necessary
