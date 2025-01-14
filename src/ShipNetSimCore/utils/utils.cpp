@@ -45,6 +45,28 @@ QString getDataDirectory() {
     return QString();  // Return an empty string or handle as appropriate
 }
 
+QString getDataFile(const QString &fileName) {
+    // Get the data directory path
+    QString dataDir = getDataDirectory();
+
+    // Check if the data directory was resolved
+    if (!dataDir.isEmpty()) {
+        // Construct the full path for the file
+        QString filePath = QDir(dataDir).filePath(fileName);
+
+        // Check if the file exists
+        if (QFile::exists(filePath)) {
+            return filePath;
+        }
+    }
+
+    // Fatal error if the file does not exist
+    qFatal("Data file '%s' not found in the resolved data directory: %s",
+           qPrintable(fileName), qPrintable(dataDir));
+    return QString();  // This will never be reached because qFatal terminates the application
+}
+
+
 // Definition of the function
 QString getFirstExistingPathFromList(
     QVector<QString> filePaths,
