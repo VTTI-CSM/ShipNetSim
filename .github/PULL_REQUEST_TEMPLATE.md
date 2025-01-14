@@ -26,13 +26,3 @@
 
 ## 📌 Additional Notes
 <!-- Add any extra context or concerns related to the changes. -->
-
----
-
-### **3. Commit and Push the Template**
-Once you've created `PULL_REQUEST_TEMPLATE.md`, commit and push it to the repository.
-
-```bash
-git add .github/PULL_REQUEST_TEMPLATE.md
-git commit -m "Add pull request template"
-git push origin main  # or the appropriate branch
