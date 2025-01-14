@@ -4,11 +4,13 @@
 #include "../export.h"
 #include "gpoint.h"
 #include <QString>
+#include <qobject.h>
 
 namespace ShipNetSimCore
 {
-class SHIPNETSIM_EXPORT SeaPort
+class SHIPNETSIM_EXPORT SeaPort : public QObject
 {
+    Q_OBJECT
 public:
     // SeaPort();
 
