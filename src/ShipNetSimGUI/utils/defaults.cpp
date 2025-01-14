@@ -12,7 +12,24 @@ QVector<QString> getEarthTifPaths(const QString &basePath) {
 QVector<QString> getIconPaths(const QString &basePath) {
     return {
         basePath + "/portIcon25px.png",
-        basePath + "/placemark32.png",
+    };
+}
+
+QVector<QString> getHighlightedIconPaths(const QString &basePath) {
+    return {
+        basePath + "/portIcon25pxHighlight.png"
+    };
+}
+
+QVector<QString> getTemporaryIconPaths(const QString &basePath) {
+    return {
+        basePath + "/PortIcon25pxTemp.png"
+    };
+}
+
+QVector<QString> getShipIconPaths(const QString& basePath) {
+    return {
+        basePath + "/shipIcon.png",
     };
 }
 
