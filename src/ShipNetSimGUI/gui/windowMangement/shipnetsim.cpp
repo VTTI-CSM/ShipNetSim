@@ -8,6 +8,7 @@
 #include "../components/nonemptydelegate.h"
 #include "../components/numericdelegate.h"
 #include "../components/textboxdelegate.h"
+#include "gui/components/globalmapmanager.h"
 #include "utils/data.h"
 #include "../components/checkboxdelegate.h"
 #include "../components/comboboxdelegate.h"
@@ -17,16 +18,33 @@
 #include "ship/shipsList.h"
 #include "ship/ship.h"
 
+#include "simulatorapi.h"
+#include "utils/guiutils.h"
+
+static QString MAIN_SIMULATION_NAME = "MAIN";
+
+
 ShipNetSim::ShipNetSim(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::ShipNetSim)
 {
     ui->setupUi(this);
 
+    OPTIONAL_SHIPS_TABLE_COLUMNS.clear();
+    for (int i = 0;
+         i < ShipNetSimCore::ShipsList::FileOrderedparameters.size();
+         i++)
+    {
+        if (ShipNetSimCore::ShipsList::FileOrderedparameters[i].isOptional) {
+            OPTIONAL_SHIPS_TABLE_COLUMNS.push_back(i);
+        }
+    }
+
     setupGenerals();
 
     setupPage1();
     setupPage2();
+    setupPage3();
 }
 
 ShipNetSim::~ShipNetSim()
@@ -42,6 +60,7 @@ void ShipNetSim::setupGenerals(){
     ui->progressBar->setFormat("%p%");
     ui->pushButton_pauseResume->setVisible(false);
     ui->pushButton_pauseResume->setOnOffText("Continue", "Pause");
+    ui->pushButton_terminate->setVisible(false);
 
     this->userBrowsePath = QString();
 
@@ -80,9 +99,10 @@ void ShipNetSim::setupGenerals(){
 
     // load a project file
     connect(ui->actionOpen_an_existing_project, &QAction::triggered, [this](){
-        QString fname = QFileDialog::getOpenFileName(
-            nullptr, "Open NeTrainSim Project File", "",
-            "NeTrainSim Files (*.STS)");
+        QString fname = ShipNetSimUI::browseFiles(
+            this, nullptr,
+            "Open ShipNetSim Project File",
+            "ShipNetSim Files (*.STS, *.sts)");
         this->loadProjectFiles(fname);
     });
 
@@ -101,7 +121,8 @@ void ShipNetSim::setupGenerals(){
                      &QPushButton::clicked,
                      [=, this]()
                      {
-                         // switch to the next tab page if it is not the last page
+                         // switch to the next tab page if it
+                         // is not the last page
                          int nextIndex =
                              ui->tabWidget_project->currentIndex() + 1;
                          if (nextIndex < ui->tabWidget_project->count() - 1) {
@@ -125,10 +146,18 @@ void ShipNetSim::setupGenerals(){
 
                      });
 
+    QObject::connect(ui->pushButton_terminate,
+                     &QPushButton::clicked,
+                     [=, this]()
+                     {
+                         this->terminateSimulation();
+                     });
+
     // change next page button text
     QObject::connect(ui->tabWidget_project,
                      &QTabWidget::currentChanged, [=, this](int index) {
-                         // check if the last tab page is focused and update the button text accordingly
+                         // check if the last tab page is focused and update
+                         // the button text accordingly
                          if (index == ui->tabWidget_project->count() - 2) {
                              ui->pushButton_projectNext->setText("Simulate");
                              ui->pushButton_projectNext->setVisible(true);
@@ -150,6 +179,14 @@ void ShipNetSim::setupGenerals(){
                 ShipNetSimUI::showWarning(this,
                                   "Cannot delete the first row!");
             });
+
+    auto defaultGlobalMap =
+        ShipNetSimCore::Utils::getDataFile("ne_110m_ocean.shp");
+    SimulatorAPI::ContinuousMode::loadNetwork(defaultGlobalMap,
+                                              MAIN_SIMULATION_NAME);
+    SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
+        MAIN_SIMULATION_NAME, {}, units::time::second_t(1.0), false,
+        SimulatorAPI::Mode::Async);
 }
 
 void ShipNetSim::setupPage1() {
@@ -160,6 +197,7 @@ void ShipNetSim::setupPage1() {
 
     // get the trains file
     connect(ui->pushButton_trains, &QPushButton::clicked, [this]() {
+
         shipsFilename = ShipNetSimUI::browseFiles(this, ui->lineEdit_trains,
                                                   "Select Ships File");
     });
@@ -167,29 +205,50 @@ void ShipNetSim::setupPage1() {
     connect(ui->lineEdit_trains, &QLineEdit::textChanged,
             [=, this](const QString& file)
             {
-                auto out = ShipNetSimCore::ShipsList::readShipsFile(file);
-                this->loadShipsDataToTables(out);
+        // if empty, do nothing
+                if (file.trimmed().isEmpty()) {
+                    return;
+                }
+
+                // check if the file exists first before proceeding
+                if (QFile::exists(file)) {
+
+                    // load the ships to the table
+                    auto out =
+                        ShipNetSimCore::ShipsList::
+                        readShipsFileToStrings(file);
+                    this->loadShipsDataToTables(out);
+                }
+                else {
+
+                    // if the file does not exist, show the warning
+                    ShipNetSimUI::showWarning(this,
+                                              "Ships file does not exist");
+                }
             });
 
     // write the trains file
-    connect(ui->pushButton_saveNewShips, &QPushButton::clicked, [this](){
+    connect(ui->pushButton_saveNewShips, &QPushButton::clicked, [this]() {
+
+        QVector<QMap<QString, QString>> out;
+        try {
+            out = this->getShipsDataFromTables();
+        } catch (const std::exception& e) {
+            ShipNetSimUI::showErrorBox(e.what());
+            return;
+        }
+
         // Open a file dialog to choose the save location
         QString saveFilePath =
             QFileDialog::getSaveFileName(this,
                                          "Save Ships File",
                                          QDir::homePath(),
-                                         "DAT Files (*.DAT)");
-
+                                         "DAT Files (*.DAT *.dat)");
         if (!saveFilePath.isEmpty()) {
-            QVector<QMap<QString, std::any>> out;
-            try {
-                out = this->getShipsDataFromTables();
-            } catch (const std::exception& e) {
-                ShipNetSimUI::showErrorBox(e.what());
-                return;
-            }
-
-            if (ShipNetSimCore::ShipsList::writeShipsFile(saveFilePath, out))
+            QVector<QString> headers = {"This file is autogenerated "
+                                        "using ShipNetSimGUI"};
+            if (ShipNetSimCore::ShipsList::writeShipsFile(saveFilePath,
+                                                          out, headers))
             {
                 ShipNetSimUI::showNotification(
                     this, "Ships file saved successfully!");
@@ -200,8 +259,6 @@ void ShipNetSim::setupPage1() {
             }
         }
     });
-
-
 
 
     QObject::connect(ui->table_newShips, &QTableWidget::cellChanged,
@@ -235,6 +292,61 @@ void ShipNetSim::setupPage1() {
                      &CustomTableWidget::tableCleared,
                      addRowToNewTrain);
 
+    QObject::connect(ui->combo_visualizeShip,
+                     QOverload<int>::of(&QComboBox::currentIndexChanged),
+                     [this](int index) {
+
+                         if (index == -1) return;  // Skip programmatic changes
+                         QString text = ui->combo_visualizeShip->currentText();
+
+                         GlobalMapManager::getInstance()->clearAllHighlights();
+                         GlobalMapManager::getInstance()->removeTemporaryPort();
+
+                         auto rows =
+                             ui->table_newShips->findRowsWithData(text, 0);
+                         if (rows.isEmpty()) return;
+
+                         QTableWidgetItem* item =
+                             ui->table_newShips->item(rows[0], 1);
+                         if (!item) return;
+
+                         auto points = item->text().split(";",
+                                                          Qt::SkipEmptyParts);
+                         if (points.isEmpty()) return;
+                         for (auto p: points) {
+                             if (p.trimmed().isEmpty()) continue;
+                             auto pointCords = p.split(",");
+                             if (pointCords.size() != 2) continue;
+
+                             bool ok1, ok2;
+                             double pc1, pc2;
+                             pc1 = pointCords[0].toDouble(&ok1);
+                             pc2 = pointCords[1].toDouble(&ok2);
+                             if (ok1 && ok2) {
+                                 units::angle::degree_t p1 =
+                                     units::angle::degree_t(pc1);
+                                 units::angle::degree_t p2 =
+                                     units::angle::degree_t(pc2);
+                                 OGRSpatialReference srs;
+                                 srs.SetWellKnownGeogCS("WGS84");
+                                 auto referencePoint =
+                                     ShipNetSimCore::GPoint(p1, p2, srs);
+                                 auto highlighted =
+                                     GlobalMapManager::getInstance()->
+                                     toggleHighlightNode(referencePoint);
+
+                                 if (!highlighted) {
+                                     GlobalMapManager::getInstance()->addTemporaryPort(
+                                         referencePoint,
+                                         QString("Point on Path of Ship %1").
+                                         arg(text)
+                                         );
+                                 }
+
+                             }
+                         }
+                     });
+
 }
 
 void ShipNetSim::setupPage2() {
@@ -260,6 +372,21 @@ void ShipNetSim::setupPage2() {
 
 }
 
+void ShipNetSim::setupPage3() {
+    connect(ui->pushButton_trajectoryViewBrowse, &QPushButton::clicked,
+            [this]() {
+                ShipNetSimUI::browseFiles(this,
+                                  ui->lineEdit_trajectoryViewBrowse,
+                                  "Select the trajectory file",
+                                  "CSV Files (*.CSV *.csv)");
+    });
+
+    connect(ui->lineEdit_trajectoryViewBrowse, &QLineEdit::textChanged,
+            [this](QString filePath) {
+                handleViewTrajectoryFile(filePath);
+    });
+}
+
 
 void ShipNetSim::clearForm() {
     QList<QLineEdit *> lineEdits = findChildren<QLineEdit *>();
@@ -279,6 +406,10 @@ void ShipNetSim::clearForm() {
     }
 
     this->setupShipsTable();
+
+    ui->spinBox_plotEvery->setValue(1000.0);
+    ui->doubleSpinBox_timeStep->setValue(1.0);
+    ui->doubleSpinBox->setValue(0.0);
 }
 
 
@@ -287,12 +418,14 @@ void ShipNetSim::setupShipsTable() {
     int i = 0;
 
     // 1. ID column
-    ui->table_newShips->setItemDelegateForColumn(i, new NonEmptyDelegate("ID", this));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NonEmptyDelegate("ID", this));
     QString idToolTip = "The unique identifier of the ship.";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(idToolTip);
 
     // 2. Path column
-    ui->table_newShips->setItemDelegateForColumn(i, new TextBoxDelegate(this, "1,2"));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new TextBoxDelegate(this, "0.0, 0.0; 1.0, 1.0, "));
     QString nodesToolTip = "All the coordinates the ship should path on. "
                            "You can define either the start and end nodes or "
                            "each point the ship must traverse. "
@@ -301,255 +434,290 @@ void ShipNetSim::setupShipsTable() {
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(nodesToolTip);
 
     // 3. Max Speed column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString maxSpeedToolTip = "Max speed (knots)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(maxSpeedToolTip);
 
     // 4. LWL column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString lwlToolTip = "Vessel's waterline length (m)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lwlToolTip);
 
     // 5. LPP column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString lppToolTip = "Length between perpendiculars (m)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lppToolTip);
 
     // 6. Beam (B) column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString bToolTip = "Beam (m)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(bToolTip);
 
-    // 7. Draft Aft (TA) column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
-    QString taToolTip = "Draft at aft (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(taToolTip);
-
-    // 8. Draft Forward (TF) column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    // 7. Draft Forward (TF) column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString tfToolTip = "Draft at forward (m)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(tfToolTip);
 
+    // 8. Draft Aft (TA) column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString taToolTip = "Draft at aft (m)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(taToolTip);
+
     // 9. Volume (V) column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString vToolTip = "Volumetric Displacement (cubic meters)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(vToolTip);
 
     // 10. Surface Area (S) column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
     QString sToolTip = "Hull Surface Area (square meters)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(sToolTip);
 
     // 11. AV column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
-    QString avToolTip = "Cargo Vertical Projected Area in motion direction (square meters)";
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString avToolTip = "Cargo Vertical Projected Area in motion "
+                        "direction (square meters)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(avToolTip);
 
     // 12. hB column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
-    QString hbToolTip = "Height of the center of Area of the transverse section at the bow (m)";
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString hbToolTip = "Height of the center of Area of the transverse "
+                        "section at the bow (m)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(hbToolTip);
 
     // 13. ABT column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
-    QString abtToolTip = "Area of the transverse section at the bow (square meters)";
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString abtToolTip = "Area of the transverse section at the "
+                         "bow (square meters)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(abtToolTip);
 
-    // 14. iE column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
+    // 14. ABT column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 0.1, 0));
+    QString atToolTip = "Area of the transom (square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(atToolTip);
+
+    // 15. iE column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
     QString ieToolTip = "Entrance angle of the bow (degrees)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(ieToolTip);
 
-    // 15. kS column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000.0, 0, 3, 1.0, 0));
+    // 16. kS column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000.0, 0, 3, 1.0, 0));
     QString ksToolTip = "Roughness coefficient (μm)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(ksToolTip);
 
-    // 16. lCB column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 17. lCB column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100.0, -100.0, 3, 0.10, 0));
     QString lcbToolTip = "Longitudinal center of buoyancy (fraction of LPP)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(lcbToolTip);
 
-    // 17. stern column
+    // 18. stern column
     QStringList sternTypes = ShipNetSimCore::Ship::getAllSternTypes();
-    ui->table_newShips->setItemDelegateForColumn(i, new ComboBoxDelegate(sternTypes, this));
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new ComboBoxDelegate(sternTypes, this));
     QString sternToolTip = "Stern type";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(sternToolTip);
 
-    // 18. CM column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 19. CM column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString cmToolTip = "Midship section coefficient (fraction)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cmToolTip);
 
-    // 19. CWP column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 20. CWP column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString cwpToolTip = "Waterplane area coefficient (fraction)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cwpToolTip);
 
-    // 20. CP column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 21. CP column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString cpToolTip = "Prismatic coefficient (fraction)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cpToolTip);
 
-    // 21. CB column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 22. CB column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString cbToolTip = "Block coefficient (fraction)";
     ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cbToolTip);
 
-    // 22. Fuel Type column
+    // 23. Fuel Type column
+    QVector<QStringList> formData;
+
     QStringList fuelTypes = QStringList() << "comboBox";
     fuelTypes << ShipNetSimCore::ShipFuel::getFuelTypeList();
-    QVector<QStringList> fuelTypesDet;
-    fuelTypesDet.push_back(fuelTypes);
+    formData.push_back(fuelTypes);
+
+    QStringList tankSizesDetails= QStringList() << "numericSpin";
+    tankSizesDetails << "1000000000.0" << "0.0" << "2" << "100" << "1000.0";
+    formData.push_back(tankSizesDetails);
+
+    QStringList tankcapDetails= QStringList() << "numericSpin";
+    tankcapDetails << "1.0" << "0.0" << "3" << "0.05" << "0.85";
+    formData.push_back(tankcapDetails);
+    formData.push_back(tankcapDetails);
+
+
     TextBoxButtonDelegate::FormDetails fFuelTypes =
         TextBoxButtonDelegate::FormDetails(
-            "Select Fuel Tyes for Each Tier",
-            QStringList()<<"Fuel Type",
-            QStringList() << "Tier II" << "Tier III", fuelTypesDet);
+            "Enter Tank Details",
+            QStringList() <<"Fuel Type" << "Max Capacity (Liters)"
+                          << "Initial Capacity (%)" << "Depth (%)",
+            {}, formData);
     ui->table_newShips->setItemDelegateForColumn(
         i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::General,
                                      this, fFuelTypes));
-    QString fuelTypesToolTip = "fuel types for Tier II and III";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(fuelTypesToolTip);
-
-    // 23. Tank Size column
-    QStringList tankSizesDetails= QStringList() << "numericSpin";
-    tankSizesDetails << "1000000000.0" << "0.0" << "2" << "100" << "1000.0";
-    QVector<QStringList> tankSizeDet;
-    tankSizeDet.push_back(tankSizesDetails);
-    TextBoxButtonDelegate::FormDetails fText =
-        TextBoxButtonDelegate::FormDetails(
-            "Select Tank Sizes for Each Fuel Type",
-            QStringList()<<"Tank Size (liters)",
-            QStringList() << "Tier II" << "Tier III", tankSizeDet);
-    ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(
-            TextBoxButtonDelegate::FormType::General,
-            this, fText));
-    QString tankSizeToolTip = "Tank size (liters)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(tankSizeToolTip);
-
-
-    // 24. Tank Initial Capacity column
-    QStringList tankcapDetails= QStringList() << "numericSpin";
-    tankcapDetails << "1.0" << "0.0" << "3" << "0.05" << "0.85";
-    QVector<QStringList> tankCapDet;
-    tankCapDet.push_back(tankcapDetails);
-    TextBoxButtonDelegate::FormDetails fCapText =
-        TextBoxButtonDelegate::FormDetails(
-            "Select Tank Initial Capacity (%) for Each Fuel Type",
-            QStringList()<<"Tank Initial Capacity (%)",
-            QStringList() << "Tier II" << "Tier III", tankCapDet);
-    ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(
-            TextBoxButtonDelegate::FormType::General,
-            this, fCapText));
-    QString tankInitCapacityToolTip = "Initial tank capacity (%)";
+    QString fuelTypesToolTip = "tank details";
     ui->table_newShips->horizontalHeaderItem(i++)->
-        setToolTip(tankInitCapacityToolTip);
+        setToolTip(fuelTypesToolTip);
 
-    // 25. Tank Depth of Discharge column
-    TextBoxButtonDelegate::FormDetails fdepthText =
-        TextBoxButtonDelegate::FormDetails(
-            "Select Tank Depth of Discharge (%) for Each Fuel Type",
-            QStringList()<<"Tank Depth of Discharge (%)",
-        QStringList() << "Tier II" << "Tier III", tankCapDet);
+
+    // 24. Engines Count Per Propeller column
     ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(
-            TextBoxButtonDelegate::FormType::General,
-            this, fCapText));
-    QString tankDepthOfDischargeToolTip = "Tank depth of discharge (%)";
-    ui->table_newShips->horizontalHeaderItem(i++)->
-        setToolTip(tankDepthOfDischargeToolTip);
-
-    // 26. Engines Count Per Propeller column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 2, 0, 0, 1.0, 0));
+        i, new NumericDelegate(this, 2, 0, 0, 1.0, 0));
     QString enginesCountToolTip = "Number of engines per propeller";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(enginesCountToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(enginesCountToolTip);
 
-    // 27. Engine Brake Power to RPM Map column
+    // 25. Engine Details for Tier II
     ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::Power,
-                                     this));
-    QString engineBPRPMToolTip = "Engine brake power to RPM map (kW, #)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(engineBPRPMToolTip);
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::RPMEfficiency,
+            this, TextBoxButtonDelegate::FormDetails(true)));
+    QString engineBPRPMToolTip = "Engine edge points definition "
+                                 "for Tier II (kW, RPM, #)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(engineBPRPMToolTip);
 
-    // 28. Engine Brake Power to Efficiency Map column
+    // 26. Engine Details for Tier III
     ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::
-                                     RPMEfficiency, this));
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::RPMEfficiency,
+            this, TextBoxButtonDelegate::FormDetails(true)));
+    QString engineBPRPMToolTipIII = "Engine edge points definition for Tier "
+                                    "III (kW, RPM, #)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(engineBPRPMToolTipIII);
+
+    // 27. Engine Performance Curve for Tier II
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::RPMEfficiency,
+            this, TextBoxButtonDelegate::FormDetails(false)));
     QString engineBPEffToolTip = "Engine brake power to efficiency map"
                                  " for Tier II (kW, %)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(engineBPEffToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(engineBPEffToolTip);
 
-    // 29. Engine Brake Power to Efficiency Map column
+    // 28. Engine Performance Curve for Tier III
     ui->table_newShips->setItemDelegateForColumn(
-        i, new TextBoxButtonDelegate(TextBoxButtonDelegate::FormType::
-                                  RPMEfficiency, this));
+        i, new TextBoxButtonDelegate(
+            TextBoxButtonDelegate::FormType::RPMEfficiency,
+            this, TextBoxButtonDelegate::FormDetails(false)));
     QString engineBPEffTier3ToolTip = "Engine brake power to efficiency map "
                                       "for Tier III (kW, %)";
     ui->table_newShips->horizontalHeaderItem(i++)->
         setToolTip(engineBPEffTier3ToolTip);
 
-    // 30. Gearbox Ratio column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    // 29. Gearbox Ratio column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
     QString gearboxRatioToolTip = "Gearbox ratio to 1";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(gearboxRatioToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(gearboxRatioToolTip);
 
-    // 31. Gearbox Efficiency column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 30. Gearbox Efficiency column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString gearboxEffToolTip = "Gearbox efficiency (%)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(gearboxEffToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(gearboxEffToolTip);
 
-    // 32. Shaft Efficiency column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 31. Shaft Efficiency column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString shaftEffToolTip = "Shaft efficiency (%)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(shaftEffToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(shaftEffToolTip);
 
-    // 33. Propeller Count column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
+    // 32. Propeller Count column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
     QString propellerCountToolTip = "Number of propellers";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerCountToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(propellerCountToolTip);
 
-    // 34. Propeller Diameter column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    // 33. Propeller Diameter column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
     QString propellerDiameterToolTip = "Propeller diameter (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerDiameterToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(propellerDiameterToolTip);
 
-    // 35. Propeller Pitch column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
+    // 34. Propeller Pitch column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100.0, 0, 3, 0.01, 0));
     QString propellerPitchToolTip = "Propeller pitch (m)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerPitchToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(propellerPitchToolTip);
 
-    // 36. Propeller Blade Count column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
+    // 35. Propeller Blade Count column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 100, 0, 0, 1.0, 0));
     QString propellerBladeCountToolTip = "Number of propeller blades";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerBladeCountToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(propellerBladeCountToolTip);
 
-    // 37. Propeller Expanded Area Ratio column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
+    // 36. Propeller Expanded Area Ratio column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1.0, 0, 3, 0.01, 0));
     QString propellerAreaRatioToolTip = "Propeller expanded area ratio";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(propellerAreaRatioToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(propellerAreaRatioToolTip);
 
-    // 38. Stop if No Energy column
-    ui->table_newShips->setItemDelegateForColumn(i, new CheckboxDelegate(this));
+    // 37. Stop if No Energy column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new CheckboxDelegate(this));
     QString stopIfNoEnergyToolTip = "Stop if there is no energy available?";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(stopIfNoEnergyToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(stopIfNoEnergyToolTip);
 
-    // 39. Max Rudder Angle column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
+    // 38. Max Rudder Angle column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 360.0, 0, 1, 1.0, 0));
     QString maxRudderAngleToolTip = "Max rudder angle (degrees)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(maxRudderAngleToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(maxRudderAngleToolTip);
 
-    // 40. Vessel Weight column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
+    // 39. Vessel Weight column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
     QString vesselWeightToolTip = "Vessel weight (ton)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(vesselWeightToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(vesselWeightToolTip);
 
-    // 41. Cargo Weight column
-    ui->table_newShips->setItemDelegateForColumn(i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
+    // 40. Cargo Weight column
+    ui->table_newShips->setItemDelegateForColumn(
+        i, new NumericDelegate(this, 1000000000000.0, 0, 3, 1.0, 0));
     QString cargoWeightToolTip = "Cargo weight (ton)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(cargoWeightToolTip);
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(cargoWeightToolTip);
 
     QStringList appDetails1 = QStringList() << "comboBox";
     appDetails1 << ShipNetSimCore::Ship::getAllAppendageTypes();
@@ -568,18 +736,20 @@ void ShipNetSim::setupShipsTable() {
         i, new TextBoxButtonDelegate(
             TextBoxButtonDelegate::FormType::General,
             this, fappText));
-    QString appendagesToolTip = "Appendages surface area map (ID, square meters)";
-    ui->table_newShips->horizontalHeaderItem(i++)->setToolTip(appendagesToolTip);
+    QString appendagesToolTip = "Appendages surface area map "
+                                "(ID, square meters)";
+    ui->table_newShips->horizontalHeaderItem(i++)->
+        setToolTip(appendagesToolTip);
 
     // ---------- insert a new row to Ships ----------
     ui->table_newShips->insertRow(0);
-    // add the train 0 to combo visualize Train
+    // add the ship 0 to combo visualize ship
     this->updateCombo_visualizeShips();
 
     // set the new id count as default value for the first cell of the new row
-    std::unique_ptr<QTableWidgetItem> newItemID_train(
+    std::unique_ptr<QTableWidgetItem> newItemID_ship(
         new QTableWidgetItem(QString::number(1)));
-    ui->table_newShips->setItem(0, 0, newItemID_train.release());
+    ui->table_newShips->setItem(0, 0, newItemID_ship.release());
 
     ui->table_newShips->horizontalHeader()->
         setSectionResizeMode(QHeaderView::ResizeToContents);
@@ -609,20 +779,38 @@ void ShipNetSim::on_tabWidget_results_currentChanged(int index)
     }
 }
 
+void ShipNetSim::handleSimulationResultsAvailable(ShipsResults results) {
+    auto reportTable =
+        ShipNetSimCore::Data::Table::createFromQPairRows<QString, QString>(
+            {"Key", "Value"}, results.getSummaryData());
+    ui->widget_SummaryReport->createReport(reportTable);
+
+    // this->showDetailedReport(results.getTrajectoryFileName());
+}
+
+void ShipNetSim::handleViewTrajectoryFile(QString trajectoryFile)
+{
+    QFileInfo fileInfo(trajectoryFile);
+
+    if (fileInfo.exists()) {
+        ShipNetSimUI::updateGraphs(
+            this, ui->comboBox_shipsResults,
+            ui->comboBox_resultsXAxis, trajectoryFile);
+    }
+}
 
 void ShipNetSim::saveProjectFile(bool saveAs) {
     if (projectFileName.isEmpty() || saveAs) {
         QString saveFilePath =
-            QFileDialog::getSaveFileName(this, "Save Project",
-                                         QDir::homePath(),
-                                         "NeTrainSim Files (*.STS)");
+            ShipNetSimUI::saveFile(this, "Save project",
+                                   "ShipNetSim Files (*.STS)");
+
         if (saveFilePath.isEmpty()) {
             return;
         }
         projectFileName = saveFilePath;
     }
 
-    //    try {
     projectName =
         (!ui->lineEdit_projectName->text().trimmed().
           isEmpty()) ? ui->lineEdit_projectName->text().
@@ -676,6 +864,7 @@ void ShipNetSim::loadProjectFiles(QString projectFilename) {
         QString parentDirPath = fileInfo.dir().absolutePath();
 
         QString executableDirectory = QApplication::applicationDirPath();
+        QString dataDir = ShipNetSimCore::Utils::getDataDirectory();
 
         auto out =
             ShipNetSimCore::Data::ProjectFile::
@@ -691,11 +880,13 @@ void ShipNetSim::loadProjectFiles(QString projectFilename) {
         QString ExecutableString = "$${EXE}";
         shipsFile.replace(ExecutableString, executableDirectory);
 
+        QString dataDirString = "$${DATADIR}";
+        shipsFile.replace(dataDirString, dataDir);
+
 
         QFile tfile(shipsFile);
         if (tfile.exists()) {
             ui->lineEdit_trains->setText(shipsFile);
-            //ui->checkBox_TrainsOD->setCheckState(Qt::Unchecked);
         }
         else {
             ShipNetSimUI::showWarning(this, "ships file does not exist");
@@ -733,35 +924,151 @@ void ShipNetSim::loadProjectFiles(QString projectFilename) {
     }
 }
 
-QVector<QMap<QString, std::any>> ShipNetSim::getShipsDataFromTables()
-{
-    QVector<QMap<QString, std::any>> ships;
+ShipNetSimCore::GPoint ShipNetSim::findPortCoords(QString portCode) {
+    auto ports = ShipNetSimCore::OptimizedNetwork::loadFirstAvailableSeaPorts();
+    for (const auto &port : ports) {
+        if (port->getPortCode() == portCode) {
+            return port->getPortCoordinate();
+        }
+    }
 
-    if (ui->table_newShips->isTableIncomplete({})) {
-        throw std::invalid_argument("Locomotives Table is empty!");
-        return ships;
+    // Throw an exception if the port is not found
+    throw std::invalid_argument(
+        QString("Port %1 is not found").arg(portCode).toStdString()
+        );
+}
+
+
+QString ShipNetSim::convertFromPortCodesToCoords(QString portsString) {
+    QString final = "";
+    // Split the string by ","
+    QStringList portParts = portsString.split(",");
+
+    for (const QString &port : portParts) {
+        QString trimmedPort = port.trimmed();
+        try {
+        final += findPortCoords(trimmedPort).toString("%x, %y") + ";";
+        } catch(std::exception &e) {
+            qWarning("%s", e.what());
+        }
+    }
+
+    return final;
+};
+
+QVector<QMap<QString, QString>> ShipNetSim::getShipsDataFromTables()
+{
+    QVector<QMap<QString, QString>> shipsDetails;
+
+    if (ui->table_newShips->isTableIncomplete(OPTIONAL_SHIPS_TABLE_COLUMNS)) {
+        throw std::invalid_argument("Ships Table is empty!");
+        return shipsDetails;
+    }
+
+    // check if the ships table has any empty cell
+    if (ui->table_newShips->hasEmptyCell(OPTIONAL_SHIPS_TABLE_COLUMNS)) {
+        throw std::invalid_argument("Ships Table has empty cells!");
+        return shipsDetails;
     }
 
     // read ships
     for (int i = 0; i< ui->table_newShips->rowCount(); i++) {
-        if (ui->table_newShips->isRowEmpty(i, {})) { continue; }
+        if (ui->table_newShips->isRowEmpty(i, OPTIONAL_SHIPS_TABLE_COLUMNS))
+        {
+            continue;
+        }
 
-        QMap<QString, std::any> shipdetails;
+        QString sternTypeStr = (ui->table_newShips->item(i, 17)
+                                   ? ui->table_newShips->item(i, 17)->text().
+                                     trimmed() : "NoData");
+        QString sternTypeIndex =
+            QString::number(ShipNetSimCore::Ship::getAllSternTypes().indexOf(
+            sternTypeStr, 0, Qt::CaseInsensitive));
 
+        QMap<QString, QString> shipdetails;
 
+        for (int c = 0;  // column / parameter
+             c < ShipNetSimCore::ShipsList::FileOrderedparameters.size();
+             c++) {
+            QString data = ui->table_newShips->item(i, c)
+            ? ui->table_newShips->item(i, c)->text().
+                trimmed() : "-1";
+            QString readingValue =
+                ShipNetSimCore::ShipsList::FileOrderedparameters[c].name;
+            if (data == "-1" &&
+                !ShipNetSimCore::ShipsList::FileOrderedparameters[c].isOptional)
+            {
+                ErrorHandler::showError(QString("%1 must be provided.").
+                                        arg(readingValue));
+            }
+            else if(data == "-1") {
+                data = "NA";
+            }
 
+            if (readingValue == "SternShapeParam") {
+                data = sternTypeIndex;
+            }
+            shipdetails[readingValue] = data;
+        }
 
-
-
+        shipsDetails.push_back(shipdetails);
 
     }
 
-    return ships;
+    if (OPTIONAL_SHIPS_TABLE_COLUMNS.isEmpty()) {
+        throw std::invalid_argument("Ships Table is empty!");
+    }
+
+    return shipsDetails;
 }
 
-void ShipNetSim::loadShipsDataToTables(QVector<QMap<QString, std::any>> data)
+void ShipNetSim::loadShipsDataToTables(QVector<QMap<QString, QString>> data)
 {
+    if (data.empty()) {
+        return;
+    }
+    // clear the current table data
+    ui->table_newShips->clearContent();
 
+    // iterate over all ships data
+    for (int i = 0; i < data.size(); i++) {
+        // if not equal to sorted parameters, show errors
+        if (data[i].size() !=
+            ShipNetSimCore::ShipsList::FileOrderedparameters.size()) {
+            ErrorHandler::showWarning("Data is not fully populated "
+                                      "for the ships table");
+            return;
+        }
+
+        // iterate over all the ship details
+        for (int j = 0;
+             j < ShipNetSimCore::ShipsList::FileOrderedparameters.size();
+             j++)
+        {
+            QString parameter = ShipNetSimCore::ShipsList::
+                                FileOrderedparameters[j].name;
+            QString cellData = data[i][parameter];
+            if (cellData.contains("NA", Qt::CaseInsensitive)) {
+                cellData = "";
+            }
+            if (parameter == "SternShapeParam") {
+                QStringList sternTypes =
+                    ShipNetSimCore::Ship::getAllSternTypes();
+                bool isNumeric;
+                int index = cellData.toInt(&isNumeric);
+                if (isNumeric) {
+                    cellData = sternTypes[index];
+                }
+                else {
+                    cellData = sternTypes[0];
+                }
+
+            }
+            QModelIndex index = ui->table_newShips->model()->index(i, j);
+            ui->table_newShips->model()->
+                setData(index, cellData, Qt::EditRole);
+        }
+    }
 }
 
 
@@ -769,11 +1076,11 @@ void ShipNetSim::loadShipsDataToTables(QVector<QMap<QString, std::any>> data)
 void ShipNetSim::simulate() {
     try {
 
-        QVector<QMap<QString, std::any>> shipRecords;
+        QVector<QMap<QString, QString>> shipsRecords;
 
         // read ships from table and generate instances of ships
         try {
-            shipRecords = this->getShipsDataFromTables();
+            shipsRecords = this->getShipsDataFromTables();
         } catch (const std::exception& e) {
             ShipNetSimUI::showErrorBox(e.what());
             return;
@@ -798,7 +1105,7 @@ void ShipNetSim::simulate() {
             return;
         }
 
-        bool exportAllTrainsSummary =
+        bool exportAllShipsSummary =
             ui->checkBox_detailedTrainsSummay->checkState() == Qt::Checked;
         bool exportInta =
             ui->checkBox_exportTrajectory->checkState() == Qt::Checked;
@@ -829,78 +1136,157 @@ void ShipNetSim::simulate() {
         double timeStep = ui->doubleSpinBox_timeStep->value();
         int plotFreq = ui->spinBox_plotEvery->value();
 
-        if (this->thread == nullptr) {
-            this->thread = new QThread(this);
-        }
-
-        if (this->thread->isRunning()) {
+        if (SimulatorAPI::ContinuousMode::isWorkerBusy(MAIN_SIMULATION_NAME)) {
             ShipNetSimUI::showNotification(this,
                                            "Simulation is still running!");
             return;
         }
 
         ui->progressBar->setVisible(true);
-        worker = new SimulationWorker(WATER_BOUNDRIES_FILE,
-                                      shipRecords,
-                                      netName,
-                                      units::time::second_t(endTime),
-                                      units::time::second_t(timeStep),
-                                      plotFreq,
-                                      exportDir,
-                                      summaryFilename,
-                                      exportInta,
-                                      instaFilename,
-                                      exportAllTrainsSummary);
 
-        if (worker == nullptr) {
-            ShipNetSimUI::showErrorBox("Error!");
-            return;
+        // -------------------------------------------------------------
+        // USING ShipNetSim API
+        // -------------------------------------------------------------
+
+        // setting simulator definitions
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setTimeStep(units::time::second_t(timeStep));
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setEndTime(units::time::second_t(endTime));
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setOutputFolderLocation(exportDir);
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setSummaryFilename(summaryFilename);
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setExportIndividualizedShipsSummary(exportAllShipsSummary);
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            setExportInstantaneousTrajectory(exportInta, instaFilename);
+
+
+        QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships;
+        for (QMap<QString, QString> shipRecord : shipsRecords) {
+            auto s = ShipNetSimCore::ShipsList::loadShipFromParameters(
+                shipRecord, SimulatorAPI::ContinuousMode::
+                getNetwork(MAIN_SIMULATION_NAME),
+                false);
+            ships.push_back(s);
+
+            auto position = s->getCurrentPosition();
+            GlobalMapManager::getInstance()->createShipNode(
+                s->getUserID(), s->getCurrentPosition());
         }
 
         // handle any error that arise from the simulator
-        connect(worker, &SimulationWorker::errorOccurred, this,
-            [this]( QString errorMessage) {
-            ShipNetSimUI::handleError(this, errorMessage);
-        });
-
-        // update the progress bar
-        connect(worker, &SimulationWorker::simulaionProgressUpdated,
-                ui->progressBar, &QProgressBar::setValue);
-
-        // Connect the operationCompleted signal to a slot in your GUI class
-        connect(worker, &SimulationWorker::simulationFinished, this,
-                &::ShipNetSim::pauseSimulation);
-
-        // replot the ships coordinates
-        connect(worker, &SimulationWorker::shipsCoordinatesUpdated, this,
-                [this](QVector<
-                       std::pair<QString, ShipNetSimCore::GPoint>>
-                           shipsStartEndPoints)
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::errorOccurred, this,
+                [this]( QString errorMessage)
                 {
-                    //updateshipsPlot(shipsStartEndPoints);
-                });
+                    ShipNetSimUI::handleError(this, errorMessage);
+                }, Qt::QueuedConnection);
 
-        // hide the pause button
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::simulationProgressUpdated, this,[this]
+                (QMap<QString,int> progress)
+                {
+                    int prgs = progress[MAIN_SIMULATION_NAME];
+                    ui->progressBar->setValue(prgs);
+                }, Qt::QueuedConnection);
+
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::simulationFinished, this,
+                [this, instaFilename, exportDir](QString networkName)
+                {
+                    // enable the results window
+                    ui->tabWidget_project->setTabEnabled(3, true);
+                    ui->pushButton_projectNext->setEnabled(true);
+                    this->ui->progressBar->setVisible(false);
+                    ShipNetSimUI::showNotification(
+                        this, "Simulation finished Successfully!");
+                    ui->tabWidget_project->setCurrentIndex(3);
+                    ui->pushButton_pauseResume->setVisible(false);
+                    ui->pushButton_terminate->setVisible(false);
+
+                    // view the trajectory
+
+                    QString trajectoryFile =
+                        GUIUtils::constructFullPath(exportDir,
+                                                    instaFilename,
+                                                    "csv");
+
+                    ui->lineEdit_trajectoryViewBrowse->setText(trajectoryFile);
+                }, Qt::QueuedConnection);
+
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::simulationResultsAvailable, this,
+                [this](QMap<QString, ShipsResults> results)
+                {
+                    ShipsResults SR = results[MAIN_SIMULATION_NAME];
+                    auto summaryData = SR.getSummaryData();
+                    auto summaryDataTable =
+                        ShipNetSimCore::Data::Table::
+                        createFromQPairRows<QString, QString>(
+                            {"Key", "Value"}, summaryData);
+                    ui->widget_SummaryReport->createReport(summaryDataTable);
+                }, Qt::QueuedConnection);
+
+        if (plotFreq != 0) {
+            // replot the ships coordinates
+            connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                    &SimulatorAPI::shipCoordinatesUpdated, this,
+                    [plotFreq](
+                        QString shipID,
+                        ShipNetSimCore::GPoint currentPosition,
+                        units::angle::degree_t heading,
+                        QVector<std::shared_ptr<ShipNetSimCore::GLine>> lines)
+                    {
+                        static QMap<QString, int> updateCounters;
+
+                        // Initialize counter for new ship
+                        if (!updateCounters.contains(shipID)) {
+                            updateCounters[shipID] = 0;
+                        }
+
+                        // Increment counter
+                        updateCounters[shipID]++;
+
+                        // Update position only every 100 times
+                        if (updateCounters[shipID] >= plotFreq) {
+                            GlobalMapManager::getInstance()->
+                                updateShipPosition(shipID,
+                                                   currentPosition,
+                                                   lines);
+                            updateCounters[shipID] = 0;  // Reset counter
+                        }
+                    }, Qt::QueuedConnection);
+        }
+
+        // Show the pause button
         ui->pushButton_pauseResume->setVisible(true);
-
-        // move the worker to the new thread
-        worker->moveToThread(thread);
+        ui->pushButton_terminate->setVisible(true);
 
         // disable the simulate button
-        connect(thread, &QThread::started, this, [=, this]() {
-            this->ui->pushButton_projectNext->setEnabled(false);
-        });
-        // connect the do work to thread start
-        connect(thread, &QThread::started, worker, &SimulationWorker::doWork);
+        this->ui->pushButton_projectNext->setEnabled(false);
 
-        // start the simulation
-        thread->start();
-
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::shipsAddedToSimulation, this,
+                [](const QString networkName,
+                   const QVector<QString> shipIDs) {
+                    Q_UNUSED(networkName);
+                    Q_UNUSED(shipIDs);
+                    SimulatorAPI::ContinuousMode::
+                        runSimulation({MAIN_SIMULATION_NAME});
+                }, Qt::QueuedConnection);
+        SimulatorAPI::ContinuousMode::addShipToSimulation(MAIN_SIMULATION_NAME,
+                                                          ships);
 
     } catch (const std::exception& e) {
         ShipNetSimUI::showErrorBox(e.what());
         // hide the pause button
         ui->pushButton_pauseResume->setVisible(false);
+        ui->pushButton_terminate->setVisible(false);
+
+        // Enable the simulate button
+        this->ui->pushButton_projectNext->setEnabled(true);
     }
 }
 
@@ -911,13 +1297,19 @@ void ShipNetSim::closeApplication() {
 }
 
 void ShipNetSim::pauseSimulation() {
-    QMetaObject::invokeMethod(
-        worker->sim, "pauseSimulation", Qt::QueuedConnection);
+    SimulatorAPI::ContinuousMode::pauseSimulation({MAIN_SIMULATION_NAME});
 }
 
 void ShipNetSim::resumeSimulation() {
-    QMetaObject::invokeMethod(
-        worker->sim, "resumeSimulation", Qt::QueuedConnection);
+    SimulatorAPI::ContinuousMode::resumeSimulation({MAIN_SIMULATION_NAME});
+}
+
+void ShipNetSim::terminateSimulation() {
+    SimulatorAPI::ContinuousMode::terminateSimulation({MAIN_SIMULATION_NAME});
+
+    // hide the terminate and pause buttons
+    ui->pushButton_pauseResume->setVisible(false);
+    ui->pushButton_terminate->setVisible(false);
 }
 
 void ShipNetSim::loadDefaults() {
