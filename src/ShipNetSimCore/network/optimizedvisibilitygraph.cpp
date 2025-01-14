@@ -15,7 +15,7 @@ bool ShortestPathResult::isValid()
             lines.size() >= 1 &&
             lines.size() == (points.size() - 1));
 }
-// OptimizedVisibilityGraph::OptimizedVisibilityGraph() {}
+OptimizedVisibilityGraph::OptimizedVisibilityGraph() {}
 
 OptimizedVisibilityGraph::OptimizedVisibilityGraph(
     const QVector<std::shared_ptr<Polygon>> usedPolygons,
@@ -198,24 +198,105 @@ bool OptimizedVisibilityGraph::isVisible(
 bool OptimizedVisibilityGraph::isSegmentVisible(
     const std::shared_ptr<GLine>& segment) const
 {
-    // Find all Quadtree nodes that this line segment intersects
-    auto intersectingNodes =
-        quadtree->findNodesIntersectingLineSegment(segment);
+    // 1. Quick check for length - if points are very close, return true
+    if (segment->startPoint()->distance(*segment->endPoint()) <
+        units::length::meter_t(1.0)) {
+        return true;
+    }
 
-    // Check for intersection with any line segments within
-    // these Quadtree nodes
-    for (auto* qtNode : intersectingNodes)
-    {
-        for (const auto& edge : quadtree->getAllSegmentsInNode(qtNode))
-        {
-            if (segment->intersects(*edge, true))
-            {
-                // Intersection found, segment is not visible
-                return false;
+    // 2. Get intersecting nodes using parallel processing
+    auto intersectingNodes =
+        quadtree->findNodesIntersectingLineSegmentParallel(segment);
+
+    // 3. Use quick bounding box rejection before detailed intersection
+    auto segBounds = std::make_pair(
+        std::min(segment->startPoint()->getLongitude().value(),
+                 segment->endPoint()->getLongitude().value()),
+        std::max(segment->startPoint()->getLongitude().value(),
+                 segment->endPoint()->getLongitude().value()));
+
+    // 4. Process nodes in parallel for large datasets
+    if (intersectingNodes.size() > 1000) {
+        QAtomicInt hasIntersection = 0;
+
+        // Create a vector of line segments from nodes to process
+        QVector<QVector<std::shared_ptr<GLine>>> nodeSegmentsToProcess;
+        for (auto* node : intersectingNodes) {
+            nodeSegmentsToProcess.push_back(quadtree->
+                                            getAllSegmentsInNode(node));
+        }
+
+        // Process segments in parallel for faster checks
+        auto processSegments = [&hasIntersection, &segment, &segBounds]
+            (const QVector<std::shared_ptr<GLine>>& nodeSegments) {
+                if (hasIntersection.loadAcquire()) {
+                    return;
+                }
+
+                // Sort segments by distance to potentially
+                // find intersections faster
+                auto sortedSegments = nodeSegments;
+                std::sort(sortedSegments.begin(), sortedSegments.end(),
+                          [&segment](const auto& a, const auto& b) {
+                              return a->startPoint()->
+                                     distance(*segment->startPoint()) <
+                                     b->startPoint()->
+                                     distance(*segment->startPoint());
+                          });
+
+                // Check each segment in the node
+                for (const auto& edge : sortedSegments) {
+                    if (hasIntersection.loadAcquire()) break;
+
+                    auto edgeBounds = std::make_pair(
+                        std::min(edge->startPoint()->getLongitude().value(),
+                                 edge->endPoint()->getLongitude().value()),
+                        std::max(edge->startPoint()->getLongitude().value(),
+                                 edge->endPoint()->getLongitude().value()));
+
+                    // Quick rejection test
+                    if (edgeBounds.second < segBounds.first ||
+                        edgeBounds.first > segBounds.second) {
+                        continue;
+                    }
+
+                    if (segment->intersects(*edge, true)) {
+                        hasIntersection.storeRelease(1);
+                        break;
+                    }
+                }
+            };
+
+        QFuture<void> future = QtConcurrent::map(
+            nodeSegmentsToProcess, processSegments);
+        future.waitForFinished();
+
+        return !hasIntersection.loadAcquire();
+
+    } else {
+        // Sequential processing for smaller datasets
+        for (auto* node : intersectingNodes) {
+            auto nodeSegments = quadtree->getAllSegmentsInNode(node);
+            for (const auto& edge : nodeSegments) {
+                auto edgeBounds = std::make_pair(
+                    std::min(edge->startPoint()->getLongitude().value(),
+                             edge->endPoint()->getLongitude().value()),
+                    std::max(edge->startPoint()->getLongitude().value(),
+                             edge->endPoint()->getLongitude().value()));
+
+                // Quick rejection test
+                if (edgeBounds.second < segBounds.first ||
+                    edgeBounds.first > segBounds.second) {
+                    continue;
+                }
+
+                if (segment->intersects(*edge, true)) {
+                    return false;
+                }
             }
         }
+        return true;
     }
-    return true; // No intersection found, segment is visible
 }
 
 

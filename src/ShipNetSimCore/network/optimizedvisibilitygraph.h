@@ -85,8 +85,10 @@ struct ShortestPathResult
  * the shortest path is computed between polygons. In this implementation,
  * the holes are not considered.
  */
-class OptimizedVisibilityGraph
+class OptimizedVisibilityGraph : public QObject
 {
+    Q_OBJECT
+
 public:
 
     /**
