@@ -49,6 +49,30 @@ SHIPNETSIM_EXPORT QString getRootDirectory();
 SHIPNETSIM_EXPORT QString getDataDirectory();
 
 /**
+ * @brief Retrieves the full path of a specified file within the data directory.
+ *
+ * This function takes a file name as input and constructs its full path within
+ * the data directory. The data directory is resolved using the `getDataDirectory`
+ * function. If the specified file is not found in the resolved data directory,
+ * the function terminates the application with a fatal error, providing an
+ * appropriate error message.
+ *
+ * Typical use cases include locating configuration files, data files, or
+ * other resources required by the application at runtime.
+ *
+ * @param fileName The name of the file to locate within the data directory.
+ *                 This should be the relative name (e.g., "config.json")
+ *                 without any directory components.
+ *
+ * @return QString Returns the absolute path to the specified file if it exists
+ *                 in the data directory.
+ *
+ * @throws Terminates the application with a fatal error if the file is not
+ *         found in the resolved data directory.
+ */
+SHIPNETSIM_EXPORT QString getDataFile(const QString &fileName);
+
+/**
  * @brief Searches a list of file paths and extensions to find the first
  * existing file.
  *
