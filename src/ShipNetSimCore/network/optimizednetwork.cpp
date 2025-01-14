@@ -45,6 +45,11 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
 QVector<std::shared_ptr<SeaPort>>
 OptimizedNetwork::loadFirstAvailableSeaPorts()
 {
+    static QVector<std::shared_ptr<SeaPort>> SeaPorts;
+    if (!SeaPorts.isEmpty()) {
+        return SeaPorts;
+    }
+
     QVector<QString> seaPortsLocs =
         NetworkDefaults::seaPortsLocations(Utils::getDataDirectory());
 
@@ -58,8 +63,7 @@ OptimizedNetwork::loadFirstAvailableSeaPorts()
     }
     else
     {
-        QVector<std::shared_ptr<SeaPort>> SeaPorts =
-            readSeaPorts( filePath.toStdString().c_str());
+        SeaPorts = readSeaPorts( filePath.toStdString().c_str());
         return SeaPorts;
     }
 
@@ -86,45 +90,10 @@ bool OptimizedNetwork::loadFirstAvailableSeaPortsFile(
 }
 
 OptimizedNetwork::OptimizedNetwork()
-{
-    GDALAllRegister();
-
-    loadTiffData();
-}
-
-OptimizedNetwork::OptimizedNetwork(
-    QVector<std::shared_ptr<Polygon>> boundaries,
-    BoundariesType boundariesType,
-    QString regionName) :
-    mBoundaries(boundaries),
-    mBoundaryType(boundariesType),
-    mRegionName(regionName)
-{
-    GDALAllRegister();
-
-    mVisibilityGraph =
-        std::make_shared<OptimizedVisibilityGraph>(
-        std::as_const(mBoundaries),
-        boundariesType);
-
-    mRegionName = regionName;  // Set region name
-
-    // load the sea ports
-    bool loadedSeaPorts =
-        loadFirstAvailableSeaPortsFile(
-        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
-    if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
-    else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
-
-    loadTiffData();
-}
-
-OptimizedNetwork::~OptimizedNetwork()
 {}
 
-OptimizedNetwork::OptimizedNetwork(QString filename)
+void OptimizedNetwork::initializeNetwork(QString filename)
 {
-
     GDALAllRegister();
 
     QFileInfo fileInfo(filename);
@@ -155,7 +124,7 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
     // load the sea ports
     bool loadedSeaPorts =
         loadFirstAvailableSeaPortsFile(
-        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
+            NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
     if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
@@ -168,13 +137,61 @@ OptimizedNetwork::OptimizedNetwork(QString filename)
     emit NetworkLoaded();
 }
 
+void OptimizedNetwork::initializeNetwork(
+    QVector<std::shared_ptr<Polygon> > boundaries,
+    BoundariesType boundariesType,
+    QString regionName)
+{
+    GDALAllRegister();
+
+    mVisibilityGraph =
+        std::make_shared<OptimizedVisibilityGraph>(
+            std::as_const(mBoundaries),
+            boundariesType);
+
+    mRegionName = regionName;  // Set region name
+
+    // load the sea ports
+    bool loadedSeaPorts =
+        loadFirstAvailableSeaPortsFile(
+            NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
+    if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
+    else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
+
+    loadTiffData();
+
+    emit NetworkLoaded();
+}
+
+
+OptimizedNetwork::OptimizedNetwork(
+    QVector<std::shared_ptr<Polygon>> boundaries,
+    BoundariesType boundariesType,
+    QString regionName) :
+    mBoundaries(boundaries),
+    mBoundaryType(boundariesType),
+    mRegionName(regionName)
+{
+    initializeNetwork(boundaries, boundariesType, regionName);
+}
+
+OptimizedNetwork::~OptimizedNetwork()
+{}
+
+OptimizedNetwork::OptimizedNetwork(QString filename)
+{
+    initializeNetwork(filename);
+}
+
 
 void OptimizedNetwork::moveObjectToThread(QThread *thread)
 {
     // Move Simulator object itself to the thread
     this->moveToThread(thread);
 
-    // todo: define child object as QObject and move them to the new thread
+    if (mVisibilityGraph && mVisibilityGraph->parent() == nullptr) {
+        mVisibilityGraph->moveToThread(thread);
+    }
 }
 
 void OptimizedNetwork::loadTxtFile(const QString& filename)
@@ -496,7 +513,8 @@ OptimizedNetwork::mapCoordinatesToTiffIndecies(tiffFileData& data, GPoint p)
     double inv_det = 1.0 / (data.adfGeoTransform[1] * data.adfGeoTransform[5] -
                             data.adfGeoTransform[2] * data.adfGeoTransform[4]);
 
-    // Use the inverse of the geo-transform matrix to map coordinates to pixel indices
+    // Use the inverse of the geo-transform matrix to map
+    // coordinates to pixel indices
     pixelX = static_cast<size_t>((x * data.adfGeoTransform[5] -
                                   y * data.adfGeoTransform[2]) * inv_det);
     pixelY = static_cast<size_t>((-x * data.adfGeoTransform[4] +
@@ -529,7 +547,8 @@ GDALDataset *OptimizedNetwork::readTIFFFile(
 
 }
 
-QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* filename)
+QVector<std::shared_ptr<SeaPort> >
+OptimizedNetwork::readSeaPorts(const char* filename)
 {
     QVector<std::shared_ptr<SeaPort>> seaPorts;
 
@@ -569,13 +588,14 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
                 double latitude = point->getY();
                 GPoint p = GPoint(units::angle::degree_t(longitude),
                                   units::angle::degree_t(latitude));
-                SeaPort sp = SeaPort(p);
+                auto sp = std::make_shared<SeaPort>(p);
+                // SeaPort sp = SeaPort(p);
                 try {
-                    sp.setCountryName(country);
-                    sp.setPortCode(locode);
-                    sp.setPortName(nameWoDiac);
-                    sp.setHasRailTerminal(function[1] != '-');
-                    sp.setHasRoadTerminal(function[2] != '-');
+                    sp->setCountryName(country);
+                    sp->setPortCode(locode);
+                    sp->setPortName(nameWoDiac);
+                    sp->setHasRailTerminal(function[1] != '-');
+                    sp->setHasRoadTerminal(function[2] != '-');
 
 
                     QString statusText;
@@ -615,14 +635,13 @@ QVector<std::shared_ptr<SeaPort> > OptimizedNetwork::readSeaPorts(const char* fi
                         statusText = "Unknown status code";
                     }
 
-                    sp.setStatusOfEntry(statusText);
+                    sp->setStatusOfEntry(statusText);
                 } catch (std::exception& e)
                 {
                     qWarning("%s", e.what());
                 }
 
-                seaPorts.push_back(std::make_shared<SeaPort>(sp));
-
+                seaPorts.push_back(sp);
             }
         }
 
@@ -656,7 +675,8 @@ AlgebraicVector::Environment OptimizedNetwork::
     };
 
     // Salinity (pptd)
-    double salinityValue = getValue(salinityTiffData);
+    double salinityValue = getValue(salinityTiffData) / 100.0;
+    salinityValue = (salinityValue > 1.0) ? 1.0 : salinityValue;
     env.salinity = units::concentration::pptd_t(salinityValue);
 
     // Wave height (meters)
@@ -737,7 +757,18 @@ ShortestPathResult OptimizedNetwork::findShortestPath(
     QVector<std::shared_ptr<GPoint>> points,
     PathFindingAlgorithm algorithm)
 {
-    return mVisibilityGraph->findShortestPath(points, algorithm);
+    // If already in the correct thread, call the function directly
+    if (QThread::currentThread() == this->thread()) {
+        return mVisibilityGraph->findShortestPath(points, algorithm);
+    }
+
+    // Otherwise, use invokeMethod to execute in the correct thread
+    ShortestPathResult result;
+    QMetaObject::invokeMethod(this, [&]() {
+        result = mVisibilityGraph->findShortestPath(points, algorithm);
+    }, Qt::BlockingQueuedConnection); // Wait for the result before proceeding
+
+    return result;
 }
 
 QString OptimizedNetwork::getRegionName()
