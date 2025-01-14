@@ -9,7 +9,7 @@ We take all security reports seriously and will investigate and address them pro
 
 ## Supported Versions
 The following versions of ShipNetSim are currently supported with security updates:
-- **v3** (latest stable version)
+- **v0.0.3** (latest version)
 
 Older versions may not receive security updates. We encourage users to upgrade to the latest version to ensure security and stability.
 
