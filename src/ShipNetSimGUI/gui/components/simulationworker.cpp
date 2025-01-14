@@ -53,7 +53,7 @@ void SimulationWorker::onShipsCoordinatesUpdated(
     emit shipsCoordinatesUpdated(trainsStartEndPoints);
 }
 
-void SimulationWorker::onSimulationFinished(ShipsResults &results) {
+void SimulationWorker::onSimulationFinished(ShipsResults results) {
     emit simulationFinished(results);
 }
 
