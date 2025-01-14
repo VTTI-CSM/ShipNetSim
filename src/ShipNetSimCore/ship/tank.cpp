@@ -188,7 +188,7 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
 
     double initialCapacityPercentage =
         Utils::getValueFromMap<double>(parameters,
-                                       "InitialCapacityPercentage",
+                                       "TankInitialCapacityPercentage",
                                         -1.0);
     if (initialCapacityPercentage < 0.0) {
         qFatal("Tank initial capacity percentage is not defined!");
@@ -196,7 +196,7 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
 
     double depthOfDischarge =
         Utils::getValueFromMap<double>(parameters,
-                                       "DepthOfDischarge",
+                                       "TankDepthOfDischage",
                                        -1.0);
     if (depthOfDischarge < 0.0)
     {
