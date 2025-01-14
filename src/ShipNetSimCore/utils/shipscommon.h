@@ -16,6 +16,7 @@
 #include <QJsonDocument>
 
 struct SHIPNETSIM_EXPORT ShipsResults {
+private:
     // Constants
     static const qint64 MAX_TRAJECTORY_SIZE = 1024 * 1024; // 1 MB in bytes
     static const int COMPRESSION_LEVEL = 9; // Highest compression level
@@ -26,6 +27,8 @@ struct SHIPNETSIM_EXPORT ShipsResults {
     QByteArray trajectoryFileData;// Stores the content of the trajectory file
     QString trajectoryFileName;  // Stores the full path of the trajectory file
     QString summaryFileName;     // Stores the full path of the summary file
+
+public:
 
     // Default constructor
     ShipsResults() : summaryData(), trajectoryFileData(),
@@ -47,6 +50,9 @@ struct SHIPNETSIM_EXPORT ShipsResults {
             qWarning("Invalid trajectory file path or file does not exist.");
         }
     }
+
+    QVector<QPair<QString, QString>> getSummaryData() { return summaryData; }
+    QByteArray getTrajectoryFileData() { return trajectoryFileData; }
 
     // Function to load the trajectory file content into QByteArray
     void loadTrajectoryFile(const QString& filePath = QString()) {
@@ -120,6 +126,15 @@ struct SHIPNETSIM_EXPORT ShipsResults {
         QFileInfo fileInfo(summaryFileName);
         // Returns only the filename without the path
         return fileInfo.fileName();
+    }
+
+    // Function to get the summary data
+    QVector<QPair<QString, QString>> getSummaryData() const
+    { return summaryData; }
+
+    // Function to get the trajectory data
+    QByteArray getTrajectoryFileData() const {
+        return trajectoryFileData;
     }
 
     // New function to convert ShipsResults to JSON
