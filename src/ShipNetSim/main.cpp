@@ -109,8 +109,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName(
         QString::fromStdString(ShipNetSim_VENDOR));
 
-    // Logger setup to attach to application events for logging.
-    Logger::attach();
+    // Attach the logger first thing:
+    ShipNetSimCore::Logger::attach();
 
     // Command-line argument parsing setup.
     QCommandLineParser parser;
@@ -430,13 +430,12 @@ int main(int argc, char *argv[])
         if (net) delete net;
         // Log setup errors and exit application.
         qWarning() << "An error occurred: " << e.what();
-        Logger::detach(); // Ensure logger is detached.
+        ShipNetSimCore::Logger::detach(); // Ensure logger is detached.
         return 1; // Exit with an error code.
     }
 
     // Detach logger and start event loop.
-    Logger::detach();
-    return app.exec();
-
-    
+    ShipNetSimCore::Logger::detach();
+    return 0;
+    // return app.exec();
 }
