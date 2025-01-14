@@ -110,7 +110,7 @@ private:
     /// Maximum number of line segments a node can
     /// hold before subdividing.
     /// leave it to 1 so the visibility graph can work
-    const qsizetype MAX_SEGMENTS_PER_NODE = 100;
+    const qsizetype MAX_SEGMENTS_PER_NODE = 30;
 
     /// Root node of the quadtree
     Node root;
@@ -126,10 +126,10 @@ private:
         const Node& node,
         QVector<Node*>& intersecting_nodes) const;
 
-    void findLineSegmentHelper(const Node* node,
-                               const std::shared_ptr<GPoint>& point1,
-                               const std::shared_ptr<GPoint>& point2,
-                               std::shared_ptr<GLine>& result) const;
+    // void findLineSegmentHelper(const Node* node,
+    //                            const std::shared_ptr<GPoint>& point1,
+    //                            const std::shared_ptr<GPoint>& point2,
+    //                            std::shared_ptr<GLine>& result) const;
 
     void insertLineSegmentHelper(
         const std::shared_ptr<GLine>& segment,
@@ -186,10 +186,9 @@ private:
      * @param segment The line segment to check.
      * @param range The rectangular range.
      * @return True if the segment intersects the range, false otherwise.
-     */
-    bool segmentIntersectsRange(const Line &segment,
+     */   
+    bool segmentIntersectsRange(const std::shared_ptr<GLine>& segment,
                                 const QRectF& range) const;
-
     /**
      * @brief Helper function to recursively delete nodes.
      * @param node The current node to delete.
@@ -234,6 +233,21 @@ public:
      * intersect the given line segment.
      */
     QVector<Node*> findNodesIntersectingLineSegment(
+        const std::shared_ptr<GLine>& segment) const;
+
+    /**
+     * @brief Finds nodes in the quadtree that intersect
+     * a given line segment in parallel processing.
+     * @details This function finds all nodes in the quadtree that
+     * intersect a line segment. It uses the bounding box of the node
+     * to do the check and not all the segments inside which makes it
+     * very fast.
+     * @param segment The line segment for which intersecting
+     * nodes are to be found.
+     * @return A vector of pointers to nodes that
+     * intersect the given line segment.
+     */
+    QVector<Quadtree::Node*> findNodesIntersectingLineSegmentParallel(
         const std::shared_ptr<GLine>& segment) const;
 
     /**
@@ -290,6 +304,13 @@ public:
      */
     QVector<std::shared_ptr<GLine>> rangeQuery(const QRectF& range) const;
 
+    /**
+     * @brief Performs a range query on the quadtree with parellel processing.
+     * @param range The rectangular area for the query.
+     * @return A vector of shared pointers to line segments within the range.
+     */
+    QVector<std::shared_ptr<GLine>> rangeQueryParallel(
+        const QRectF& range) const;
     /**
      * @brief Finds the nearest line segment to a given point.
      * @param point The reference point for the search.
