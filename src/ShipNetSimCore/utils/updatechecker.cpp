@@ -57,8 +57,15 @@ void UpdateChecker::replyFinished(QNetworkReply *reply) {
 
     QString mostRecentVersion;
     QDateTime mostRecentDate;
+
     for (const QJsonValue &value : releases) {
         QJsonObject releaseObj = value.toObject();
+
+        // Do not include drafts
+        if (releaseObj.value("draft").toBool() == true) {
+            continue; // Skip drafts but include prereleases
+        }
+
         QString version = releaseObj.value("tag_name").toString();
         QDateTime publishedDate =
             QDateTime::fromString(releaseObj.value("published_at").toString(),
