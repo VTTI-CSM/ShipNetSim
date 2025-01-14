@@ -100,3 +100,4 @@ build
 #Data files
 #----------
 src/data/**
+count_lines.sh
