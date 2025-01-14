@@ -68,7 +68,7 @@ signals:
      * @param summaryData The summary data of the simulation.
      * @param trajectoryFile The trajectory file path of the simulation.
      */
-    void simulationFinished(ShipsResults& results);
+    void simulationFinished(ShipsResults results);
 
     /**
      * @brief Signal emitted when the coordinates of ships are updated.
@@ -118,7 +118,7 @@ public slots:
      * @param results The summary data of the simulation.
      * @param trajectoryFile The trajectory file path of the simulation.
      */
-    void onSimulationFinished(ShipsResults& results);
+    void onSimulationFinished(ShipsResults results);
 
     /**
      * @brief Slot called to start the simulation work.

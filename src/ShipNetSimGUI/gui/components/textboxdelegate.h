@@ -3,6 +3,7 @@
 
 #include "qitemdelegate.h"
 #include "qlineedit.h"
+#include "utils/errorhandler.h"
 
 class TextBoxDelegate : public QItemDelegate {
     Q_OBJECT
@@ -10,8 +11,7 @@ class TextBoxDelegate : public QItemDelegate {
 private:
     QString m_defaultValue;
 
-    void setupLineEdit(QLineEdit *lineEdit,
-                      const QModelIndex &index) const {
+    void setupLineEdit(QLineEdit *lineEdit, const QModelIndex &index) const {
         QVariant data = index.model()->data(index, Qt::EditRole);
         if (data.isValid()) {
             lineEdit->setText(data.toString());
@@ -20,13 +20,20 @@ private:
         }
     }
 
+
 public:
     /**
-     * @brief Constructs a NonEmptyDelegate object with the given parent.
+     * @brief Constructs a TextBoxDelegate object with the given parameters.
      * @param parent The parent object.
+     * @param defaultValue The default value for the text box.
+     * @param validationFunction The function used to validate input (optional).
+     * @param errorMessage The error message to show if validation fails (optional).
      */
-    TextBoxDelegate(QObject* parent = nullptr, QString defaultValue = "") :
-        QItemDelegate(parent), m_defaultValue(defaultValue) {}
+    TextBoxDelegate(
+        QObject* parent = nullptr,
+        QString defaultValue = "") :
+        QItemDelegate(parent),
+        m_defaultValue(defaultValue) {}
 
     /**
      * @brief Creates an editor widget for the given parent,
@@ -77,7 +84,8 @@ public:
             opt.text = QString::number(data.toDouble());
             // Apply grey text color
             QPalette palette = opt.palette;
-            palette.setColor(QPalette::Text, Qt::black);
+            palette.setColor(QPalette::WindowText,
+                             palette.color(QPalette::WindowText));
             opt.palette = palette;
         }
         else {

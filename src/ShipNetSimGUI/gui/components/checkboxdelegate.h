@@ -49,8 +49,8 @@ public:
             checkboxStyleOption.state = QStyle::State_Enabled | (checked ? QStyle::State_On : QStyle::State_Off);
             checkboxStyleOption.rect = checkBoxRect(option);
             QPalette palette = checkboxStyleOption.palette;
-            palette.setColor(QPalette::Text, Qt::black);
-            checkboxStyleOption.palette;
+            palette.setColor(QPalette::WindowText, palette.color(QPalette::WindowText));
+            checkboxStyleOption.palette = palette;
 
             QApplication::style()->drawControl(QStyle::CE_CheckBox, &checkboxStyleOption, painter);
         }
@@ -67,8 +67,8 @@ public:
             checkboxStyleOption.state = QStyle::State_Enabled | (checked ? QStyle::State_On : QStyle::State_Off);
             checkboxStyleOption.rect = checkBoxRect(option);
             QPalette palette = checkboxStyleOption.palette;
-            palette.setColor(QPalette::Text, Qt::black);
-            checkboxStyleOption.palette;
+            palette.setColor(QPalette::WindowText, palette.color(QPalette::WindowText));
+            checkboxStyleOption.palette = palette;
 
             QApplication::style()->drawControl(QStyle::CE_CheckBox, &checkboxStyleOption, painter);
         }

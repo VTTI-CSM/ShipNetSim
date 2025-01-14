@@ -26,6 +26,7 @@
 #define NONEMPTYDELEGATE_H
 
 // #include "netrainsimmainwindow.h"
+#include "utils/errorhandler.h"
 #include <QLineEdit>
 #include <QStyledItemDelegate>
 
@@ -60,37 +61,14 @@ public:
      */
     void setModelData(QWidget* editor, QAbstractItemModel* model,
                       const QModelIndex& index) const override {
-        // QLineEdit* lineEdit = qobject_cast<QLineEdit*>(editor);
-        // if (lineEdit && lineEdit->text().trimmed().isEmpty()) {
-        //     if (parent() != nullptr) {
-        //         NeTrainSim* netP = qobject_cast<NeTrainSim*>(parent());
-        //         netP->showWarning("The cell cannot be empty!");
-        //     }
-        //     return;
-        // }
+        QLineEdit* lineEdit = qobject_cast<QLineEdit*>(editor);
+        if (lineEdit && lineEdit->text().trimmed().isEmpty()) {
+            ErrorHandler::showWarning("The cell cannot be empty!");
+            return;
+        }
 
-        // QString value = lineEdit->text().trimmed();
-        // bool isNumeric;
-        // double theValue = value.toDouble(&isNumeric);
-
-        // if (!isNumeric) {
-        //     if (parent() != nullptr) {
-        //         NeTrainSim* netP = qobject_cast<NeTrainSim*>(parent());
-        //         netP->showWarning("The value must be numeric!");
-        //     }
-        //     return;
-        // }
-        // if (m_usedFor.toLower() == "id") {
-        //     if (theValue < 0) {
-        //         if (parent() != nullptr) {
-        //             NeTrainSim* netP = qobject_cast<NeTrainSim*>(parent());
-        //             netP->showWarning("ID value must be greater than 0!");
-        //         }
-        //         return;
-        //     }
-        // }
-
-        // QStyledItemDelegate::setModelData(editor, model, index);
+        QString value = lineEdit->text().trimmed();
+        QStyledItemDelegate::setModelData(editor, model, index);
     }
 
     void paint(QPainter *painter,
@@ -103,7 +81,8 @@ public:
             opt.text = data.toString();
             // Apply grey text color
             QPalette palette = opt.palette;
-            palette.setColor(QPalette::Text, Qt::black);
+            palette.setColor(QPalette::WindowText,
+                             palette.color(QPalette::WindowText));
             opt.palette = palette;
         }
         else {
@@ -112,16 +91,13 @@ public:
                 opt.text = "Ex: " + m_defaultValue;
                 // Apply grey text color
                 QPalette palette = opt.palette;
-                palette.setColor(QPalette::Text, Qt::gray);
+                palette.setColor(QPalette::WindowText,
+                                 palette.color(QPalette::Mid));
                 opt.palette = palette;
             }
         }
-        //        opt.text = data.isValid() &&
-        //                           data.canConvert<int>()
-        //                       ? QString::number(data.toInt()) :
-        //                       "Ex: " + defaultValueString;
 
-        // QStyledItemDelegate::paint(painter, opt, index);
+        QStyledItemDelegate::paint(painter, opt, index);
     }
 
     QString getFunctionality() {
