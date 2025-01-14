@@ -1,7 +1,7 @@
 // #include "shipnetsim.h"
 
 #include "gui/windowMangement/shipnetsim.h"
-#include "gui/windowMangement/ui_shipnetsim.h"
+#include "../ShipNetSimCore/utils/utils.h"
 #include <osgQOpenGL/osgQOpenGLWidget.h>
 
 #include <osgDB/ReadFile>
@@ -30,11 +30,13 @@
 #include <osgEarth/Utils>
 #include <osgEarth/Registry>
 #include <osgEarth/Metrics>
-// #include <osgEarth/ExampleResources>
 
 #include <QApplication>
 #include <QSurfaceFormat>
 #include <QWindow>
+#include <qsplashscreen.h>
+
+#include "utils/logger.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,24 +44,50 @@
 #include <unistd.h>
 #endif
 
-#include <iostream>
 
 #include "./gui/components/globalmapmanager.h"
 
-
 int main(int argc, char *argv[])
 {
-    osgEarth::initialize();
+    QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
 
-#ifdef _DEBUG
-    osg::setNotifyLevel(osg::FATAL); //DEBUG_INFO
-    osgEarth::setNotifyLevel(osg::FATAL); //DEBUG_INFO
-#endif
-
+    // Create application first
     QApplication app(argc, argv);
 
-    QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+    // Attach the logger first thing:
+    ShipNetSimCore::Logger::attach("ShipNetSimGUI");
 
+    // Create and show splash immediately
+    QString splashPath =
+        ShipNetSimCore::Utils::getDataFile("ShipNetSimSplash.png");
+    QPixmap originalPix(splashPath);
+    QPixmap scaledPix = originalPix.scaled(originalPix.width() * 0.5,
+                                           originalPix.height() * 0.5,
+                                           Qt::KeepAspectRatio,
+                                           Qt::SmoothTransformation);
+    QSplashScreen splash(scaledPix);
+    splash.setWindowFlags(Qt::WindowStaysOnTopHint | splash.windowFlags());
+    splash.show();
+    app.processEvents();
+
+    // Initialize osgEarth after splash is shown
+    splash.showMessage("Initializing OSG...",
+                       Qt::AlignBottom | Qt::AlignCenter, Qt::white);
+    app.processEvents();
+
+    osgEarth::initialize();
+
+// #ifdef _DEBUG
+    osg::setNotifyLevel(osg::FATAL);
+    osgEarth::setNotifyLevel(osg::FATAL);
+// #endif
+
+    // Set up OpenGL format
+    splash.showMessage("Setting up OpenGL...",
+                       Qt::AlignBottom | Qt::AlignCenter, Qt::white);
+    app.processEvents();
+
+    QSurfaceFormat format = QSurfaceFormat::defaultFormat();
     #ifdef OSG_GL3_AVAILABLE
         format.setVersion(3, 2);
         format.setProfile(QSurfaceFormat::CoreProfile);
@@ -71,22 +99,30 @@ int main(int argc, char *argv[])
         format.setRenderableType(QSurfaceFormat::OpenGL);
         format.setOption(QSurfaceFormat::DebugContext);
     #endif
-
     format.setDepthBufferSize(24);
     format.setSamples(8);
     format.setStencilBufferSize(8);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     QSurfaceFormat::setDefaultFormat(format);
 
-    GlobalMapManager::getInstance()->preloadEarthModel();
+    // Preload model data
+    splash.showMessage("Loading model data...",
+                       Qt::AlignBottom | Qt::AlignCenter, Qt::white);
+    app.processEvents();
+    GlobalMapManager::getInstance()->preloadModelData();
 
+    // Create main window
+    splash.showMessage("Initializing main window...",
+                       Qt::AlignBottom | Qt::AlignCenter, Qt::white);
+    app.processEvents();
     ShipNetSim w;
 
-    // auto earthResults = w.ui->plot_trains->loadMap();
-
+    // Show main window and finish splash
     w.show();
+    splash.finish(&w);
 
-    // w.ui->plot_trains->setMapNode(earthResults.second);
+    // Detach logger and start event loop.
+    ShipNetSimCore::Logger::detach();
 
     return app.exec();
 }
