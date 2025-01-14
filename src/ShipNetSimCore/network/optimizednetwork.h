@@ -193,6 +193,12 @@ public:
                      BoundariesType boundariesType,
                      QString regionName = "");
 
+    void initializeNetwork(QString filename);
+
+    void initializeNetwork(QVector<std::shared_ptr<Polygon>> boundaries,
+                           BoundariesType boundariesType,
+                           QString regionName = "");
+
     // Constructor to load network data from a file.
     OptimizedNetwork(QString filename);
 
