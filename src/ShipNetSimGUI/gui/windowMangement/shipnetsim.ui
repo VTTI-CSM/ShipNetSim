@@ -24,10 +24,10 @@
       <item row="0" column="0">
        <widget class="QTabWidget" name="tabWidget_project">
         <property name="tabPosition">
-         <enum>QTabWidget::West</enum>
+         <enum>QTabWidget::TabPosition::West</enum>
         </property>
         <property name="currentIndex">
-         <number>1</number>
+         <number>0</number>
         </property>
         <property name="tabsClosable">
          <bool>false</bool>
@@ -39,6 +39,22 @@
          <layout class="QGridLayout" name="gridLayout_9">
           <item row="0" column="0">
            <layout class="QGridLayout" name="generalGridLayout">
+            <item row="4" column="0">
+             <spacer name="verticalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Orientation::Vertical</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Policy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
             <item row="3" column="0">
              <layout class="QHBoxLayout" name="horizontalLayout_createdBy">
               <item>
@@ -82,7 +98,7 @@
               <item>
                <spacer name="horizontalSpacer_2">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -137,7 +153,7 @@
               <item>
                <spacer name="horizontalSpacer">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -148,22 +164,6 @@
                </spacer>
               </item>
              </layout>
-            </item>
-            <item row="5" column="0">
-             <spacer name="verticalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeType">
-               <enum>QSizePolicy::Expanding</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>40</height>
-               </size>
-              </property>
-             </spacer>
             </item>
             <item row="1" column="0">
              <layout class="QHBoxLayout" name="horizontalLayout_19">
@@ -196,7 +196,7 @@
               <item>
                <spacer name="horizontalSpacer_10">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -292,7 +292,7 @@
                    <item row="0" column="3">
                     <spacer name="horizontalSpacer_11">
                      <property name="orientation">
-                      <enum>Qt::Horizontal</enum>
+                      <enum>Qt::Orientation::Horizontal</enum>
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
@@ -339,7 +339,7 @@
                      <item>
                       <spacer name="horizontalSpacer_5">
                        <property name="orientation">
-                        <enum>Qt::Horizontal</enum>
+                        <enum>Qt::Orientation::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -404,12 +404,12 @@
                        </column>
                        <column>
                         <property name="text">
-                         <string>𝑇𝐴 (m)</string>
+                         <string>𝑇𝐹 (m)</string>
                         </property>
                        </column>
                        <column>
                         <property name="text">
-                         <string>𝑇𝐹 (m)</string>
+                         <string>𝑇𝐴 (m)</string>
                         </property>
                        </column>
                        <column>
@@ -435,6 +435,11 @@
                        <column>
                         <property name="text">
                          <string>𝐴𝐵𝑇 (sq. m)</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>𝐴𝑇(sq. m)</string>
                         </property>
                        </column>
                        <column>
@@ -479,22 +484,7 @@
                        </column>
                        <column>
                         <property name="text">
-                         <string>Fuel Types</string>
-                        </property>
-                       </column>
-                       <column>
-                        <property name="text">
-                         <string>Tank Size (liters)</string>
-                        </property>
-                       </column>
-                       <column>
-                        <property name="text">
-                         <string>Tank Init Capacity (%)</string>
-                        </property>
-                       </column>
-                       <column>
-                        <property name="text">
-                         <string>Tank Depth of Discharge (%)</string>
+                         <string>Tank Details</string>
                         </property>
                        </column>
                        <column>
@@ -504,17 +494,22 @@
                        </column>
                        <column>
                         <property name="text">
-                         <string>Engine Brake Powers (list of kW)</string>
+                         <string>Engine Edge Points Definition (Tier II)</string>
                         </property>
                        </column>
                        <column>
                         <property name="text">
-                         <string>Engine Brake Power to Efficiency Map - Tier II (kW, %)</string>
+                         <string>Engine Edge Points Definition (Tier III) - Optional</string>
                         </property>
                        </column>
                        <column>
                         <property name="text">
-                         <string>Engine Brake Power to Efficiency Map - Tier III (kW, %)</string>
+                         <string>Performance Curve - Tier II (kW, RPM, %) - Optional</string>
+                        </property>
+                       </column>
+                       <column>
+                        <property name="text">
+                         <string>Performance Curve - Tier III (kW, RPM, %) - Optional</string>
                         </property>
                        </column>
                        <column>
@@ -588,7 +583,7 @@
                    </item>
                   </layout>
                  </widget>
-                 <widget class="QWidget" name="tab_8">
+                 <widget class="QWidget" name="tab_path">
                   <attribute name="title">
                    <string>Define Vessels Paths</string>
                   </attribute>
@@ -608,7 +603,7 @@
                      <item>
                       <spacer name="horizontalSpacer_6">
                        <property name="orientation">
-                        <enum>Qt::Horizontal</enum>
+                        <enum>Qt::Orientation::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -635,7 +630,7 @@
                    <item row="2" column="0">
                     <layout class="QHBoxLayout" name="horizontalLayout_3">
                      <property name="sizeConstraint">
-                      <enum>QLayout::SetMaximumSize</enum>
+                      <enum>QLayout::SizeConstraint::SetMaximumSize</enum>
                      </property>
                      <item>
                       <widget class="QLabel" name="label_21">
@@ -653,7 +648,7 @@
                      <item>
                       <spacer name="horizontalSpacer_15">
                        <property name="orientation">
-                        <enum>Qt::Horizontal</enum>
+                        <enum>Qt::Orientation::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -684,7 +679,7 @@
           <item row="0" column="0">
            <widget class="QSplitter" name="splitter_simulator">
             <property name="orientation">
-             <enum>Qt::Vertical</enum>
+             <enum>Qt::Orientation::Vertical</enum>
             </property>
             <widget class="QWidget" name="layoutWidget_2">
              <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -706,11 +701,11 @@
                  <string>Simulation options</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+                 <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
                 </property>
                 <layout class="QGridLayout" name="gridLayout_20">
                  <property name="sizeConstraint">
-                  <enum>QLayout::SetFixedSize</enum>
+                  <enum>QLayout::SizeConstraint::SetFixedSize</enum>
                  </property>
                  <item row="0" column="3">
                   <widget class="QGroupBox" name="verticalGroupBox_6">
@@ -970,10 +965,13 @@
                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the interval for updating and drawing the simulation output. It determines how frequently the visual representation of the simulation is updated and displayed. A preferred value for your simulation is 100. Adjust this interval based on your preference for visual feedback and performance considerations.&lt;/p&gt;&lt;p&gt;For example, if you set it to 100, the simulation will update and redraw the output every 100 simulation steps or iterations, providing periodic visual updates. Modify this value according to your requirements, finding the optimal balance between real-time updates and potential performance impacts.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="maximum">
-                         <number>1000</number>
+                         <number>100000</number>
                         </property>
                         <property name="singleStep">
-                         <number>50</number>
+                         <number>1000</number>
+                        </property>
+                        <property name="value">
+                         <number>1000</number>
                         </property>
                        </widget>
                       </item>
@@ -984,6 +982,9 @@
                  </item>
                  <item row="0" column="1">
                   <widget class="QGroupBox" name="groupBox_2">
+                   <property name="enabled">
+                    <bool>false</bool>
+                   </property>
                    <property name="minimumSize">
                     <size>
                      <width>400</width>
@@ -1047,7 +1048,7 @@
                         <item>
                          <spacer name="horizontalSpacer_4">
                           <property name="orientation">
-                           <enum>Qt::Horizontal</enum>
+                           <enum>Qt::Orientation::Horizontal</enum>
                           </property>
                           <property name="sizeHint" stdset="0">
                            <size>
@@ -1070,7 +1071,7 @@
               <item>
                <spacer name="horizontalSpacer_12">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -1115,40 +1116,9 @@
               <item row="0" column="0">
                <layout class="QVBoxLayout" name="verticalLayout_11">
                 <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_2">
-                  <item>
-                   <widget class="QLabel" name="label_19">
-                    <property name="text">
-                     <string>This file is not saved automatically! To save it, pop it out and click save as pdf!</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <spacer name="horizontalSpacer_14">
-                    <property name="orientation">
-                     <enum>Qt::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="pushButton_popoutPreview">
-                    <property name="text">
-                     <string>Pop out</string>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-                <item>
                  <layout class="QVBoxLayout" name="verticalLayout_12">
                   <item>
-                   <widget class="QWidget" name="widget_SummaryReport" native="true"/>
+                   <widget class="ReportWidget" name="widget_SummaryReport" native="true"/>
                   </item>
                  </layout>
                 </item>
@@ -1161,13 +1131,13 @@
               <string>Detailed</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_19">
-              <item row="1" column="0">
+              <item row="2" column="0">
                <widget class="QTabWidget" name="tabWidget">
                 <property name="tabPosition">
-                 <enum>QTabWidget::West</enum>
+                 <enum>QTabWidget::TabPosition::West</enum>
                 </property>
                 <property name="currentIndex">
-                 <number>1</number>
+                 <number>0</number>
                 </property>
                 <widget class="QWidget" name="tab_11">
                  <attribute name="title">
@@ -1177,16 +1147,16 @@
                   <item row="0" column="0">
                    <layout class="QVBoxLayout" name="verticalLayout_14">
                     <item>
-                     <widget class="QWidget" name="plot_trajectory_grades" native="true"/>
+                     <widget class="CustomPlot" name="plot_trajectory_total_resistance" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_trajectory_speed" native="true"/>
+                     <widget class="CustomPlot" name="plot_trajectory_speed" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_trajectory_acceleration" native="true"/>
+                     <widget class="CustomPlot" name="plot_trajectory_acceleration" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_trajectory_EC" native="true"/>
+                     <widget class="CustomPlot" name="plot_trajectory_EC" native="true"/>
                     </item>
                    </layout>
                   </item>
@@ -1194,22 +1164,22 @@
                 </widget>
                 <widget class="QWidget" name="tab_12">
                  <attribute name="title">
-                  <string>Forces</string>
+                  <string>Environment</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_23">
                   <item row="0" column="0">
                    <layout class="QVBoxLayout" name="verticalLayout_10">
                     <item>
-                     <widget class="QWidget" name="plot_forces_grades" native="true"/>
+                     <widget class="CustomPlot" name="plot_forces_waveHeight" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_forces_tractiveForces" native="true"/>
+                     <widget class="CustomPlot" name="plot_forces_waveFrequency" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_forces_resistance" native="true"/>
+                     <widget class="CustomPlot" name="plot_forces_waveLength" native="true"/>
                     </item>
                     <item>
-                     <widget class="QWidget" name="plot_forces_totalForces" native="true"/>
+                     <widget class="CustomPlot" name="plot_forces_waterSalinity" native="true"/>
                     </item>
                    </layout>
                   </item>
@@ -1217,7 +1187,7 @@
                 </widget>
                </widget>
               </item>
-              <item row="0" column="0">
+              <item row="1" column="0">
                <layout class="QHBoxLayout" name="horizontalLayout_22">
                 <item>
                  <widget class="QLabel" name="label_23">
@@ -1227,12 +1197,12 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QComboBox" name="comboBox_trainsResults"/>
+                 <widget class="QComboBox" name="comboBox_shipsResults"/>
                 </item>
                 <item>
                  <spacer name="horizontalSpacer_20">
                   <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
+                   <enum>Qt::Orientation::Horizontal</enum>
                   </property>
                   <property name="sizeHint" stdset="0">
                    <size>
@@ -1265,6 +1235,27 @@
                 </item>
                </layout>
               </item>
+              <item row="0" column="0">
+               <layout class="QHBoxLayout" name="horizontalLayout_2">
+                <item>
+                 <widget class="QLabel" name="label">
+                  <property name="text">
+                   <string>Trajectory File:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="lineEdit_trajectoryViewBrowse"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_trajectoryViewBrowse">
+                  <property name="text">
+                   <string>Browse</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
              </layout>
             </widget>
            </widget>
@@ -1287,7 +1278,7 @@
       <item>
        <spacer name="horizontalSpacer_3">
         <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+         <enum>Qt::Orientation::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
@@ -1322,7 +1313,7 @@
       <item>
        <spacer name="horizontalSpacer_13">
         <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+         <enum>Qt::Orientation::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
@@ -1331,6 +1322,13 @@
          </size>
         </property>
        </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButton_terminate">
+        <property name="text">
+         <string>Terminate</string>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="ToggleButton" name="pushButton_pauseResume">
@@ -1362,7 +1360,7 @@
      <x>0</x>
      <y>0</y>
      <width>1286</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShipNetSim">
@@ -1433,8 +1431,14 @@
    </property>
   </action>
   <action name="actionOpen_user_manual">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>Open User Manual</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
   <action name="actionLoad_Sample_Project">
@@ -1469,6 +1473,18 @@
    <class>ToggleButton</class>
    <extends>QPushButton</extends>
    <header>gui/components/togglebutton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ReportWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/components/reportwidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>CustomPlot</class>
+   <extends>QWidget</extends>
+   <header>gui/components/customplot.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources>
