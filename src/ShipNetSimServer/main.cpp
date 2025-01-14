@@ -3,9 +3,14 @@
 #include <QCommandLineOption>
 #include "SimulationServer.h"
 #include "utils/shipscommon.h"
+#include "utils/logger.h"
+
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+
+    // Attach the logger first thing:
+    ShipNetSimCore::Logger::attach("ShipNetSimServer");
 
     qRegisterMetaType<ShipsResults>("ShipsResults");
 
@@ -41,5 +46,7 @@ int main(int argc, char *argv[]) {
     SimulationServer server;
     server.startRabbitMQServer(hostname.toStdString(), port);
 
+    // Detach logger and start event loop.
+    ShipNetSimCore::Logger::detach();
     return app.exec();
 }
