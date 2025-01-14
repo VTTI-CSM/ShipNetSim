@@ -195,11 +195,41 @@ public:
     units::length::meter_t perimeter() const;
 
     /**
-     * @brief Get a string representation of the polygon.
+     * @brief Converts the Polygon object to a formatted string representation.
      *
-     * @return A string representing the polygon.
+     * This function dynamically formats the output string based on the
+     * user-provided format string. Placeholders in the format string are
+     * replaced as follows:
+     * - `%perimeter`: Replaced with the perimeter value of the polygon.
+     * - `%area`: Replaced with the area value of the polygon.
+     *
+     * The replacement is case-insensitive, allowing placeholders such
+     * as `%Perimeter` or `%AREA`.
+     * If no format is provided, the default format `"Polygon Perimeter:
+     * %perimeter || Area: %area"` is used.
+     *
+     * @param format A QString specifying the desired format of the output.
+     *               It must include placeholders (`%perimeter`, `%area`)
+     *               for the perimeter and area values, respectively.
+     *               If not provided, the default format
+     *               `"Polygon Perimeter: %perimeter || Area: %area"` is used.
+     *
+     * @return A QString containing the formatted output with placeholders
+     *          replaced.
+     *         If a placeholder is missing, it will not be replaced.
+     *
+     * @example
+     * Polygon polygon;
+     * polygon.setPerimeter(units::length::meter_t(123.456));
+     * polygon.setArea(units::area::square_meter_t(789.123));
+     *
+     * qDebug() << polygon.toString();                  // Default: "Polygon Perimeter: 123.456 || Area: 789.123"
+     * qDebug() << polygon.toString("P: %perimeter, A: %area"); // Custom: "P: 123.456, A: 789.123"
      */
-    QString toString() const override;
+    QString toString(
+        const QString &format = "Polygon Perimeter: %perimeter || "
+                                "Area: %area",
+        int decimalPercision = 5) const override;
 
     /**
      * @brief Check if the polygon contains the point either in their

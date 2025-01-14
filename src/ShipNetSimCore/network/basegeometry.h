@@ -51,7 +51,8 @@ public:
      *
      * @return QString representing the geometric shape.
      */
-    virtual QString toString() const = 0;
+    virtual QString toString(const QString &format = "",
+                             int decimalPercision = 5) const = 0;
 };
 };
 #endif // BASEGEOMETRY_H

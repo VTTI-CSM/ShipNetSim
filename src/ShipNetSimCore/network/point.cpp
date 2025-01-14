@@ -252,24 +252,22 @@ units::length::meter_t Point::distance(const Point &endPoint,
 }
 
 // Function to convert the point to a string representation.
-QString Point::toString() const
+QString Point::toString(const QString &format, int decimalPercision) const
 {
     QString str;
-    QString xStr = QString::number(mOGRPoint.getX(), 'f', 3); // Convert x-coordinate to string in decimal format
-    QString yStr = QString::number(mOGRPoint.getY(), 'f', 3); // Convert y-coordinate to string in decimal format
+    QString xStr =
+        QString::number(mOGRPoint.getX(), 'f', decimalPercision); // Convert x-coordinate to string in decimal format
+    QString yStr =
+        QString::number(mOGRPoint.getY(), 'f', decimalPercision); // Convert y-coordinate to string in decimal format
+    QString idStr = mUserID.isEmpty() ? "N/A" : mUserID;
 
+    QString result = format;
 
-    // Format the string as "Point userID(x, y)".
-    if (mUserID.isEmpty() ||
-        mUserID == "temporary point")  // Format the string as "(x, y)".
-    {
-        str =
-            QString("(%1; %2)").arg(xStr, yStr);
-    }
-    else  // Format the string as "Point userID(x, y)".
-    {
-        str = QString("Point %1(%2; %3)").arg(mUserID, xStr, yStr);
-    }
+    // Replace placeholders (case-insensitive)
+    result.replace("%x", xStr, Qt::CaseInsensitive);
+    result.replace("%y", yStr, Qt::CaseInsensitive);
+    result.replace("%id", idStr, Qt::CaseInsensitive);
+
     return str;  // Return the formatted string.
 }
 

@@ -471,15 +471,21 @@ bool Line::operator==(const Line& other) const
 }
 
 // Function to convert the line to a string representation.
-QString Line::toString() const
+QString Line::toString(const QString &format, int decimalPercision) const
 {
-    // Create a string representation of the line in the
-    // format "Start Point || End Point".
-    QString str =
-        QString("Start Point %1 || End Point %2")
-            .arg(start->toString()) // Add the string repr of the start point.
-            .arg(end->toString());  // Add the string repr of the end point.
-    // Return the created string.
-    return str;
+    // Get the string representations of the start and end points
+    QString startStr =
+        start ? start->toString("(%x, %y)", decimalPercision) : "N/A";
+    QString endStr =
+        end ? end->toString("(%x, %y)", decimalPercision) : "N/A";
+
+    // Create the formatted string
+    QString result = format;
+
+    // Replace placeholders (case-insensitive)
+    result.replace("%start", startStr, Qt::CaseInsensitive);
+    result.replace("%end", endStr, Qt::CaseInsensitive);
+
+    return result; // Return the formatted string
 }
 };

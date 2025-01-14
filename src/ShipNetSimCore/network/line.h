@@ -232,11 +232,40 @@ public:
 
     // BaseGeometry method override
     /**
-     * @brief Convert the line to a string representation.
+     * @brief Converts the GLine object to a formatted string representation.
      *
-     * @return The string representation of the line.
+     * This function dynamically formats the output string based on the
+     * user-provided format string. Placeholders in the format string are
+     * replaced as follows:
+     * - `%start`: Replaced with the string representation of the start point.
+     * - `%end`: Replaced with the string representation of the end point.
+     *
+     * The replacement is case-insensitive, allowing placeholders such as
+     * `%START` or `%End`.
+     * If no format is provided, the default format `"Start Point: %start
+     * || End Point: %end"` is used.
+     *
+     * @param format A QString specifying the desired format of the output.
+     *               It must include placeholders (`%start`, `%end`) for
+     *               the start and end points, respectively. If not provided,
+     *               the default format `"Start Point: %start ||
+     *               End Point: %end"` is used.
+     *
+     * @return A QString containing the formatted output with placeholders
+     *          replaced.
+     *         If a placeholder is missing, it will not be replaced.
+     *
+     * @example
+     * GLine line;
+     * line.setStart(new GPoint(10.123, 20.456, "StartID"));
+     * line.setEnd(new GPoint(30.789, 40.987, "EndID"));
+     *
+     * qDebug() << line.toString();                         // Default: "Start Point: (10.123, 20.456) || End Point: (30.789, 40.987)"
+     * qDebug() << line.toString("%start -> %end");         // Custom: "(10.123, 20.456) -> (30.789, 40.987)"
      */
-    QString toString() const override;
+    QString toString(const QString &format =
+                     "Start Point: %start || End Point: %end",
+                     int decimalPercision = 5) const override;
 };
 };
 #endif // LINE_H
