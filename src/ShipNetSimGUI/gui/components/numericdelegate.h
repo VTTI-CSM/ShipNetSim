@@ -132,7 +132,8 @@ public:
             opt.text = QString::number(data.toDouble());
             // Apply grey text color
             QPalette palette = opt.palette;
-            palette.setColor(QPalette::Text, Qt::black);
+            palette.setColor(QPalette::WindowText,
+                             palette.color(QPalette::WindowText));
             opt.palette = palette;
         }
         else {

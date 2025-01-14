@@ -5,11 +5,13 @@
 #include "nonemptydelegate.h"
 #include "numericdelegate.h"
 #include "qapplication.h"
+#include "utils/errorhandler.h"
 //#include "checkboxdelegate.h"
 //#include "qstyleditemdelegate.h"
 #include <QMenu>
 #include <QAction>
 #include <QClipboard>
+#include <qheaderview.h>
 // #include <QMessageBox>
 // #include "../NeTrainSim/utils/utils.h"
 
@@ -55,8 +57,6 @@ void CustomTableWidget::deleteSelectedRows()
 void CustomTableWidget::contextMenuEvent(QContextMenuEvent *event) {
     QMenu contextMenu(this);
 
-    // Add other actions here...
-
     QAction importAction("Clear and Import from Clipboard", this);
     QAction clearAction("Clear Table", this);
 
@@ -65,10 +65,48 @@ void CustomTableWidget::contextMenuEvent(QContextMenuEvent *event) {
     connect(&clearAction, &QAction::triggered, this,
             &CustomTableWidget::clearContent);
 
+
     contextMenu.addAction(&clearAction);
     contextMenu.addAction(&importAction);
 
+    // Check if the right-click occurred on the row header
+    QHeaderView *verticalHeader = this->verticalHeader();
+    if (verticalHeader) {
+        QPoint headerPos = verticalHeader->mapFromGlobal(event->globalPos());
+        int row = verticalHeader->logicalIndexAt(headerPos);
+
+        if (row >= 0) { // Ensure the row index is valid
+            QAction *copyRowAction = new QAction("Copy Entire Row", this);
+            connect(copyRowAction, &QAction::triggered, this, [this, row]() {
+                copyEntireRow(row); // Pass the row index to copyEntireRow
+            });
+            contextMenu.addAction(copyRowAction);
+        }
+    }
+
     contextMenu.exec(event->globalPos());
+}
+
+void CustomTableWidget::copyEntireRow(int row) {
+    if (row < 0 || row >= rowCount()) {
+        ErrorHandler::showWarning("Invalid row selected.");
+        return;
+    }
+
+    QStringList rowData;
+
+    // Copy data from the specified row
+    for (int column = 0; column < columnCount(); ++column) {
+        QTableWidgetItem *item = this->item(row, column);
+        rowData << (item ? item->text() : " "); // Add text or empty string
+    }
+
+    // Join the row data with tabs and copy to clipboard
+    QString clipboardText = rowData.join("\t");
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(clipboardText);
+
+    ErrorHandler::showNotification("Row copied to clipboard.");
 }
 
 void CustomTableWidget::importFromClipboard() {
@@ -85,14 +123,12 @@ void CustomTableWidget::importFromClipboard() {
     int columnCount = rows.first().split('\t').size();
 
     // Check if column count matches
-    // if (this->columnCount() != columnCount) {
-    //     QMessageBox::warning(
-    //         this, "Import Error",
-    //         "The imported data does not have the same number "
-    //         "of columns as the table.");
-    //     emit this->tableCleared();
-    //     return;
-    // }
+    if (this->columnCount() != columnCount) {
+        ErrorHandler::showWarning("The imported data does not have the "
+                                  "same number of columns as the table.");
+        emit this->tableCleared();
+        return;
+    }
 
 
     // The starting row index for appending data
@@ -419,5 +455,18 @@ bool CustomTableWidget::checkAllRowsHasThisValue(const QString value,
         }
     }
     return false;
+}
+
+QVector<int> CustomTableWidget::findRowsWithData(
+    const QString& searchData, int columnIndex)
+{
+    QVector<int> matchingRows;
+    for (int row = 0; row < rowCount(); ++row) {
+        QTableWidgetItem* item = this->item(row, columnIndex);
+        if (item && item->text() == searchData) {
+            matchingRows.append(row);
+        }
+    }
+    return matchingRows;
 }
 

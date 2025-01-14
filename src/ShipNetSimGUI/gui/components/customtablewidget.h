@@ -104,7 +104,26 @@ public:
      */
     int generateUniqueID();
 
+    /**
+     * @brief Clears all content from the table, removing all rows
+     * while preserving headers.
+     *
+     * @details Resets the table to zero rows and emits tableCleared signal.
+     *          Column headers and table structure remain intact.
+     */
     void clearContent();
+
+    /**
+     * @brief Finds all table rows containing specific data in a
+     * specified column.
+     *
+     * @param searchData The string value to search for
+     * @param columnIndex The index of the column to search in
+     * @return QVector<int> containing row indices matching the search criteria
+     * @details Performs exact string matching on cell contents.
+     *          Returns empty vector if no matches found.
+     */
+    QVector<int> findRowsWithData(const QString& searchData, int columnIndex);
 
 signals:
     /**
@@ -161,6 +180,8 @@ private:
                              const std::vector<QString>& values);
 
     bool checkAllRowsHasThisValue(const QString value, const int columnIndex);
+
+    void copyEntireRow(int row);
 };
 
 #endif // CUSTOMTABLEWIDGET_H

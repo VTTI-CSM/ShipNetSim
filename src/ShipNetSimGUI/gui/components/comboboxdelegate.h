@@ -85,9 +85,10 @@ public:
 
         QPalette palette = opt.palette;
         if (currentValue != "" && currentValue != "Select ...")
-            palette.setColor(QPalette::Text, Qt::black);
+            palette.setColor(QPalette::WindowText,
+                             palette.color(QPalette::WindowText));
         else
-            palette.setColor(QPalette::Text, Qt::gray);
+            palette.setColor(QPalette::WindowText, palette.color(QPalette::Mid));
 
         opt.palette = palette;
         opt.text = currentValue == "" ? "Select ..." : currentValue;

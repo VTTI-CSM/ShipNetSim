@@ -1,4 +1,5 @@
 #include "osgearthqtwidget.h"
+#include <QRegularExpression>
 
 #include <osgDB/Registry>
 #include <osgDB/ReadFile>
@@ -27,9 +28,14 @@
 #include <osgEarth/Feature>
 #include <osgEarth/FeatureIndex>
 #include <QToolTip>
+#include <qcombobox.h>
+#include <qstackedwidget.h>
+#include <qtablewidget.h>
+#include <qtabwidget.h>
 
 
 #include "globalmapmanager.h"
+#include "gui/components/customtablewidget.h"
 
 namespace
 {
@@ -47,10 +53,8 @@ struct MultiRealizeOperation : public osg::Operation
 OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
     : osgQOpenGLWidget(parent) {
 
-    QObject::connect(this, &osgQOpenGLWidget::initialized, [this]
+    QObject::connect(this, &osgQOpenGLWidget::initialized, [this, &parent]
                      {
-
-        std::cout << "Widget initialized." << std::endl;
 
         // This is normally called by Viewer::run but we are
         // running our frame loop manually so we need to call it here.
@@ -68,8 +72,10 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
 
         auto m = new EarthManipulator();
         auto de = m->getSettings();
-        de->bindScroll(osgEarth::Util::EarthManipulator::ACTION_ZOOM_IN, osgGA::GUIEventAdapter::SCROLL_UP);
-        de->bindScroll(osgEarth::Util::EarthManipulator::ACTION_ZOOM_OUT, osgGA::GUIEventAdapter::SCROLL_DOWN);
+        de->bindScroll(osgEarth::Util::EarthManipulator::ACTION_ZOOM_IN,
+                       osgGA::GUIEventAdapter::SCROLL_UP);
+        de->bindScroll(osgEarth::Util::EarthManipulator::ACTION_ZOOM_OUT,
+                       osgGA::GUIEventAdapter::SCROLL_DOWN);
         // install our default manipulator (do this before calling load)
         getOsgViewer()->setCameraManipulator( m );
 
@@ -117,56 +123,152 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
         }
         else {
             // Load the Earth model normally if not preloaded
-            manager->preloadEarthModel();
+            manager->preloadModelData();
             setMapNode(preloadedMapRoot);
         }
 
         if (!preloadedMapRoot) {
-            std::cerr << "Preloaded map root is null." << std::endl;
+            qFatal("Preloaded map root is null.");
             return;
         }
 
         osgEarth::ObjectIDPicker* picker = new ObjectIDPicker();
         if (!picker) {
-            std::cerr << "Failed to create ObjectIDPicker." << std::endl;
+            qFatal("Failed to create ObjectIDPicker.");
             return;
         }
 
-        std::cout << "Setting picker view and graph." << std::endl;
+        qDebug() << "Setting picker view and graph.";
         picker->setView(getOsgViewer());
         picker->setGraph(manager->getMapNode().get());
         manager->getMapNode()->addChild(picker);
-        std::cout << "Picker added to scene graph." << std::endl;
+        qDebug() << "Picker added to scene graph.";
 
         picker->onClick([&](const ObjectID& id)
         {
-            if (id != OSGEARTH_OBJECTID_EMPTY)
+            if (id == (osgEarth::ObjectID)0)
             {
-                auto place = Registry::objectIndex()->get<AnnotationNode>(id);
-                if (place)
-                {
-                    std::cout << "Clicked on \"" << place->getText() << "\""
-                              << std::endl;
-
-                    // Retrieve custom data
-                    auto customData =
-                        dynamic_cast<GlobalMapManager::CustomData<
-                        std::shared_ptr<ShipNetSimCore::SeaPort>>*>(
-                        place->getUserData());
-
-                    if (customData)
-                    {
-                        std::shared_ptr<ShipNetSimCore::SeaPort> seaPortPtr =
-                            customData->getData();
-                        std::cout << "Custom data retrieved successfully."
-                                  << std::endl;
-                        std::cout << "From Country: \""
-                                  << seaPortPtr->getCountryName().toStdString()
-                                  << "\"" << std::endl;
-
-                    }
-                }
+                return;
             }
+
+            auto place = Registry::objectIndex()->get<AnnotationNode>(id);
+            if (!place)
+            {
+                return;
+            }
+
+            GlobalMapManager::getInstance()->toggleHighlightNode(id);
+
+            // Retrieve custom data
+            auto customData =
+                dynamic_cast<GlobalMapManager::CustomData<
+                std::shared_ptr<ShipNetSimCore::SeaPort>>*>(
+                place->getUserData());
+
+            if (!customData)
+            {
+                return;
+            }
+
+            // retreive the port obj
+            std::shared_ptr<ShipNetSimCore::SeaPort> seaPortPtr =
+                customData->getData();
+
+            // check if the parent is the path tab
+            // not the simulation tab
+            QWidget* parent = parentWidget();
+            if (!parent || parent->objectName() != "tab_path") {
+                return;
+            }
+
+            // Go up three levels to reach tabWidget_newTrainOD
+            QStackedWidget* stacked =
+                qobject_cast<QStackedWidget*>(parent->parentWidget());
+            if (!stacked) {
+                return;
+            }
+            QWidget* grandParent = stacked->parentWidget();
+            QTabWidget* tabWidget =
+                qobject_cast<QTabWidget*>(grandParent);
+            if (!tabWidget ||
+                tabWidget->objectName() != "tabWidget_newTrainOD") {
+                return;
+            }
+
+            QString portCoords =
+                seaPortPtr->getPortCoordinate().
+                toString("%x,%y").remove(" ");
+
+            // combobox that holds current ships
+            QComboBox* selector =
+                parent->findChild<QComboBox*>("combo_visualizeShip");
+            if (!selector) {
+                return;
+            }
+
+            // Get the selected ship id
+            QString currentShip =
+                selector->currentText().trimmed();
+
+            // Get main tab that hosts the table
+            QWidget* firstTab = tabWidget->widget(0);
+            if (!firstTab) {
+                return;
+            }
+
+            // Get the table by its name
+            CustomTableWidget* table =
+                firstTab->findChild<CustomTableWidget*>("table_newShips");
+            if (!table) {
+                return;
+            }
+
+            // get rows that hold the ship ID
+            auto currentShipRows =
+                table->findRowsWithData(currentShip, 0);
+            if (currentShipRows.isEmpty()) {
+                return;
+            }
+
+            // get table item that holds the path
+            QTableWidgetItem* item = table->item(currentShipRows[0], 1);
+            if (!item) {
+                // Create new item with empty text
+                item = new QTableWidgetItem("");
+                table->setItem(currentShipRows[0], 1, item);
+            }
+
+            QString newText = item->text().remove(" ");
+            if (newText.contains(portCoords)) {
+                // Remove the coordinates
+                if (newText == portCoords) {
+                    // If it's the only coordinate, clear the text
+                    newText.clear();
+                } else {
+                    // Remove the coordinate and any leading/trailing semicolon
+                    newText.remove(portCoords);
+                    newText.remove(QRegularExpression("^;|;$")); // Remove semicolon at start or end
+                    newText.replace(";;", ";"); // Fix any double semicolons
+                }
+            } else {
+                // Add the coordinates
+                newText = newText.isEmpty() ? portCoords :
+                              newText + ";" + portCoords;
+            }
+            item->setText(newText);
+
+
+            // std::cout << "Custom data retrieved successfully."
+            //           << std::endl;
+            // std::cout << "From Country: \""
+            //           << seaPortPtr->getCountryName().toStdString()
+            //           << "\"" << std::endl;
+
+            // GlobalMapManager::getInstance()->createShipNode(
+            //     "1",
+            //     seaPortPtr->getPortCoordinate());
+
+
         });
 
 
@@ -226,7 +328,7 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
             }
         });
 
-        std::cout << "Picker onClick function connected." << std::endl;
+        qDebug() << "Picker onClick function connected.";
     });
 
 
@@ -251,8 +353,9 @@ void OSGEarthQtWidget::setMapNode(osg::ref_ptr<osg::Group> root)
             osgUtil::Optimizer optimizer;
 
             // Specify optimizations using flags
-            unsigned int optimizations = osgUtil::Optimizer::FLATTEN_STATIC_TRANSFORMS |
-                                         osgUtil::Optimizer::SPATIALIZE_GROUPS;
+            unsigned int optimizations =
+                osgUtil::Optimizer::FLATTEN_STATIC_TRANSFORMS |
+                osgUtil::Optimizer::SPATIALIZE_GROUPS;
 
             // Apply optimizations to your scene graph
             optimizer.optimize(root.get());

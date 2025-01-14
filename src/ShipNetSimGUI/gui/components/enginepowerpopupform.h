@@ -27,7 +27,6 @@ public:
         tableWidget->setHorizontalHeaderLabels(QStringList() << "Engine Power (kW)");
         tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
         tableWidget->verticalHeader()->setVisible(false);
-        //tableWidget->setItemDelegate(new NumericDelegate(this));
 
         // Set separate delegates for each column
         tableWidget->setItemDelegateForColumn(

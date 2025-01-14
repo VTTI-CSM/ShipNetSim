@@ -15,6 +15,7 @@
 
 #include <QLabel>
 #include <QTimer>
+#include <qapplication.h>
 
 /**
  * @class DisappearingLabel
@@ -39,7 +40,9 @@ public:
      * @param timeoutMs The timeout duration in milliseconds.
      */
     void setTextWithTimeout(const QString &text, int timeoutMs = 3000,
-                            const QColor &color = Qt::black);
+                            const QColor &color =
+                            QApplication::palette().
+                            color(QPalette::WindowText));
 
 private:
     QTimer m_timer; /**< Timer used to clear the text after the timeout duration. */

@@ -18,6 +18,7 @@ void DisappearingLabel::setTextWithTimeout(const QString &text,
     show();
 
     // Start the timer to clear the label text after the specified timeout
+    m_timer.setSingleShot(true);
     m_timer.start(timeoutMs);
 }
 
