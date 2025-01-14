@@ -242,6 +242,48 @@ public:
                            "U-Shaped Sections" };
     }
 
+    enum class NavigationStatus {
+        UnderWayUsingEngine = 0,      // The vessel is moving under its own power
+        AtAnchor = 1,                // The vessel is stationary and secured by anchor
+        NotUnderCommand = 2,         // The vessel is unable to maneuver due to exceptional circumstances
+        RestrictedManoeuvrability = 3, // The vessel's ability to maneuver is restricted (e.g., towing operations)
+        ConstrainedByDraught = 4,    // The vessel is limited in its ability to maneuver due to its draft
+        Moored = 5,                  // The vessel is stationary and secured to a pier or dock
+        Aground = 6,                 // The vessel is stationary and grounded on the seabed or shore
+        EngagedInFishing = 7,        // The vessel is actively fishing (e.g., trawling, longlining)
+        UnderWaySailing = 8,         // The vessel is moving under sail (not engine power)
+        ReservedForFutureUse9 = 9,   // Reserved for future standardization or testing purposes
+        ReservedForFutureUse10 = 10, // Reserved for future standardization or testing purposes
+        Towing = 11,                 // The vessel is towing another vessel or object astern
+        PushingAhead = 12,           // The vessel is pushing another vessel or object ahead or alongside
+        ReservedForFutureUse13 = 13, // Reserved for future standardization or testing purposes
+        ReservedForFutureUse14 = 14, // Reserved for future standardization or testing purposes
+        Undefined = 15               // Navigation status is not available or has not been updated
+    };
+
+    // Utility function to convert NavigationStatus to a human-readable string
+    static QString navigationStatusToString(NavigationStatus status) {
+        switch (status) {
+        case NavigationStatus::UnderWayUsingEngine: return "Under way using engine";
+        case NavigationStatus::AtAnchor: return "At anchor";
+        case NavigationStatus::NotUnderCommand: return "Not under command";
+        case NavigationStatus::RestrictedManoeuvrability: return "Restricted maneuverability";
+        case NavigationStatus::ConstrainedByDraught: return "Constrained by her draught";
+        case NavigationStatus::Moored: return "Moored";
+        case NavigationStatus::Aground: return "Aground";
+        case NavigationStatus::EngagedInFishing: return "Engaged in fishing";
+        case NavigationStatus::UnderWaySailing: return "Under way sailing";
+        case NavigationStatus::ReservedForFutureUse9: return "Reserved for future use";
+        case NavigationStatus::ReservedForFutureUse10: return "Reserved for future use";
+        case NavigationStatus::Towing: return "Power-driven vessel towing astern";
+        case NavigationStatus::PushingAhead: return "Power-driven vessel pushing ahead";
+        case NavigationStatus::ReservedForFutureUse13: return "Reserved for future use";
+        case NavigationStatus::ReservedForFutureUse14: return "Reserved for future use";
+        case NavigationStatus::Undefined: return "Undefined";
+        default: return "Unknown status";
+        }
+    }
+
     // Declaration of a custom exception clas
     class ShipException : public std::exception {
     public:
@@ -302,7 +344,15 @@ public:
      * @brief Gets the ID that is defined by the user
      * @return ID as a string
      */
-    [[nodiscard]] QString getUserID();
+    [[nodiscard]] QString getUserID() const;
+
+    void setMMSI(int newMMSI);
+    [[nodiscard]] int getMMSI() const;
+
+    void setName(QString name);
+    [[nodiscard]] QString getName() const;
+
+    [[nodiscard]] NavigationStatus getNavigationStatus() const;
 
     /**
      * @brief Retrieves the length of the ship at the waterline.
@@ -881,7 +931,7 @@ public:
      *
      * @return The GPoint object representing the vessel's current position.
      */
-    [[nodiscard]] GPoint getCurrentPosition();
+    [[nodiscard]] GPoint getCurrentPosition() const;
 
     /**
      * @brief Set current Position of the ship in case of a cyber attack.
@@ -974,6 +1024,12 @@ public:
      * @return The cumulative consumed energy in kilowatt-hours.
      */
     [[nodiscard]] units::energy::kilowatt_hour_t getCumConsumedEnergy() const;
+
+    [[nodiscard]] units::mass::kilogram_t getTotalCO2Emissions() const;
+
+    [[nodiscard]] double getTotalCO2EmissionsPerTon() const;
+
+    [[nodiscard]] double getCO2EmissionsPerTonKM() const;
 
     /**
      * @brief Retrieves the cumulative fuel consumption of the vessel.
@@ -1145,9 +1201,11 @@ public:
      *
      * @return True if the ship is on the correct path, false otherwise.
      */
-    [[nodiscard]] bool isShipOnCorrectPath();
+    [[nodiscard]] bool isShipOnCorrectPath() const;
 
     [[nodiscard]] bool isShipStillMoving();
+
+    void updatePathLines(QVector<std::shared_ptr<GLine>>& pathLines);
 
     /**
      * @brief Calculates the progress of the ship along its path as a percentage.
@@ -1302,6 +1360,10 @@ private:
     //!< The ship ID
     QString mShipUserID;
 
+    QString mShipName;
+    int mMMSI;
+    NavigationStatus mNavigationStatus = NavigationStatus::AtAnchor;
+
     bool mIsCommunicationActive = true;
 
 
@@ -1445,7 +1507,7 @@ private:
     units::velocity::meters_per_second_t mRunningAvrSpeed;
 
     //!< The ship traveled distance.
-    units::length::meter_t mTraveledDistance;
+    units::length::meter_t mTraveledDistance = units::length::meter_t(0.0);
 
     //!< The lightship weight (LWT) of the vessel.
     units::mass::metric_ton_t mVesselWeight;
@@ -1867,13 +1929,16 @@ private:
     // Point getPositionByTravelledDistance(
     //     units::length::meter_t newTotalDistance);
 
-    units::length::meter_t calcTurningRadius();
-    units::angle::degree_t calcMaxROT(units::length::meter_t turnRaduis);
+    units::length::meter_t calcTurningRadius() const;
+    units::angle::degree_t calcMaxROT(units::length::meter_t turnRaduis) const;
 
     units::velocity::meters_per_second_t
     calc_shallowWaterSpeedReduction(
             units::velocity::meters_per_second_t speed);
     void computeStoppingPointIndices();
+
+    void processTravelledDistance(units::length::meter_t stepTravelledDistance,
+                                  units::time::second_t timeStep);
 
 
 public:
@@ -1906,6 +1971,11 @@ signals:
      * @param shipDetails a json object that has all state details of the ship.
      */
     void reachedDestination(const QJsonObject shipDetails);
+
+    void positionUpdated(GPoint currentPosition,
+                         units::angle::degree_t heading,
+                         QVector<std::shared_ptr<
+                             ShipNetSimCore::GLine>> paths);
 
 private: signals:
     /**
