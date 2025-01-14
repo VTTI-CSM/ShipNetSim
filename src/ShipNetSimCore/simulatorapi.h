@@ -3,13 +3,27 @@
 
 #include "export.h"
 #include <QObject>
+#include "shiploaderworker.h"
 #include "simulator.h"
 #include "ship/ship.h"
 #include "network/optimizednetwork.h"
+#include "simulatorworker.h"
+
+
+SHIPNETSIM_EXPORT struct APIData {
+    ShipNetSimCore::OptimizedNetwork* network = nullptr;
+    SimulatorWorker* simulatorWorker = nullptr;
+    ShipNetSimCore::Simulator* simulator = nullptr;
+    ShipLoaderWorker* shipLoaderWorker = nullptr;
+    QThread *workerThread = nullptr;
+    QMap<QString, std::shared_ptr<ShipNetSimCore::Ship>> ships;
+    bool isBusy = false;  // Flag for activity tracking
+};
 
 class SHIPNETSIM_EXPORT SimulatorAPI : public QObject
 {
     Q_OBJECT
+    friend struct std::default_delete<SimulatorAPI>; // Allow unique_ptr to delete
 
 public:
     enum class Mode {
@@ -24,35 +38,34 @@ signals:
     void simulationsPaused(QVector<QString> networkNames);
     void simulationsResumed(QVector<QString> networkNames);
     void simulationsRestarted(QVector<QString> networkNames);
-    void simulationsEnded(QVector<QString> networkNames);
+    void simulationsTerminated(QVector<QString> networkNames);
     void simulationFinished(QString networkName);
-    void simulationAdvanced(QMap<QString, units::time::second_t>
+    void simulationAdvanced(QMap<QString, QPair<units::time::second_t, double>>
                                 currentSimulorTimePairs);
+    void simulationProgressUpdated(QMap<QString, int> currentSimulationProgress);
     void shipsReachedDestination(const QJsonObject shipsStates);
     void shipsAddedToSimulation(const QString networkName,
                                 const QVector<QString> shipIDs);
-    void simulationResultsAvailable(QMap<QString, ShipsResults>& results);
+    void simulationResultsAvailable(QMap<QString, ShipsResults> results);
     void shipCurrentStateAvailable(const QJsonObject shipState);
     void simulationCurrentStateAvailable(const QJsonObject simulatorState);
+    void shipCoordinatesUpdated(QString shipID,
+                                ShipNetSimCore::GPoint position,
+                                units::angle::degree_t heading,
+                                QVector<std::shared_ptr<
+                                    ShipNetSimCore::GLine>> paths);
     void containersAddedToShip(QString networkName, QString shipID);
     void errorOccurred(QString error);
     // Signal to notify when worker completes its work
     void workersReady(QVector<QString> networkNames);
 
 protected:
-    struct APIData {
-        ShipNetSimCore::OptimizedNetwork* network = nullptr;
-        ShipNetSimCore::Simulator* simulator = nullptr;
-        QThread *workerThread = nullptr;
-        QMap<QString, std::shared_ptr<ShipNetSimCore::Ship>> ships;
-    };
-
-    static SimulatorAPI& getInstance() {
-        static SimulatorAPI instance;
-        return instance;
-    }
+    static SimulatorAPI& getInstance();
+    static void resetInstance() ;
 
     ~SimulatorAPI();
+
+    void setConnectionType(Qt::ConnectionType connectionType);
 
     // Simulator control methods
     void createNewSimulationEnvironment(
@@ -65,7 +78,7 @@ protected:
         Mode mode = Mode::Async);
 
     void createNewSimulationEnvironment(
-        ShipNetSimCore::OptimizedNetwork* network,
+        QString networkName,
         QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList =
         QVector<std::shared_ptr<ShipNetSimCore::Ship>>(),
         units::time::second_t timeStep = units::time::second_t(1.0),
@@ -77,12 +90,15 @@ protected:
 
 
 
-    void requestSimulationCurrentResults(QVector<QString> networkNames);
-    void restartSimulations(QVector<QString> networkNames);
+    void requestSimulationCurrentResults(
+        QVector<QString> networkNames);
+    void restartSimulations(
+        QVector<QString> networkNames);
 
     // Ship control methods
-    void addShipToSimulation(QString networkName,
-                              QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships);
+    void addShipToSimulation(
+        QString networkName,
+        QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships);
     // GETTERS
     ShipNetSimCore::Simulator* getSimulator(QString networkName);
     ShipNetSimCore::OptimizedNetwork* getNetwork(QString networkName);
@@ -95,13 +111,21 @@ protected:
     void addContainersToShip(QString networkName,
                               QString shipID, QJsonObject json);
 
+private:
+    static std::unique_ptr<SimulatorAPI> instance;
+    static void registerQMeta();
+    APIData& getApiDataAndEnsureThread(const QString &networkName);
+    void setupShipsConnection(
+        QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships,
+        QString networkName, Mode mode);
 protected slots:
     void handleShipReachedDestination(QString networkName,
                                       QJsonObject shipState,
                                       Mode mode);
     void handleOneTimeStepCompleted(QString networkName,
                                     units::time::second_t currentSimulatorTime,
-                                    Mode mode);
+                                    double progress, Mode mode);
+    void handleProgressUpdate(QString networkName, int progress, Mode mode);
     void handleResultsAvailable(QString networkName,
                                 ShipsResults result,
                                 Mode mode);
@@ -124,8 +148,12 @@ protected:
     int m_completedSummaryResults = 0;
     QMap<QString, ShipsResults> m_simulationResultBuffer;
 
+    Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
+
     int m_completedSimulatorsTimeStep = 0;  // Track the number of completed simulators
-    QMap<QString, units::time::second_t> m_timeStepData;
+    int m_completedSimulatorsProgress = 0;  // Track the number of updated simulators
+    QMap<QString, QPair<units::time::second_t, double>> m_timeStepData;
+    QMap<QString, int> m_progressData;
     QMap<QString, QJsonObject> m_shipsReachedBuffer;
 
     QVector<QString> m_totalSimulatorsRunRequested;
@@ -149,11 +177,27 @@ protected:
                             void(SimulatorAPI::*signal)(QVector<QString>),
                             Mode mode);
 
-    void setupSimulator(ShipNetSimCore::OptimizedNetwork* network,
+    void setupSimulator(QString networkName,
                         QVector<std::shared_ptr<ShipNetSimCore::Ship>> &shipList,
                         units::time::second_t timeStep,
                         bool isExternallyControlled,
                         Mode mode);
+
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QJsonObject& ships,
+              QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship> >
+    mLoadShips(QJsonObject &ships,
+              ShipNetSimCore::OptimizedNetwork* network);
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QVector<QMap<QString, QString>> ships,
+              QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QVector<QMap<QString, std::any>> ships,
+              QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QString shipsFilePath,
+              QString networkName = "");
 
     std::any convertQVariantToAny(const QVariant& variant);
     std::map<std::string, std::any>
@@ -163,86 +207,6 @@ protected:
 public:
 
     static Mode mMode;
-
-    class SHIPNETSIM_EXPORT InteractiveMode {
-    public:
-        static SimulatorAPI& getInstance();
-        // Simulator control methods
-        static void createNewSimulationEnvironment(
-            QString networkFilePath,
-            QString networkName,
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList =
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>>(),
-            units::time::second_t timeStep = units::time::second_t(1.0),
-            bool isExternallyControlled = false,
-            Mode mode = Mode::Async);
-
-        static void createNewSimulationEnvironment(
-            ShipNetSimCore::OptimizedNetwork* network,
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList =
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>>(),
-            units::time::second_t timeStep = units::time::second_t(1.0),
-            bool isExternallyControlled = false,
-            Mode mode = Mode::Async);
-
-        static ShipNetSimCore::OptimizedNetwork*
-        loadNetwork(QString filePath, QString networkName);
-
-        static void addShipToSimulation(
-            QString networkName,
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships);
-        static void initSimulation(QVector<QString> networkNames);
-        static void runOneTimeStep(QVector<QString> networkNames);
-        static void runSimulation(QVector<QString> networkNames,
-                                  units::time::second_t timeSteps);
-        static void endSimulation(QVector<QString> networkNames);
-        static ShipNetSimCore::Simulator* getSimulator(QString networkName);
-
-        static ShipNetSimCore::OptimizedNetwork*
-        getNetwork(QString networkName);
-        static std::shared_ptr<ShipNetSimCore::Ship> getShipByID(
-            QString networkName, QString& shipID);
-        static QVector<std::shared_ptr<ShipNetSimCore::Ship>>
-        getAllTrains(QString networkName);
-        static bool isWorkerBusy(QString networkName);
-        static void addContainersToShip(QString networkName,
-                                        QString shipID, QJsonObject json);
-    };
-
-    class SHIPNETSIM_EXPORT ContinuousMode {
-    public:
-        static SimulatorAPI& getInstance();
-        // Simulator control methods
-        static void createNewSimulationEnvironment(
-            QString networkFilePath,
-            QString networkName,
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
-            units::time::second_t timeStep = units::time::second_t(1.0),
-            bool isExternallyControlled = false,
-            Mode mode = Mode::Async);
-
-        static void createNewSimulationEnvironment(
-            ShipNetSimCore::OptimizedNetwork* network,
-            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
-            units::time::second_t timeStep = units::time::second_t(1.0),
-            bool isExternallyControlled = false,
-            Mode mode = Mode::Async);
-
-        static ShipNetSimCore::OptimizedNetwork*
-        loadNetwork(QString filePath, QString networkName);
-
-        static void runSimulation(QVector<QString> networkNames);
-        static void pauseSimulation(QVector<QString> networkNames);
-        static void resumeSimulation(QVector<QString> networkNames);
-        static void endSimulation(QVector<QString> networkNames);
-        static ShipNetSimCore::Simulator* getSimulator(QString networkName);
-        static ShipNetSimCore::OptimizedNetwork*
-        getNetwork(QString networkName);
-        static bool isWorkerBusy(QString networkName);
-        static void addContainersToShip(QString networkName,
-                                        QString shipID, QJsonObject json);
-    };
-
 
     static QVector<std::shared_ptr<ShipNetSimCore::Ship>>
     loadShips(QJsonObject& ships,
@@ -259,6 +223,100 @@ public:
     static QVector<std::shared_ptr<ShipNetSimCore::Ship>>
     loadShips(QString shipsFilePath,
               QString networkName = "");
+
+    class SHIPNETSIM_EXPORT InteractiveMode {
+    public:
+        static SimulatorAPI& getInstance();
+        // Simulator control methods
+        static void createNewSimulationEnvironment(
+            QString networkFilePath,
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList =
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>>(),
+            units::time::second_t timeStep = units::time::second_t(1.0),
+            bool isExternallyControlled = false,
+            Mode mode = Mode::Async);
+
+        static void createNewSimulationEnvironment(
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList =
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>>(),
+            units::time::second_t timeStep = units::time::second_t(1.0),
+            bool isExternallyControlled = false,
+            Mode mode = Mode::Async);
+
+        static ShipNetSimCore::OptimizedNetwork*
+        loadNetwork(QString filePath, QString networkName);
+
+        static void addShipToSimulation(
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships);
+        static void initSimulation(
+            QVector<QString> networkNames);
+        static void runOneTimeStep(
+            QVector<QString> networkNames);
+        static void runSimulation(
+            QVector<QString> networkNames,
+            units::time::second_t timeSteps);
+        static void endSimulation(
+            QVector<QString> networkNames);
+
+        static ShipNetSimCore::Simulator* getSimulator(QString networkName);
+        static ShipNetSimCore::OptimizedNetwork*
+        getNetwork(QString networkName);
+        static std::shared_ptr<ShipNetSimCore::Ship> getShipByID(
+            QString networkName, QString& shipID);
+        static QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+        getAllShips(QString networkName);
+
+        static bool isWorkerBusy(QString networkName);
+        static void addContainersToShip(QString networkName,
+                                        QString shipID, QJsonObject json);
+        static void setConnectionType(Qt::ConnectionType connectionType);
+    };
+
+    class SHIPNETSIM_EXPORT ContinuousMode {
+    public:
+        static SimulatorAPI& getInstance();
+        // Simulator control methods
+        static void createNewSimulationEnvironment(
+            QString networkFilePath,
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
+            units::time::second_t timeStep = units::time::second_t(1.0),
+            bool isExternallyControlled = false,
+            Mode mode = Mode::Async);
+
+        static void createNewSimulationEnvironment(
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipList,
+            units::time::second_t timeStep = units::time::second_t(1.0),
+            bool isExternallyControlled = false,
+            Mode mode = Mode::Async);
+
+        static ShipNetSimCore::OptimizedNetwork*
+        loadNetwork(QString filePath, QString networkName);
+        static void addShipToSimulation(
+            QString networkName,
+            QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships);
+
+        static void runSimulation(
+            QVector<QString> networkNames);
+        static void pauseSimulation(
+            QVector<QString> networkNames);
+        static void resumeSimulation(
+            QVector<QString> networkNames);
+        static void terminateSimulation(
+            QVector<QString> networkNames);
+        static ShipNetSimCore::Simulator* getSimulator(QString networkName);
+        static ShipNetSimCore::OptimizedNetwork*
+        getNetwork(QString networkName);
+        static bool isWorkerBusy(QString networkName);
+        static void addContainersToShip(QString networkName,
+                                        QString shipID, QJsonObject json);
+        static void setConnectionType(Qt::ConnectionType connectionType);
+    };
+
 };
 
 #endif // SIMULATORAPI_H
