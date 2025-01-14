@@ -34,7 +34,7 @@ public:
 signals:
     void dataReceived(QJsonObject message);
     void shipReachedDestination(const QString &shipID);
-    void simulationResultsAvailable(ShipsResults &results);
+    void simulationResultsAvailable(ShipsResults results);
     void stopConsuming();
 
 private slots:
@@ -48,14 +48,15 @@ private slots:
     void onSimulationPaused(QVector<QString> networkNames);
     void onSimulationResumed(QVector<QString> networkNames);
     void onSimulationRestarted(QVector<QString> networkNames);
-    void onSimulationEnded(QVector<QString> networkNames);
+    void onSimulationTerminated(QVector<QString> networkNames);
     void onSimulationAdvanced(
-        QMap<QString, units::time::second_t> newSimulationTime);
+        QMap<QString,
+             QPair<units::time::second_t, double> > newSimulationTime);
     void onSimulationProgressUpdate(int progressPercentage);
     void onShipAddedToSimulator(const QString networkName,
                                 const QVector<QString> shipIDs);
     void onShipReachedDestination(const QJsonObject shipStatus);
-    void onSimulationResultsAvailable(QMap<QString, ShipsResults>& results);
+    void onSimulationResultsAvailable(QMap<QString, ShipsResults> results);
     void onShipStateAvailable(const QJsonObject shipState);
     void onSimulatorStateAvailable(const QJsonObject simulatorState);
     void onContainersAddedToShip(QString networkName, QString shipID);

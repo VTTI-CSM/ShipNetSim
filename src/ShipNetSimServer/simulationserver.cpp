@@ -38,8 +38,8 @@ SimulationServer::SimulationServer(QObject *parent) :
             &SimulatorAPI::simulationsRestarted, this,
             &SimulationServer::onSimulationRestarted);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
-            &::SimulatorAPI::simulationsEnded, this,
-            &SimulationServer::onSimulationEnded);
+            &::SimulatorAPI::simulationsTerminated, this,
+            &SimulationServer::onSimulationTerminated);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &::SimulatorAPI::shipsAddedToSimulation, this,
             &SimulationServer::onShipAddedToSimulator);
@@ -417,7 +417,7 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         auto shipsList = SimulatorAPI::loadShips(jsonMessage, net);
 
         SimulatorAPI::InteractiveMode::createNewSimulationEnvironment(
-            net, shipsList, units::time::second_t(timeStepValue), true,
+            networkName, shipsList, units::time::second_t(timeStepValue), true,
             SimulatorAPI::Mode::Async);
     } else if (command == "runSimulator") {
         QVector<QString> nets;
@@ -561,7 +561,7 @@ void SimulationServer::onSimulationRestarted(QVector<QString> networkNames) {
     onWorkerReady();
 }
 
-void SimulationServer::onSimulationEnded(QVector<QString> networkNames) {
+void SimulationServer::onSimulationTerminated(QVector<QString> networkNames) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationEnded";
     QJsonArray networkNamesArray;
@@ -577,7 +577,7 @@ void SimulationServer::onSimulationEnded(QVector<QString> networkNames) {
 }
 
 void SimulationServer::onSimulationAdvanced(
-    QMap<QString, units::time::second_t> newSimulationTime) {
+    QMap<QString, QPair<units::time::second_t, double>> newSimulationTime) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationAdvanced";
     jsonMessage["host"] = ShipNetSim_NAME;
@@ -587,10 +587,21 @@ void SimulationServer::onSimulationAdvanced(
          it != newSimulationTime.constEnd(); ++it) {
         // Add each network name (key) and its corresponding
         // simulation time (value) to the jsonNetworkTimes object
-        jsonNetworkTimes[it.key()] = it.value().value();
+        jsonNetworkTimes[it.key()] = it.value().first.value();
     }
     // Add the network names to the JSON message
     jsonMessage["networkNamesTimes"] = jsonNetworkTimes;
+
+    QJsonObject jsonNetworkProgress;
+    for (auto it = newSimulationTime.constBegin();
+         it != newSimulationTime.constEnd(); ++it) {
+        // Add each network name (key) and its corresponding
+        // simulation time (value) to the jsonNetworkProgress object
+        jsonNetworkProgress[it.key()] = it.value().second;
+    }
+    // Add the network names to the JSON message
+    jsonMessage["networkNamesProgress"] = jsonNetworkProgress;
+
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
@@ -661,7 +672,7 @@ void SimulationServer::
 }
 
 void SimulationServer::onSimulationResultsAvailable(
-    QMap<QString, ShipsResults> &results)
+    QMap<QString, ShipsResults> results)
 {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationResultsAvailable";
