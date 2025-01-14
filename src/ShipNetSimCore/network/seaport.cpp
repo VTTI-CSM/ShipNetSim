@@ -2,7 +2,8 @@
 
 namespace ShipNetSimCore
 {
-SeaPort::SeaPort(GPoint newCoordinate) : mPortCoordinate(newCoordinate) {}
+SeaPort::SeaPort(GPoint newCoordinate) :
+    QObject(nullptr), mPortCoordinate(newCoordinate) {}
 
 void SeaPort::setPortCoordinate(GPoint newCoordinate) {
     mPortCoordinate = newCoordinate;
