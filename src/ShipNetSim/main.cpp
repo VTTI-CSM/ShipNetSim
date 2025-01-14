@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
         QString::fromStdString(ShipNetSim_VENDOR));
 
     // Attach the logger first thing:
-    ShipNetSimCore::Logger::attach();
+    ShipNetSimCore::Logger::attach("ShipNetSim");
 
     // Command-line argument parsing setup.
     QCommandLineParser parser;
