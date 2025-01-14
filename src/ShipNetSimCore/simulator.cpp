@@ -22,6 +22,12 @@ Simulator::Simulator(OptimizedNetwork* network,
     mNetwork(network),
     mIsExternallyControlled(isExternallyControlled)
 {
+    qDebug() << "Simulator initialized with" << mShips.size() << "ships.";
+
+    if (!mNetwork) {
+        qFatal("Simulator initialization failed: Network pointer is null.");
+    }
+
     mOutputLocation = Utils::getHomeDirectory();
     // Get a high-resolution time point
     auto now = std::chrono::high_resolution_clock::now();
@@ -41,11 +47,16 @@ Simulator::Simulator(OptimizedNetwork* network,
 }
 
 Simulator::~Simulator() {
+    qDebug() << "Simulator destructor called. Cleaning up network and ships.";
+
     mNetwork = nullptr;
 }
 
 void Simulator::moveObjectToThread(QThread *thread)
 {
+    qDebug() << "Moving Simulator and associated objects to new thread.";
+
+
     // Move Simulator object itself to the thread
     this->moveToThread(thread);
 
@@ -64,6 +75,10 @@ void Simulator::moveObjectToThread(QThread *thread)
 
 void Simulator::studyShipsResistance()
 {
+    qDebug() << "Starting studyShipsResistance for "
+             << mShips.size() << " ships.";
+
+
     QString trajectoryFullPath = (mExportTrajectory)?
                                      QDir(mOutputLocation).filePath(
                                          mTrajectoryFilename) : "";
@@ -91,6 +106,8 @@ void Simulator::studyShipsResistance()
 
     for (auto &ship: mShips)
     {
+        qDebug() << "Calculating resistance for Ship ID:" << ship->getUserID();
+
         // double s[] = {15.0, 15.5, 16.0, 16.5, 17.0, 17.5, 18.0, 18.5, 19.0};
 
         for (auto speedStep :
@@ -104,6 +121,12 @@ void Simulator::studyShipsResistance()
                 units::velocity::knot_t(speedStep).
                 convert<units::velocity::meters_per_second>();
             ship->setSpeed(ss);
+
+            if (!ship->getCalmResistanceStrategy()) {
+                qFatal("Ship ID: %s - Missing calm resistance strategy.",
+                       ship->getUserID().toUtf8().constData());
+            }
+
             // ship->setSpeed(units::velocity::meters_per_second_t(speedStep));
             auto speed = ss; //units::velocity::knot_t(speedStep).
                          //convert<units::velocity::meters_per_second>();
@@ -241,25 +264,48 @@ void Simulator::studyShipsResistance()
 
 void Simulator::addShipToSimulation(std::shared_ptr<Ship> ship) {
 
-    // Lock the mutex to protect the mShips list
-    QMutexLocker locker(&mutex);
+    qDebug() << "Adding ship " << ship->getUserID() << " to the simulator.";
 
-    mShips.push_back(ship);
+    {
+        // Lock the mutex to protect the mShips list
+        QMutexLocker locker(&mutex);
+
+        mShips.push_back(ship);
+    } // Unlocks mutex here
+
+    // Call resumeSimulation outside of the locked section to prevent deadlock
+    if (mIsSimulatorPaused) this->resumeSimulation(false);
+
 }
 
 void Simulator::addShipsToSimulation(QVector< std::shared_ptr<Ship> > ships)
 {
-    // Lock the mutex to protect the mShips list
-    QMutexLocker locker(&mutex);
-
-    for (auto &ship: ships) {
-        mShips.push_back(ship);
+    for (auto ship : ships) {
+        qDebug() << "Adding ship " << ship->getUserID()
+                 << " to the simulator.";
     }
+
+    {
+        // Lock the mutex to protect the mShips list
+        QMutexLocker locker(&mutex);
+
+        for (auto &ship: ships) {
+            mShips.push_back(ship);
+        }
+    } // Unlocks mutex here
+
+    // Call resumeSimulation outside of the locked section to prevent deadlock
+    if (mIsSimulatorPaused) this->resumeSimulation(false);
 }
 
 
 // Setter for the time step of the simulation
 void Simulator::setTimeStep(units::time::second_t newTimeStep) {
+    qDebug() << "Setting simulation time step to " << newTimeStep.value();
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     this->mTimeStep = newTimeStep;
 }
 
@@ -275,17 +321,32 @@ units::time::second_t Simulator::getCurrentSimulatorTime()
 
 // Setter for the end time of the simulation
 void Simulator::setEndTime(units::time::second_t newEndTime) {
+    qDebug() << "Setting simulation time to " << newEndTime.value();
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     this->mSimulationEndTime = newEndTime;
 }
 
 // Setter for the plot frequency
 void Simulator::setPlotFrequency(int newPlotFrequency) {
+    qDebug() << "Setting plotting frequency to " << newPlotFrequency;
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     this->mPlotFrequency = newPlotFrequency;
 }
 
 // Setter for the output folder location
 void Simulator::setOutputFolderLocation(QString newOutputFolderLocation)
 {
+    qDebug() << "Setting output directory to " << newOutputFolderLocation;
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     if (newOutputFolderLocation.trimmed().isEmpty())
     {
         mOutputLocation = Utils::getHomeDirectory();
@@ -305,6 +366,12 @@ QString Simulator::getOutputFolder() {
 // Setter for the summary file name
 void Simulator::setSummaryFilename(QString newfilename)
 {
+
+    qDebug() << "Setting summary file name to " << newfilename;
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     QString filename = newfilename;
     if (!filename.trimmed().isEmpty()){
         QFileInfo fileInfo(filename);
@@ -330,6 +397,15 @@ void Simulator::setExportInstantaneousTrajectory(
     bool exportInstaTraject,
     QString newInstaTrajectFilename)
 {
+
+    qDebug() << "Setting enable instantaneous file generation to "
+             << exportInstaTraject
+             << " with output file name to "
+             << newInstaTrajectFilename;
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
     this->mExportTrajectory = exportInstaTraject;
     if (!newInstaTrajectFilename.trimmed().isEmpty())
     {
@@ -359,8 +435,15 @@ void Simulator::setExportInstantaneousTrajectory(
 
 
 void
-Simulator::setExportIndividualizedShipsSummary(bool exportAllTrainsSummary) {
-    mExportIndividualizedTrainsSummary = exportAllTrainsSummary;
+Simulator::setExportIndividualizedShipsSummary(bool exportAllShipsSummary) {
+
+    qDebug() << "Setting enable detailed summary to "
+             << exportAllShipsSummary;
+
+    // Lock the mutex to protect the mShips list
+    QMutexLocker locker(&mutex);
+
+    mExportIndividualizedShipsSummary = exportAllShipsSummary;
 }
 
 QJsonObject Simulator::getCurrentStateAsJson()
@@ -378,7 +461,7 @@ QJsonObject Simulator::getCurrentStateAsJson()
     json["Ships"] = shipsArray;
 
     json["CurrentSimulationTime"] = mSimulationTime.value();
-    json["Progress"] = mProgress;
+    json["Progress"] = mProgressStep;
 
     return json;
 }
@@ -425,6 +508,8 @@ void Simulator::initializeAllShips()
 
 void Simulator::initializeSimulation()
 {
+    qDebug() << "Initializing the simulation!";
+
     connect(this, &Simulator::simulationFinished,
             this, [this]() {
                 generateSummaryData();
@@ -442,26 +527,24 @@ void Simulator::initializeSimulation()
         this->mTrajectoryFile.initCSV(mTrajectoryFullPath);
         QString exportLine;
         QTextStream stream(&exportLine);
-        stream << "TStep_s,"
-                  "ShipNo,"
-                  "WaterSalinity_ppt,"
-                  "WaveHeight_m,"
-                  "WaveFrequency_hz,"
-                  "WaveLength_m,"
-                  "NorthwardWindSpeed_mps,"
-                  "EastwardWindSpeed_mps,"
-                  "TotalShipThrust_N,"
-                  "TotalShipResistance_N,"
-                  "maxAcceleration_mps2,"
-                  "TravelledDistance_m,"
-                  "Acceleration_mps2,"
-                  "Speed_knots,"
-                  "CumEnergyConsumption_KWH,"
-                  "MainEnergySourceCapacityState_percent,"
-                  "Position(id;long;lat),"
-                  "Course_deg,"
-                  "MainEngineTargetState,"
-                  "MainEngineCurrentState";
+        stream << "TStep_s,"                                 // 1. double
+                  "ShipNo,"                                  // 2. int
+                  "WaterSalinity_ppt,"                       // 3. double
+                  "WaveHeight_m,"                            // 4. double
+                  "WaveFrequency_hz,"                        // 5. double
+                  "WaveLength_m,"                            // 6. double
+                  "NorthwardWindSpeed_mps,"                  // 7. double
+                  "EastwardWindSpeed_mps,"                   // 8. double
+                  "TotalShipThrust_N,"                       // 9. double
+                  "TotalShipResistance_N,"                   // 10. double
+                  "maxAcceleration_mps2,"                    // 11. double
+                  "TravelledDistance_m,"                     // 12. double
+                  "Acceleration_mps2,"                       // 13. double
+                  "Speed_knots,"                             // 14. double
+                  "CumEnergyConsumption_KWH,"                // 15. double
+                  "MainEnergySourceCapacityState_percent,"   // 16. double
+                  "Position(long;lat),"                      // 17. string
+                  "Course_deg,";                             // 18. double
 
         this->mTrajectoryFile.writeLine(exportLine);
     }
@@ -472,32 +555,43 @@ void Simulator::initializeSimulation()
 
 void Simulator::runSimulation()
 {
+    qDebug() << "Starting simulation.";
 
     initializeSimulation();
 
     while (this->mSimulationTime <= this->mSimulationEndTime ||
            this->mRunSimulationEndlessly)
     {
-        mutex.lock();
+        {
+            QMutexLocker locker(&mutex);  // Lock the mutex automatically
+        
             // This will block the thread if pauseFlag is true
-        if (mIsSimulatorPaused) pauseCond.wait(&mutex);
-        mutex.unlock();
+            while (mIsSimulatorPaused) {  // Use a loop to re-check the condition
+                qWarning() << "Simulation has been paused externally.";
+                pauseCond.wait(&mutex);  // Automatically releases and reacquires the mutex
+            }
+        }  // The mutex is automatically unlocked here when `locker` goes out of scope
 
         // Check if the simulation should continue running
         if (!mIsSimulatorRunning) {
+            qWarning() << "Simulation has been stopped externally.";
+
             break;
         }
 
         if (this->checkAllShipsAreNotMoving()) {
+
             if (mIsExternallyControlled) {
+                qWarning() << "All ships have stopped moving.";
+
                 continue;
             }
-            qWarning() << "All ships do not move!";
+            qWarning() << "All ships have stopped moving. Ending simulation.";
+
             break;
         }
 
         if (this->checkAllShipsReachedDestination()) {
-
             // Emit the signal when all ships have reached their destination
             emit allShipsReachedDestination();
 
@@ -505,9 +599,12 @@ void Simulator::runSimulation()
                 // Pause the simulation to wait for new ships to be added
                 qDebug() << "All ships have reached their "
                             "destination, pausing simulation.";
-                this->pauseSimulation();
+                this->pauseSimulation(false);
                 continue;
             }
+
+            qDebug() << "All ships have reached their destination.";
+
             break;
         }
 
@@ -518,6 +615,7 @@ void Simulator::runSimulation()
         // #             start: show progress on console                    #
         // ##################################################################
 
+        qDebug() << "Simulation ended.";
 
         this->ProgressBar(mShips);
 
@@ -541,7 +639,7 @@ void Simulator::runBy(units::time::second_t timeSteps) {
         runOneTimeStep();
     }
 
-    emit simulationReachedReportingTime(mSimulationTime);
+    emit simulationReachedReportingTime(mSimulationTime, mProgressPercentage);
 }
 
 void Simulator::endSimulation() {
@@ -552,7 +650,8 @@ void Simulator::restartSimulation()
 {
     mInactiveShipsCount = 0;
     mSimulationTime = units::time::second_t(0);
-    mProgress = -1;
+    mProgressStep = -1;
+    mProgressPercentage = 0.0;
     mSummaryTextData = "";
     for (auto &ship : mShips) {
         ship->reset();
@@ -590,7 +689,7 @@ void Simulator::generateSummaryData()
         << "....................................................\n\n"
         << "\n";
     stream
-        << "+ AGGREGATED/ACCUMULATED TRAINS STATISTICS:\n"
+        << "+ AGGREGATED/ACCUMULATED SHIPS STATISTICS:\n"
         << "    |-> Moved Commodity:\n"
         << "        |_ Total Moved Cargo (ton)                                              \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
                                                                                                                                                  [](double total, const auto& s) {
@@ -670,14 +769,27 @@ void Simulator::generateSummaryData()
 
     stream
         << "            |_ Average Fuel Consumed per Net Weight (litterx10^3/ton)           \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
-                                                                                                                                                 [](double total, const auto& train) {
-                                                                                                                                                     return total + train->getOverallCumFuelConsumptionPerTon().value();
+                                                                                                                                                 [](double total, const auto& ship) {
+                                                                                                                                                     return total + ship->getOverallCumFuelConsumptionPerTon().value();
                                                                                                                                                  })) << "\n"
         << "            |_ Average Fuel Consumed per Net ton.km (littersx10^3/ton.km)       \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
-                                                                                                                                                 [](double total, const auto& train) {
-                                                                                                                                                     return total + train->getOverallCumFuelConsumptionPerTonKM().value();
+                                                                                                                                                 [](double total, const auto& ship) {
+                                                                                                                                                     return total + ship->getOverallCumFuelConsumptionPerTonKM().value();
                                                                                                                                                  })) << "\n"
-        << "        |_ Tank Status:\n"
+        // << "        |_ Tank Status:\n"
+        << "    |_ Environmental Impact:\n"
+        << "        |_ Total CO2 Emissions (kg)                                             \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& ship) {
+                                                                                                                                                     return total + ship->getTotalCO2Emissions().value();
+                                                                                                                                                 })) << "\n"
+        << "        |_ Average CO2 Emissions per Net Weight (kg/ton)                        \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& ship) {
+                                                                                                                                                     return total + ship->getTotalCO2EmissionsPerTon();
+                                                                                                                                                 })) << "\n"
+        << "        |_ Average CO2 Emissions per Net ton.km (kg/ton.km)                     \x1D : " << Utils::thousandSeparator(std::accumulate(this->mShips.begin(), this->mShips.end(), 0.0,
+                                                                                                                                                 [](double total, const auto& ship) {
+                                                                                                                                                     return total + ship->getCO2EmissionsPerTonKM();
+                                                                                                                                                 })) << "\n"
         << "....................................................\n\n";
 
     for (auto &ship: mShips)
@@ -789,7 +901,7 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                 otherShip->isReachedDestination()) { continue; }
 
             // check if the ship has the same starting node and
-            // the otherTrain still on the same starting node
+            // the otherShip still on the same starting node
             if (otherShip->getShipPathPoints()->at(0) ==
                 ship->getShipPathPoints()->at(0) &&
                 otherShip->getTraveledDistance() <=
@@ -895,10 +1007,8 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
                    << QString::number(ship->getSpeed().convert<units::velocity::knot>().value(), 'f', 3) << ","
                    << QString::number(ship->getCumConsumedEnergy().value(), 'f', 3) << ","
                    << QString::number(ship->getMainTankCurrentCapacity(), 'f', 3) << ","
-                   << ship->getCurrentPosition().toString() << ","
-                   << QString::number(ship->getCurrentHeading().value(), 'f', 3) << ","
-                   << ship->getPropellers()->at(0)->getDrivingEngines().at(0)->getEngineTargetState() << ","
-                   << ship->getPropellers()->at(0)->getDrivingEngines().at(0)->getEngineCurrentState();
+                   << ship->getCurrentPosition().toString("(%x; %y)") << ","
+                   << QString::number(ship->getCurrentHeading().value(), 'f', 3);
 
             mTrajectoryFile.writeLine(s);
         }
@@ -914,6 +1024,7 @@ bool Simulator::checkNoShipIsOnNetwork() {
             return false;
         }
     }
+    qWarning() << "No ship is active on the network.";
     return true;
 }
 
@@ -940,50 +1051,77 @@ void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
     }
 
     double fraction = sum / ships.size();
+    mProgressPercentage = fraction * 100.0;
     int progressValue = static_cast<int>(fraction * bar_length);
     int progressPercent = static_cast<int>(fraction * 100);
 
     // Only print and update when the progress percent changes
-    if (progressPercent != this->mProgress) {
+    if (progressPercent != this->mProgressStep) {
         QTextStream out(stdout);
         QString bar = QString(progressValue, '-').append('>')
                           .append(QString(bar_length - progressValue, ' '));
 
         QChar ending = (progressPercent >= 100) ? '\n' : '\r';
 
+#ifdef Q_OS_WIN
+        // --------- Windows approach (SetConsoleTextAttribute) -----------
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+        // Save the current console attributes
+        CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+        GetConsoleScreenBufferInfo(hConsole, &consoleInfo);
+        WORD saved_attributes = consoleInfo.wAttributes;
+
+        // Set text color to bright green
+        // FOREGROUND_GREEN | FOREGROUND_INTENSITY = bright green
+        SetConsoleTextAttribute(hConsole, FOREGROUND_GREEN | FOREGROUND_INTENSITY);
+
+        // Print the progress
         out << "Progress: [" << bar << "] " << progressPercent << "%" << ending;
 
-        this->mProgress = progressPercent;
-        emit this->progressUpdated(this->mProgress);
+        // Reset to original console attributes
+        SetConsoleTextAttribute(hConsole, saved_attributes);
+
+#else \
+    // --------- macOS & Linux approach (ANSI escape codes) ----------- \
+    // \033[1;32m = Bright Green \
+    // \033[0m    = Reset color
+        out << "\033[1;32m"
+            << "Progress: [" << bar << "] "
+            << progressPercent << "%"
+            << "\033[0m"
+            << ending;
+#endif
+
+        this->mProgressStep = progressPercent;
+        emit this->progressUpdated(this->mProgressStep);
     }
 }
 
 
-void Simulator::pauseSimulation() {
-    mutex.lock();
+void Simulator::pauseSimulation(bool emitSignal) {
+    QMutexLocker locker(&mutex);  // Use QMutexLocker to prevent potential deadlocks
     mIsSimulatorPaused = true;
-    mutex.unlock();
-
-    emit simulationPaused();
+    if (emitSignal) emit simulationPaused();
 }
 
-void Simulator::resumeSimulation() {
-    mutex.lock();
+void Simulator::resumeSimulation(bool emitSignal) {
+    QMutexLocker locker(&mutex);  // Use QMutexLocker to prevent potential deadlocks
     mIsSimulatorPaused = false;
-    mutex.unlock();
-    pauseCond.wakeAll(); // This will wake up the thread
-
-    emit simulationResumed();
+    pauseCond.wakeAll();
+    if (emitSignal) emit simulationResumed();
 }
 
-void Simulator::stopSimulation() {
-    mutex.lock();
+void Simulator::terminateSimulation() {
+    qWarning() << "Terminating simulation.";
+
+    QMutexLocker locker(&mutex);  // Use QMutexLocker to prevent potential deadlocks
     mIsSimulatorRunning = false;  // Stop the simulation loop
     mIsSimulatorPaused = false;   // Ensure the simulation is not paused
-    mutex.unlock();
+
     pauseCond.wakeAll();  // Wake up any paused threads
 
-    emit simulationStopped();
+    emit simulationTerminated();
 }
 
 }

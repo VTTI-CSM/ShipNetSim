@@ -78,7 +78,8 @@ private:
     /** Full path of the trajectory file*/
     QString mTrajectoryFullPath;
     /** The progress */
-    int mProgress = -1;
+    int mProgressStep = -1;
+    double mProgressPercentage = -1.0;
     /** True to run simulation endlessly */
     bool mRunSimulationEndlessly;
     /** True to export trajectory */
@@ -88,7 +89,7 @@ private:
     /** The summary file */
     Data::TXT mSummaryFile = Data::TXT();
     /** export individualized ships summary in the summary file*/
-    bool mExportIndividualizedTrainsSummary = false;
+    bool mExportIndividualizedShipsSummary = false;
     /** The serial number of the current simulation run. */
     long long simulation_serial_number;
     /** Time of when the simulation started. */
@@ -173,7 +174,7 @@ public:
      * @brief add a ship to the simulator
      * @param ship the new ship pointer to be simulated
      */
-    void addShipToSimulation(std::shared_ptr<Ship> ship);
+    Q_INVOKABLE void addShipToSimulation(std::shared_ptr<Ship> ship);
 
     /**
      * @brief add ships to the simulator
@@ -270,10 +271,10 @@ public:
      * @brief set the export individualized ships summary for all ships
      * in the simulator.
      *
-     *@param exportAllTrainsSummary a boolean to enable or disable exporting
+     *@param exportAllShipsSummary a boolean to enable or disable exporting
      *individualized ships summary.
      */
-    void setExportIndividualizedShipsSummary(bool exportAllTrainsSummary);
+    void setExportIndividualizedShipsSummary(bool exportAllShipsSummary);
 
     QJsonObject getCurrentStateAsJson();
 
@@ -301,7 +302,7 @@ signals:
      * @param results   The simulation results struct
      */
     void simulationResultsAvailable(
-        ShipsResults& results);
+        ShipsResults results);
 
     /**
      * @brief Signals that all ships in the simulator reached their destination.
@@ -317,11 +318,13 @@ signals:
 
     void simulationResumed();
 
-    void simulationStopped();
+    void simulationTerminated();
 
     void simulationRestarted();
 
-    void simulationReachedReportingTime(units::time::second_t simulationTime);
+    void simulationReachedReportingTime(
+        units::time::second_t simulationTime,
+        double progressPercentage);
 
 public slots:
 
@@ -361,17 +364,17 @@ public slots:
     /**
      * @brief pause the simulation
      */
-    void pauseSimulation();
+    void pauseSimulation(bool emitSignal = true);
 
     /**
      * @brief resume the simulation
      */
-    void resumeSimulation();
+    void resumeSimulation(bool emitSignal = true);
 
     /**
      * @brief stop the simulation completely
      */
-    void stopSimulation();
+    void terminateSimulation();
 
     /**
      * @brief end the simulation and export summary.
