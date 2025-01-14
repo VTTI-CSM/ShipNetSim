@@ -381,26 +381,22 @@ GPoint GPoint::getMiddlePoint(const GPoint& endPoint) const
 }
 
 // Function to convert the point to a string representation.
-QString GPoint::toString() const
+QString GPoint::toString(const QString &format, int decimalPercision) const
 {
-    QString str;
-     // Convert coordinate value to string in decimal format
-    QString xStr = QString::number(getLongitude().value(), 'f', 3);
-    QString yStr = QString::number(getLatitude().value(), 'f', 3);
+    QString xStr =
+        QString::number(getLongitude().value(), 'f', decimalPercision);
+    QString yStr =
+        QString::number(getLatitude().value(), 'f', decimalPercision);
+    QString idStr = mUserID.isEmpty() ? "N/A" : mUserID;
 
+    QString result = format;
 
-    // Format the string as "Point userID(x, y)".
-    if (mUserID.isEmpty() ||
-        mUserID == "temporary point")  // Format the string as "(x, y)".
-    {
-        str =
-            QString("(%1; %2)").arg(xStr, yStr);
-    }
-    else  // Format the string as "Point userID(x, y)".
-    {
-        str = QString("Point %1(%2; %3)").arg(mUserID, xStr, yStr);
-    }
-    return str;  // Return the formatted string.
+    // Replace placeholders (case-insensitive)
+    result.replace("%x", xStr, Qt::CaseInsensitive);
+    result.replace("%y", yStr, Qt::CaseInsensitive);
+    result.replace("%id", idStr, Qt::CaseInsensitive);
+
+    return result;
 }
 
 // Implementation of the nested Hash structure

@@ -205,11 +205,38 @@ public:
     GPoint getMiddlePoint(const GPoint& endPoint) const;
 
     /**
-     * @brief Get a string representation of the point.
+     * @brief Converts the GPoint object to a formatted string representation.
      *
-     * @return A string representing the point.
+     * This function dynamically formats the output string based on the
+     * user-provided format string. Placeholders in the format string are
+     * replaced as follows:
+     * - `%x`: Replaced with the longitude value.
+     * - `%y`: Replaced with the latitude value.
+     * - `%id`: Replaced with the user ID (or "N/A" if no ID is set).
+     *
+     * The replacement is case-insensitive, allowing placeholders such
+     * as `%X`, `%Y`, or `%ID`.
+     *
+     * @param format A QString specifying the desired format of the output.
+     *               It must include placeholders (`%x`, `%y`, `%id`) for
+     *               the longitude, latitude, and user ID, respectively.
+     *
+     * @return A QString containing the formatted output with
+     *          placeholders replaced.
+     *         If a placeholder is missing, it will not be replaced.
+     *
+     * @example
+     * GPoint point;
+     * point.setLongitude(units::angle::degree_t(10.123));
+     * point.setLatitude(units::angle::degree_t(20.456));
+     * point.setUserID("Ship123");
+     *
+     * QString format = "ID: %id at (%x, %y)";
+     * qDebug() << point.toString(format);
+     * // Output: "ID: Ship123 at (10.123, 20.456)"
      */
-    [[nodiscard]] QString toString() const override;
+    [[nodiscard]] QString toString(const QString &format= "(%x, %y)",
+                                   int decimalPercision = 5) const override;
 
     /**
      * @brief Equality operator.

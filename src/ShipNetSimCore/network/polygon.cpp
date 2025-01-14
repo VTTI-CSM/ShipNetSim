@@ -474,14 +474,19 @@ units::length::meter_t Polygon::getMaxClearWidth(const GLine& line) const
 }
 
 
-QString Polygon::toString() const
+QString Polygon::toString(const QString &format, int decimalPercision) const
 {
-    QString str =
-        QString("Polygon Perimeter: %1 || Area: %2")
-            .arg(perimeter().value())
-            .arg(area().value());
+    QString perimeterStr =
+        QString::number(perimeter().value(), 'f', decimalPercision);
+    QString areaStr = QString::number(area().value(), 'f', decimalPercision);
 
-    return str;
+    QString result = format;
+
+    // Replace placeholders (case-insensitive)
+    result.replace("%perimeter", perimeterStr, Qt::CaseInsensitive);
+    result.replace("%area", areaStr, Qt::CaseInsensitive);
+
+    return result; // Return the formatted string
 }
 
 bool Polygon::contains(std::shared_ptr<GPoint> point) const
