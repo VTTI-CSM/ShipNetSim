@@ -2,33 +2,22 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDomDocument>
+#include <iostream>
+#include <QtConcurrent>
+#include <QFuture>
+#include <QMutex>
+#include <QSet>
+#include <QVector>
 
 namespace ShipNetSimCore
 {
 
-template <typename T>
-QVector<T> Data::Table::getColumn(const QString& headerName) const
-{
-    auto it = tableMap.find(headerName);
-    if (it != tableMap.end()) {
-        QVector<T> column;
-        for (const auto& cell : it.value()) {
-            if (std::holds_alternative<T>(cell)) {
-                column.push_back(std::get<T>(cell));
-            } else {
-                throw std::runtime_error("Type mismatch in column: " +
-                                         headerName.toStdString());
-            }
-        }
-        return column;
-    }
-    throw std::runtime_error("Header not found: " + headerName.toStdString());
-}
-
 Data::CSV::CSV() : mFilePath("") {}
 
 Data::CSV::CSV(const QString &filePath) :
-    mFilePath(filePath), mFile(filePath) {}
+    mFilePath(filePath), mFile(filePath) {
+    std::cout << filePath.toStdString() << std::endl;
+}
 
 Data::CSV::~CSV() {
     close();
@@ -37,6 +26,8 @@ Data::CSV::~CSV() {
 void Data::CSV::initCSV(const QString &filePath) {
     mFilePath = filePath;
     mFile.setFileName(mFilePath);
+
+    std::cout << filePath.toStdString() << std::endl;
 }
 
 bool Data::CSV::writeLine(const QString &line) {
@@ -59,6 +50,12 @@ bool Data::CSV::writeLine(const QString &line) {
     return true;
 }
 
+bool Data::CSV::writeLine(const QVector<QString> &lineDetails,
+                          const QString separator)
+{
+    return writeLine(lineDetails.join(separator));
+}
+
 bool Data::CSV::clearFile()
 {
     if (mFile.isOpen()) {
@@ -76,88 +73,246 @@ bool Data::CSV::clearFile()
     return true;    // Indicate success
 }
 
-Data::Table Data::CSV::read(const QVector<QString>& typeSequence,
-                            const bool hasHeaders,
-                            const QString& separator)
+Data::Table Data::CSV::read(
+    const bool hasHeaders,
+    const QString& separator,
+    std::function<bool(const QString&)> filterFunc,
+    int filterColumnIndex)
 {
+    QFile file(mFilePath);
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        throw std::runtime_error("Could not open file: "
+                                 + mFilePath.toStdString());
+    }
+
+    QTextStream in(&file);
+
+    QVector<QString> headers;
+
+    // Read and process header if present
+    if (hasHeaders && !in.atEnd()) {
+        QString headerLine = in.readLine();
+        headers = headerLine.split(separator);
+    }
+
+    // Define the number of lines per chunk
+    const int LINES_PER_CHUNK = 10'000; // low for high performance and memory
+
+    QList<QFuture<QVector<QVector<QVariant>>>> futures;
+
+    // Define a mutex if needed for shared data (currently not required)
+    // QMutex mutex;
+
+    // Define a lambda for processing lines
+    auto processLines = [&](const QStringList& lines) ->
+        QVector<QVector<QVariant>>
+    {
+        QVector<QVector<QVariant>> localData;
+        for (const QString& rawLine : lines) {
+            QString line = rawLine.trimmed();
+            if (line.endsWith('\r'))
+                line.chop(1);  // Remove carriage return if present
+
+            QVector<QString> rowStr = line.split(separator,
+                                                 Qt::KeepEmptyParts);
+
+            // Apply filtering function if provided
+            if (filterFunc && filterColumnIndex >= 0 &&
+                filterColumnIndex < rowStr.size() &&
+                !filterFunc(rowStr[filterColumnIndex])) {
+                continue;  // Skip this row
+            }
+
+            // Convert rowStr to QVariant
+            QVector<QVariant> rowData;
+            for (const QString& value : rowStr) {
+                rowData.append(QVariant(value));
+            }
+
+            localData.append(rowData);
+        }
+        return localData;
+    };
+
+    // Read and dispatch chunks
+    while (!in.atEnd()) {
+        QStringList lines;
+        lines.reserve(LINES_PER_CHUNK);
+
+        // Collect lines for the current chunk
+        for (int i = 0; i < LINES_PER_CHUNK && !in.atEnd(); ++i) {
+            QString line = in.readLine();
+            lines.append(line);
+        }
+
+        // Launch a thread to process these lines
+        futures.append(QtConcurrent::run(processLines, lines));
+    }
+
+    file.close();
+
+    // Construct the final Table
     Table table;
 
-    if (!mFile.open(QIODevice::ReadOnly | QIODevice::Text))
-    {
-        throw std::runtime_error("Could not open file: " +
-                                 mFilePath.toStdString());
-    }
-
-    QTextStream in(&mFile);
-
+    // Initialize tableMap with headers
     if (hasHeaders) {
-        QString headerLine = in.readLine();
-
-        headerLine.split(separator).toVector();
-
-        for (const auto& header : table.headers) {
-            table.tableMap[header] = QVector<Cell>();
-        }
-    }
-    else
-    {
-        for (qsizetype i = 0; i < typeSequence.size(); ++i)
-        {
-            QString header = "Column" + QString::number(i);
-            table.headers.push_back(header);
-            table.tableMap[header] = QVector<Cell>();
-        }
+        table.headers = headers;
+    } else {
+        // Headers will be generated based on the first row
+        // This will be handled during data mapping
     }
 
-    while (!in.atEnd()) {
-        QString line = in.readLine();
+    // Initialize tableMap after all data is collected
+    // To determine the maximum number of columns
+    QVector<QVector<QVariant>> allData;
 
-        QVector<QString> rowStr;
-        rowStr = line.split(separator).toVector();
-
-        if (rowStr.size() != typeSequence.size()) {
-            throw std::runtime_error(
-                "Number of columns does not match "
-                "the provided type sequence");
-        }
-
-        for (qsizetype i = 0; i < table.headers.size(); ++i) {
-            bool conversionSuccessful = false;
-
-            if (typeSequence[i] == "int") {
-                int value = rowStr[i].toInt(&conversionSuccessful);
-                if (conversionSuccessful) {
-                    table.tableMap[table.headers[i]].push_back(value);
-                } else {
-                    throw std::runtime_error("Failed to convert to int: " +
-                                             rowStr[i].toStdString());
-                }
-            }
-            else if (typeSequence[i] == "double") {
-                double value = rowStr[i].toDouble(&conversionSuccessful);
-                if (conversionSuccessful) {
-                    table.tableMap[table.headers[i]].push_back(value);
-                } else {
-                    throw std::runtime_error("Failed to convert to double: " +
-                                             rowStr[i].toStdString());
-                }
-            }
-            else if (typeSequence[i] == "string") {
-                table.tableMap[table.headers[i]].push_back(rowStr[i]);
-            }
-            else {
-                throw std::runtime_error(
-                    "Unknown data type in type sequence: " +
-                    typeSequence[i].toStdString());
-            }
-        }
-
+    // Wait for all threads to finish and collect data
+    for (auto &future : futures) {
+        QVector<QVector<QVariant>> chunkData = future.result();
+        allData.append(chunkData);
     }
 
-    // Close the file after reading
-    mFile.close();
+    // Determine final headers
+    if (!hasHeaders) {
+        if (!allData.isEmpty()) {
+            int maxColumns = 0;
+            for (const auto& row : allData) {
+                if (row.size() > maxColumns)
+                    maxColumns = row.size();
+            }
+            for (int i = 0; i < maxColumns; ++i) {
+                headers.append("Column" + QString::number(i + 1));
+            }
+            table.headers = headers;
+        }
+    } else {
+        // If headers are provided, check if any row has more columns
+        int headerCount = headers.size();
+        int maxColumns = headerCount;
+        for (const auto& row : allData) {
+            if (row.size() > maxColumns)
+                maxColumns = row.size();
+        }
+
+        if (maxColumns > headerCount) {
+            // Extend headers to match maxColumns
+            for (int i = headerCount; i < maxColumns; ++i) {
+                headers.append("Column" + QString::number(i + 1));
+            }
+            table.headers = headers;
+        } else {
+            table.headers = headers;
+        }
+    }
+
+    // Initialize tableMap with headers
+    for (const QString& header : table.headers) {
+        table.tableMap[header] = QVector<QVariant>();
+    }
+
+    // Fill tableMap with data
+    for (const QVector<QVariant>& row : allData) {
+        for (int i = 0; i < table.headers.size(); ++i) {
+            if (i < row.size()) {
+                table.tableMap[table.headers[i]].append(row[i]);
+            } else {
+                table.tableMap[table.headers[i]].
+                    append(QVariant("")); // Fill missing with empty QVariant
+            }
+        }
+
+        // Handle extra columns if any (only if headers were extended)
+        if (row.size() > table.headers.size()) {
+            for (int i = table.headers.size(); i < row.size(); ++i) {
+                QString newHeader = "Column" + QString::number(i + 1);
+                table.headers.append(newHeader);
+                table.tableMap[newHeader] = QVector<QVariant>();
+                table.tableMap[newHeader].append(row[i]);
+            }
+        }
+    }
 
     return table;
+}
+
+
+
+QVector<QString> Data::CSV::getDistinctValuesFromCSV(
+    const bool hasHeaders,
+    int columnIndex,
+    const QString& separator)
+{
+    QFile file(mFilePath);  // Local instance
+
+    if (!file.open(QIODevice::ReadOnly)) {
+        throw std::runtime_error("Could not open file: "
+                                 + mFilePath.toStdString());
+    }
+
+    QTextStream in(&file);
+    bool skipHeader = hasHeaders;
+
+    constexpr qint64 CHUNK_SIZE = 10 * 1024 * 1024;  // Process 10MB at a time
+    QList<QFuture<QSet<QString>>> futures; // Store futures for parallel processing
+    QMutex mutex; // Mutex for safe file reading
+
+    while (!in.atEnd()) {
+        QByteArray chunkData;
+
+        // Lock file access to read a chunk
+        {
+            QMutexLocker locker(&mutex);
+            chunkData = file.read(CHUNK_SIZE); // Read a chunk of the file
+        }
+
+        // Process chunk in a separate thread
+        futures.append(QtConcurrent::run([chunkData, separator,
+                                          columnIndex, skipHeader]() ->
+                                         QSet<QString> {
+            QSet<QString> localSet;
+            QTextStream chunkStream(chunkData);
+            bool localSkipHeader = skipHeader;
+
+            while (!chunkStream.atEnd()) {
+                QString line = chunkStream.readLine();
+                if (line.endsWith("\r")) {
+                    line.chop(1); // Handle Windows \r\n issue
+                }
+
+                if (localSkipHeader) {
+                    localSkipHeader = false;
+                    continue;
+                }
+
+                QVector<QString> rowStr;
+                int start = 0;
+                for (int i = 0; i < line.size(); ++i) {
+                    if (line[i] == separator) {
+                        rowStr.push_back(line.mid(start, i - start));
+                        start = i + 1;
+                    }
+                }
+                rowStr.push_back(line.mid(start)); // Last column
+
+                if (columnIndex >= 0 && columnIndex < rowStr.size()) {
+                    localSet.insert(std::move(rowStr[columnIndex]));
+                }
+            }
+
+            return localSet;
+        }));
+    }
+
+    file.close();
+
+    // Merge results from all threads
+    QSet<QString> distinctValues;
+    for (auto &future : futures) {
+        distinctValues.unite(future.result()); // Combine results
+    }
+
+    return QVector<QString>(distinctValues.begin(), distinctValues.end());
 }
 
 void Data::CSV::close()
@@ -169,46 +324,7 @@ void Data::CSV::close()
     }
 }
 
-Data::Table Data::Table::filterTable(
-    const QString& columnName,
-    std::function<bool(const Cell&)> filterFunction)
-{
-    Table filteredTable;
 
-    // Copy the headers
-    filteredTable.headers = headers;
-
-    // Initialize the columns in filteredTable
-    for (const auto& header : filteredTable.headers) {
-        filteredTable.tableMap[header] = QVector<Cell>();
-    }
-
-    // Check if column exists in the original table
-    if (tableMap.find(columnName) == tableMap.end())
-    {
-        throw std::runtime_error("Column not found: "
-                                 + columnName.toStdString());
-    }
-
-    // Loop through rows to apply the filter
-    std::size_t numRows = tableMap[columnName].size();
-
-    for (std::size_t i = 0; i < numRows; ++i)
-    {
-        // Apply filter function
-        if (filterFunction(tableMap[columnName][i]))
-        {
-            // Copy this row to filteredTable
-            for (const auto& header : filteredTable.headers)
-            {
-                filteredTable.tableMap[header].
-                    push_back(tableMap[header][i]);
-            }
-        }
-    }
-
-    return filteredTable;
-}
 
 Data::TXT::TXT() : mFilePath("") {}
 
@@ -278,7 +394,7 @@ Data::Table Data::TXT::read(const QVector<QString>& typeSequence,
                 }
             }
             else if (typeSequence[i] == "string") {
-                table.tableMap[table.headers[i]].push_back(rowStr[i]);
+                table.tableMap[table.getHeaders()[i]].push_back(rowStr[i]);
             }
             else {
                 throw std::runtime_error(
@@ -437,7 +553,7 @@ Data::ProjectFile::readProjectFile(const QString& filename)
     QDomElement projectElement      = root.firstChildElement("ProjectName");
     QDomElement networkElement      = root.firstChildElement("NetworkName");
     QDomElement authorElement       = root.firstChildElement("AuthorName");
-    QDomElement shipsElement       = root.firstChildElement("ShipssFileName");
+    QDomElement shipsElement        = root.firstChildElement("ShipsFileName");
     QDomElement simEndTimeElement   = root.firstChildElement("simEndTime");
     QDomElement simTimestepElement  = root.firstChildElement("simTimestep");
     QDomElement simPlotTimeElement  = root.firstChildElement("simPlotTime");
@@ -447,7 +563,7 @@ Data::ProjectFile::readProjectFile(const QString& filename)
     pf.projectName       = projectElement.text();
     pf.networkName       = networkElement.text();
     pf.authorName        = authorElement.text();
-    pf.shipsFileName    = shipsElement.text();
+    pf.shipsFileName     = shipsElement.text();
     pf.simEndTime        = simEndTimeElement.text();
     pf.simTimestep       = simTimestepElement.text();
     pf.simPlotTime       = simPlotTimeElement.text();
@@ -455,4 +571,5 @@ Data::ProjectFile::readProjectFile(const QString& filename)
     // Return the extracted values as a tuple
     return pf;
 };
+
 };
