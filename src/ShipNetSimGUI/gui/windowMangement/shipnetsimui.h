@@ -2,6 +2,7 @@
 #define SHIPNETSIMUI_H
 
 #include <QMainWindow>
+#include <qcombobox.h>
 
 #include "shipnetsim.h"
 
@@ -18,11 +19,22 @@ public:
     static void openAboutPage(ShipNetSim *parent);
     static void handleSampleProject(ShipNetSim *parent);
     static void closeApplication(ShipNetSim *parent);
+    static QString saveFile(ShipNetSim *parent,
+                            const QString& windowTitle,
+                            const QString& fileExtensions);
     static QString browseFiles(ShipNetSim *parent,
                                QLineEdit* theLineEdit,
-                               const QString& theFileName);
+                               const QString& theFileName,
+                               const QString &fileExtensions =
+                               "DAT Files (*.DAT *.dat)");
     static void browseFolder(ShipNetSim *parent,
                              QLineEdit* theLineEdit,
                              const QString& theHelpMessage);
+    static void updateGraphs(ShipNetSim *parent,
+                             QComboBox *theComboBox,
+                             QComboBox *axisComboBox,
+                             QString trajectoryFilename);
+    static void showReport();
+
 };
 #endif // SHIPNETSIMUI_H
