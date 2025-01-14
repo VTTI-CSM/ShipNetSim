@@ -1,15 +1,18 @@
-#include <QDebug>
-#include "errorhandler.h"
 #include <QMessageBox>
+#include "errorhandler.h"
 
-void ErrorHandler::showNotification(QString msg) {
-    QMessageBox::information(nullptr, "NeTrainSim - Notification", msg);
+namespace ErrorHandler {
+
+void showNotification(QString msg) {
+    QMessageBox::information(nullptr, "ShipNetSim - Notification", msg);
 }
 
-void ErrorHandler::showWarning(QString msg) {
-    QMessageBox::warning(nullptr, "NeTrainSim - Warning", msg);
+void showWarning(QString msg) {
+    QMessageBox::warning(nullptr, "ShipNetSim - Warning", msg);
 }
 
-void ErrorHandler::showError(QString msg) {
-    QMessageBox::critical(nullptr, "NeTrainSim - Error", msg);
+void showError(QString msg) {
+    QMessageBox::critical(nullptr, "ShipNetSim - Error", msg);
 }
+
+} // namespace ErrorHandler
