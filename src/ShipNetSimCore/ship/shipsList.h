@@ -105,17 +105,24 @@ static double convertToDouble(const QString& str, const char* errorMsg, bool isO
     if (isOptional)
     {
         // if the string has nan, return the default nan
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return std::nan("uninitialized");
         }
     }
+
+    // Replace Unicode minus sign with standard minus
+    // this may arise from some systems or the GUI
+    QString normalizedStr = str;
+    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus (−) with ASCII minus (-)
+
+
     // otherwize, do the conversion
     bool ok;
-    double result = str.toDouble(&ok); // convert to double
-    if (!ok) // check if the conversion worked!
+    double result = normalizedStr.toDouble(&ok);
+    if (!ok)
     {
-        qFatal(errorMsg, str.toUtf8().constData()); // quit the process if not
+        qFatal(errorMsg, str.toUtf8().constData());
     }
     return result;
 }
@@ -133,14 +140,20 @@ static int convertToInt(const QString &str,
     if (isOptional)
     {
         // if the string has nan, return the default nan
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return -100;
         }
     }
+
+    // Replace Unicode minus sign with standard minus
+    // this may arise from some systems or the GUI
+    QString normalizedStr = str;
+    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus (−) with ASCII minus (-)
+
     // otherwize, do the conversion
     bool ok;
-    int result = (int)(str.toDouble(&ok)); // convert to int
+    int result = (int)(normalizedStr.toDouble(&ok)); // convert to int
     if (!ok) // check if the conversion worked!
     {
         qFatal(errorMsg, str.toUtf8().constData()); // quit the process if not
@@ -159,7 +172,7 @@ static std::any toBoolT(const QString& str, bool isOptional)
     if (isOptional)
     {
         // if the string has nan, return the default nan
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return std::nan("uninitialized");
         }
@@ -318,7 +331,7 @@ static std::any toQStringT(const QString& str, bool isOptional)
     // if the string has no information, return nothing
     if (isOptional)
     {
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return "";
         }
@@ -335,7 +348,7 @@ static std::any toEnginePowerVectorT(const QString& str, bool isOptional)
     if (isOptional)
     {
         // if the string has no information, return nothing
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return result;
         }
@@ -388,7 +401,7 @@ static std::any toEnginePowerRPMEfficiencyT(const QString& str, bool isOptional)
     if (isOptional)
     {
         // if the string has no information, return nothing
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return result;
         }
@@ -460,7 +473,7 @@ static std::any toPathPointsT(const QString& str, bool isOptional)
     // if the string has no information, return nothing
     if (isOptional)
     {
-        if (str.contains("na", Qt::CaseInsensitive))
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive))
         {
             return points;
         }
@@ -531,7 +544,7 @@ static std::any toAppendagesWetSurfacesT(const QString& str, bool isOptional)
     // if the string has no information, return nothing
     if (isOptional)
     {
-        if (str.contains("na", Qt::CaseInsensitive)) // it is nan or na
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive)) // it is nan or na
         {
             return appendages;
         }
@@ -687,6 +700,46 @@ static QString toString(const std::any& value) {
     return QString(); // Default case
 }
 
+static std::any toTanksDetails(const QString& str, bool isOptional) {
+    QVector<QMap<QString, std::any>> tankDetails;
+
+    // if the string has no information, return nothing
+    if (isOptional)
+    {
+        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive)) // it is nan or na
+        {
+            return tankDetails;
+        }
+    }
+    // Split the string into pairs of appendage and area
+    QStringList entries = str.split(delim[1]);
+
+    for (const QString& entry : entries)
+    {
+        // Split each pair into appendage and area
+        QStringList values = entry.split(delim[2]);
+
+        if (values.size() == 4)
+        {
+            std::any fuelType = toFuelTypeT(values[0], false);
+            std::any totalCapacity = toLiterT(values[1], false);
+            std::any initialCapPercent = toDoubleT(values[2], false);
+            std::any depthOfDischarge = toDoubleT(values[3], false);
+
+            tankDetails.push_back({{"FuelType", fuelType},
+                                   {"MaxCapacity", totalCapacity},
+                                   {"TankInitialCapacityPercentage", initialCapPercent},
+                                   {"TankDepthOfDischage", depthOfDischarge}
+                                 });
+        }
+        else
+        {
+            qFatal("Malformed tank details: %s", entry.toUtf8().constData());
+        }
+    }
+
+    return tankDetails;
+}
 
 /**
  * @brief A QVector of ParamInfo structures that defines the order
@@ -705,65 +758,62 @@ static QVector<ParamInfo> FileOrderedparameters =
     {
     // Basic ship information parameters
     // parameter key, type, isOptional
-    {"ID", toQStringT, false},
-    {"Path", toPathPointsT, false},
-    {"MaxSpeed", toMeterPerSecond, false},
-    {"WaterlineLength", toMeterT, false},
-    {"LengthBetweenPerpendiculars", toMeterT, false},
-    {"Beam", toMeterT, false},
-    {"DraftAtForward", toMeterT, false},
-    {"DraftAtAft", toMeterT, false},
-    {"VolumetricDisplacement", toCubicMeterT, true},
-    {"WettedHullSurface", toSquareMeterT, true},
-    {"ShipAndCargoAreaAboveWaterline", toSquareMeterT, false},
-    {"BulbousBowTransverseAreaCenterHeight", toMeterT, false},
-    {"BulbousBowTransverseArea", toSquareMeterT, false},
-    {"ImmersedTransomArea", toSquareMeterT, false},
-    {"HalfWaterlineEntranceAngle", toDegreesT, true},
-    {"SurfaceRoughness", toNanoMeterT, false},
+    {"ID", toQStringT, false},                                            // 00
+    {"Path", toPathPointsT, false},                                       // 01
+    {"MaxSpeed", toMeterPerSecond, false},                                // 02
+    {"WaterlineLength", toMeterT, false},                                 // 03
+    {"LengthBetweenPerpendiculars", toMeterT, false},                     // 04
+    {"Beam", toMeterT, false},                                            // 05
+    {"DraftAtForward", toMeterT, false},                                  // 06
+    {"DraftAtAft", toMeterT, false},                                      // 07
+    {"VolumetricDisplacement", toCubicMeterT, true},                      // 08
+    {"WettedHullSurface", toSquareMeterT, true},                          // 09
+    {"ShipAndCargoAreaAboveWaterline", toSquareMeterT, false},            // 10
+    {"BulbousBowTransverseAreaCenterHeight", toMeterT, false},            // 11
+    {"BulbousBowTransverseArea", toSquareMeterT, false},                  // 12
+    {"ImmersedTransomArea", toSquareMeterT, false},                       // 13
+    {"HalfWaterlineEntranceAngle", toDegreesT, true},                     // 14
+    {"SurfaceRoughness", toNanoMeterT, false},                            // 15
     // {"RunLength", toMeterT, true},
-    {"LongitudinalBuoyancyCenter", toDoubleT, false},
-    {"SternShapeParam", toCSternT, false},
-    {"MidshipSectionCoef", toDoubleT, true},
-    {"WaterplaneAreaCoef", toDoubleT, true},
-    {"PrismaticCoef", toDoubleT, true},
-    {"BlockCoef", toDoubleT, true},
+    {"LongitudinalBuoyancyCenter", toDoubleT, false},                     // 16
+    {"SternShapeParam", toCSternT, false},                                // 17
+    {"MidshipSectionCoef", toDoubleT, true},                              // 18
+    {"WaterplaneAreaCoef", toDoubleT, true},                              // 19
+    {"PrismaticCoef", toDoubleT, true},                                   // 20
+    {"BlockCoef", toDoubleT, true},                                       // 21
 
     // Fuel and tank parameters
-    {"FuelType", toFuelTypeT, false},
-    {"TankSize", toLiterT, false},
-    {"TankInitialCapacityPercentage", toDoubleT, false},
-    {"TankDepthOfDischage", toDoubleT, false},
+    {"TanksDetails", toTanksDetails, false},                              // 22
 
     // Engine parameters
-    {"EnginesCountPerPropeller", toIntT, false},
-    {"EngineTierIIPropertiesPoints", toEnginePowerRPMEfficiencyT, false},
-    {"EngineTierIIIPropertiesPoints", toEnginePowerRPMEfficiencyT, true},
-    {"EngineTierIICurve", toEnginePowerRPMEfficiencyT, true},
-    {"EngineTierIIICurve", toEnginePowerRPMEfficiencyT, true},
+    {"EnginesCountPerPropeller", toIntT, false},                          // 23
+    {"EngineTierIIPropertiesPoints", toEnginePowerRPMEfficiencyT, false}, // 24
+    {"EngineTierIIIPropertiesPoints", toEnginePowerRPMEfficiencyT, true}, // 25
+    {"EngineTierIICurve", toEnginePowerRPMEfficiencyT, true},             // 26
+    {"EngineTierIIICurve", toEnginePowerRPMEfficiencyT, true},            // 27
 
     // Gearbox parameters
-    {"GearboxRatio", toDoubleT, false},
-    {"GearboxEfficiency", toDoubleT, false},
+    {"GearboxRatio", toDoubleT, false},                                   // 28
+    {"GearboxEfficiency", toDoubleT, false},                              // 29
 
     // Propeller parameters
-    {"ShaftEfficiency",toDoubleT, false},
-    {"PropellerCount", toIntT, false},
-    {"PropellerDiameter", toMeterT, false},
-    {"PropellerPitch", toMeterT, false},
-    {"PropellerBladesCount", toIntT, false},
-    {"PropellerExpandedAreaRatio",toDoubleT, false},
+    {"ShaftEfficiency",toDoubleT, false},                                 // 30
+    {"PropellerCount", toIntT, false},                                    // 31
+    {"PropellerDiameter", toMeterT, false},                               // 32
+    {"PropellerPitch", toMeterT, false},                                  // 33
+    {"PropellerBladesCount", toIntT, false},                              // 34
+    {"PropellerExpandedAreaRatio",toDoubleT, false},                      // 35
 
     // Operational parameters
-    {"StopIfNoEnergy", toBoolT, true},
-    {"MaxRudderAngle", toDegreesT, true},
+    {"StopIfNoEnergy", toBoolT, true},                                    // 36
+    {"MaxRudderAngle", toDegreesT, true},                                 // 37
 
     // Weight parameters
-    {"VesselWeight", toTonsT, false},
-    {"CargoWeight", toTonsT, false},
+    {"VesselWeight", toTonsT, false},                                     // 38
+    {"CargoWeight", toTonsT, false},                                      // 39
 
     // Appendages parameters
-    {"AppendagesWettedSurfaces", toAppendagesWetSurfacesT, true}
+    {"AppendagesWettedSurfaces", toAppendagesWetSurfacesT, true}          // 40
 };
 
 /**
@@ -783,6 +833,22 @@ SHIPNETSIM_EXPORT QVector<QMap<QString, std::any>> readShipsFile(
     OptimizedNetwork* network = nullptr,
     bool isResistanceStudyOnly = false);
 
+/**
+ * @brief Reads ship data from a file and provide a map of each parameter
+ * and its value as a string.
+ *
+ * This function opens the specified file and reads its contents line by line.
+ * Each line is then split into parts using the first delimiter in
+ * the delim list. The parts are then loaded by the order of
+ * FileOrderedparameters, and the results are stored in a QMap with the
+ * parameter name as the key.
+ * If the file cannot be opened, an error message is logged.
+ *
+ * @param filename The name of the file to read from.
+ */
+SHIPNETSIM_EXPORT QVector<QMap<QString, QString>>
+readShipsFileToStrings(QString filename);
+
 
 /**
  * @brief Reads a ship parameters from a string.
@@ -795,9 +861,18 @@ readShipFromString(QString str,
                    OptimizedNetwork* network = nullptr,
                    bool isResistanceStudyOnly = false);
 
-SHIPNETSIM_EXPORT bool writeShipsFile(
-    QString filename,
-    const QVector<QMap<QString, std::any>>& ships);
+/**
+ * @brief Reads a ship parameters from a string.
+ * @param line
+ * @return map of each parameter key and its value as a string
+ */
+SHIPNETSIM_EXPORT QMap<QString, QString>
+readShipFromStringToStrings(QString line);
+
+SHIPNETSIM_EXPORT bool
+writeShipsFile(QString filename,
+               const QVector<QMap<QString, QString>> &ships,
+               const QVector<QString> headerLines = {});
 
 template<typename T>
 SHIPNETSIM_EXPORT std::shared_ptr<Ship>

@@ -30,8 +30,7 @@ QVector<QMap<QString, std::any>> readShipsFile(
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
         // Log an error message if file cannot be opened.
-        qFatal("%s", QString("Failed to open the ships file %s.")
-                   .arg(filename).toLocal8Bit().constData());
+        qFatal("Failed to open the ships file: %s", qUtf8Printable(filename));
         return ships;
     }
 
@@ -67,6 +66,88 @@ QVector<QMap<QString, std::any>> readShipsFile(
     }
 
     return ships;
+}
+
+QVector<QMap<QString, QString>> readShipsFileToStrings(QString filename)
+{
+
+    // Map to store parameters and their values.
+    QMap<QString, QString> parameters;
+    // a vector holding ships
+    QVector<QMap<QString, QString>> ships;
+
+    // Open the file for reading.
+    QFile file(filename);
+    if (!file.open(QIODevice::ReadOnly)) {
+        // Log an error message if file cannot be opened.
+        qFatal("Failed to open the ships file: %s",
+               qUtf8Printable(filename));
+
+        return ships;
+    }
+
+    // Create a QTextStream to read from the file.
+    QTextStream in(&file);
+    QString line;
+
+    // Loop through each line in the file.
+    while (!in.atEnd())
+    {
+        // Read a line from the file and remove leading and
+        // trailing whitespace.
+        line = in.readLine().trimmed();
+
+        // Remove comments (everything after '#')
+        int commentIndex = line.indexOf('#');
+        if (commentIndex != -1)
+        {
+            line = line.left(commentIndex).trimmed();
+        }
+
+        if (line.isEmpty())
+        {
+            continue; // Skip empty or comment-only lines
+        }
+
+
+        parameters = readShipFromStringToStrings(line);
+
+        ships.push_back(parameters);
+        parameters.clear();
+    }
+
+    return ships;
+}
+
+QMap<QString, QString> readShipFromStringToStrings(QString line)
+{
+    // Map to store parameters and their values.
+    QMap<QString, QString> parameters;
+
+
+    // Split the line into parts using the first delimiter
+    // in the delim list.
+    QStringList parts = line.split(delim[0]);
+
+    // Check if the number of parts matches the number
+    // of expected parameters.
+    if (parts.size() == FileOrderedparameters.size())
+    {
+        // Loop through each part and process it.
+        for (int i = 0; i < parts.size(); ++i)
+        {
+            // Load each parameter as a string only without further processing
+            parameters[ShipsList::FileOrderedparameters[i].name] = parts[i];
+        }
+
+    }
+    else
+    {
+        qFatal("Not all parameters are provided! "
+               "\n Check the ships file");
+    }
+
+    return parameters;
 }
 
 QMap<QString, std::any> readShipFromString(QString line,
@@ -144,18 +225,25 @@ QMap<QString, std::any> readShipFromString(QString line,
 
 bool writeShipsFile(
     QString filename,
-    const QVector<QMap<QString, std::any>>& ships)
+    const QVector<QMap<QString, QString>>& ships,
+    const QVector<QString> headerLines)
 {
     // Open the file for writing.
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qFatal("%s", QString("Failed to open the ships file %1 for writing.")
-                   .arg(filename).toLocal8Bit().constData());
+        qFatal("Failed to open the ships file %s for writing.",
+               qUtf8Printable(filename));
         return false;
     }
 
     // Create a QTextStream to write to the file.
     QTextStream out(&file);
+
+    if (!headerLines.isEmpty()) {
+        for (const auto& headerLine : headerLines) {
+            out << "# " << headerLine << "\n";
+        }
+    }
 
     // Loop through each ship in the vector.
     for (const auto& ship : ships)
@@ -170,14 +258,20 @@ bool writeShipsFile(
             {
                 // Get the value from the map and convert it to a string.
                 const auto& value = ship[param.name];
-                parts.append(toString(value));
+                if (value.isEmpty() && param.isOptional) {
+                    parts.append("NAN");
+                }
+                else {
+                    parts.append(toString(value));
+                }
+
             }
             else
             {
                 // If the parameter is optional, add an empty string.
                 if (param.isOptional)
                 {
-                    parts.append("");
+                    parts.append("NAN");
                 }
                 else
                 {
