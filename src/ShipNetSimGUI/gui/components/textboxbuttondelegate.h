@@ -28,6 +28,7 @@ public:
     };
 
     struct FormDetails {
+        bool boolVal;
         QString labelName;
         QStringList ColNames;
         QStringList rowsNames;
@@ -37,10 +38,14 @@ public:
 
         FormDetails(QString formLabelName, QStringList formColNames,
                     QStringList formRowsNames, QVector<QStringList> formComboData)
-            : labelName(std::move(formLabelName)),
+            : boolVal(false),
+            labelName(std::move(formLabelName)),
             ColNames(std::move(formColNames)),
-            rowsNames(std::move(formRowsNames)),
-            data(std::move(formComboData)) {}
+            rowsNames(std::move(formRowsNames)), data(std::move(formComboData)) {}
+
+        FormDetails(bool formBool) :
+            boolVal(formBool), labelName(""), ColNames({}),
+            rowsNames({}), data({{}}) {}
     };
 
     TextBoxButtonDelegate(const FormType &formType,
@@ -68,7 +73,7 @@ public:
 
         connect(button, &QPushButton::clicked, this, [=, this]() mutable {
             if (mFormType == FormType::RPMEfficiency) {
-                EngineRPMEfficiencyPopupForm form(parent);
+                EngineRPMEfficiencyPopupForm form(mFormDetails.boolVal, parent);
 
                 // Load data from textEdit into the form
                 QStringList entries =
@@ -76,15 +81,17 @@ public:
                 int row = 0;
                 for (const QString &entry : entries) {
                     QStringList values = entry.split(", ");
-                    if (values.size() == 2) {
+                    if (values.size() == 3) {
                         if (row >= form.tableWidget->rowCount()) {
                             form.tableWidget->insertRow(
                                 form.tableWidget->rowCount());
                         }
                         form.tableWidget->setItem(
-                            row, 0, new QTableWidgetItem(values[0])); // Engine RPM
+                            row, 0, new QTableWidgetItem(values[0])); // Engine Power
                         form.tableWidget->setItem(
-                            row, 2, new QTableWidgetItem(values[1])); // Efficiency
+                            row, 1, new QTableWidgetItem(values[1])); // Engine RPM
+                        form.tableWidget->setItem(
+                            row, 3, new QTableWidgetItem(values[2])); // Efficiency
                         row++;
                     }
                 }
@@ -95,11 +102,14 @@ public:
                     for (int row = 0; row < form.tableWidget->rowCount(); ++row)
                     {
                         if (form.tableWidget->item(row, 0) &&
-                            form.tableWidget->item(row, 2))
+                            form.tableWidget->item(row, 1) &&
+                            form.tableWidget->item(row, 3))
                         {
                             data += form.tableWidget->item(row, 0)->text() +
                                     ", " +
-                                    form.tableWidget->item(row, 2)->text() +
+                                    form.tableWidget->item(row, 1)->text() +
+                                    ", " +
+                                    form.tableWidget->item(row, 3)->text() +
                                     "; ";
                         }
                     }
@@ -118,7 +128,8 @@ public:
                     QString value = entry.trimmed();
                     if (!value.isEmpty()) {
                         if (row >= form.tableWidget->rowCount()) {
-                            form.tableWidget->insertRow(form.tableWidget->rowCount());
+                            form.tableWidget->
+                                insertRow(form.tableWidget->rowCount());
                         }
                         form.tableWidget->setItem(
                             row, 0, new QTableWidgetItem(value)); // Power value
@@ -132,7 +143,9 @@ public:
                     for (int row = 0; row < form.tableWidget->rowCount(); ++row)
                     {
                         if (form.tableWidget->item(row, 0)) {
-                            if (! form.tableWidget->item(row, 0)->text().trimmed().isEmpty()) {
+                            if (! form.tableWidget->item(row, 0)->
+                                 text().trimmed().isEmpty())
+                            {
                                 data += form.tableWidget->item(row, 0)->text() +
                                         "; ";
                             }
@@ -149,6 +162,13 @@ public:
                                       mFormDetails.data,
                                       parent);
 
+                QVector<int> comboIndecies = {};
+                for (int i = 0; i < mFormDetails.data.size(); i++) {
+                    if (mFormDetails.data[i][0] == "comboBox") {
+                        comboIndecies.push_back(i);
+                    }
+                }
+
                 // Load data from textEdit into the form
                 QStringList entries =
                     textEdit->toPlainText().split("; ", Qt::SkipEmptyParts);
@@ -163,8 +183,17 @@ public:
                         int colCount = std::min(form.tableWidget->columnCount(),
                                                 int(values.size()));
                         for (int col = 0; col < colCount; ++col) {
-                            form.tableWidget->setItem(
-                                row, col, new QTableWidgetItem(values[col]));
+                            if (comboIndecies.contains(col)) {
+                                auto d = mFormDetails.data[col].
+                                         at(values[col].toInt() + 1);
+                                form.tableWidget->setItem(row, col,
+                                new QTableWidgetItem(d));
+                            }
+                            else {
+                                form.tableWidget->setItem(
+                                    row, col,
+                                    new QTableWidgetItem(values[col]));
+                            }
                         }
                         row++;
                     }
@@ -185,7 +214,16 @@ public:
                             if (item && !item->text().isEmpty())
                             {
                                 isEmptyRow = false;
-                                rowData += item->text();
+                                if (comboIndecies.contains(col)) {
+                                    auto index =
+                                        mFormDetails.data[col].
+                                        indexOf(item->text(), 0,
+                                                Qt::CaseInsensitive) - 1;
+                                    rowData += QString::number(index);
+                                }
+                                else {
+                                    rowData += item->text();
+                                }
                             }
                             if (col < form.tableWidget->columnCount() - 1)
                             {
