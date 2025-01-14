@@ -69,18 +69,21 @@ inline units::velocity::meters_per_second_t get_nue(
 
     if (salinity < 0.0)
     {
-        qCritical() << "salinity must be greater than 0%!";
-        return units::velocity::meters_per_second_t(0);
+        salinity = 0.0;
+        // qCritical() << "salinity must be greater than 0%!";
+        // return units::velocity::meters_per_second_t(0);
     }
     if (salinity > 1.0)
     {
-        qCritical() << "salinity must be less than 100%!";
-        return units::velocity::meters_per_second_t(0);
+        salinity = 1.0;
+        // qCritical() << "salinity must be less than 100%!";
+        // return units::velocity::meters_per_second_t(0);
     }
     if (temp.value() < 0.0)
     {
-        qCritical() << "temperature must be greater than 0 celcuis!";
-        return units::velocity::meters_per_second_t(0);
+        temp = units::temperature::celsius_t(0.0);
+        // qCritical() << "temperature must be greater than 0 celcuis!";
+        // return units::velocity::meters_per_second_t(0);
     }
     return units::velocity::meters_per_second_t(
         (double)0.000001 *
