@@ -1,42 +1,33 @@
 // Include necessary headers
 #include "logger.h"
 #include <QStandardPaths>
+#include <qmutex.h>
+
 
 namespace ShipNetSimCore
 {
-// Set the project name based on if it's defined.
-// If PROJECT_NAME is defined, set it as the project name.
-// Otherwise, default to "Unknown Project".
-#ifdef PROJECT_NAME
-const char* projectName = PROJECT_NAME;
-#else
-const char* projectName = "Unknown Project";
-#endif
 
-// Determine the log path based on the platform.
-// For Windows and Linux, store the logs in the AppLocalDataLocation.
-// For macOS, store it in the AppDataLocation.
-#if _WIN32 || __linux__
-QString Logger::logPath =
-    QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) +
-    QDir::separator() + projectName + QDir::separator() + "log.txt";
-#elif defined(__APPLE__) && defined(__MACH__)
-QString Logger::logPath =
-    QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
-    QDir::separator() + projectName + QDir::separator() + "log.txt";
-#endif
+// Define the static mutex:
+QMutex Logger::g_logMutex;
+
+
+// we will generate the logPath dynamically in attach().
+QString Logger::logPath = QString();
 
 // Initialize static member variables
 
 // Determine if the logger is currently active
 bool Logger::logging = false;
+
 // Create a QFile object for logging
 QFile Logger::file(Logger::logPath);
+
 // Track if the file is open for writing
 bool Logger::fileOpened = false;
+
 // Track which level of logging is considered
 QtMsgType Logger::fileMinLogLevel = QtDebugMsg;
-QtMsgType Logger::stdOutMinLogLevel = QtDebugMsg;
+QtMsgType Logger::stdOutMinLogLevel = QtWarningMsg;
 
 // Store the default Qt message handler
 static const QtMessageHandler QT_DEFAULT_MESSAGE_HANDLER =
@@ -45,15 +36,61 @@ static const QtMessageHandler QT_DEFAULT_MESSAGE_HANDLER =
 // Default Logger constructor
 Logger::Logger(QObject *parent) : QObject{parent} {}
 
+void Logger::rotateLogs()
+{
+    const qint64 MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per log
+    const int MAX_BACKUP_FILES = 5; // Keep up to 5 backups
+
+    QFileInfo fileInfo(Logger::logPath);
+    if (fileInfo.exists() && fileInfo.size() > MAX_FILE_SIZE)
+    {
+        for (int i = MAX_BACKUP_FILES - 1; i > 0; --i)
+        {
+            QString oldFile = Logger::logPath + "." + QString::number(i);
+            QString newFile = Logger::logPath + "." + QString::number(i + 1);
+            QFile::remove(newFile); // Remove last backup
+            QFile::rename(oldFile, newFile); // Rename older backups
+        }
+        QFile::rename(Logger::logPath,
+                      Logger::logPath + ".1"); // Current log becomes log.1
+    }
+}
+
 // Enable the logger
-void Logger::attach()
+void Logger::attach(QString fileBaseName)
 {
     // Activate logging
     Logger::logging = true;
+
+    // Use the system's temp directory for the log file.
+    // The resulting filename might look like:
+    //    /tmp/ShipNetSim.log on Linux/macOS, or
+    // C:\Users\<user>\AppData\Local\Temp\ShipNetSim.log
+    // on Windows.
+    Logger::logPath =
+        QStandardPaths::writableLocation(QStandardPaths::TempLocation) +
+        QDir::separator() + fileBaseName + ".log";
+
+    rotateLogs(); // Rotate logs before opening the file
+
+    // Assign this new path to our QFile object
+    file.setFileName(Logger::logPath);
+
+    // Ensure the directory exists (particularly important on Windows)
+    QFileInfo fileInfo(Logger::logPath);
+    QDir dir = fileInfo.dir();
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+
     // Install our custom message handler
     qInstallMessageHandler(Logger::handler);
-    // Open the log file in append mode
-    fileOpened = file.open(QIODevice::Append);
+
+    // Attempt to open the file in append mode
+    fileOpened = file.open(QIODevice::Append | QIODevice::Text);
+    if (!fileOpened) {
+        qWarning() << "Logger could not open file at" << Logger::logPath;
+    }
 }
 
 // Disable the logger and close the file
@@ -68,6 +105,9 @@ void Logger::handler(QtMsgType type,
                      const QMessageLogContext &context,
                      const QString &msg)
 {
+    // Lock the mutex to ensure we don't interleave writes
+    QMutexLocker locker(&g_logMutex);
+
     // Only proceed if logging is active
     if (Logger::logging && type >= Logger::fileMinLogLevel)
     {
@@ -75,11 +115,11 @@ void Logger::handler(QtMsgType type,
 
         // Determine the type of log message
         switch (type) {
-        case QtInfoMsg: logType = "Info"; break;
-        case QtDebugMsg: logType = "Debug"; break;
+        case QtInfoMsg:    logType = "Info";    break;
+        case QtDebugMsg:   logType = "Debug";   break;
         case QtWarningMsg: logType = "Warning"; break;
-        case QtCriticalMsg: logType = "Critical"; break;
-        case QtFatalMsg: logType = "Fatal"; break;
+        case QtCriticalMsg:logType = "Critical";break;
+        case QtFatalMsg:   logType = "Fatal";   break;
         }
 
         // Construct the log entry string
@@ -99,7 +139,7 @@ void Logger::handler(QtMsgType type,
         }
     }
 
-    //
+    // Forward messages >= stdOutMinLogLevel to the default handler
     if (type >= stdOutMinLogLevel)
     {
         // Call the default Qt message handler

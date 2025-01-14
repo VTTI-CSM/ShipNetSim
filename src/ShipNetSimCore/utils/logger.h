@@ -20,6 +20,7 @@
 #include <QDir>
 #include <iostream>
 #include <QTextStream>
+#include <qmutex.h>
 #include "../export.h"
 
 namespace ShipNetSimCore
@@ -44,9 +45,14 @@ public:
     explicit Logger(QObject *parent = nullptr);
 
     /**
+     * @brief keep multiple logs (log.1, log.2, etc.).
+     */
+    static void rotateLogs();
+
+    /**
      * @brief Install the custom message handler to start logging.
      */
-    static void attach();
+    static void attach(QString fileBaseName);
 
     /**
      * @brief Uninstall the custom message handler and stop
@@ -117,6 +123,10 @@ private:
 
     /// Minimum log level for standard output.
     static QtMsgType stdOutMinLogLevel;
+
+    /// Mutex for thread safety
+    static QMutex g_logMutex;
+
 };
 };
 #endif // LOGGER_H
