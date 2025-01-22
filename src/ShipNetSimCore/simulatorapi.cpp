@@ -849,23 +849,7 @@ void SimulatorAPI::
             [this, networkName, mode]() {
                 qDebug() << "Current thread 1:" << QThread::currentThread();
 
-                mWorkerTracker.completedRequests++;
-                mWorkerTracker.requestedNetworkProcess = mData.keys();
-
-                // Check and emit workersReady signal when all simulator
-                // workers are done
-                bool status =
-                    checkAndEmitSignal(
-                        mWorkerTracker.completedRequests,
-                        mWorkerTracker.requestedNetworkProcess.size(),
-                        mWorkerTracker.requestedNetworkProcess ,
-                        &SimulatorAPI::workersReady,
-                        mode);
-
-                if (status) {
-                    mWorkerTracker.completedRequests = 0;
-                    mWorkerTracker.requestedNetworkProcess.clear();
-                }
+                handleWorkersReady(networkName);
             }, mConnectionType);
 
     // 6. Set the thread priority to LowPriority to
@@ -891,26 +875,12 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
             }, mConnectionType);
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationFinished, this,
-            [this, networkName, mode]() {
-                mFinishedTracker.completedRequests++;
+            [this, networkName, mode]()
+            {
                 qDebug() << "Current thread 3:" << QThread::currentThread();
-                bool status =
-                    checkAndEmitSignal(
-                        mFinishedTracker.completedRequests,
-                        mFinishedTracker.requestedNetworkProcess.size(),
-                        mFinishedTracker.requestedNetworkProcess,
-                        &SimulatorAPI::simulationFinished,
-                        mode);
-                if (status) {
-                    if (mode == Mode::Sync) {
-                        for (auto &data : mData) {
-                            data.isBusy = false;
-                        }
-                    }
-                    else {
-                        mData[networkName].isBusy = false;
-                    }
-                }
+
+                // this will populate data, make isBusy = false
+                handleSimulationFinished(networkName, mode);
             }, mConnectionType);
 
     connect(simulator,
@@ -1283,12 +1253,12 @@ void SimulatorAPI::handleShipReachedDestination(QString networkName,
     }
 }
 
-void SimulatorAPI::handleOneTimeStepCompleted(
-    QString networkName, units::time::second_t currentSimulatorTime,
-    double progress, Mode mode)
+void SimulatorAPI::handleResultsAvailable(QString networkName,
+                                          ShipsResults result,
+                                          Mode mode)
 {
-    mTimeStepTracker.dataBuffer.insert(networkName,
-                                      {currentSimulatorTime, progress});
+    // Always store the result in the buffer
+    mSimulationResultsTracker.dataBuffer.insert(networkName, result);
 
     // flag the simulator as not busy
     mData[networkName].isBusy = false;
@@ -1296,30 +1266,29 @@ void SimulatorAPI::handleOneTimeStepCompleted(
     switch (mode) {
     case Mode::Async:
         // Increment the number of completed simulators
-        mTimeStepTracker.completedRequests++;
+        mSimulationResultsTracker.completedRequests++;
 
         // Check if all simulators have completed their time step
-        if (mTimeStepTracker.completedRequests == mData.size()) {
+        if (mSimulationResultsTracker.completedRequests == mData.size())
+        {
             // Emit the aggregated signal
-            emit simulationAdvanced(mTimeStepTracker.dataBuffer);
-
-            // Emit the aggregated signal
-            emitShipsReachedDestination();
-
-            mTimeStepTracker.completedRequests = 0;  // Reset the counter for the next time step
+            emitSimulationResults(mSimulationResultsTracker.dataBuffer);
+            mSimulationResultsTracker.completedRequests =
+                0;  // Reset the counter for the next time step
         }
         break;
 
     case Mode::Sync:
         // In sync mode, emit results immediately for each network
-        emit simulationAdvanced(mTimeStepTracker.dataBuffer);
+        emitSimulationResults(mSimulationResultsTracker.dataBuffer);
         break;
 
     default:
         // Handle unexpected mode
-        qWarning() << "Unexpected mode in handleOneTimeStepCompleted";
+        qWarning() << "Unexpected mode in handleResultsAvailable";
         break;
     }
+
 }
 
 void SimulatorAPI::handleProgressUpdate(QString networkName,
@@ -1360,13 +1329,11 @@ void SimulatorAPI::handleProgressUpdate(QString networkName,
     }
 }
 
-void SimulatorAPI::handleResultsAvailable(QString networkName,
-                                          ShipsResults result,
-                                          Mode mode)
+void SimulatorAPI::handleAvailablePorts(QString networkName,
+                                        QVector<QString> portIDs,
+                                        Mode mode)
 {
-
-    // Always store the result in the buffer
-    mSimulationResultsTracker.dataBuffer.insert(networkName, result);
+    mAvailablePortTracker.dataBuffer.insert(networkName, portIDs);
 
     // flag the simulator as not busy
     mData[networkName].isBusy = false;
@@ -1374,30 +1341,230 @@ void SimulatorAPI::handleResultsAvailable(QString networkName,
     switch (mode) {
     case Mode::Async:
         // Increment the number of completed simulators
-        mSimulationResultsTracker.completedRequests++;
+        mAvailablePortTracker.completedRequests++;
 
         // Check if all simulators have completed their time step
-        if (mSimulationResultsTracker.completedRequests == mData.size())
+        if (mAvailablePortTracker.completedRequests ==
+            mAvailablePortTracker.requestedNetworkProcess.size())
         {
             // Emit the aggregated signal
-            emitSimulationResults(mSimulationResultsTracker.dataBuffer);
-            mSimulationResultsTracker.completedRequests =
-                0;  // Reset the counter for the next time step
+            emit availablePorts(mAvailablePortTracker.dataBuffer);
+            mAvailablePortTracker.completedRequests
+                = 0;  // Reset the counter for the next time step
         }
         break;
 
     case Mode::Sync:
         // In sync mode, emit results immediately for each network
-        emitSimulationResults(mSimulationResultsTracker.dataBuffer);
+        emit availablePorts(mAvailablePortTracker.dataBuffer);
         break;
 
     default:
         // Handle unexpected mode
-        qWarning() << "Unexpected mode in handleResultsAvailable";
+        qWarning() << "Unexpected mode in handleAvailablePorts";
         break;
     }
-
 }
+
+void SimulatorAPI::handleOneTimeStepCompleted(
+    QString networkName, units::time::second_t currentSimulatorTime,
+    double progress, Mode mode)
+{
+    mTimeStepTracker.dataBuffer.insert(networkName,
+                                       {currentSimulatorTime, progress});
+
+    // flag the simulator as not busy
+    mData[networkName].isBusy = false;
+
+    switch (mode) {
+    case Mode::Async:
+        // Increment the number of completed simulators
+        mTimeStepTracker.completedRequests++;
+
+        // Check if all simulators have completed their time step
+        if (mTimeStepTracker.completedRequests == mData.size()) {
+            // Emit the aggregated signal
+            emit simulationAdvanced(mTimeStepTracker.dataBuffer);
+
+            // Emit the aggregated signal
+            emitShipsReachedDestination();
+
+            mTimeStepTracker.completedRequests
+                = 0;  // Reset the counter for the next time step
+        }
+        break;
+
+    case Mode::Sync:
+        // In sync mode, emit results immediately for each network
+        emit simulationAdvanced(mTimeStepTracker.dataBuffer);
+        break;
+
+    default:
+        // Handle unexpected mode
+        qWarning() << "Unexpected mode in handleOneTimeStepCompleted";
+        break;
+    }
+}
+
+void SimulatorAPI::pauseSimulation(QVector<QString> networkNames)
+{
+
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+
+    mPauseTracker.completedRequests = 0;
+    mPauseTracker.requestedNetworkProcess = networkNames;
+
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+        if (getInstance().mData[networkName].simulator) {
+
+            getInstance().mData[networkName].simulator->pauseSimulation(true);
+        }
+    }
+}
+
+void SimulatorAPI::resumeSimulation(QVector<QString> networkNames)
+{
+
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+
+    mResumeTracker.completedRequests = 0;
+    mResumeTracker.requestedNetworkProcess = networkNames;
+
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+        if (getInstance().mData[networkName].simulator) {
+
+            getInstance().mData[networkName].simulator->resumeSimulation(true);
+        }
+    }
+}
+
+void SimulatorAPI::terminateSimulation(QVector<QString> networkNames)
+{
+
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+
+    mTerminateTracker.completedRequests = 0;
+    mTerminateTracker.requestedNetworkProcess = networkNames;
+
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+        if (getInstance().mData[networkName].simulator) {
+
+            getInstance().mData[networkName].simulator->terminateSimulation();
+        }
+    }
+}
+
+void SimulatorAPI::handleSimulationFinished(QString networkName, Mode mode)
+{
+
+    mFinishedTracker.completedRequests++;
+
+    bool status =
+        checkAndEmitSignal(
+            mFinishedTracker.completedRequests,
+            mFinishedTracker.requestedNetworkProcess.size(),
+            mFinishedTracker.requestedNetworkProcess,
+            &SimulatorAPI::simulationFinished,
+            mode);
+
+    if (status) {
+        if (mode == Mode::Sync) {
+            for (auto &data : mData) {
+                data.isBusy = false;
+            }
+        }
+        else {
+            mData[networkName].isBusy = false;
+        }
+    }
+}
+
+void SimulatorAPI::handleWorkersReady(QString networkName)
+{
+
+    mWorkerTracker.completedRequests++;
+    mWorkerTracker.requestedNetworkProcess = mData.keys();
+
+    // Check and emit workersReady signal when all simulator workers are done
+    bool status =
+        checkAndEmitSignal(
+            mWorkerTracker.completedRequests,
+            mWorkerTracker.requestedNetworkProcess.size(),
+            mWorkerTracker.requestedNetworkProcess,
+            &SimulatorAPI::workersReady,
+            Mode::Async);
+
+    if (status) {
+        mWorkerTracker.completedRequests = 0;
+        mWorkerTracker.requestedNetworkProcess.clear();
+    }
+}
+
+void SimulatorAPI::runSimulation(QVector<QString> networkNames,
+                                 units::time::second_t timeSteps,
+                                 bool endSimulationAfterRun,
+                                 bool getStepEndSignal)
+{
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+
+        if (getInstance().mData[networkName].simulator) {
+
+            // flag the simulator as busy
+            getInstance().mData[networkName].isBusy = true;
+
+            bool success =
+                QMetaObject::invokeMethod(
+                    getInstance().mData[networkName].simulator,
+                    "runSimulation",
+                    getInstance().mConnectionType,
+                    Q_ARG(units::time::second_t, timeSteps),
+                    Q_ARG(bool, endSimulationAfterRun),
+                    Q_ARG(bool, getStepEndSignal));
+
+            if (!success) {
+                qWarning() << "Failed to invoke runSimulation";
+            }
+        }
+    }
+}
+
+
+
+
+
 
 void SimulatorAPI::emitShipsReachedDestination()
 {
@@ -1424,41 +1591,6 @@ void SimulatorAPI::emitSimulationResults(QMap<QString, ShipsResults> results)
     }
 }
 
-void SimulatorAPI::handleAvailablePorts(QString networkName,
-                                        QVector<QString> portIDs,
-                                        Mode mode)
-{
-    mAvailablePortTracker.dataBuffer.insert(networkName, portIDs);
-
-    // flag the simulator as not busy
-    mData[networkName].isBusy = false;
-
-    switch (mode) {
-    case Mode::Async:
-        // Increment the number of completed simulators
-        mAvailablePortTracker.completedRequests++;
-
-        // Check if all simulators have completed their time step
-        if (mAvailablePortTracker.completedRequests ==
-            mAvailablePortTracker.requestedNetworkProcess.size())
-        {
-            // Emit the aggregated signal
-            emit availablePorts(mAvailablePortTracker.dataBuffer);
-            mAvailablePortTracker.completedRequests = 0;  // Reset the counter for the next time step
-        }
-        break;
-
-    case Mode::Sync:
-        // In sync mode, emit results immediately for each network
-        emit availablePorts(mAvailablePortTracker.dataBuffer);
-        break;
-
-    default:
-        // Handle unexpected mode
-        qWarning() << "Unexpected mode in handleAvailablePorts";
-        break;
-    }
-}
 
 bool SimulatorAPI::checkAndEmitSignal(
     int& counter, int total,
@@ -1577,45 +1709,19 @@ void SimulatorAPI::InteractiveMode::addShipToSimulation(
 
 void SimulatorAPI::InteractiveMode::
     runSimulation(QVector<QString> networkNames,
-                  units::time::second_t timeSteps) {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
+                  units::time::second_t timeSteps)
+{
+    bool endSimulationAfterRun = false;
+    bool getStepEndSignal = false;
+
+    if (timeSteps.value() < 0) {
+        timeSteps =
+            units::time::second_t(std::numeric_limits<double>::infinity());
+        getStepEndSignal = true;
     }
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        bool endSimulationAfterRun = false;
-        bool getStepEndSignal = false;
 
-        if (timeSteps.value() < 0) {
-            timeSteps =
-                units::time::second_t(std::numeric_limits<double>::infinity());
-            getStepEndSignal = true;
-        }
-
-        if (getInstance().mData[networkName].simulator) {
-
-            // flag the simulator as busy
-            getInstance().mData[networkName].isBusy = true;
-
-            bool success =
-                QMetaObject::invokeMethod(
-                    getInstance().mData[networkName].simulator,
-                    "runSimulation",
-                    getInstance().mConnectionType,
-                    Q_ARG(units::time::second_t, timeSteps),
-                    Q_ARG(bool, endSimulationAfterRun),
-                    Q_ARG(bool, getStepEndSignal));
-
-            if (!success) {
-                qWarning() << "Failed to invoke runSimulation";
-            }
-        }
-    }
+    getInstance().runSimulation(networkNames, timeSteps,
+                                endSimulationAfterRun, getStepEndSignal);
 }
 
 void SimulatorAPI::InteractiveMode::endSimulation(
@@ -1653,25 +1759,7 @@ void SimulatorAPI::InteractiveMode::endSimulation(
 void SimulatorAPI::InteractiveMode::
     terminateSimulation(QVector<QString> networkNames)
 {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-
-    getInstance().mTerminateTracker.completedRequests = 0;
-    getInstance().mTerminateTracker.requestedNetworkProcess = networkNames;
-
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (getInstance().mData[networkName].simulator) {
-
-            getInstance().mData[networkName].simulator->terminateSimulation();
-        }
-    }
+    getInstance().terminateSimulation(networkNames);
 }
 
 ShipNetSimCore::Simulator*
@@ -1782,119 +1870,31 @@ void SimulatorAPI::ContinuousMode::addShipToSimulation(
 void SimulatorAPI::ContinuousMode::runSimulation(
     QVector<QString> networkNames)
 {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-
-    getInstance().mRunTracker.completedRequests = 0;
-    getInstance().mRunTracker.requestedNetworkProcess = networkNames;
-
-
     units::time::second_t timeSteps =
             units::time::second_t(std::numeric_limits<double>::infinity());
     bool endSimulationAfterRun = false;
     bool getStepEndSignal = false;
 
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (timeSteps.value() < 0) {
-            if (getInstance().mData[networkName].simulator) {
-
-                // flag the simulator as not busy
-                getInstance().mData[networkName].isBusy = true;
-
-                bool success =
-                    QMetaObject::invokeMethod(
-                        getInstance().mData[networkName].simulator,
-                        "runSimulation",
-                        getInstance().mConnectionType,
-                        Q_ARG(units::time::second_t, timeSteps),
-                        Q_ARG(bool, endSimulationAfterRun),
-                        Q_ARG(bool, getStepEndSignal));
-
-                if (!success) {
-                    qWarning() << "Failed to invoke runSimulation";
-                }
-            }
-        }
-    }
+    getInstance().runSimulation(networkNames, timeSteps,
+                                endSimulationAfterRun, getStepEndSignal);
 }
 
 void SimulatorAPI::ContinuousMode::
     pauseSimulation(QVector<QString> networkNames)
 {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-
-    getInstance().mPauseTracker.completedRequests = 0;
-    getInstance().mPauseTracker.requestedNetworkProcess = networkNames;
-
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (getInstance().mData[networkName].simulator) {
-
-            getInstance().mData[networkName].simulator->pauseSimulation(true);
-        }
-    }
+    getInstance().pauseSimulation(networkNames);
 }
 
 void SimulatorAPI::ContinuousMode::
     resumeSimulation(QVector<QString> networkNames)
 {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-
-    getInstance().mResumeTracker.completedRequests = 0;
-    getInstance().mResumeTracker.requestedNetworkProcess = networkNames;
-
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (getInstance().mData[networkName].simulator) {
-
-            getInstance().mData[networkName].simulator->resumeSimulation(true);
-        }
-    }
+    getInstance().resumeSimulation(networkNames);
 }
 
 void SimulatorAPI::ContinuousMode::terminateSimulation(
     QVector<QString> networkNames)
 {
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-
-    getInstance().mTerminateTracker.completedRequests = 0;
-    getInstance().mTerminateTracker.requestedNetworkProcess = networkNames;
-
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (getInstance().mData[networkName].simulator) {
-
-            getInstance().mData[networkName].simulator->terminateSimulation();
-        }
-    }
+    getInstance().terminateSimulation(networkNames);
 }
 
 ShipNetSimCore::Simulator*
