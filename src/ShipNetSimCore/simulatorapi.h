@@ -1241,6 +1241,7 @@ public:
     };
 
 private:
+    static QBasicMutex s_instanceMutex;
     static std::unique_ptr<SimulatorAPI> instance;
     static void registerQMeta();
     APIData& getApiDataAndEnsureThread(const QString &networkName);
