@@ -142,9 +142,6 @@ private:
     // Holds all the boundaries as polygons
     QVector<std::shared_ptr<Polygon>> mBoundaries;
 
-
-
-
     // The visibility graph representing navigable paths in the region.
     std::shared_ptr<OptimizedVisibilityGraph> mVisibilityGraph;
 
@@ -162,14 +159,9 @@ private:
     bool loadFirstAvailableTiffFile(tiffFileData &variable,
                                     QVector<QString> locations);
 
-    // load the GEOJSON file
-    bool loadFirstAvailableSeaPortsFile(QVector<QString> locations);
 
     // reads the tiff file as a GDAL dataset
     GDALDataset *readTIFFFile(const char* filename);
-
-    // reads the seaports as vector
-    static QVector<std::shared_ptr<SeaPort>> readSeaPorts(const char* filename);
 
     // convert the coordinates to its equivilant tiff x, y indicies
     std::pair<size_t, size_t> mapCoordinatesToTiffIndecies(
@@ -193,14 +185,14 @@ public:
                      BoundariesType boundariesType,
                      QString regionName = "");
 
-    void initializeNetwork(QString filename);
+    void initializeNetwork(QString filename, QString regionName);
 
     void initializeNetwork(QVector<std::shared_ptr<Polygon>> boundaries,
                            BoundariesType boundariesType,
                            QString regionName = "");
 
     // Constructor to load network data from a file.
-    OptimizedNetwork(QString filename);
+    OptimizedNetwork(QString filename, QString regionName);
 
     AlgebraicVector::Environment getEnvironmentFromPosition(GPoint p);
 
@@ -244,17 +236,10 @@ public:
         QVector<std::shared_ptr<GPoint>> points,
         PathFindingAlgorithm algorithm);
 
-    /**
-     * @brief loads the sea ports from the default geojson file
-     * @return a vector of all sea ports in the network that support
-     *         cargo ships.
-     */
-    static QVector<std::shared_ptr<SeaPort>>
-    loadFirstAvailableSeaPorts();
-
 
 signals:
     void NetworkLoaded();
+    void errorOccured(QString error);
 
 };
 };
