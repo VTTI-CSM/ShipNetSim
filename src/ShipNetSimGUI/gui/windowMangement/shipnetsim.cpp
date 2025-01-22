@@ -188,7 +188,7 @@ void ShipNetSim::setupGenerals(){
                                               MAIN_SIMULATION_NAME);
     SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
         MAIN_SIMULATION_NAME, {}, units::time::second_t(1.0), false,
-        SimulatorAPI::Mode::Async);
+        SimulatorAPI::Mode::Sync);
 }
 
 void ShipNetSim::setupPage1() {
@@ -1088,9 +1088,11 @@ void ShipNetSim::simulate() {
         if (!SimulatorAPI::ContinuousMode::
             isNetworkLoaded(MAIN_SIMULATION_NAME))
         {
+            SimulatorAPI::ContinuousMode::loadNetwork("Default",
+                                                      MAIN_SIMULATION_NAME);
             SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
                 MAIN_SIMULATION_NAME, {}, units::time::second_t(1.0), false,
-                SimulatorAPI::Mode::Async);
+                SimulatorAPI::Mode::Sync);
         }
 
 
@@ -1297,7 +1299,7 @@ void ShipNetSim::simulate() {
                     Q_UNUSED(networkName);
                     Q_UNUSED(shipIDs);
                     SimulatorAPI::ContinuousMode::
-                        runSimulation({MAIN_SIMULATION_NAME});
+                        runSimulation({MAIN_SIMULATION_NAME}, true);
                 }, Qt::QueuedConnection);
         SimulatorAPI::ContinuousMode::addShipToSimulation(MAIN_SIMULATION_NAME,
                                                           ships);
