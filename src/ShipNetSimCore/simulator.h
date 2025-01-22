@@ -385,7 +385,7 @@ public slots:
     /**
      * @brief stop the simulation completely
      */
-    void terminateSimulation();
+    void terminateSimulation(bool emitSignal = true);
 
     /**
      * @brief end the simulation and export summary.
