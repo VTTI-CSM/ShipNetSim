@@ -81,7 +81,7 @@ private:
     int mProgressStep = -1;
     double mProgressPercentage = -1.0;
     /** True to run simulation endlessly */
-    bool mRunSimulationEndlessly;
+    // bool mRunSimulationEndlessly;
     /** True to export trajectory */
     bool mExportTrajectory;
     /** The trajectory file */
@@ -99,6 +99,7 @@ private:
 
     QString mSummaryTextData = "";
     QString mSummaryFullPath = "";
+    bool mSimulatorInitialized = false;
 
 
     /**
@@ -130,7 +131,7 @@ private:
      * @param 	bar_length	(Optional) Length of the bar.
      */
     void ProgressBar(QVector<std::shared_ptr<Ship>> ships,
-                     int bar_length = 100);
+                     int bar_length = 100, bool emitProgressSignal = true);
 
     void initializeAllShips();
 
@@ -314,6 +315,8 @@ signals:
      */
     void simulationFinished();
 
+    void simulationInitialized();
+
     void simulationPaused();
 
     void simulationResumed();
@@ -326,12 +329,16 @@ signals:
         units::time::second_t simulationTime,
         double progressPercentage);
 
+    void availablePorts(QVector<QString> ports);
+
+    void errorOccured(QString error);
+
 public slots:
 
     /**
      * @brief initialize the simulator.
      */
-    void initializeSimulation();
+    void initializeSimulation(bool emitSignal = false);
 
     /**
      * Play all ships one time step and advance the simulator clock
@@ -353,13 +360,17 @@ public slots:
      * @author	Ahmed Aredah
      * @date	2/28/2023
      */
-    void runSimulation();
+    void runSimulation(units::time::second_t runFor =
+                       units::time::second_t(
+                           std::numeric_limits<double>::infinity()),
+                       bool endSimulationAfterRun = true,
+                       bool emitEndStepSignal = true);
 
-    /**
-     * @brief run the simulation by specific number of steps
-     * @param timeSteps number of steps to run the simulation.
-     */
-    void runBy(units::time::second_t timeSteps);
+    // /**
+    //  * @brief run the simulation by specific number of steps
+    //  * @param timeSteps number of steps to run the simulation.
+    //  */
+    // void runBy(units::time::second_t timeSteps);
 
     /**
      * @brief pause the simulation
@@ -385,6 +396,9 @@ public slots:
      * @brief restart the Simulation.
      */
     void restartSimulation();
+
+    QVector<std::shared_ptr<SeaPort>>
+    getAvailablePorts(bool considerShipsPathPortsOnly);
 
 private:
     QMutex mutex;
