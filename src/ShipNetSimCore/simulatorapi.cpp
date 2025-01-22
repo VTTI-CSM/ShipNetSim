@@ -1,11 +1,53 @@
+// Include necessary headers
 #include "simulatorapi.h"
-#include "./ship/shipsList.h"
+#include "network/networkdefaults.h"
+#include "network/seaportloader.h"
 #include "shiploaderworker.h"
 #include "utils/shipscommon.h"
 #include <QThread>
 
+// // Conditional include for server mode functionality
+// #ifdef BUILD_SERVER_ENABLED
+// #include "Container/container.h"
+// #endif
+
+// Initialize static members
+
+// Default to synchronous mode
 SimulatorAPI::Mode SimulatorAPI::mMode = Mode::Sync;
+
+// Create singleton instance
 std::unique_ptr<SimulatorAPI> SimulatorAPI::instance(new SimulatorAPI());
+
+void SimulatorAPI::setLocale() {
+    try {
+        // Set locale to UTF-8 with no thousands separator
+        std::locale customLocale(
+#ifdef _WIN32
+            std::locale("English_United States.1252"), // Windows
+#else
+            std::locale("en_US.UTF-8"),               // Linux/macOS
+#endif
+            new NoThousandsSeparator()
+            );
+
+        // Apply custom locale globally and to std::cout
+        std::locale::global(customLocale);
+        std::cout.imbue(customLocale);
+    } catch (const std::exception& e) {
+        qWarning() << "Failed to set std::locale: " << e.what();
+
+        // Fallback to "C" locale
+        std::locale fallbackLocale("C");
+        std::locale::global(fallbackLocale);
+        std::cout.imbue(fallbackLocale);
+    }
+
+    // Configure Qt's QLocale for UTF-8 without thousands separators
+    QLocale qtLocale(QLocale::English, QLocale::UnitedStates);
+    qtLocale.setNumberOptions(QLocale::OmitGroupSeparator); // Disable thousands separator
+    QLocale::setDefault(qtLocale);
+}
 
 void SimulatorAPI::
     createNewSimulationEnvironment(
@@ -16,11 +58,11 @@ void SimulatorAPI::
         bool isExternallyControlled,
         Mode mode)
 {
-    // Set locale to US format (comma for thousands separator, dot for decimals)
-    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
-    std::locale::global(std::locale("en_US.UTF-8"));
-    std::cout.imbue(std::locale());
+    // Set locale to US format (no comma for thousands separator,
+    // dot for decimals)
+    setLocale();
 
+    // Verify network exists
     if (!mData.contains(networkName)) {
         emit errorOccurred("A network with name " + networkName
                            + " does not exist!"
@@ -28,25 +70,25 @@ void SimulatorAPI::
         return;
     }
 
+    // Load network and set up simulation
     loadNetwork(networkFilePath, networkName);
-
     setupSimulator(networkName, shipList, timeStep,
                    isExternallyControlled, mode);
 
+    // Notify successful creation
     emit simulationCreated(networkName);
 }
 
 void SimulatorAPI::registerQMeta() {
-    // Register std::shared_ptr types
+    // Register shared pointer types for Qt's meta-system
     qRegisterMetaType<std::shared_ptr<ShipNetSimCore::Ship>>(
         "std::shared_ptr<ShipNetSimCore::Ship>");
 
-    // Register custom structs/classes
+    // Register custom data types
     qRegisterMetaType<ShipsResults>("ShipsResults");
-
-    // Register enums
     qRegisterMetaType<SimulatorAPI::Mode>("SimulatorAPI::Mode");
 
+    // Register geometric types
     qRegisterMetaType<ShipNetSimCore::GPoint>("ShipNetSimCore::GPoint");
     qRegisterMetaType<QVector<std::pair<QString, ShipNetSimCore::GPoint>>>(
         "QVector<std::pair<QString, ShipNetSimCore::GPoint>>");
@@ -54,11 +96,14 @@ void SimulatorAPI::registerQMeta() {
     qRegisterMetaType<QVector<std::shared_ptr<ShipNetSimCore::GLine>>>(
         "QVector<std::shared_ptr<ShipNetSimCore::GLine>>");
 
+    // Register unit types
     qRegisterMetaType<units::time::second_t>("units::time::second_t");
     qRegisterMetaType<units::length::meter_t>("units::length::meter_t");
     qRegisterMetaType<units::angle::degree_t>("units::angle::degree_t");
     qRegisterMetaType<QVector<units::length::meter_t>>(
         "QVector<units::length::meter_t>");
+
+    // Register ship-related types
     qRegisterMetaType<ShipNetSimCore::Ship::stopPointDefinition>(
         "ShipNetSimCore::Ship::stopPointDefinition");
     qRegisterMetaType<QMap<ShipNetSimCore::Ship::ShipAppendage,
@@ -70,11 +115,15 @@ void SimulatorAPI::registerQMeta() {
     qRegisterMetaType<ShipNetSimCore::Ship::NavigationStatus>(
         "ShipNetSimCore::Ship::NavigationStatus");
 
+    // Register JSON and container types
     qRegisterMetaType<QJsonObject>("QJsonObject");
-
     qRegisterMetaType<QVector<std::shared_ptr<ShipNetSimCore::Ship>>>(
         "QVector<std::shared_ptr<ShipNetSimCore::Ship>>");
 
+    // Register seaport types
+    qRegisterMetaType<std::shared_ptr<ShipNetSimCore::SeaPort>>(
+        "std::shared_ptr<ShipNetSimCore::SeaPort>");
+    qRegisterMetaType<ShipNetSimCore::SeaPort>("ShipNetSimCore::SeaPort");
 }
 
 SimulatorAPI& SimulatorAPI::getInstance() {
@@ -87,30 +136,76 @@ SimulatorAPI& SimulatorAPI::getInstance() {
 
 void SimulatorAPI::resetInstance() {
     if (instance) {
-        // Clean up existing resources
         for (auto& data : instance->mData) {
-            if (data.simulator) {
-                data.simulator->deleteLater();
-            }
+            // Clean up network
             if (data.network) {
-                delete data.network;
+                if (data.network->thread() == data.workerThread) {
+                    QMetaObject::invokeMethod(
+                        data.network, "deleteLater",
+                        Qt::BlockingQueuedConnection);
+                } else {
+                    delete data.network;
+                }
+                data.network = nullptr;
             }
-            if (data.workerThread) {
-                data.workerThread->quit();
-                data.workerThread->wait();
-                delete data.workerThread;
-            }
-        }
-        instance->mData.clear();
 
-        // Destroy the current instance
-        instance.reset();
+            // Clean up simulatorWorker
+            if (data.simulatorWorker) {
+                if (data.simulatorWorker->thread() == data.workerThread) {
+                    QMetaObject::invokeMethod(
+                        data.simulatorWorker, "deleteLater",
+                        Qt::BlockingQueuedConnection);
+                } else {
+                    delete data.simulatorWorker;
+                }
+                data.simulatorWorker = nullptr;
+            }
+
+            // Clean up simulator
+            if (data.simulator) {
+                if (data.simulator->thread() == data.workerThread) {
+                    QMetaObject::invokeMethod(
+                        data.simulator, "deleteLater",
+                        Qt::BlockingQueuedConnection);
+                } else {
+                    delete data.simulator;
+                }
+                data.simulator = nullptr;
+            }
+
+            // Clean up shipLoaderWorker
+            if (data.shipLoaderWorker) {
+                if (data.shipLoaderWorker->thread() == data.workerThread) {
+                    QMetaObject::invokeMethod(
+                        data.shipLoaderWorker, "deleteLater",
+                        Qt::BlockingQueuedConnection);
+                } else {
+                    delete data.shipLoaderWorker;
+                }
+                data.shipLoaderWorker = nullptr;
+            }
+
+            // Clean up workerThread
+            if (data.workerThread) {
+                data.workerThread->quit(); // Request thread to stop
+                data.workerThread->wait(); // Wait for thread to finish
+                delete data.workerThread;  // Delete the thread
+                data.workerThread = nullptr;
+            }
+
+            // Clear ships
+            data.ships.clear();
+        }
+
+        instance->mData.clear(); // Clear all APIData
+        instance.reset();        // Destroy the singleton instance
     }
 
     registerQMeta();
-    // Create a new instance
-    instance.reset(new SimulatorAPI());
+    instance.reset(new SimulatorAPI()); // Create a new instance
 }
+
+
 
 void SimulatorAPI::createNewSimulationEnvironment(
     QString networkName,
@@ -119,10 +214,9 @@ void SimulatorAPI::createNewSimulationEnvironment(
     bool isExternallyControlled,
     Mode mode)
 {
-    // Set locale to US format (comma for thousands separator, dot for decimals)
-    QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
-    std::locale::global(std::locale("en_US.UTF-8"));
-    std::cout.imbue(std::locale());
+    // Set locale to US format (no comma for thousands separator,
+    // dot for decimals)
+    setLocale();
 
     if (!mData.contains(networkName)) {
         emit errorOccurred("A network with name " + networkName
@@ -131,9 +225,11 @@ void SimulatorAPI::createNewSimulationEnvironment(
         return;
     }
 
+    // Set up simulation
     setupSimulator(networkName, shipList, timeStep,
                    isExternallyControlled, mode);
 
+    // Notify successful creation
     emit simulationCreated(networkName);
 }
 
@@ -141,6 +237,11 @@ ShipNetSimCore::OptimizedNetwork* SimulatorAPI::loadNetwork(
     QString filePath, QString networkName)
 {
     std::cout << "Reading Network: " << networkName.toStdString() << "!\r";
+
+    if (!QFile::exists(filePath)) {
+        emit errorOccurred("Network file does not exist: " + filePath);
+        return nullptr;
+    }
 
     // Create a new thread for network loading
     QThread* networkThread = new QThread(this);
@@ -174,9 +275,28 @@ ShipNetSimCore::OptimizedNetwork* SimulatorAPI::loadNetwork(
     mData[networkName].shipLoaderWorker = shipLoaderWorker;
 
     connect(networkThread, &QThread::started, mData[networkName].network,
-            [networkName, filePath, this](){
-        mData[networkName].network->initializeNetwork(filePath);
+            [networkName, filePath, this]() {
+        QString fileLoc;
+        if (filePath.trimmed().toLower() == "default") {
+            QString baseDataDir =
+                ShipNetSimCore::Utils::getDataDirectory();
+            auto filePaths =
+                ShipNetSimCore::NetworkDefaults::
+                worldNetworkLocation(baseDataDir);
+            fileLoc = ShipNetSimCore::Utils::
+                getFirstExistingPathFromList(filePaths);
+        }
+        else {
+            fileLoc = filePath;
+        }
+        mData[networkName].network->initializeNetwork(fileLoc, networkName);
     });
+
+    connect(net, &ShipNetSimCore::OptimizedNetwork::errorOccured, this,
+            [this, &loop](QString error) {
+                emit errorOccurred(error);
+                loop.quit();
+            });
 
     // Connect the network loaded signal to exit the event loop
     connect(net, &ShipNetSimCore::OptimizedNetwork::NetworkLoaded,
@@ -230,7 +350,8 @@ void SimulatorAPI::setupShipsConnection(
     QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships,
     QString networkName, Mode mode)
 {
-    for (const auto& ship : ships) {
+    for (const auto& ship : ships)
+    {
         connect(ship.get(), &ShipNetSimCore::Ship::reachedDestination, this,
                 [this, networkName, ship, mode](const QJsonObject shipState) {
                     qDebug() << "Current thread 9:" << QThread::currentThread();
@@ -252,12 +373,30 @@ void SimulatorAPI::setupShipsConnection(
                         ship->getUserID(),
                         currentPos, heading, path);
                 }, mConnectionType);
+
+        connect(ship.get(), &ShipNetSimCore::Ship::containersAdded, this,
+                [this, ship, networkName]() {
+                    emit SimulatorAPI::containersAddedToShip(networkName,
+                                                             ship->getUserID());
+                });
+
+        connect(ship.get(), &ShipNetSimCore::Ship::reachedSeaPort, this,
+                [this, ship, networkName]
+                (QString shipID, QString seaPortCode, QJsonArray containers) {
+            emit SimulatorAPI::shipReachedSeaPort(networkName, shipID,
+                                                  seaPortCode, containers);
+        });
     }
 }
 
 QVector<std::shared_ptr<ShipNetSimCore::Ship>>
 SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
 {
+    if (!ships.contains("ships") || !ships["ships"].isArray()) {
+        emit errorOccurred("Invalid ship configuration: missing 'ships' array");
+        return QVector<std::shared_ptr<ShipNetSimCore::Ship>>();
+    }
+
     // 1) Prepare a default empty result in case of errors
     QVector<std::shared_ptr<ShipNetSimCore::Ship>> loadedShips;
 
@@ -277,6 +416,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
         QMetaObject::Connection connSuccess = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::shipsLoaded,
+            this,
             [&](QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipsVec) {
                 // Store the result in our local variable, then quit the loop
                 loadedShips = shipsVec;
@@ -288,6 +428,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
         QMetaObject::Connection connError = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::errorOccured,
+            this,
             [&](const QString &errMsg) {
                 qWarning() << "Error loading ships in mLoadShips:" << errMsg;
                 // We simply quit the loop; 'loadedShips' stays empty
@@ -368,6 +509,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships,
         QMetaObject::Connection connSuccess = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::shipsLoaded,
+            this,
             [&](QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipsVec) {
                 // Store the result in our local variable and quit the loop
                 loadedShips = shipsVec;
@@ -379,6 +521,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships,
         QMetaObject::Connection connError = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::errorOccured,
+            this,
             [&](const QString &errorMsg) {
                 qWarning() << "Error loading ships in mLoadShips:" << errorMsg;
                 // We'll quit the loop, loadedShips stays empty
@@ -439,6 +582,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, QString>> ships,
         QMetaObject::Connection connSuccess = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::shipsLoaded,
+            this,
             [&](QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipsVec) {
                 // Store the result, then quit the loop
                 loadedShips = shipsVec;
@@ -450,6 +594,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, QString>> ships,
         QMetaObject::Connection connError = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::errorOccured,
+            this,
             [&](const QString &errMsg) {
                 // Log the error, then quit the loop
                 qWarning() << "Error loading ships in mLoadShips:" << errMsg;
@@ -512,6 +657,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, std::any>> ships,
         QMetaObject::Connection connSuccess = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::shipsLoaded,
+            this,
             [&](QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipsVec) {
                 // Capture the result, then quit the loop
                 loadedShips = shipsVec;
@@ -523,6 +669,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, std::any>> ships,
         QMetaObject::Connection connError = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::errorOccured,
+            this,
             [&](const QString &errMsg) {
                 qWarning() << "Error loading ships in mLoadShips:" << errMsg;
                 // We'll still quit the loop; 'loadedShips' stays empty
@@ -580,6 +727,7 @@ SimulatorAPI::mLoadShips(QString shipsFilePath, QString networkName)
         QMetaObject::Connection connSuccess = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::shipsLoaded,
+            this,
             [&](QVector<std::shared_ptr<ShipNetSimCore::Ship>> shipsVec) {
                 // Capture the result, then quit the loop
                 loadedShips = shipsVec;
@@ -591,6 +739,7 @@ SimulatorAPI::mLoadShips(QString shipsFilePath, QString networkName)
         QMetaObject::Connection connError = connect(
             apiData.shipLoaderWorker,
             &ShipLoaderWorker::errorOccured,
+            this,
             [&](const QString &errMsg) {
                 qWarning() << "Error loading ships in mLoadShips:" << errMsg;
                 // We'll still quit the loop; 'loadedShips' remains empty
@@ -669,6 +818,13 @@ void SimulatorAPI::
         return;
     }
 
+    connect(mData[networkName].simulatorWorker,
+            &SimulatorWorker::errorOccurred,
+            this,
+            [this](QString error) {
+                emit errorOccurred(error);
+            });
+
     // 3. Setup the simulator safely inside the worker thread
     QMetaObject::invokeMethod(
         apiData.simulatorWorker,
@@ -690,13 +846,23 @@ void SimulatorAPI::
             [this, networkName, mode]() {
                 qDebug() << "Current thread 1:" << QThread::currentThread();
 
+                mWorkerTracker.completedRequests++;
+                mWorkerTracker.requestedNetworkProcess = mData.keys();
+
                 // Check and emit workersReady signal when all simulator
                 // workers are done
-                checkAndEmitSignal(m_completedSimulatorWorkerFinished,
-                                   m_totalSimulatorWorkerFinished.size(),
-                                   m_totalSimulatorWorkerFinished,
-                                   &SimulatorAPI::workersReady,
-                                   mode);
+                bool status =
+                    checkAndEmitSignal(
+                        mWorkerTracker.completedRequests,
+                        mWorkerTracker.requestedNetworkProcess.size(),
+                        mWorkerTracker.requestedNetworkProcess ,
+                        &SimulatorAPI::workersReady,
+                        mode);
+
+                if (status) {
+                    mWorkerTracker.completedRequests = 0;
+                    mWorkerTracker.requestedNetworkProcess.clear();
+                }
             }, mConnectionType);
 
     // 6. Set the thread priority to LowPriority to
@@ -722,9 +888,26 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
             }, mConnectionType);
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationFinished, this,
-            [this, networkName]() {
+            [this, networkName, mode]() {
+                mFinishedTracker.completedRequests++;
                 qDebug() << "Current thread 3:" << QThread::currentThread();
-                emit simulationFinished(networkName);
+                bool status =
+                    checkAndEmitSignal(
+                        mFinishedTracker.completedRequests,
+                        mFinishedTracker.requestedNetworkProcess.size(),
+                        mFinishedTracker.requestedNetworkProcess,
+                        &SimulatorAPI::simulationFinished,
+                        mode);
+                if (status) {
+                    if (mode == Mode::Sync) {
+                        for (auto &data : mData) {
+                            data.isBusy = false;
+                        }
+                    }
+                    else {
+                        mData[networkName].isBusy = false;
+                    }
+                }
             }, mConnectionType);
 
     connect(simulator,
@@ -735,6 +918,7 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
             {
                 qDebug() << "Current thread 4:" << QThread::currentThread();
 
+                // this will populate data, make isBusy = false
                 handleOneTimeStepCompleted(networkName, currentSimulatorTime,
                                            progressPercent, mode);
             }, mConnectionType);
@@ -749,47 +933,63 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationPaused, this,
             [this, networkName, mode]() {
-                m_completedSimulatorsPaused++;
+                mPauseTracker.completedRequests++;
                 qDebug() << "Current thread 5:" << QThread::currentThread();
-                checkAndEmitSignal(m_completedSimulatorsPaused,
-                                   m_totalSimulatorPauseRequested.size(),
-                                   m_totalSimulatorPauseRequested,
-                                   &SimulatorAPI::simulationsPaused,
-                                   mode);
+                checkAndEmitSignal(
+                    mPauseTracker.completedRequests,
+                    mPauseTracker.requestedNetworkProcess.size(),
+                    mPauseTracker.requestedNetworkProcess,
+                    &SimulatorAPI::simulationsPaused,
+                    mode);
             }, mConnectionType);
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationResumed, this,
             [this, networkName, mode]() {
-                m_completedSimulatorsResumed++;
+                mResumeTracker.completedRequests++;
                 qDebug() << "Current thread 6:" << QThread::currentThread();
-                checkAndEmitSignal(m_completedSimulatorsResumed,
-                                   m_totalSimulatorResumeRequested.size(),
-                                   m_totalSimulatorResumeRequested,
-                                   &SimulatorAPI::simulationsResumed,
-                                   mode);
+                checkAndEmitSignal(
+                    mResumeTracker.completedRequests,
+                    mResumeTracker.requestedNetworkProcess.size(),
+                    mResumeTracker.requestedNetworkProcess,
+                    &SimulatorAPI::simulationsResumed,
+                    mode);
             }, mConnectionType);
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationTerminated, this,
             [this, networkName, mode]() {
-                m_completedSimulatorsEnded++;
+                mTerminateTracker.completedRequests++;
                 qDebug() << "Current thread 7:" << QThread::currentThread();
-                checkAndEmitSignal(m_completedSimulatorsEnded,
-                                   m_totalSimulatorEndRequested.size(),
-                                   m_totalSimulatorEndRequested,
-                                   &SimulatorAPI::simulationsTerminated,
-                                   mode);
+                checkAndEmitSignal(
+                    mTerminateTracker.completedRequests,
+                    mTerminateTracker.requestedNetworkProcess.size(),
+                    mTerminateTracker.requestedNetworkProcess,
+                    &SimulatorAPI::simulationsTerminated,
+                    mode);
             }, mConnectionType);
 
     connect(simulator, &ShipNetSimCore::Simulator::simulationRestarted, this,
             [this, networkName, mode]() {
-                m_completedSimulatorRestarted++;
+                mRestartTracker.completedRequests++;
+
                 qDebug() << "Current thread 8:" << QThread::currentThread();
-                checkAndEmitSignal(m_completedSimulatorRestarted,
-                                   m_totalSimulatorRestartedRequested.size(),
-                                   m_totalSimulatorRestartedRequested,
-                                   &SimulatorAPI::simulationsRestarted,
-                                   mode);
+                checkAndEmitSignal(
+                    mRestartTracker.completedRequests,
+                    mRestartTracker.requestedNetworkProcess.size(),
+                    mRestartTracker.requestedNetworkProcess,
+                    &SimulatorAPI::simulationsRestarted,
+                    mode);
             }, mConnectionType);
+
+    connect(simulator, &ShipNetSimCore::Simulator::availablePorts, this,
+            [this, networkName, mode](QVector<QString> ports) {
+        qDebug() << "Current thread 8:" << QThread::currentThread();
+        handleAvailablePorts(networkName, ports, mode);
+    });
+
+    connect(simulator, &ShipNetSimCore::Simulator::errorOccured, this,
+            [this, networkName](QString error) {
+                emit errorOccurred(error);
+            });
 
     setupShipsConnection(mData[networkName].ships.values(), networkName, mode);
 }
@@ -812,10 +1012,6 @@ SimulatorAPI::~SimulatorAPI() {
     }
 }
 
-void SimulatorAPI::setConnectionType(Qt::ConnectionType connectionType)
-{
-    mConnectionType = connectionType;
-}
 
 ShipNetSimCore::Simulator* SimulatorAPI::getSimulator(QString networkName)
 {
@@ -867,6 +1063,11 @@ void SimulatorAPI::restartSimulations(
     if (networkNames.contains("*")) {
         networkNames = mData.keys();
     }
+
+
+    mRestartTracker.completedRequests = 0;
+    mRestartTracker.requestedNetworkProcess = networkNames;
+
     for (const auto &networkName: networkNames) {
         if (!mData.contains(networkName)) {
             emit errorOccurred("A network with name " + networkName +
@@ -997,9 +1198,7 @@ SimulatorAPI::getAllShips(QString networkName)
                            " does not exist!");
         return QVector<std::shared_ptr<ShipNetSimCore::Ship>>();
     }
-    return QVector<std::shared_ptr<ShipNetSimCore::Ship>>(
-        mData[networkName].ships.values().begin(),
-        mData[networkName].ships.values().end());
+    return mData[networkName].ships.values().toVector();
 }
 
 QJsonObject SimulatorAPI::requestShipCurrentStateByID(QString networkName,
@@ -1012,7 +1211,7 @@ QJsonObject SimulatorAPI::requestShipCurrentStateByID(QString networkName,
     }
     if (mData[networkName].ships.contains(ID)) {
         auto out = mData[networkName].ships.value(ID)->getCurrentStateAsJson();
-        shipCurrentStateAvailable(out);
+        emit shipCurrentStateAvailable(out);
         return out;
     }
     emit errorOccurred("A ship with ID " + ID +
@@ -1037,7 +1236,11 @@ void SimulatorAPI::addContainersToShip(QString networkName, QString shipID,
                                        QJsonObject json)
 {
     getShipByID(networkName, shipID)->addContainers(json);
-    emit containersAddedToShip(networkName, shipID);
+}
+
+bool SimulatorAPI::isNetworkLoaded(QString networkName)
+{
+    return (mData.contains(networkName) && mData[networkName].network);
 }
 
 void SimulatorAPI::handleShipReachedDestination(QString networkName,
@@ -1081,7 +1284,8 @@ void SimulatorAPI::handleOneTimeStepCompleted(
     QString networkName, units::time::second_t currentSimulatorTime,
     double progress, Mode mode)
 {
-    m_timeStepData.insert(networkName, {currentSimulatorTime, progress});
+    mTimeStepTracker.dataBuffer.insert(networkName,
+                                      {currentSimulatorTime, progress});
 
     // flag the simulator as not busy
     mData[networkName].isBusy = false;
@@ -1089,23 +1293,23 @@ void SimulatorAPI::handleOneTimeStepCompleted(
     switch (mode) {
     case Mode::Async:
         // Increment the number of completed simulators
-        m_completedSimulatorsTimeStep++;
+        mTimeStepTracker.completedRequests++;
 
         // Check if all simulators have completed their time step
-        if (m_completedSimulatorsTimeStep == mData.size()) {
+        if (mTimeStepTracker.completedRequests == mData.size()) {
             // Emit the aggregated signal
-            emit simulationAdvanced(m_timeStepData);
+            emit simulationAdvanced(mTimeStepTracker.dataBuffer);
 
             // Emit the aggregated signal
             emitShipsReachedDestination();
 
-            m_completedSimulatorsTimeStep = 0;  // Reset the counter for the next time step
+            mTimeStepTracker.completedRequests = 0;  // Reset the counter for the next time step
         }
         break;
 
     case Mode::Sync:
         // In sync mode, emit results immediately for each network
-        emit simulationAdvanced(m_timeStepData);
+        emit simulationAdvanced(mTimeStepTracker.dataBuffer);
         break;
 
     default:
@@ -1119,7 +1323,7 @@ void SimulatorAPI::handleProgressUpdate(QString networkName,
                                         int progress,
                                         Mode mode)
 {
-    m_progressData.insert(networkName, progress);
+    mProgressTracker.dataBuffer.insert(networkName, progress);
 
     // flag the simulator as not busy
     mData[networkName].isBusy = false;
@@ -1127,23 +1331,23 @@ void SimulatorAPI::handleProgressUpdate(QString networkName,
     switch (mode) {
     case Mode::Async:
         // Increment the number of completed simulators
-        m_completedSimulatorsProgress++;
+        mProgressTracker.completedRequests++;
 
         // Check if all simulators have completed their time step
-        if (m_completedSimulatorsProgress == mData.size()) {
+        if (mProgressTracker.completedRequests == mData.size()) {
             // Emit the aggregated signal
-            emit simulationProgressUpdated(m_progressData);
+            emit simulationProgressUpdated(mProgressTracker.dataBuffer);
 
             // Emit the aggregated signal
             emitShipsReachedDestination();
 
-            m_completedSimulatorsProgress = 0;  // Reset the counter for the next time step
+            mProgressTracker.completedRequests = 0;  // Reset the counter for the next time step
         }
         break;
 
     case Mode::Sync:
         // In sync mode, emit results immediately for each network
-        emit simulationProgressUpdated(m_progressData);
+        emit simulationProgressUpdated(mProgressTracker.dataBuffer);
         break;
 
     default:
@@ -1159,7 +1363,7 @@ void SimulatorAPI::handleResultsAvailable(QString networkName,
 {
 
     // Always store the result in the buffer
-    m_simulationResultBuffer.insert(networkName, result);
+    mSimulationResultsTracker.dataBuffer.insert(networkName, result);
 
     // flag the simulator as not busy
     mData[networkName].isBusy = false;
@@ -1167,19 +1371,20 @@ void SimulatorAPI::handleResultsAvailable(QString networkName,
     switch (mode) {
     case Mode::Async:
         // Increment the number of completed simulators
-        m_completedSummaryResults++;
+        mSimulationResultsTracker.completedRequests++;
 
         // Check if all simulators have completed their time step
-        if (m_completedSummaryResults == mData.size()) {
+        if (mSimulationResultsTracker.completedRequests == mData.size())
+        {
             // Emit the aggregated signal
-            emitSimulationResults(m_simulationResultBuffer);
-            m_completedSummaryResults = 0;  // Reset the counter for the next time step
+            emitSimulationResults(mSimulationResultsTracker.dataBuffer);
+            mSimulationResultsTracker.completedRequests = 0;  // Reset the counter for the next time step
         }
         break;
 
     case Mode::Sync:
         // In sync mode, emit results immediately for each network
-        emitSimulationResults(m_simulationResultBuffer);
+        emitSimulationResults(mSimulationResultsTracker.dataBuffer);
         break;
 
     default:
@@ -1215,7 +1420,43 @@ void SimulatorAPI::emitSimulationResults(QMap<QString, ShipsResults> results)
     }
 }
 
-void SimulatorAPI::checkAndEmitSignal(
+void SimulatorAPI::handleAvailablePorts(QString networkName,
+                                        QVector<QString> portIDs,
+                                        Mode mode)
+{
+    mAvailablePortTracker.dataBuffer.insert(networkName, portIDs);
+
+    // flag the simulator as not busy
+    mData[networkName].isBusy = false;
+
+    switch (mode) {
+    case Mode::Async:
+        // Increment the number of completed simulators
+        mAvailablePortTracker.completedRequests++;
+
+        // Check if all simulators have completed their time step
+        if (mAvailablePortTracker.completedRequests ==
+            mAvailablePortTracker.requestedNetworkProcess.size())
+        {
+            // Emit the aggregated signal
+            emit availablePorts(mAvailablePortTracker.dataBuffer);
+            mAvailablePortTracker.completedRequests = 0;  // Reset the counter for the next time step
+        }
+        break;
+
+    case Mode::Sync:
+        // In sync mode, emit results immediately for each network
+        emit availablePorts(mAvailablePortTracker.dataBuffer);
+        break;
+
+    default:
+        // Handle unexpected mode
+        qWarning() << "Unexpected mode in handleResultsAvailable";
+        break;
+    }
+}
+
+bool SimulatorAPI::checkAndEmitSignal(
     int& counter, int total,
     const QVector<QString>& networkNames,
     void(SimulatorAPI::*signal)(QVector<QString>),
@@ -1226,18 +1467,53 @@ void SimulatorAPI::checkAndEmitSignal(
         // In async mode, emit signal when counter reaches total
         if (counter == total) {
             (this->*signal)(networkNames);
+            return true;
         }
-        break;
+        return false;
 
     case Mode::Sync:
         // In sync mode, emit signal immediately
         (this->*signal)(networkNames);
-        break;
+        return true;
 
     default:
         // Handle unexpected mode
         qWarning() << "Unexpected mode in checkAndEmitSignal";
-        break;
+        return false;
+    }
+}
+
+void SimulatorAPI::requestAvailablePorts(QVector<QString> networkNames,
+                                     bool getOnlyPortsOnShipsPaths)
+{
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+
+    mAvailablePortTracker.requestedNetworkProcess = networkNames;
+
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+        if (getInstance().mData[networkName].simulator) {
+            // flag the simulator as not busy
+            getInstance().mData[networkName].isBusy = true;
+
+            bool success =
+                QMetaObject::invokeMethod(
+                    getInstance().mData[networkName].simulator,
+                    "getAvailablePorts",
+                    getInstance().mConnectionType,
+                    Q_ARG(bool, getOnlyPortsOnShipsPaths));
+
+            if (!success) {
+                qWarning() << "Failed to invoke requestAvailablePorts";
+            }
+        }
     }
 }
 
@@ -1296,36 +1572,6 @@ void SimulatorAPI::InteractiveMode::addShipToSimulation(
 }
 
 void SimulatorAPI::InteractiveMode::
-    runOneTimeStep(QVector<QString> networkNames)
-{
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-    }
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
-        if (getInstance().mData[networkName].simulator) {
-            // flag the simulator as not busy
-            getInstance().mData[networkName].isBusy = true;
-
-            bool success =
-                QMetaObject::invokeMethod(
-                    getInstance().mData[networkName].simulator,
-                    "runOneTimeStep",
-                    getInstance().mConnectionType);
-
-            if (!success) {
-                qWarning() << "Failed to invoke runOneTimeStep";
-            }
-        }
-    }
-}
-
-void SimulatorAPI::InteractiveMode::
     runSimulation(QVector<QString> networkNames,
                   units::time::second_t timeSteps) {
     if (networkNames.contains("*")) {
@@ -1338,71 +1584,31 @@ void SimulatorAPI::InteractiveMode::
                                              " does not exist!");
             return;
         }
+        bool endSimulationAfterRun = false;
+        bool getStepEndSignal = false;
+
         if (timeSteps.value() < 0) {
-            if (getInstance().mData[networkName].simulator) {
-
-                // flag the simulator as not busy
-                getInstance().mData[networkName].isBusy = true;
-
-                bool success =
-                    QMetaObject::invokeMethod(
-                        getInstance().mData[networkName].simulator,
-                        "runSimulation",
-                        getInstance().mConnectionType);
-
-                if (!success) {
-                    qWarning() << "Failed to invoke runSimulation";
-                }
-            }
-        }
-        else {
-            if (getInstance().mData[networkName].simulator) {
-
-                // flag the simulator as not busy
-                getInstance().mData[networkName].isBusy = true;
-
-                bool success =
-                    QMetaObject::invokeMethod(
-                        getInstance().mData[networkName].simulator,
-                        "runBy",
-                        getInstance().mConnectionType,
-                        Q_ARG(units::time::second_t, timeSteps));
-
-                if (!success) {
-                    qWarning() << "Failed to invoke runBy";
-                }
-            }
+            timeSteps =
+                units::time::second_t(std::numeric_limits<double>::infinity());
+            getStepEndSignal = true;
         }
 
-    }
-}
-
-void SimulatorAPI::InteractiveMode::
-    initSimulation(QVector<QString> networkNames)
-{
-    if (networkNames.contains("*")) {
-        networkNames = getInstance().mData.keys();
-        getInstance().m_totalSimulatorsInitializationRequested = networkNames;
-    }
-
-    getInstance().m_completedSimulatorsInitialization = 0;
-
-    for (const auto &networkName: networkNames) {
-        if (!getInstance().mData.contains(networkName)) {
-            emit getInstance().errorOccurred("A network with name "
-                                             + networkName +
-                                             " does not exist!");
-            return;
-        }
         if (getInstance().mData[networkName].simulator) {
+
+            // flag the simulator as busy
+            getInstance().mData[networkName].isBusy = true;
+
             bool success =
                 QMetaObject::invokeMethod(
                     getInstance().mData[networkName].simulator,
-                    "initializeSimulation",
-                    getInstance().mConnectionType);
+                    "runSimulation",
+                    getInstance().mConnectionType,
+                    Q_ARG(units::time::second_t, timeSteps),
+                    Q_ARG(bool, endSimulationAfterRun),
+                    Q_ARG(bool, getStepEndSignal));
 
             if (!success) {
-                qWarning() << "Failed to invoke initializeSimulation";
+                qWarning() << "Failed to invoke runSimulation";
             }
         }
     }
@@ -1415,8 +1621,8 @@ void SimulatorAPI::InteractiveMode::endSimulation(
         networkNames = getInstance().mData.keys();
     }
 
-    getInstance().m_completedSimulatorsEnded = 0;
-    getInstance().m_totalSimulatorEndRequested = networkNames;
+    getInstance().mFinishedTracker.completedRequests = 0;
+    getInstance().mFinishedTracker.requestedNetworkProcess = networkNames;
 
     for (const auto &networkName: networkNames) {
         if (!getInstance().mData.contains(networkName)) {
@@ -1436,6 +1642,30 @@ void SimulatorAPI::InteractiveMode::endSimulation(
             if (!success) {
                 qWarning() << "Failed to invoke finalizeSimulation";
             }
+        }
+    }
+}
+
+void SimulatorAPI::InteractiveMode::
+    terminateSimulation(QVector<QString> networkNames)
+{
+    if (networkNames.contains("*")) {
+        networkNames = getInstance().mData.keys();
+    }
+
+    getInstance().mTerminateTracker.completedRequests = 0;
+    getInstance().mTerminateTracker.requestedNetworkProcess = networkNames;
+
+    for (const auto &networkName: networkNames) {
+        if (!getInstance().mData.contains(networkName)) {
+            emit getInstance().errorOccurred("A network with name "
+                                             + networkName +
+                                             " does not exist!");
+            return;
+        }
+        if (getInstance().mData[networkName].simulator) {
+
+            getInstance().mData[networkName].simulator->terminateSimulation();
         }
     }
 }
@@ -1463,6 +1693,13 @@ SimulatorAPI::InteractiveMode::getAllShips(QString networkName)
     return getInstance().getAllShips(networkName);
 }
 
+void SimulatorAPI::InteractiveMode::requestAvailablePorts(
+    QVector<QString> networkNames, bool getOnlyPortsOnShipsPaths)
+{
+    getInstance().requestAvailablePorts(networkNames,
+                                        getOnlyPortsOnShipsPaths);
+}
+
 bool SimulatorAPI::InteractiveMode::isWorkerBusy(QString networkName)
 {
     return getInstance().isWorkerBusy(networkName);
@@ -1475,10 +1712,15 @@ void SimulatorAPI::InteractiveMode::addContainersToShip(QString networkName,
     getInstance().addContainersToShip(networkName, shipID, json);
 }
 
-void SimulatorAPI::InteractiveMode::
-    setConnectionType(Qt::ConnectionType connectionType)
+
+bool SimulatorAPI::InteractiveMode::isNetworkLoaded(QString networkName)
 {
-    getInstance().setConnectionType(connectionType);
+    return getInstance().isNetworkLoaded(networkName);
+}
+
+void SimulatorAPI::InteractiveMode::resetAPI()
+{
+    getInstance().resetInstance();
 }
 
 // -----------------------------------------------------------------------------
@@ -1540,8 +1782,14 @@ void SimulatorAPI::ContinuousMode::runSimulation(
         networkNames = getInstance().mData.keys();
     }
 
-    getInstance().m_completedSimulatorsRun = 0;
-    getInstance().m_totalSimulatorsRunRequested = networkNames;
+    getInstance().mRunTracker.completedRequests = 0;
+    getInstance().mRunTracker.requestedNetworkProcess = networkNames;
+
+
+    units::time::second_t timeSteps =
+            units::time::second_t(std::numeric_limits<double>::infinity());
+    bool endSimulationAfterRun = false;
+    bool getStepEndSignal = false;
 
     for (const auto &networkName: networkNames) {
         if (!getInstance().mData.contains(networkName)) {
@@ -1550,22 +1798,27 @@ void SimulatorAPI::ContinuousMode::runSimulation(
                                              " does not exist!");
             return;
         }
+        if (timeSteps.value() < 0) {
+            if (getInstance().mData[networkName].simulator) {
 
+                // flag the simulator as not busy
+                getInstance().mData[networkName].isBusy = true;
 
-        if (getInstance().mData[networkName].simulator) {
+                bool success =
+                    QMetaObject::invokeMethod(
+                        getInstance().mData[networkName].simulator,
+                        "runSimulation",
+                        getInstance().mConnectionType,
+                        Q_ARG(units::time::second_t, timeSteps),
+                        Q_ARG(bool, endSimulationAfterRun),
+                        Q_ARG(bool, getStepEndSignal));
 
-            bool success =
-                QMetaObject::invokeMethod(
-                    getInstance().mData[networkName].simulator,
-                    "runSimulation",
-                    getInstance().mConnectionType);
-
-            if (!success) {
-                qWarning() << "Failed to invoke runSimulation";
+                if (!success) {
+                    qWarning() << "Failed to invoke runSimulation";
+                }
             }
         }
     }
-
 }
 
 void SimulatorAPI::ContinuousMode::
@@ -1575,8 +1828,8 @@ void SimulatorAPI::ContinuousMode::
         networkNames = getInstance().mData.keys();
     }
 
-    getInstance().m_completedSimulatorsPaused = 0;
-    getInstance().m_totalSimulatorPauseRequested = networkNames;
+    getInstance().mPauseTracker.completedRequests = 0;
+    getInstance().mPauseTracker.requestedNetworkProcess = networkNames;
 
     for (const auto &networkName: networkNames) {
         if (!getInstance().mData.contains(networkName)) {
@@ -1599,8 +1852,8 @@ void SimulatorAPI::ContinuousMode::
         networkNames = getInstance().mData.keys();
     }
 
-    getInstance().m_completedSimulatorsResumed = 0;
-    getInstance().m_totalSimulatorResumeRequested = networkNames;
+    getInstance().mResumeTracker.completedRequests = 0;
+    getInstance().mResumeTracker.requestedNetworkProcess = networkNames;
 
     for (const auto &networkName: networkNames) {
         if (!getInstance().mData.contains(networkName)) {
@@ -1623,8 +1876,8 @@ void SimulatorAPI::ContinuousMode::terminateSimulation(
         networkNames = getInstance().mData.keys();
     }
 
-    getInstance().m_completedSimulatorsEnded = 0;
-    getInstance().m_totalSimulatorEndRequested = networkNames;
+    getInstance().mTerminateTracker.completedRequests = 0;
+    getInstance().mTerminateTracker.requestedNetworkProcess = networkNames;
 
     for (const auto &networkName: networkNames) {
         if (!getInstance().mData.contains(networkName)) {
@@ -1650,6 +1903,13 @@ SimulatorAPI::ContinuousMode::getNetwork(QString networkName) {
     return getInstance().getNetwork(networkName);
 }
 
+void SimulatorAPI::ContinuousMode::requestAvailablePorts(
+    QVector<QString> networkNames, bool getOnlyPortsOnShipsPaths)
+{
+    getInstance().requestAvailablePorts(networkNames,
+                                        getOnlyPortsOnShipsPaths);
+}
+
 bool SimulatorAPI::ContinuousMode::isWorkerBusy(QString networkName)
 {
     return getInstance().isWorkerBusy(networkName);
@@ -1662,11 +1922,20 @@ void SimulatorAPI::ContinuousMode::addContainersToShip(QString networkName,
     getInstance().addContainersToShip(networkName, shipID, json);
 }
 
-void SimulatorAPI::ContinuousMode::
-    setConnectionType(Qt::ConnectionType connectionType)
+
+bool SimulatorAPI::ContinuousMode::isNetworkLoaded(QString networkName)
 {
-    getInstance().setConnectionType(connectionType);
+    return getInstance().isNetworkLoaded(networkName);
 }
+
+void SimulatorAPI::ContinuousMode::resetAPI()
+{
+    getInstance().resetInstance();
+}
+
+// --------------------------------------------------------------------------
+// --------------- General Functions ----------------------------------------
+// --------------------------------------------------------------------------
 
 QVector<std::shared_ptr<ShipNetSimCore::Ship> >
 SimulatorAPI::loadShips(QJsonObject &ships, QString networkName)
