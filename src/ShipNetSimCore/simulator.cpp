@@ -988,7 +988,10 @@ void Simulator::playShipOneTimeStep(std::shared_ptr<Ship> ship)
             (ship->getAcceleration().value() <= 0.0) &&
             ((std::round(ship->getPreviousSpeed().value() * 1000.0) /
               1000.0) == 0.0) &&
-            ((std::round(ship->getSpeed().value() * 1000.0) / 1000.0) == 0.0))
+            ((std::round(ship->getSpeed().value() * 1000.0) / 1000.0) == 0.0) &&
+            (ship->getSpeed().value() >= 0.0) &&
+            (ship->getSpeed().value() * mTimeStep.value() * 3.0 >=
+             cp.gapToCriticalPoint.back().value()))
         {
             ship->kickForwardADistance(cp.gapToCriticalPoint.back(),
                                        mTimeStep);
@@ -1138,7 +1141,7 @@ void Simulator::resumeSimulation(bool emitSignal) {
     if (emitSignal) emit simulationResumed();
 }
 
-void Simulator::terminateSimulation() {
+void Simulator::terminateSimulation(bool emitSignal) {
     qWarning() << "Terminating simulation.";
 
     QMutexLocker locker(&mutex);  // Use QMutexLocker to prevent potential deadlocks
@@ -1147,7 +1150,7 @@ void Simulator::terminateSimulation() {
 
     pauseCond.wakeAll();  // Wake up any paused threads
 
-    emit simulationTerminated();
+    if (emitSignal) emit simulationTerminated();
 }
 
 }
