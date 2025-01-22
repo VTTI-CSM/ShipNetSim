@@ -8,8 +8,9 @@
 #include <QMap>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <amqp.h>
-#include <amqp_tcp_socket.h>
+#include <rabbitmq-c/amqp.h>
+#include <rabbitmq-c/tcp_socket.h>
+#include <container.h>
 #ifdef _WIN32
 struct timeval {
     long tv_sec;  // seconds
@@ -60,8 +61,13 @@ private slots:
     void onShipStateAvailable(const QJsonObject shipState);
     void onSimulatorStateAvailable(const QJsonObject simulatorState);
     void onContainersAddedToShip(QString networkName, QString shipID);
+    void onShipReachedSeaPort(QString networkName, QString shipID,
+                              QString seaPortCode, QJsonArray containers);
+    void onPortsAvailable(QMap<QString,
+                               QVector<QString>> networkPorts);
 
     void onErrorOccurred(const QString& errorMessage);
+    void onServerReset();
 
 private:
     std::string mHostname;
@@ -77,6 +83,7 @@ private:
     void consumeFromRabbitMQ();  // Function for consuming RabbitMQ messages
     void startConsumingMessages();
     void reconnectToRabbitMQ();
+    void setupServer();
 
 };
 
