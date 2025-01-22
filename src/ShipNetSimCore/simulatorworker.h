@@ -21,6 +21,7 @@ public:
         units::time::second_t timeStep, bool isExternallyControlled);
 
 signals:
+    void errorOccurred(QString error);
 };
 
 #endif // SIMULATORWORKER_H

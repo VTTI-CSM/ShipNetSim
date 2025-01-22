@@ -13,7 +13,8 @@ void SimulatorWorker::setupSimulator(
     qDebug() << "Creating simulator inside thread:"
              << QThread::currentThread();
 
-    // ✅ Create Simulator inside the worker thread
+    try {
+    // Create Simulator inside the worker thread
     apiData.simulator = new ShipNetSimCore::Simulator(
         apiData.network, shipList, timeStep, isExternallyControlled);
 
@@ -25,4 +26,9 @@ void SimulatorWorker::setupSimulator(
 
     qDebug() << "Simulator successfully created inside thread: "
              << QThread::currentThread();
+    }
+    catch (std::exception &e) {
+        emit errorOccurred(QString("Error: Error in setting the "
+                                   "simulator!\n%1").arg(e.what()));
+    }
 }
