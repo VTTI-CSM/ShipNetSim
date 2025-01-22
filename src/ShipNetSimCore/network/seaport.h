@@ -6,6 +6,9 @@
 #include <QString>
 #include <qobject.h>
 
+#include <QMetaType>
+
+
 namespace ShipNetSimCore
 {
 class SHIPNETSIM_EXPORT SeaPort : public QObject
@@ -45,4 +48,7 @@ private:
     std::shared_ptr<GPoint> mClosestPointOnWaterPolygon;
 };
 };
+
+Q_DECLARE_METATYPE(ShipNetSimCore::SeaPort*)
+Q_DECLARE_METATYPE(std::shared_ptr<ShipNetSimCore::SeaPort>)
 #endif // SEAPORT_H
