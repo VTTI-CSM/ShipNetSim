@@ -24,7 +24,7 @@ add_executable(${SHIPNETSIM_NAME} main.cpp)
 add_dependencies(${SHIPNETSIM_NAME} ShipNetSimCore)
 
 # Link required libraries to the executable target
-target_link_libraries(${SHIPNETSIM_NAME}
+target_link_libraries(${SHIPNETSIM_NAME} PRIVATE
     ShipNetSimCore
     GeographicLib::GeographicLib
     GDAL::GDAL
@@ -36,9 +36,9 @@ target_link_libraries(${SHIPNETSIM_NAME}
 )
 # Conditionally include Container library only if BUILD_SERVER is ON
 if(BUILD_SERVER)
-    target_link_libraries(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE Container::Container)
-    target_include_directories(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
-    target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE BUILD_SERVER_ENABLED)
+    target_link_libraries(${SHIPNETSIM_NAME} PRIVATE Container::Container)
+    target_include_directories(${SHIPNETSIM_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
+    target_compile_definitions(${SHIPNETSIM_NAME} PRIVATE BUILD_SERVER_ENABLED)
 endif()
 
 
