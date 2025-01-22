@@ -195,6 +195,7 @@ void ReportWidget::createReport(const ShipNetSimCore::Data::Table &table)
     footer.addElement(licenseElement, Qt::AlignCenter);
 
     emit reportGenerated(m_report);
+    m_previewWidget->setReport(m_report);
 }
 
 
@@ -207,7 +208,6 @@ void ReportWidget::clearReport()
     }
 
     m_report = new KDReports::Report(this);
-    m_previewWidget->setReport(m_report);
 }
 
 
