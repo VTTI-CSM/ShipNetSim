@@ -13,6 +13,9 @@
 
 // Initialize static members
 
+QBasicMutex SimulatorAPI::s_instanceMutex;
+
+
 // Default to synchronous mode
 SimulatorAPI::Mode SimulatorAPI::mMode = Mode::Sync;
 
@@ -1314,7 +1317,7 @@ void SimulatorAPI::handleOneTimeStepCompleted(
 
     default:
         // Handle unexpected mode
-        qWarning() << "Unexpected mode in handleResultsAvailable";
+        qWarning() << "Unexpected mode in handleOneTimeStepCompleted";
         break;
     }
 }
@@ -1378,7 +1381,8 @@ void SimulatorAPI::handleResultsAvailable(QString networkName,
         {
             // Emit the aggregated signal
             emitSimulationResults(mSimulationResultsTracker.dataBuffer);
-            mSimulationResultsTracker.completedRequests = 0;  // Reset the counter for the next time step
+            mSimulationResultsTracker.completedRequests =
+                0;  // Reset the counter for the next time step
         }
         break;
 
@@ -1451,7 +1455,7 @@ void SimulatorAPI::handleAvailablePorts(QString networkName,
 
     default:
         // Handle unexpected mode
-        qWarning() << "Unexpected mode in handleResultsAvailable";
+        qWarning() << "Unexpected mode in handleAvailablePorts";
         break;
     }
 }
