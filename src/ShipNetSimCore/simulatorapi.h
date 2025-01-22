@@ -568,6 +568,93 @@ protected slots:
                                     Mode mode);
 
     /**
+    * @brief Runs the simulation for the specified networks
+    * @param networkNames List of networks to run the simulation for
+    * @param timeSteps Duration of the simulation step (in seconds)
+    * @param endSimulationAfterRun If true, the simulation will end after
+    * the current run
+    * @param getStepEndSignal If true, a signal will be emitted at the
+    * end of each step
+    *
+    * @details This method starts or continues the simulation for the
+    * specified networks.
+    * It supports both finite and infinite time steps, depending on the
+    * value of `timeSteps`.
+    * If `endSimulationAfterRun` is true, the simulation will terminate
+    * after the current run.
+    * If `getStepEndSignal` is true, a signal will be emitted at the end
+    * of each simulation step.
+    */
+    void runSimulation(QVector<QString> networkNames,
+                       units::time::second_t timeSteps,
+                       bool endSimulationAfterRun,
+                       bool getStepEndSignal);
+
+    /**
+    * @brief Restarts the simulation for the specified networks
+    * @param networkNames List of networks to restart the simulation for
+    *
+    * @details This method restarts the simulation from the initial state for
+    * the specified networks.
+    * All simulation data is reset, and the simulation begins anew.
+    */
+    void restartSimulation(QVector<QString> networkNames);
+
+    /**
+    * @brief Pauses the simulation for the specified networks
+    * @param networkNames List of networks to pause the simulation for
+    *
+    * @details This method pauses the simulation for the specified networks.
+    * The simulation state is preserved and can be resumed later using
+    * `resumeSimulation`.
+    */
+    void pauseSimulation(QVector<QString> networkNames);
+
+    /**
+    * @brief Resumes the simulation for the specified networks
+    * @param networkNames List of networks to resume the simulation for
+    *
+    * @details This method resumes the simulation for the specified networks
+    * from the last paused state.
+    * The simulation continues from where it was paused.
+    */
+    void resumeSimulation(QVector<QString> networkNames);
+
+    /**
+    * @brief Terminates the simulation for the specified networks
+    * @param networkNames List of networks to terminate the simulation for
+    *
+    * @details This method forcefully terminates the simulation for the
+    * specified networks.
+    * The simulation cannot be resumed after termination.
+    */
+    void terminateSimulation(QVector<QString> networkNames);
+
+    /**
+    * @brief Handler for simulation completion
+    * @param networkName Network where the simulation finished
+    * @param mode Current operation mode (Async/Sync)
+    *
+    * @details This method is called when a simulation finishes naturally.
+    * It updates the simulation completion tracker and emits the
+    * `simulationFinished` signal.
+    * In Async mode, the signal is emitted only when all simulations finish.
+    * In Sync mode, the signal is emitted immediately for each network.
+    */
+    void handleSimulationFinished(QString networkName, Mode mode);
+
+    /**
+    * @brief Handler for worker thread readiness
+    * @param networkName Network where the worker thread is ready
+    *
+    * @details This method is called when a worker thread completes its
+    * assigned tasks.
+    * It updates the worker readiness tracker and emits the `workersReady`
+    * signal when all worker threads are ready.
+    */
+    void handleWorkersReady(QString networkName);
+
+    /**
     * @brief Handler for simulation progress updates
     * @param networkName Network reporting progress
     * @param progress Progress percentage (0-100)
@@ -655,6 +742,14 @@ protected:
     /** @brief Map of network names to their simulation data */
     QMap<QString, APIData> mData;
 
+    /** @brief Connection type for Qt signals/slots */
+    Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
+
+    /** @brief Buffer for ships that have reached their destination */
+    QMap<QString, QJsonObject> m_shipsReachedBuffer;
+
+
+
     /** @brief Tracks simulation results across networks */
     RequestData<ShipsResults> mSimulationResultsTracker;
 
@@ -682,17 +777,8 @@ protected:
     /** @brief Tracks worker thread status */
     RequestData<QString> mWorkerTracker;
 
-    /** @brief Tracks simulation run requests */
-    RequestData<QString> mRunTracker;
-
     /** @brief Tracks simulation restart operations */
     RequestData<QString> mRestartTracker;
-
-    /** @brief Connection type for Qt signals/slots */
-    Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
-
-    /** @brief Buffer for ships that have reached their destination */
-    QMap<QString, QJsonObject> m_shipsReachedBuffer;
 
 
     /**
