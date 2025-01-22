@@ -30,7 +30,8 @@
 #include "../network/galgebraicvector.h"
 
 #ifdef BUILD_SERVER_ENABLED
-#include "containermap.h"
+#include "Container/container.h"
+#include "Container/containermap.h"
 #endif
 
 namespace ShipNetSimCore
@@ -1103,12 +1104,66 @@ public:
      * behaviors based on the ship's path and whether it is following
      * another vessel.
      */
-    void sail(units::time::second_t &timeStep,
+    void sail(units::time::second_t& currentSimulationTime,
+              units::time::second_t &timeStep,
               units::velocity::meters_per_second_t &freeFlowSpeed,
               QVector<units::length::meter_t> &gapToNextCriticalPoint,
+              std::shared_ptr<GPoint> nextStoppingPoint,
               QVector<bool> &isFollowingAnotherShip,
               QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
               AlgebraicVector::Environment currentEnvironment);
+
+    /**
+     * @brief Checks if the ship is currently in a dwell state
+     * (stopped at a terminal).
+     *
+     * This function indicates whether the ship is currently dwelling
+     *  (stopped) at a terminal or port. A ship in dwell state is not
+     *  moving and is typically loading/unloading containers.
+     *
+     * @return true if the ship is currently dwelling, false otherwise.
+     */
+    bool isCurrentlyDwelling() const;
+
+    /**
+     * @brief Forces the ship to stop for a specified duration starting at
+     * the given time.
+     *
+     * This function puts the ship into a dwell state for a specific duration.
+     *  During this time, the ship will not move and is considered to be
+     *  stopped at a terminal or port, typically for loading/unloading
+     *  operations.
+     *
+     * @param duration The length of time the ship should remain stopped.
+     * @param currentTime The simulation time at which the dwell period begins.
+     */
+    void forceToStopFor(units::time::second_t duration,
+                             units::time::second_t currentTime);
+
+    /**
+     * @brief Calculates the remaining time the ship must dwell.
+     *
+     * This function computes how much longer the ship needs to remain
+     * stopped based on the original dwell duration and the current
+     * simulation time.
+     *
+     * @param currentTime The current simulation time to compare against
+     * the dwell period.
+     * @return The remaining time in seconds that the ship must
+     * continue dwelling. Returns 0 if the dwell period has expired.
+    */
+    units::time::second_t
+    getRemainingDwellTime(units::time::second_t currentTime) const;
+
+    /**
+     * @brief Resets the ship's dwell state.
+     *
+     * This function clears the ship's dwell state, allowing it to move again.
+     * This is typically called when the ship has completed its
+     * loading/unloading operations or when the dwell period needs to
+     * be cancelled.
+    */
+    void resetDwellState();
 
     /**
      * @brief Calculates general statistics for the ship's trip based
@@ -1643,6 +1698,11 @@ private:
 #ifdef BUILD_SERVER_ENABLED
     ContainerCore::ContainerMap mLoadedContainers;
 #endif
+
+    bool mForceStopAtTerminal = true;
+    units::time::second_t mDwellStartTime = units::time::second_t(-1.0);
+    units::time::second_t mDwellDuration = units::time::second_t(0.0);
+
     /**
      * @brief Calculates the wet surface area of the ship.
      *
@@ -1977,6 +2037,12 @@ signals:
                          QVector<std::shared_ptr<
                              ShipNetSimCore::GLine>> paths);
 
+    void reachedSeaPort(QString shipID, QString seaPortCode,
+                        QJsonArray containers = QJsonArray());
+
+#ifdef BUILD_SERVER_ENABLED
+    void containersAdded();
+#endif
 private: signals:
     /**
      * @brief Signal emitted when the ship's traveled distance changes
@@ -2016,6 +2082,14 @@ private slots:
      */
     void handleStepDistanceChanged(units::length::meter_t newTotalDistance,
                                    units::time::second_t timeStep);
+
+public slots:
+
+#ifdef BUILD_SERVER_ENABLED
+    QVector<ContainerCore::Container *>
+    getContainersLeavingAtPort(const QVector<QString>& portNames);
+#endif
+
 };
 };
 #endif // SHIP_H

@@ -14,6 +14,7 @@
 #include "shipengine.h"
 #include "defaults.h"
 #include "../network/gpoint.h"
+#include "../network/seaportloader.h"
 #include <QDebug>
 
 namespace ShipNetSimCore
@@ -2267,17 +2268,101 @@ Ship::getStepAcceleration(
 
 }
 
-void Ship::sail(units::time::second_t &timeStep,
-                    units::velocity::meters_per_second_t &freeFlowSpeed,
-                    QVector<units::length::meter_t> &gapToNextCriticalPoint,
-                    QVector<bool> &isFollowingAnotherShip,
-                    QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
-                    AlgebraicVector::Environment currentEnvironment)
+bool Ship::isCurrentlyDwelling() const {
+    return mDwellStartTime.value() >= 0;
+}
+
+void Ship::forceToStopFor(units::time::second_t duration,
+                          units::time::second_t currentTime)
 {
-    // update the engine state first
-    // for (auto& propeller: mPropellers) {
-    //     propeller->getGearBox()->updateGearboxOperationalState();
-    // }
+    mDwellStartTime = currentTime;
+    mDwellDuration = duration;
+}
+
+units::time::second_t Ship::getRemainingDwellTime(units::time::second_t currentTime) const {
+    if (mDwellStartTime.value() < 0) return units::time::second_t(0);
+    units::time::second_t elapsedTime = currentTime - mDwellStartTime;
+    units::time::second_t remainingTime = mDwellDuration - elapsedTime;
+    return (remainingTime.value() > 0) ?
+               remainingTime : units::time::second_t(0);
+}
+
+// When the train starts moving again, reset the dwell state
+void Ship::resetDwellState() {
+    mDwellStartTime = units::time::second_t(-1.0);
+    mDwellDuration  = units::time::second_t(0.0);
+}
+
+void Ship::sail(units::time::second_t &currentSimulationTime,
+                units::time::second_t &timeStep,
+                units::velocity::meters_per_second_t &freeFlowSpeed,
+                QVector<units::length::meter_t> &gapToNextCriticalPoint,
+                std::shared_ptr<GPoint> nextStoppingPoint,
+                QVector<bool> &isFollowingAnotherShip,
+                QVector<units::velocity::meters_per_second_t> &leaderSpeeds,
+                AlgebraicVector::Environment currentEnvironment)
+{
+    // Calculate the step distance
+    units::length::meter_t lastStepDistance = mSpeed * timeStep;
+
+    // If the ship is going towards a sea port / terminal,
+    // stop the ship for the dwell time
+    if (gapToNextCriticalPoint.size() == 1 && // it is applied to stopping point
+
+        // distance to next stop is less than 1 step distance
+        distanceFromCurrentPositionToNodePathIndex(
+            mPreviousPathPointIndex + 1).value() <=
+            lastStepDistance.value() &&
+
+        // It is a port
+        nextStoppingPoint->isPort()
+        )
+    {
+        // Check if the ship hasn't started its terminal dwell time yet
+        if (!isCurrentlyDwelling())
+        {
+
+            immediateStop(timeStep); // Make sure it comes to complete stop
+
+            // force the ship to stop for the dwell time
+            forceToStopFor(nextStoppingPoint->getDwellTime(),
+                           currentSimulationTime);
+
+            // make the navigation status to stopped at sea port
+            mNavigationStatus = NavigationStatus::Aground;
+
+            /// handle when the port is saved by
+            /// either the port number of the port code
+
+
+            // Get Port by point
+            auto port =
+                SeaPortLoader::getClosestPortToPoint(nextStoppingPoint);
+
+            QString portID = port->getPortCode();
+            QString portName = port->getPortName();
+
+            auto containers =
+                getContainersLeavingAtPort({portID, portName});
+            QJsonArray containersJson;
+            for (const auto& container : containers) {
+                containersJson.append(container->toJson());
+            }
+
+            emit reachedSeaPort(getUserID(), portID, containersJson);
+        }
+
+        // Skip movement if we're still within the dwell time
+        if ((getRemainingDwellTime(currentSimulationTime).value() > 0) &&
+
+            // Not apply on last destination to
+            // emit the reachedDestination signal
+            (mPreviousPathPointIndex + 1 < mPathPoints.size()))
+        {
+            return;     // skip movement and energy consumption.
+                        // Assuming ships turn off engines at ports
+        }
+    }
 
     // set the environment before doing anything
     setCurrentEnvironment(currentEnvironment);
@@ -2306,7 +2391,9 @@ void Ship::sail(units::time::second_t &timeStep,
     checkSuddenAccChange(this->mPreviousAcceleration,
                          this->mAcceleration,
                          timeStep);
-    setStepTravelledDistance(this->mSpeed * timeStep, timeStep);
+
+
+    setStepTravelledDistance(lastStepDistance, timeStep);
 
     QSet<int> uniqueEngineIDs; // holds ids of engines
     bool anyEngineOn = false;  // if any engine is still running
@@ -2352,7 +2439,7 @@ void Ship::sail(units::time::second_t &timeStep,
     mOutOfEnergy = !anyEngineOn; // the inverse of anyEngineOn (not the diff)
     mIsOn = anyEngineOn;
 
-    units::length::meter_t lastStepDistance = mSpeed * timeStep;
+
 
     // if the ship is within 10m from its destination,
     // count it as reached destination
@@ -2385,20 +2472,6 @@ void Ship::sail(units::time::second_t &timeStep,
 
     mNavigationStatus = NavigationStatus::PushingAhead;
 
-    // update operational power of the engine
-    // if (mTotalThrust < mTotalResistance &&
-    //     getSpeed() < getMaxSpeed() * 0.8) {
-    //     for (auto& propeller: mPropellers) {
-    //         propeller->requestHigherEnginePower();
-    //     }
-    // }
-    // else if (mTotalThrust.value() > 1.25 * mTotalResistance.value() &&
-    //          mPropellers[0]->getCurrentOperationalLoad() >
-    //              IShipEngine::EngineOperationalLoad::Economic) {
-    //     for (auto& propeller: mPropellers) {
-    //         propeller->requestLowerEnginePower();
-    //     }
-    // }
 }
 
 void Ship::calculateGeneralStats(units::time::second_t timeStep) {
@@ -2683,15 +2756,37 @@ QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
     return containerList;
 }
 
-void Ship::addContainer(ContainerCore::Container* container) {
+void Ship::addContainer(ContainerCore::Container* container)
+{
     if (container) {
-        mLoadedContainers.addContainer(container->getContainerID(), container,
-                                       std::nan(""), std::nan(""));
+        mLoadedContainers.addContainer(container->getContainerID(), container);
+        emit containersAdded();
     }
 }
 
 void Ship::addContainers(QJsonObject json) {
     mLoadedContainers.addContainers(json);
+    emit containersAdded();
+}
+
+QVector<ContainerCore::Container *>
+Ship::getContainersLeavingAtPort(const QVector<QString>& portNames)
+{
+    // Early return if no port names provided
+    if (portNames.isEmpty()) {
+        return QVector<ContainerCore::Container*>();
+    }
+
+    // Check each port until we find containers
+    for (const QString& portName : portNames) {
+        auto containers =
+            mLoadedContainers.dequeueContainersByNextDestination(portName);
+        if (!containers.isEmpty()) {
+            return containers;
+        }
+    }
+
+    return QVector<ContainerCore::Container*>();
 }
 #endif
 
