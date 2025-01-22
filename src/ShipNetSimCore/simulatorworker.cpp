@@ -1,4 +1,4 @@
-#include "simulatorapi.h"
+#include "threadsafeapidatamap.h"
 #include "simulatorworker.h"
 
 SimulatorWorker::SimulatorWorker(QObject *parent)
