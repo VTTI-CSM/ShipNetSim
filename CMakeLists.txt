@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.24)
 # the programming language used (CXX for C++)
 set(ShipNetSim_VERSION "0.0.1" CACHE STRING "Project version" FORCE)
 set(SHIPNETSIM_NAME "ShipNetSim" CACHE STRING "Project name" FORCE)
-set(SHIPNETSIM_VENDOR "(C) 2022-2023 Virginia Tech Transportation Institute - Center for Sustainable Mobility." CACHE STRING "Project vendor" FORCE)
+set(SHIPNETSIM_VENDOR "Virginia Tech Transportation Institute - Center for Sustainable Mobility." CACHE STRING "Project vendor" FORCE)
 # Get the current date and time
 string(TIMESTAMP BUILD_DATE "%Y-%m-%d %H:%M:%S")
 # Set the BUILD_DATE variable
