@@ -408,7 +408,18 @@ std::shared_ptr<Ship> loadShipFromParameters(QJsonObject shipJson,
     // Iterate over all key-value pairs in the JSON object
     for (auto it = shipJson.begin(); it != shipJson.end(); ++it) {
         QString key = it.key();
-        QString value = it.value().toString();  // Convert JSON value to string
+        QString value;
+
+        if (it.value().isString()) {
+            value = it.value().toString();
+        } else if (it.value().isDouble()) {
+            value = QString::number(it.value().toDouble());
+        } else if (it.value().isBool()) {
+            value = it.value().toBool() ? "true" : "false";
+        } else {
+            throw std::runtime_error("Unsupported value type for key: " +
+                                     key.toStdString());
+        }
 
         // Find the parameter converter based on the key
         auto param = findParamInfoByKey(key, FileOrderedparameters);
