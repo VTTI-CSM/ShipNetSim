@@ -23,6 +23,7 @@ add_executable(${SHIPNETSIM_SERVER_NAME}
     SimulationServer.h simulationserver.cpp
     # simulationworker.h simulationworker.cpp
     main.cpp
+    utils/serverutils.h
 )
 
 # Ensure that ShipNetSimCore is built first by specifying it as a dependency
@@ -43,8 +44,8 @@ target_link_libraries(${SHIPNETSIM_SERVER_NAME} PRIVATE
 )
 
 # Include Container library
-target_include_directories(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
-target_compile_definitions(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE BUILD_SERVER_ENABLED)
+target_include_directories(${SHIPNETSIM_SERVER_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
+target_compile_definitions(${SHIPNETSIM_SERVER_NAME} PRIVATE BUILD_SERVER_ENABLED)
 
 
 # Set compiler options for different build types using generator expressions
