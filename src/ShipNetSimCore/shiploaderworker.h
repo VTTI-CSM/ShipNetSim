@@ -3,12 +3,12 @@
 
 #include <QObject>
 #include <any>
+#include "network/optimizednetwork.h"
 
 // Forward declare APIData and ShipNetSimCore::Ship
 struct APIData;
 namespace ShipNetSimCore {
 class Ship;
-class OptimizedNetwork;
 }
 
 class ShipLoaderWorker : public QObject
@@ -16,16 +16,16 @@ class ShipLoaderWorker : public QObject
     Q_OBJECT
 public:
     explicit ShipLoaderWorker(QObject *parent = nullptr);
-    void loadShips(APIData& apiData,
+    void loadShips(ShipNetSimCore::OptimizedNetwork* network,
                    QString shipsFilePath,
                    QString networkName);
-    void loadShips(APIData& apiData,
+    void loadShips(ShipNetSimCore::OptimizedNetwork* network,
                    QVector<QMap<QString, std::any> > ships,
                    QString networkName);
-    void loadShips(APIData& apiData,
+    void loadShips(ShipNetSimCore::OptimizedNetwork* network,
                    QJsonObject &ships,
                    QString networkName);
-    void loadShips(APIData& apiData,
+    void loadShips(ShipNetSimCore::OptimizedNetwork* network,
                    QVector<QMap<QString, QString> > ships,
                    QString networkName);
     void loadShips(QJsonObject ships,

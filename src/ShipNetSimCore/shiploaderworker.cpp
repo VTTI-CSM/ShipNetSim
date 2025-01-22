@@ -1,13 +1,12 @@
 #include "shiploaderworker.h"
 #include "ship/shipsList.h"
-#include "simulatorapi.h"
-
+#include "network/optimizednetwork.h"
 
 ShipLoaderWorker::ShipLoaderWorker(QObject *parent)
     : QObject{parent}
 {}
 
-void ShipLoaderWorker::loadShips(APIData& apiData,
+void ShipLoaderWorker::loadShips(ShipNetSimCore::OptimizedNetwork *network,
                                  QString shipsFilePath,
                                  QString networkName)
 {
@@ -15,12 +14,12 @@ void ShipLoaderWorker::loadShips(APIData& apiData,
         // Invoke your static method
         auto shipsData =
             ShipNetSimCore::ShipsList::readShipsFile(shipsFilePath,
-                                                     apiData.network,
+                                                     network,
                                                      false);
 
         auto ships =
             ShipNetSimCore::ShipsList::loadShipsFromParameters(shipsData,
-                                                               apiData.network,
+                                                               network,
                                                                false);
 
         // Emit the result
@@ -31,7 +30,7 @@ void ShipLoaderWorker::loadShips(APIData& apiData,
 
 }
 
-void ShipLoaderWorker::loadShips(APIData &apiData,
+void ShipLoaderWorker::loadShips(ShipNetSimCore::OptimizedNetwork *network,
                                  QVector<QMap<QString, std::any> > ships,
                                  QString networkName)
 {
@@ -39,8 +38,8 @@ void ShipLoaderWorker::loadShips(APIData &apiData,
         // Invoke your static method
         auto shipsVec =
             ShipNetSimCore::ShipsList::loadShipsFromParameters(ships,
-                                                     apiData.network,
-                                                     false);
+                                                               network,
+                                                               false);
 
         // Emit the result
         emit shipsLoaded(shipsVec);
@@ -49,7 +48,7 @@ void ShipLoaderWorker::loadShips(APIData &apiData,
     }
 }
 
-void ShipLoaderWorker::loadShips(APIData &apiData,
+void ShipLoaderWorker::loadShips(ShipNetSimCore::OptimizedNetwork *network,
                                  QJsonObject &ships,
                                  QString networkName)
 {
@@ -57,8 +56,8 @@ void ShipLoaderWorker::loadShips(APIData &apiData,
         // Invoke your static method
         auto shipsVec =
             ShipNetSimCore::ShipsList::loadShipsFromJson(ships,
-                                                     apiData.network,
-                                                     false);
+                                                         network,
+                                                         false);
 
         // Emit the result
         emit shipsLoaded(shipsVec);
@@ -67,7 +66,7 @@ void ShipLoaderWorker::loadShips(APIData &apiData,
     }
 }
 
-void ShipLoaderWorker::loadShips(APIData &apiData,
+void ShipLoaderWorker::loadShips(ShipNetSimCore::OptimizedNetwork *network,
                                  QVector<QMap<QString, QString> > ships,
                                  QString networkName)
 {
@@ -75,7 +74,7 @@ void ShipLoaderWorker::loadShips(APIData &apiData,
         // Invoke your static method
         auto shipsVec =
             ShipNetSimCore::ShipsList::loadShipsFromParameters(ships,
-                                                               apiData.network,
+                                                               network,
                                                                false);
 
         // Emit the result
