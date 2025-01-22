@@ -77,7 +77,8 @@ QString ShipNetSimUI::saveFile(ShipNetSim *parent,
     dialog.setDirectory(saveLoc);
     dialog.setNameFilter(fileExtensions);
     dialog.setAcceptMode(QFileDialog::AcceptSave);  // Set dialog for saving
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);  // Important for OSG compatibility
+    dialog.setOption(QFileDialog::DontUseNativeDialog,
+                     true);  // Important for OSG compatibility
 
     QString fname;
     if (dialog.exec() == QDialog::Accepted) {
@@ -95,7 +96,7 @@ QString ShipNetSimUI::saveFile(ShipNetSim *parent,
                 if (startIdx > 1 && endIdx > startIdx) {
                     defaultExtension =
                         firstFilter.mid(startIdx, endIdx - startIdx).
-                                       split(" ").first();
+                        split(" ").first();
                 }
             }
 
@@ -127,7 +128,8 @@ QString ShipNetSimUI::browseFiles(ShipNetSim *parent,
     dialog.setDirectory(browsLoc);
     dialog.setNameFilter(fileExtensions);
     dialog.setFileMode(QFileDialog::ExistingFile);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);  // Important for OSG compatibility
+    dialog.setOption(QFileDialog::DontUseNativeDialog,
+                     true);  // Important for OSG compatibility
 
     QString fname;
     if (dialog.exec() == QDialog::Accepted) {
@@ -160,7 +162,8 @@ void ShipNetSimUI::browseFolder(ShipNetSim *parent,
     dialog.setFileMode(QFileDialog::Directory);
     dialog.setOption(QFileDialog::ShowDirsOnly);
     dialog.setOption(QFileDialog::DontResolveSymlinks);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);  // For OSG compatibility
+    dialog.setOption(QFileDialog::DontUseNativeDialog,
+                     true);  // For OSG compatibility
 
     if (dialog.exec() == QDialog::Accepted) {
         QString folderPath = dialog.selectedFiles().first();
@@ -177,32 +180,45 @@ void ShipNetSimUI::updateGraphs(ShipNetSim *parent,
 {
     qDebug() << "Trying to plot the trajectory output.";
 
+    // create the processing window if it does not exist
+    if (!parent->processingWindow) {
+        parent->processingWindow = new ProcessingWindow(parent);
+    }
+
     auto csvReader =
         std::make_shared<ShipNetSimCore::Data::CSV>(trajectoryFilename);
 
     auto ids =
-        csvReader->getDistinctValuesFromCSV(true, 1, ","); // get all file ship ID's
-
-    qDebug() << "Found ship IDs: " << ids.join(", ");
+        csvReader->getDistinctValuesFromCSV(true,
+                                            1,
+                                            ","); // get all file ship ID's
 
     shipIDsCombobox->clear();
     shipIDsCombobox->addItem(QString("--"));
     shipIDsCombobox->addItems(ids);
 
+    // hide the processing window
+    parent->processingWindow->hide();
+
     auto updateResultsCurves =
         [csvReader, shipIDsCombobox, axisComboBox, parent]()
     {
-            auto handleTableDoesNotHaveColumn = [parent](int columnIndex) {
-                QString msg =
-                    QString("Trajectory table does not have column %1")
-                                  .arg(columnIndex);
+        // create the processing window if it does not exist
+        if (!parent->processingWindow) {
+            parent->processingWindow = new ProcessingWindow(parent);
+        }
 
-                if (parent) {
-                    showNotification(parent, msg);
-                } else {
-                    qWarning() << "Error: " << msg;
-                }
-            };
+        auto handleTableDoesNotHaveColumn = [parent](int columnIndex) {
+            QString msg =
+                QString("Trajectory table does not have column %1")
+                    .arg(columnIndex);
+
+            if (parent) {
+                showNotification(parent, msg);
+            } else {
+                qWarning() << "Error: " << msg;
+            }
+        };
 
         try {
             auto targetValue = shipIDsCombobox->currentText();
@@ -262,8 +278,11 @@ void ShipNetSimUI::updateGraphs(ShipNetSim *parent,
 
             if (!EC.isEmpty()) {
                 instantaneousEC.clear();
-                instantaneousEC.push_back(EC[0]); // Add first value only if EC is not empty
+
+                // Add first value only if EC is not empty
+                instantaneousEC.push_back(EC[0]);
             }
+
             // Calculate differences between consecutive elements
             for (qsizetype i = 1; i < EC.size(); ++i) {
                 double instantaneous = EC[i] - EC[i - 1];
@@ -349,9 +368,12 @@ void ShipNetSimUI::updateGraphs(ShipNetSim *parent,
                     "Wave Length", 0);
             }
 
+            parent->processingWindow->hide();
+
         } catch (std::exception &e) {
             if (parent) {
                 showNotification(parent, e.what());
+                parent->processingWindow->hide();
             } else {
                 qWarning() << "Error: " << e.what();
             }
@@ -360,9 +382,9 @@ void ShipNetSimUI::updateGraphs(ShipNetSim *parent,
     };
 
     ShipNetSim::connect(shipIDsCombobox,
-            &QComboBox::currentTextChanged, updateResultsCurves);
+                        &QComboBox::currentTextChanged, updateResultsCurves);
     ShipNetSim::connect(axisComboBox,
-            &QComboBox::currentTextChanged, updateResultsCurves);
+                        &QComboBox::currentTextChanged, updateResultsCurves);
 }
 
 
@@ -380,7 +402,6 @@ void ShipNetSimUI::handleSampleProject(ShipNetSim *parent) {
     QString executablePath = QCoreApplication::applicationDirPath();
 
     QString filePath = ShipNetSimCore::Utils::getDataFile("sampleProject.sns");
-        // QDir(QDir(executablePath).filePath("sampleProject")).filePath("sampleProject.SNS");
     parent->loadProjectFiles(filePath);
 }
 
