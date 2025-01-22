@@ -6,6 +6,7 @@
 #include <osgEarth/ExampleResources>
 #include "../components/simulationworker.h"
 #include "aboutwindow.h"
+#include "gui/windowMangement/processingwindow.h"
 #include "settingswindow.h"
 #include "../../utils/configurationmanager.h"
 #include "utils/utils.h"
@@ -227,6 +228,8 @@ private:
     // Pointer to the SimulationWorker object used for running
     // the simulation in a separate thread.
     SimulationWorker* worker = nullptr;
+
+    ProcessingWindow* processingWindow = nullptr;
 
 public:
     /**

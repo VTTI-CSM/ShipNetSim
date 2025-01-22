@@ -49,6 +49,9 @@ ShipNetSim::ShipNetSim(QWidget *parent)
 
 ShipNetSim::~ShipNetSim()
 {
+    if (processingWindow) {
+        delete processingWindow;
+    }
     delete ui;
 }
 
@@ -180,9 +183,8 @@ void ShipNetSim::setupGenerals(){
                                   "Cannot delete the first row!");
             });
 
-    auto defaultGlobalMap =
-        ShipNetSimCore::Utils::getDataFile("ne_110m_ocean.shp");
-    SimulatorAPI::ContinuousMode::loadNetwork(defaultGlobalMap,
+
+    SimulatorAPI::ContinuousMode::loadNetwork("Default",
                                               MAIN_SIMULATION_NAME);
     SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
         MAIN_SIMULATION_NAME, {}, units::time::second_t(1.0), false,
@@ -792,6 +794,8 @@ void ShipNetSim::handleViewTrajectoryFile(QString trajectoryFile)
 {
     QFileInfo fileInfo(trajectoryFile);
 
+    processingWindow->show();
+
     if (fileInfo.exists()) {
         ShipNetSimUI::updateGraphs(
             this, ui->comboBox_shipsResults,
@@ -925,7 +929,7 @@ void ShipNetSim::loadProjectFiles(QString projectFilename) {
 }
 
 ShipNetSimCore::GPoint ShipNetSim::findPortCoords(QString portCode) {
-    auto ports = ShipNetSimCore::OptimizedNetwork::loadFirstAvailableSeaPorts();
+    auto ports = ShipNetSimCore::SeaPortLoader::loadFirstAvailableSeaPorts();
     for (const auto &port : ports) {
         if (port->getPortCode() == portCode) {
             return port->getPortCoordinate();
@@ -1075,6 +1079,20 @@ void ShipNetSim::loadShipsDataToTables(QVector<QMap<QString, QString>> data)
 
 void ShipNetSim::simulate() {
     try {
+        if (SimulatorAPI::ContinuousMode::
+            isWorkerBusy(MAIN_SIMULATION_NAME)) {
+            ShipNetSimUI::showWarning(this, "Worker is busy, "
+                                            "wait a little bit!");
+            return;
+        }
+        if (!SimulatorAPI::ContinuousMode::
+            isNetworkLoaded(MAIN_SIMULATION_NAME))
+        {
+            SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
+                MAIN_SIMULATION_NAME, {}, units::time::second_t(1.0), false,
+                SimulatorAPI::Mode::Async);
+        }
+
 
         QVector<QMap<QString, QString>> shipsRecords;
 
@@ -1194,8 +1212,11 @@ void ShipNetSim::simulate() {
 
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
                 &SimulatorAPI::simulationFinished, this,
-                [this, instaFilename, exportDir](QString networkName)
+                [this, instaFilename, exportDir](QVector<QString> networkNames)
                 {
+                    if (networkNames.contains(MAIN_SIMULATION_NAME)) {
+                        return;
+                    }
                     // enable the results window
                     ui->tabWidget_project->setTabEnabled(3, true);
                     ui->pushButton_projectNext->setEnabled(true);
@@ -1203,6 +1224,7 @@ void ShipNetSim::simulate() {
                     ShipNetSimUI::showNotification(
                         this, "Simulation finished Successfully!");
                     ui->tabWidget_project->setCurrentIndex(3);
+
                     ui->pushButton_pauseResume->setVisible(false);
                     ui->pushButton_terminate->setVisible(false);
 
@@ -1212,6 +1234,7 @@ void ShipNetSim::simulate() {
                         GUIUtils::constructFullPath(exportDir,
                                                     instaFilename,
                                                     "csv");
+
 
                     ui->lineEdit_trajectoryViewBrowse->setText(trajectoryFile);
                 }, Qt::QueuedConnection);
@@ -1281,9 +1304,9 @@ void ShipNetSim::simulate() {
 
     } catch (const std::exception& e) {
         ShipNetSimUI::showErrorBox(e.what());
-        // hide the pause button
-        ui->pushButton_pauseResume->setVisible(false);
-        ui->pushButton_terminate->setVisible(false);
+
+        ui->pushButton_pauseResume->setVisible(false); // Hide pause
+        ui->pushButton_terminate->setVisible(true);   // Keep terminate visible
 
         // Enable the simulate button
         this->ui->pushButton_projectNext->setEnabled(true);
