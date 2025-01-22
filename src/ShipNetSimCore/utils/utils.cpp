@@ -1,6 +1,7 @@
 #include "utils.h"
 #include <QStandardPaths>
-
+#include "../ship/ship.h"
+#include "../../third_party/units/units.h"
 namespace ShipNetSimCore
 {
 namespace Utils
@@ -215,5 +216,20 @@ bool stringToBool(const QString& str, bool* ok)
     }
 };
 
+double accumulateShipValuesDouble(const QVector<std::shared_ptr<Ship>>& ships,
+                                  std::function<double(const std::shared_ptr<Ship>&)> func) {
+    return std::accumulate(ships.begin(), ships.end(), 0.0,
+                           [&func](double total, const std::shared_ptr<Ship>& ship) {
+                               return total + func(ship);
+                           });
+}
+
+int accumulateShipValuesInt(const QVector<std::shared_ptr<Ship>>& ships,
+                            std::function<int(const std::shared_ptr<Ship>&)> func) {
+    return std::accumulate(ships.begin(), ships.end(), 0,
+                           [&func](int total, const std::shared_ptr<Ship>& ship) {
+                               return total + func(ship);
+                           });
+}
 }
 }
