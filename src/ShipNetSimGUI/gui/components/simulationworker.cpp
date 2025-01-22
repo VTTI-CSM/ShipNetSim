@@ -13,7 +13,7 @@ SimulationWorker::SimulationWorker(
     QString instaFilename, bool exportAllTrainsSummary)
 {
     this->net =
-        new ShipNetSimCore::OptimizedNetwork(waterBoundariesFile);
+        new ShipNetSimCore::OptimizedNetwork(waterBoundariesFile, networkName);
     auto ships =
         ShipNetSimCore::ShipsList::loadShipsFromParameters(shipsRecords);
 
