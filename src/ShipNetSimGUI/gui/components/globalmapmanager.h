@@ -16,6 +16,7 @@
 
 #include <QKeyEvent>
 #include <network/optimizednetwork.h>
+#include "network/seaportloader.h"
 
 #include <osgEarth/Utils>
 #include <osgEarth/Registry>
@@ -635,7 +636,7 @@ public:
 
         // load sea ports
         QVector<std::shared_ptr<ShipNetSimCore::SeaPort>> ports =
-            ShipNetSimCore::OptimizedNetwork::loadFirstAvailableSeaPorts();
+            ShipNetSimCore::SeaPortLoader::loadFirstAvailableSeaPorts();
 
         // hold sea ports as a map of countries
         std::unordered_map<QString,
