@@ -484,11 +484,18 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         }
         double runBy = jsonMessage["byTimeSteps"].toDouble(60);
 
+
+        // Get progress signals only if running by short steps
+        bool getSignals = true;
+        if (runBy < 0) {  // run until end of simulation
+            getSignals = false;
+        }
+
         qDebug() << "[Server] Executing simulation for networks: " << nets
                  << " with time step duration: " << runBy << "s.";
 
         SimulatorAPI::InteractiveMode::runSimulation(
-            nets, units::time::second_t(runBy));
+            nets, units::time::second_t(runBy), getSignals);
 
     } else if (command == "terminateSimulator") {
         qInfo() << "[Server] Received command: Terminating simulation.";
