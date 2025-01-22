@@ -1,15 +1,14 @@
 #include "optimizednetwork.h"
 #include "gpoint.h"
-#include "qdebug.h"      // Debugging utilities
 #include <QCoreApplication>  // Core application utilities
 #include <QFile>             // File input/output utilities
 #include <QTextStream>       // Text stream utilities
-#include <QDebug>            // Debugging utilities
 #include <QRegularExpression>
 #include <gdal_priv.h>
 #include <ogrsf_frmts.h>
 #include "../utils/utils.h"
 #include "networkdefaults.h"
+#include "seaportloader.h"
 
 namespace ShipNetSimCore
 {
@@ -24,13 +23,14 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
 
     if (loc == "")
     {
-        qFatal("Could not find the tiff file");
+        emit errorOccured("Could not find the tiff file");
+        return false;
     }
     variable.dataset = readTIFFFile(loc.toStdString().c_str());
     if (variable.dataset->GetGeoTransform(
             variable.adfGeoTransform) != CE_None)
     {
-        qFatal("Tiff file may not have an assigned SRS!");
+        emit errorOccured("Tiff file may not have an assigned SRS!");
         return false;
     }
 
@@ -42,57 +42,10 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
 
 }
 
-QVector<std::shared_ptr<SeaPort>>
-OptimizedNetwork::loadFirstAvailableSeaPorts()
-{
-    static QVector<std::shared_ptr<SeaPort>> SeaPorts;
-    if (!SeaPorts.isEmpty()) {
-        return SeaPorts;
-    }
-
-    QVector<QString> seaPortsLocs =
-        NetworkDefaults::seaPortsLocations(Utils::getDataDirectory());
-
-    QString filePath =
-        Utils::getFirstExistingPathFromList(seaPortsLocs,
-                                            QVector<QString>("geojson"));
-    // if there is a path found, load it
-    if (filePath == "")
-    {
-        return QVector<std::shared_ptr<SeaPort>>();
-    }
-    else
-    {
-        SeaPorts = readSeaPorts( filePath.toStdString().c_str());
-        return SeaPorts;
-    }
-
-}
-
-bool OptimizedNetwork::loadFirstAvailableSeaPortsFile(
-    QVector<QString> locations)
-{
-    QString filePath =
-        Utils::getFirstExistingPathFromList(locations,
-                                            QVector<QString>("geojson"));
-
-    // if there is a path found, load it
-    if (filePath == "")
-    {
-        return false;
-    }
-    else
-    {
-        mSeaPorts = readSeaPorts(
-            filePath.toStdString().c_str());
-        return true;
-    }
-}
-
 OptimizedNetwork::OptimizedNetwork()
 {}
 
-void OptimizedNetwork::initializeNetwork(QString filename)
+void OptimizedNetwork::initializeNetwork(QString filename, QString regionName)
 {
     GDALAllRegister();
 
@@ -100,7 +53,7 @@ void OptimizedNetwork::initializeNetwork(QString filename)
 
     // Check if the file exists before trying to get its extension
     if (!fileInfo.exists()) {
-        qDebug() << "File does not exist.";
+        emit errorOccured("File does not exist.");
         return;
     }
 
@@ -118,20 +71,27 @@ void OptimizedNetwork::initializeNetwork(QString filename)
     }
     // other file extensions are not yet supported
     else {
-        qFatal("file type is not supported!");
+        emit errorOccured("file type is not supported!");
+        return;
     }
 
     // load the sea ports
     bool loadedSeaPorts =
-        loadFirstAvailableSeaPortsFile(
+        SeaPortLoader::loadFirstAvailableSeaPortsFile(
             NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
-    if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
+    mSeaPorts = SeaPortLoader::getPorts();
+    if (! loadedSeaPorts) {
+        emit errorOccured("Sea Ports file could not be loaded!");
+        return;
+    }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
 
     // mVisibilityGraph->buildGraph();
 
     loadTiffData();
+
+    mRegionName = regionName;
 
     // send signal that the network is loaded and valid
     emit NetworkLoaded();
@@ -153,9 +113,13 @@ void OptimizedNetwork::initializeNetwork(
 
     // load the sea ports
     bool loadedSeaPorts =
-        loadFirstAvailableSeaPortsFile(
+        SeaPortLoader::loadFirstAvailableSeaPortsFile(
             NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
-    if (! loadedSeaPorts) { qWarning("Sea Ports file could not be loaded!"); }
+    mSeaPorts = SeaPortLoader::getPorts();
+    if (! loadedSeaPorts) {
+        emit errorOccured("Sea Ports file could not be loaded!");
+        return;
+    }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
 
     loadTiffData();
@@ -178,9 +142,9 @@ OptimizedNetwork::OptimizedNetwork(
 OptimizedNetwork::~OptimizedNetwork()
 {}
 
-OptimizedNetwork::OptimizedNetwork(QString filename)
+OptimizedNetwork::OptimizedNetwork(QString filename, QString regionName)
 {
-    initializeNetwork(filename);
+    initializeNetwork(filename, regionName);
 }
 
 
@@ -199,7 +163,7 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly))
     {
-        qFatal("Failed to open the network file.");  // Log error message
+        emit errorOccured("Failed to open the network file.");
         return;
     }
 
@@ -322,8 +286,8 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
             {
                 // Handle invalid or unexpected lines
                 if (!line.isEmpty()) {
-                    qDebug() << "Unexpected format or "
-                                "content in line:" << line;
+                    emit errorOccured("Unexpected format or "
+                                "content in line:" + line);
                 }
             }
         }
@@ -355,7 +319,7 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
         (GDALOpenEx(filepath.toStdString().c_str(),
                     GDAL_OF_VECTOR, NULL, NULL, NULL));
     if(poDS == NULL) {
-        qFatal("Open shaefile failed.");
+        emit errorOccured("Open shaefile failed.");
     }
 
     OGRLayer* poLayer = poDS->GetLayer(0);
@@ -371,14 +335,14 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
         if (! poSRS->IsGeographic()) {
             CPLFree(pszSRS_WKT);
             GDALClose(poDS);
-            qFatal("The spatial reference system is not geographic. "
-                   "Exiting...");
+            emit errorOccured("The spatial reference system is not geographic. "
+                              "Exiting...");
         }
 
         CPLFree(pszSRS_WKT);
     } else {
         GDALClose(poDS);
-        qFatal("Spatial reference system is unknown. Exiting...");
+        emit errorOccured("Spatial reference system is unknown. Exiting...");
     }
 
 
@@ -532,124 +496,19 @@ GDALDataset *OptimizedNetwork::readTIFFFile(
 
     dataset = (GDALDataset *) GDALOpen(filename, GA_ReadOnly);
     if(dataset == nullptr) {
-        std::cerr << "Error opening file: " << filename << std::endl;
+        emit errorOccured(QString("Error opening file: ") + filename);
         return {}; // Return an empty vector on failure
     }
 
     // Check for the number of bands in the TIFF file
     if(dataset->GetRasterCount() > 1) {
         GDALClose(dataset); // Close the dataset before throwing
-        qFatal("TIFF file contains more than one band, "
-               "which is not supported.");
+        emit errorOccured("TIFF file contains more than one band, "
+                          "which is not supported.");
     }
 
     return dataset;
 
-}
-
-QVector<std::shared_ptr<SeaPort> >
-OptimizedNetwork::readSeaPorts(const char* filename)
-{
-    QVector<std::shared_ptr<SeaPort>> seaPorts;
-
-    GDALDataset* dataset = static_cast<GDALDataset*>(
-        GDALOpenEx(filename, GDAL_OF_VECTOR, nullptr, nullptr, nullptr));
-    if (dataset == nullptr) {
-        qWarning("Failed to open file: %s", qPrintable(filename));
-        return seaPorts;
-    }
-
-    // Assuming the data is in the first layer
-    OGRLayer* layer = dataset->GetLayer(0);
-    if (layer == nullptr) {
-        qWarning("Failed to get layer from dataset.");
-        GDALClose(dataset);
-        return seaPorts;
-    }
-
-    OGRFeature* feature;
-    layer->ResetReading();
-
-    while ((feature = layer->GetNextFeature()) != nullptr) {
-        const char* function = feature->GetFieldAsString("Function");
-        const char* status = feature->GetFieldAsString("Status");
-
-        if (function[0] == '1' && strcmp(status, "AI") == 0) {
-            const char* country = feature->GetFieldAsString("Country");
-            const char* nameWoDiac = feature->GetFieldAsString("NameWoDiac");
-            const char* locode = feature->GetFieldAsString("LOCODE");
-            QString qStatus = QString::fromUtf8(status).toUpper();
-            OGRGeometry* geometry = feature->GetGeometryRef();
-
-            if (geometry != nullptr &&
-                wkbFlatten(geometry->getGeometryType()) == wkbPoint) {
-                OGRPoint* point = static_cast<OGRPoint*>(geometry);
-                double longitude = point->getX();
-                double latitude = point->getY();
-                GPoint p = GPoint(units::angle::degree_t(longitude),
-                                  units::angle::degree_t(latitude));
-                auto sp = std::make_shared<SeaPort>(p);
-                // SeaPort sp = SeaPort(p);
-                try {
-                    sp->setCountryName(country);
-                    sp->setPortCode(locode);
-                    sp->setPortName(nameWoDiac);
-                    sp->setHasRailTerminal(function[1] != '-');
-                    sp->setHasRoadTerminal(function[2] != '-');
-
-
-                    QString statusText;
-
-                    if (qStatus == "AA") {
-                        statusText = "Approved by competent national "
-                                     "government agency";
-                    } else if (qStatus == "AC") {
-                        statusText = "Approved by Customs Authority";
-                    } else if (qStatus == "AF") {
-                        statusText = "Approved by national facilitation body";
-                    } else if (qStatus == "AI") {
-                        statusText = "Code adopted by international "
-                                     "organisation (IATA or ECLAC)";
-                    } else if (qStatus == "AS") {
-                        statusText = "Approved by national standardisation "
-                                     "body";
-                    } else if (qStatus == "RL") {
-                        statusText = "Recognised location - Existence and "
-                                     "representation of location name "
-                                     "confirmed by check against nominated "
-                                     "gazetteer or other reference work";
-                    } else if (qStatus == "RN") {
-                        statusText = "Request from credible national sources "
-                                     "for locations in their own country";
-                    } else if (qStatus == "RQ") {
-                        statusText = "Request under consideration";
-                    } else if (qStatus == "RR") {
-                        statusText = "Request rejected";
-                    } else if (qStatus == "QQ") {
-                        statusText = "Original entry not verified since date "
-                                     "indicated";
-                    } else if (qStatus == "XX") {
-                        statusText = "Entry that will be removed from the "
-                                     "next issue of UN/LOCODE";
-                    } else {
-                        statusText = "Unknown status code";
-                    }
-
-                    sp->setStatusOfEntry(statusText);
-                } catch (std::exception& e)
-                {
-                    qWarning("%s", e.what());
-                }
-
-                seaPorts.push_back(sp);
-            }
-        }
-
-        OGRFeature::DestroyFeature(feature);
-    }
-
-    GDALClose(dataset);
-    return seaPorts;
 }
 
 
