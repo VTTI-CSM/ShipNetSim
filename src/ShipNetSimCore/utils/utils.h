@@ -8,8 +8,12 @@
 #include "../export.h"
 #include <QCoreApplication>
 
+
 namespace ShipNetSimCore
 {
+
+class Ship; // Forward declaration of Ship class
+
 // The Utils namespace encapsulates utility functions and structures
 namespace Utils
 {
@@ -110,6 +114,27 @@ SHIPNETSIM_EXPORT QString formatString(const QString preString,
                                        const QString postString,
                                        const QString filler,
                                        int length);
+
+/**
+ * @brief Accumulate values from a vector of ships using a function that returns a double.
+ * @param ships Vector of shared pointers to Ship objects.
+ * @param func A function to extract a double value from each ship.
+ * @return The accumulated double value.
+ */
+double accumulateShipValuesDouble(const QVector<std::shared_ptr<Ship>>& ships,
+                                  std::function<double(const std::shared_ptr<Ship>&)> func);
+
+/**
+ * @brief Accumulate values from a vector of ships using a function that returns an int.
+ * @param ships Vector of shared pointers to Ship objects.
+ * @param func A function to extract an int value from each ship.
+ * @return The accumulated int value.
+ */
+int accumulateShipValuesInt(const QVector<std::shared_ptr<Ship>>& ships,
+                            std::function<int(const std::shared_ptr<Ship>&)> func);
+
+
+
 
 /**
  * Retrieve a value from a QMap with a specified key.
