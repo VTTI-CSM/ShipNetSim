@@ -44,6 +44,8 @@ set(PROJECT_H_FILES
     gui/components/generalPopupForm.h
     gui/components/reportwidget.h
     gui/components/customplot.h
+    gui/components/spinnerwidget.h
+    gui/windowMangement/processingwindow.h
 
     utils/guiutils.h
 
@@ -52,9 +54,10 @@ set(PROJECT_H_FILES
 )
 
 set(PROJECT_UI_FILES
-        gui/windowMangement/aboutwindow.ui
-        gui/windowMangement/settingswindow.ui
-        gui/windowMangement/shipnetsim.ui
+    gui/windowMangement/aboutwindow.ui
+    gui/windowMangement/settingswindow.ui
+    gui/windowMangement/shipnetsim.ui
+    gui/windowMangement/processingwindow.ui
 )
 
 set(PROJECT_SOURCES
@@ -76,6 +79,8 @@ set(PROJECT_SOURCES
     gui/components/globalmapmanager.cpp
     gui/components/reportwidget.cpp
     gui/components/customplot.cpp
+    gui/components/spinnerwidget.cpp
+    gui/windowMangement/processingwindow.cpp
 
     ../third_party/qcustomplot/qcustomplot.cpp
 
@@ -102,11 +107,11 @@ else()
         add_library(${SHIPNETSIM_GUI_NAME} SHARED
             ${PROJECT_SOURCES}
         )
-    else()
-        add_executable(${SHIPNETSIM_GUI_NAME}
-            ${PROJECT_SOURCES}
-        )
-    endif()
+else()
+    add_executable(${SHIPNETSIM_GUI_NAME}
+        ${PROJECT_SOURCES}
+    )
+endif()
 endif()
 
 # Ensure that ShipNetSimCore is built first by specifying it as a dependency
@@ -171,7 +176,7 @@ endif()
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
 if(${QT_VERSION} VERSION_LESS 6.1.0)
-  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.ShipNetSimGUI)
+    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.ShipNetSimGUI)
 endif()
 
 include(GNUInstallDirs)
@@ -184,15 +189,15 @@ install(TARGETS ${SHIPNETSIM_GUI_NAME}
 target_compile_options(${SHIPNETSIM_NAME} PRIVATE
     # MSVC-specific flags
     $<$<CXX_COMPILER_ID:MSVC>:
-        /W4
-        $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-        $<$<CONFIG:Release>:/Ox>   # Release flags
+    /W4
+    $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
+    $<$<CONFIG:Release>:/Ox>   # Release flags
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
-        -Wall
-        $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
-        $<$<CONFIG:Release>:-O3>   # Release flags
+    -Wall
+    $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
+    $<$<CONFIG:Release>:-O3>   # Release flags
     >
 )
 
@@ -204,25 +209,25 @@ if(BUILD_SERVER)
             # Copy container.dll only in Release mode
             add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_BIN_DIR}/container.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
+                "${CONTAINER_BIN_DIR}/container.dll"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
             )
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy containerd.dll only in Debug mode
-            add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_BIN_DIR}/containerd.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
-            )
-        endif()
-    endif()
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Copy containerd.dll only in Debug mode
+        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CONTAINER_BIN_DIR}/containerd.dll"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
+        )
+endif()
+endif()
 
 endif()
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
 add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSimGUI>
+    $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:ShipNetSimGUI>
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
