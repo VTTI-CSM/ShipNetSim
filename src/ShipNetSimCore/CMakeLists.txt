@@ -58,6 +58,8 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   simulatorworker.h simulatorworker.cpp
   shiploaderworker.h shiploaderworker.cpp
   network/seaportloader.h network/seaportloader.cpp
+  threadsafeapidatamap.h
+  requestdata.h
 )
 
 # Define SHIPNETSIM_LIBRARY during compilation to activate symbol export
