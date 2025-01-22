@@ -106,8 +106,11 @@ int main(int argc, char *argv[])
     std::string GithubLink = "https://github.com/VTTI-CSM/ShipNetSim";
     QCoreApplication::setApplicationName(ShipNetSim_NAME);
     QCoreApplication::setApplicationVersion(ShipNetSim_VERSION );
-    QCoreApplication::setOrganizationName(
-        QString::fromStdString(ShipNetSim_VENDOR));
+    QString yearRange = QString("(C) %1-%2 ")
+                            .arg(QDate::currentDate().year() - 1)
+                            .arg(QDate::currentDate().year());
+    QString vendor = yearRange + QString::fromStdString(ShipNetSim_VENDOR);
+    QCoreApplication::setOrganizationName(vendor);
 
     // Attach the logger first thing:
     ShipNetSimCore::Logger::attach("ShipNetSim");
@@ -387,8 +390,6 @@ int main(int argc, char *argv[])
 
 
             std::cout <<"\nPutting Things Together!       \n";
-            SimulatorAPI::ContinuousMode::setConnectionType(
-                Qt::QueuedConnection);
             SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
                 MAIN_SIMULATION_NAME, ships, units::time::second_t(timeStep),
                 false);
@@ -412,7 +413,13 @@ int main(int argc, char *argv[])
             QEventLoop loop;
             QObject::connect(&SimulatorAPI::ContinuousMode::getInstance(),
                              &SimulatorAPI::simulationFinished,
-                             &loop, &QEventLoop::quit);
+                             &loop, [&loop](QVector<QString> networkNames){
+                                 if (networkNames.contains(
+                                         MAIN_SIMULATION_NAME))
+                                 {
+                                     loop.quit();
+                                 }
+                             });
             QObject::connect(&SimulatorAPI::ContinuousMode::getInstance(),
                              &SimulatorAPI::errorOccurred,
                              &loop, [&loop](QString error) {
