@@ -57,7 +57,8 @@
 #include "ship/ship.h"
 #include "network/optimizednetwork.h"
 #include "simulatorworker.h"
-
+#include "threadsafeapidatamap.h"
+#include "requestdata.h"
 
 
 
@@ -91,53 +92,7 @@ protected:
     }
 };
 
-/**
-* @struct APIData
-* @brief Container for network-specific simulation components
-*
-* @details Holds all components required for a single network simulation,
-* including network, simulator, workers, and ships. Each network in the
-* simulation has its own APIData instance.
-*/
-struct SHIPNETSIM_EXPORT APIData {
-    ShipNetSimCore::OptimizedNetwork* network = nullptr;  ///< Network instance for routing and geography
-    SimulatorWorker* simulatorWorker = nullptr;           ///< Worker for simulation processing
-    ShipNetSimCore::Simulator* simulator = nullptr;       ///< Main simulator instance
-    ShipLoaderWorker* shipLoaderWorker = nullptr;        ///< Worker for loading ship data
-    QThread *workerThread = nullptr;                      ///< Dedicated thread for this network
-    QMap<QString, std::shared_ptr<ShipNetSimCore::Ship>> ships;  ///< Map of ship ID to ship instance
-    bool isBusy = false;  ///< Indicates if network is currently processing
-};
 
-/**
-* @struct RequestData
-* @brief Generic container for tracking asynchronous operation progress
-*
-* @tparam T Type of data being tracked (e.g., ShipsResults, QString)
-*
-* @details Used to track the progress and store results of asynchronous
-* operations across multiple networks. Helps manage synchronization in
-* both Async and Sync modes.
-*
-* Example usage:
-* @code{.cpp}
-* RequestData<ShipsResults> resultsTracker;
-* resultsTracker.dataBuffer["network1"] = someResults;
-* resultsTracker.completedRequests++;
-* @endcode
-*/
-template<typename T>
-struct RequestData {
-    QMap<QString, T> dataBuffer;  ///< Stores operation results for each network
-    int completedRequests = 0;    ///< Counter for completed network operations
-
-    /**
-    * @brief List of networks involved in the current operation
-    * @note Used to track which networks are being processed and
-    * determine when all operations are complete
-    */
-    QVector<QString> requestedNetworkProcess;
-};
 
 /**
  * @class SimulatorAPI
@@ -437,7 +392,7 @@ protected:
     * @param networkNames List of networks to restart
     * @note Emits simulationsRestarted signal when complete
     */
-    void restartSimulations(
+    void requestRestartSimulations(
         QVector<QString> networkNames);
 
     // Ship control methods
@@ -585,20 +540,23 @@ protected slots:
     * If `getStepEndSignal` is true, a signal will be emitted at the end
     * of each simulation step.
     */
-    void runSimulation(QVector<QString> networkNames,
+    void requestRunSimulation(QVector<QString> networkNames,
                        units::time::second_t timeSteps,
                        bool endSimulationAfterRun,
                        bool getStepEndSignal);
 
-    /**
-    * @brief Restarts the simulation for the specified networks
-    * @param networkNames List of networks to restart the simulation for
-    *
-    * @details This method restarts the simulation from the initial state for
-    * the specified networks.
-    * All simulation data is reset, and the simulation begins anew.
-    */
-    void restartSimulation(QVector<QString> networkNames);
+
+    void finalizeSimulation(QVector<QString> networkNames);
+
+    // /**
+    // * @brief Restarts the simulation for the specified networks
+    // * @param networkNames List of networks to restart the simulation for
+    // *
+    // * @details This method restarts the simulation from the initial state for
+    // * the specified networks.
+    // * All simulation data is reset, and the simulation begins anew.
+    // */
+    // void restartSimulation(QVector<QString> networkNames);
 
     /**
     * @brief Pauses the simulation for the specified networks
@@ -608,7 +566,7 @@ protected slots:
     * The simulation state is preserved and can be resumed later using
     * `resumeSimulation`.
     */
-    void pauseSimulation(QVector<QString> networkNames);
+    void requestPauseSimulation(QVector<QString> networkNames);
 
     /**
     * @brief Resumes the simulation for the specified networks
@@ -618,7 +576,7 @@ protected slots:
     * from the last paused state.
     * The simulation continues from where it was paused.
     */
-    void resumeSimulation(QVector<QString> networkNames);
+    void requestResumeSimulation(QVector<QString> networkNames);
 
     /**
     * @brief Terminates the simulation for the specified networks
@@ -628,7 +586,7 @@ protected slots:
     * specified networks.
     * The simulation cannot be resumed after termination.
     */
-    void terminateSimulation(QVector<QString> networkNames);
+    void requestTerminateSimulation(QVector<QString> networkNames);
 
     /**
     * @brief Handler for simulation completion
@@ -740,15 +698,10 @@ protected:
     // Protected Member Variables
 
     /** @brief Map of network names to their simulation data */
-    QMap<QString, APIData> mData;
+    ThreadSafeAPIDataMap apiDataMap;
 
     /** @brief Connection type for Qt signals/slots */
     Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
-
-    /** @brief Buffer for ships that have reached their destination */
-    QMap<QString, QJsonObject> m_shipsReachedBuffer;
-
-
 
     /** @brief Tracks simulation results across networks */
     RequestData<ShipsResults> mSimulationResultsTracker;
@@ -761,6 +714,9 @@ protected:
 
     /** @brief Tracks overall simulation progress */
     RequestData<int> mProgressTracker;
+
+    /** @brief Track ships reached destination */
+    RequestData<QJsonObject> mReachedDesTracker;
 
     /** @brief Tracks pause operations */
     RequestData<QString> mPauseTracker;
@@ -790,8 +746,8 @@ protected:
     * @param mode Operation mode
     * @return true if signal was emitted, false otherwise
     */
-    bool checkAndEmitSignal(int& counter,
-                            int total,
+    bool checkAndEmitSignal(const int &counter,
+                            const int total,
                             const QVector<QString>& networkNames,
                             void(SimulatorAPI::*signal)(QVector<QString>),
                             Mode mode);
@@ -1066,7 +1022,8 @@ public:
         */
         static void runSimulation(
             QVector<QString> networkNames,
-            units::time::second_t timeSteps);
+            units::time::second_t timeSteps,
+            bool getProgressSignal);
 
         /**
         * @brief end the simulation and produce the summary file
@@ -1241,10 +1198,12 @@ public:
         /**
         * @brief Start continuous simulation execution
         * @param networkNames List of networks to run
+        * @param getProgressSignal true to get the progress signals
         * @note Simulation will run until completion or manual intervention
         * @note Use "*" in networkNames to run all loaded networks
         */
-        static void runSimulation(QVector<QString> networkNames);
+        static void runSimulation(QVector<QString> networkNames,
+                                  bool getProgressSignal);
 
         /**
         * @brief Pause running simulations
@@ -1330,7 +1289,7 @@ private:
     static QBasicMutex s_instanceMutex;
     static std::unique_ptr<SimulatorAPI> instance;
     static void registerQMeta();
-    APIData& getApiDataAndEnsureThread(const QString &networkName);
+    APIData getApiDataAndEnsureThread(const QString &networkName);
     static void setLocale();
     void setupShipsConnection(
         QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships,
