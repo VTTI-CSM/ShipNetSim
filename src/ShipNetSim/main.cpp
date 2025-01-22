@@ -427,7 +427,8 @@ int main(int argc, char *argv[])
                                            << error.toStdString() << "\n";
                                  loop.quit();
                              });
-            SimulatorAPI::ContinuousMode::runSimulation({MAIN_SIMULATION_NAME});
+            SimulatorAPI::ContinuousMode::runSimulation({MAIN_SIMULATION_NAME},
+                                                        false);
             loop.exec();
         }
         std::cout << "\nOutput folder: " <<
