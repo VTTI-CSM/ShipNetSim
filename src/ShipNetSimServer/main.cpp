@@ -2,17 +2,47 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include "SimulationServer.h"
-#include "utils/shipscommon.h"
 #include "utils/logger.h"
+#include <QLocalSocket>
+#include <QLocalServer>
 
+bool isAnotherInstanceRunning(const QString &serverName) {
+    QLocalSocket socket;
+    socket.connectToServer(serverName);
+    if (socket.waitForConnected(100)) {
+        return true; // Another instance is already running
+    }
+    return false; // No instance running
+}
+
+void createLocalServer(const QString &serverName) {
+    QLocalServer *localServer = new QLocalServer();
+    localServer->setSocketOptions(QLocalServer::WorldAccessOption);
+    if (!localServer->listen(serverName)) {
+        qCritical() << "Failed to create local server:"
+                    << localServer->errorString();
+        exit(EXIT_FAILURE);
+    }
+}
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
+    // Unique name for the local server
+    const QString uniqueServerName = "ShipNetSimServerInstance";
+
+    // Check if another instance is already running
+    if (isAnotherInstanceRunning(uniqueServerName)) {
+        qCritical() << "Another instance of ShipNetSim "
+                       "Server is already running.";
+        return EXIT_FAILURE;
+    }
+
+    // Create the local server to mark this instance as the active one
+    createLocalServer(uniqueServerName);
+
     // Attach the logger first thing:
     ShipNetSimCore::Logger::attach("ShipNetSimServer");
-
-    qRegisterMetaType<ShipsResults>("ShipsResults");
 
     // Set up the command-line parser
     QCommandLineParser parser;
