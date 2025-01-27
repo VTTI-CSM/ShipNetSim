@@ -24,7 +24,7 @@ GPoint::GPoint( units::angle::degree_t lon, units::angle::degree_t lat,
     if (!crc.IsEmpty()) {
         if (!crc.IsGeographic())
         {
-            qFatal("Spatial reference must be geodetic!");
+            throw std::runtime_error("Spatial reference must be geodetic!");
         }
         // Clone the passed spatial reference and assign
         // it to spatialRef pointer
@@ -55,7 +55,7 @@ GPoint::GPoint(units::angle::degree_t lon,
     if (!crc.IsEmpty()) {
         if (!crc.IsGeographic())
         {
-            qFatal("Spatial reference must be geodetic!");
+            throw std::runtime_error("Spatial reference must be geodetic!");
         }
         // Clone the passed spatial reference and assign
         // it to spatialRef pointer
@@ -78,7 +78,7 @@ std::shared_ptr<OGRSpatialReference> GPoint::getDefaultReprojectionReference()
         GPoint::spatialRef = std::make_shared<OGRSpatialReference>();
         OGRErr err = spatialRef->SetWellKnownGeogCS("WGS84");
         if (err != OGRERR_NONE) {
-            qFatal("Failed to set WGS84 spatial reference");
+            throw std::runtime_error("Failed to set WGS84 spatial reference");
         }
     }
     return GPoint::spatialRef;
@@ -96,15 +96,17 @@ void GPoint::setDefaultReprojectionReference(std::string wellknownCS)
     OGRErr err = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
     if (err != OGRERR_NONE) {
         // Exit the function on failure
-        qFatal("Failed to interpret the provided spatial reference: %s",
-               qPrintable(QString::fromStdString(wellknownCS)));
+        throw std::runtime_error(
+            "Failed to interpret the provided spatial reference: " +
+            wellknownCS);
     }
 
     // Check if the spatial reference is geodetic
     if (!tempRef->IsGeographic()) {
         // Exit the function if not geodetic
-        qFatal("The provided spatial reference is not geodetic: %s",
-               qPrintable(QString::fromStdString(wellknownCS)));
+        throw std::runtime_error(
+            "The provided spatial reference is not geodetic: " +
+            wellknownCS);
     }
 
     // If validation passed, assign the validated spatial
@@ -119,13 +121,13 @@ OGRPoint GPoint::getGDALPoint() const { return mOGRPoint; }
 Point GPoint::projectTo(OGRSpatialReference* targetSR) const  {
     // Ensure the target Spatial Reference is valid and is a projected CRS
     if (!targetSR || !targetSR->IsProjected()) {
-        qFatal("Target Spatial Reference "
-               "is not valid or not a projected CRS.");
+        throw std::runtime_error("Target Spatial Reference "
+                                 "is not valid or not a projected CRS.");
     }
 
     const OGRSpatialReference* currentSR = mOGRPoint.getSpatialReference();
     if (currentSR == nullptr) {
-        qFatal("Current Spatial Reference is not set.");
+        throw std::runtime_error("Current Spatial Reference is not set.");
     }
 
     // Create a coordinate transformation from the current
@@ -133,7 +135,7 @@ Point GPoint::projectTo(OGRSpatialReference* targetSR) const  {
     OGRCoordinateTransformation* coordTransform =
         OGRCreateCoordinateTransformation(currentSR, targetSR);
     if (!coordTransform) {
-        qFatal("Failed to create coordinate transformation.");
+        throw std::runtime_error("Failed to create coordinate transformation.");
     }
 
     double x = mOGRPoint.getX();
@@ -142,7 +144,7 @@ Point GPoint::projectTo(OGRSpatialReference* targetSR) const  {
     // Transform the point's coordinates from geographic to projected CRS
     if (!coordTransform->Transform(1, &x, &y)) {
         OCTDestroyCoordinateTransformation(coordTransform);
-        qFatal("Failed to transform point coordinates.");
+        throw std::runtime_error("Failed to transform point coordinates.");
     }
 
     OCTDestroyCoordinateTransformation(coordTransform);
@@ -207,7 +209,7 @@ void GPoint::transformDatumTo(OGRSpatialReference* targetSR)
     }
     else
     {
-        qFatal("Target spatial reference is not geodetic!");
+        throw std::runtime_error("Target spatial reference is not geodetic!");
     }
 
 }
@@ -226,7 +228,7 @@ units::length::meter_t GPoint::distance(const GPoint& other) const
 
     if (!thisSR->IsSame(otherSR))
     {
-        qFatal("Mismatch geodetic datums!");
+        throw std::runtime_error("Mismatch geodetic datums!");
     }
 
 
@@ -259,7 +261,7 @@ units::angle::degree_t GPoint::forwardAzimuth(const GPoint& other) const
 
     if (!thisSR->IsSame(otherSR))
     {
-        qFatal("Mismatch geodetic datums!");
+        throw std::runtime_error("Mismatch geodetic datums!");
     }
 
 
@@ -293,7 +295,7 @@ units::angle::degree_t GPoint::backwardAzimuth(const GPoint& other) const
 
     if (!thisSR->IsSame(otherSR))
     {
-        qFatal("Mismatch geodetic datums!");
+        throw std::runtime_error("Mismatch geodetic datums!");
     }
 
 
