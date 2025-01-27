@@ -39,7 +39,9 @@ namespace ShipNetSimCore
  */
 class Quadtree {
 
-private:
+    static unsigned int MIN_SEGMENTS_FOR_PARALLEL;
+
+public:
     /**
      * @struct Node
      * @brief Represents a node in the Quadtree.
@@ -106,6 +108,11 @@ private:
         units::length::meter_t distanceFromPointToBoundingBox(
             const std::shared_ptr<GPoint>& point) const;
     };
+
+private:
+
+
+
 
     /// Maximum number of line segments a node can
     /// hold before subdividing.
@@ -195,17 +202,9 @@ private:
      */
     void clearTreeHelper(Node* node);
 
-    // check if a segment crosses the antimeridian line (min x of the map)
-    static bool isSegmentCrossingAntimeridian(
-        const std::shared_ptr<GLine>& segment);
-
-    static std::vector<std::shared_ptr<GLine>> splitSegmentAtAntimeridian(
-        const std::shared_ptr<GLine>& segment);
-
-
     void serializeNode(std::ostream& out, const Node* node) const;
 
-    void deserializeNode(std::istream& in, Node* node);
+    void deserializeNode(std::istream& in, Node* parentNode);
 public:
 
     /**
@@ -328,6 +327,13 @@ public:
      */
     std::shared_ptr<GPoint> findNearestNeighborPoint(
         const std::shared_ptr<GPoint>& point) const;
+
+    // check if a segment crosses the antimeridian line (min x of the map)
+    static bool isSegmentCrossingAntimeridian(
+        const std::shared_ptr<GLine>& segment);
+
+    static std::vector<std::shared_ptr<GLine>> splitSegmentAtAntimeridian(
+        const std::shared_ptr<GLine>& segment);
 
     // check if a segment crosses the min X Coordinate GLine
     // bool getSegmentCrossesMinLongitudeLine(
