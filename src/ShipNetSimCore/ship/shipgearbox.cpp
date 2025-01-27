@@ -24,8 +24,9 @@ void ShipGearBox::setParameters(const QMap<QString, std::any> &parameters)
         Utils::getValueFromMap<double>(parameters, "GearboxRatio", -1.0);
     if (mGearRationTo1 < 0)
     {
-        qFatal("Gearbox ratio is not defined. "
-               "it should be a value of double in range [0,inf]!");
+        throw std::runtime_error("Gearbox ratio is not defined. "
+                                 "it should be a value of double in "
+                                 "range [0,inf]!");
     }
     mEfficiency =
         Utils::getValueFromMap<double>(parameters, "gearboxEfficiency", -1.0);
@@ -173,7 +174,8 @@ ShipGearBox::setEngineTargetState(IShipEngine::EngineProperties newState)
         auto targetRPM = newState.RPM;
         auto rpmOut = getOutputRPMRange();
         if (targetRPM < rpmOut.first || targetRPM > rpmOut.second) {
-            qFatal("RPM required value is outside the engine range!");
+            throw std::runtime_error("RPM required value is outside "
+                                     "the engine range!");
         }
 
         // Return 0 if there are no engines to avoid division by zero
