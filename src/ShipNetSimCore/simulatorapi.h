@@ -177,10 +177,10 @@ signals:
 
     /**
     * @brief Emitted when simulations complete their execution naturally.
-    * @param networkName List of network names whose simulations finished
+    * @param networkName network name whose simulation finished
     * @note Differs from simulationsTerminated which is for forced termination
     */
-    void simulationFinished(QVector<QString> networkName);
+    void simulationFinished(QString networkName);
 
     /**
     * @brief Emitted when simulation time advances by one step.
@@ -197,7 +197,7 @@ signals:
     * percentage (0-100)
     */
     void simulationProgressUpdated(
-        QMap<QString, int> currentSimulationProgress);
+        QPair<QString, int> currentSimulationProgress);
 
     /**
     * @brief Emitted when ships reach their designated destinations.
@@ -207,6 +207,15 @@ signals:
     *                                       [ship1State, ship2State, ...]}}
     */
     void shipsReachedDestination(const QJsonObject shipsStates);
+
+    /**
+    * @brief Emitted when the ship's state is availbe.
+    * @param networkName network name whose this ship belongs to.
+    * @param shipID The unique identifier of the ship.
+    * @param shipsStates JSON object containing state of ship.
+    */
+    void shipStateAvailable(QString networkName, QString shipID,
+                            const QJsonObject shipState);
 
     /**
     * @brief Emitted when new ships are successfully added to a simulation.
@@ -221,14 +230,7 @@ signals:
     * @param results Map of network names to their respective simulation
     * results
     */
-    void simulationResultsAvailable(QMap<QString, ShipsResults> results);
-
-    /**
-    * @brief Emitted when a ship's current state information is available.
-    * @param shipState JSON object containing the ship's current state
-    * information
-    */
-    void shipCurrentStateAvailable(const QJsonObject shipState);
+    void simulationResultsAvailable(QPair<QString, ShipsResults> results);
 
     /**
     * @brief Emitted when simulation's current state information is available.
@@ -274,13 +276,26 @@ signals:
     * @param networkName The name of the network
     * @param shipID The unique identifier of the ship
     * @param seaPortCode The LOCODE of the seaport reached
+    * @param containersCount Number of containers queued for leaving the ship.
+    * @note This signal is only available when BUILD_SERVER_ENABLED is defined
+    * @note The containers JSON array contains the state and details of all
+    *                      containers at arrival
+    */
+    void shipReachedSeaPort(QString networkName, QString shipID,
+                            QString seaPortCode, qsizetype containersCount);
+
+    /**
+    * @brief Emitted when a ship unloads containers at a seaport.
+    * @param networkName The name of the network
+    * @param shipID The unique identifier of the ship
+    * @param seaPortCode The LOCODE of the seaport reached
     * @param containers JSON array containing information about the containers
     *                   being carried
     * @note This signal is only available when BUILD_SERVER_ENABLED is defined
     * @note The containers JSON array contains the state and details of all
     *                      containers at arrival
     */
-    void shipReachedSeaPort(QString networkName, QString shipID,
+    void ContainersUnloaded(QString networkName, QString shipID,
                             QString seaPortCode, QJsonArray containers);
 #endif
 
@@ -447,8 +462,8 @@ protected:
     * @param ID Ship identifier
     * @return JSON object containing ship state
     */
-    QJsonObject requestShipCurrentStateByID(QString networkName,
-                                            QString ID);
+    void requestShipCurrentStateByID(QString networkName,
+                                     QString ID);
 
     /**
     * @brief Get current state of a simulator
@@ -466,6 +481,17 @@ protected:
     */
     void requestAvailablePorts(QVector<QString> networkNames,
                                bool getOnlyPortsOnShipsPaths);
+
+    /**
+     * @brief Request a ship to unload containers at a specific port
+     * @param networkName name of network to query
+     * @param shipID  ship identifier
+     * @param portNames List of names the port have.
+     * @note: portNames is a list of possible names that the port may have.
+     */
+    void requestUnloadContainersAtPort(QString networkName,
+                                       QString shipID,
+                                       QVector<QString> portNames);
 
 #ifdef BUILD_SERVER_ENABLED
 
@@ -591,15 +617,12 @@ protected slots:
     /**
     * @brief Handler for simulation completion
     * @param networkName Network where the simulation finished
-    * @param mode Current operation mode (Async/Sync)
     *
     * @details This method is called when a simulation finishes naturally.
     * It updates the simulation completion tracker and emits the
     * `simulationFinished` signal.
-    * In Async mode, the signal is emitted only when all simulations finish.
-    * In Sync mode, the signal is emitted immediately for each network.
     */
-    void handleSimulationFinished(QString networkName, Mode mode);
+    void handleSimulationFinished(QString networkName);
 
     /**
     * @brief Handler for worker thread readiness
@@ -616,32 +639,22 @@ protected slots:
     * @brief Handler for simulation progress updates
     * @param networkName Network reporting progress
     * @param progress Progress percentage (0-100)
-    * @param mode Current operation mode (Async/Sync)
     *
     * @details Updates progress tracking and emits simulationProgressUpdated
-    * signal based on mode:
-    * - Async: Waits for all networks to report
-    * - Sync: Emits immediately
     */
     void handleProgressUpdate(QString networkName,
-                              int progress,
-                              Mode mode);
+                              int progress);
 
     /**
     * @brief Handler for simulation results
     * @param networkName Network providing results
     * @param result Simulation results data
-    * @param mode Current operation mode (Async/Sync)
     *
     * @details Processes simulation results and emits
     * simulationResultsAvailable
-    * signal based on mode:
-    * - Async: Accumulates results until all networks report
-    * - Sync: Emits results immediately
     */
     void handleResultsAvailable(QString networkName,
-                                ShipsResults result,
-                                Mode mode);
+                                ShipsResults result);
 
     /**
     * @brief Emits consolidated ship destination data
@@ -651,15 +664,6 @@ protected slots:
     * Clears the buffer after emission.
     */
     void emitShipsReachedDestination();
-
-    /**
-    * @brief Emits consolidated simulation results
-    * @param results Map of network names to their simulation results
-    *
-    * @details Emits simulationResultsAvailable signal with provided results
-    * if the results map is not empty. Clears results after emission.
-    */
-    void emitSimulationResults(QMap<QString, ShipsResults> results);
 
     /**
     * @brief Handler for available ports information
@@ -1109,6 +1113,16 @@ public:
         */
         static bool isNetworkLoaded(QString networkName);
 
+        /**
+         * @brief Request a ship to unload containers at a specific port
+         * @param networkName name of network to query
+         * @param shipID  ship identifier
+         * @param portNames List of names the port have.
+         * @note: portNames is a list of possible names that the port may have.
+         */
+        static void requestUnloadContainersAtPort(QString networkName,
+                                                  QString shipID,
+                                                  QVector<QString> portNames);
 
         /**
         * @brief Reset the API to initial state
@@ -1277,6 +1291,18 @@ public:
         * @return true if network exists and is loaded
         */
         static bool isNetworkLoaded(QString networkName);
+
+
+        /**
+         * @brief Request a ship to unload containers at a specific port
+         * @param networkName name of network to query
+         * @param shipID  ship identifier
+         * @param portNames List of names the port have.
+         * @note: portNames is a list of possible names that the port may have.
+         */
+        static void requestUnloadContainersAtPort(QString networkName,
+                                                  QString shipID,
+                                                  QVector<QString> portNames);
 
         /**
         * @brief Reset the API to initial state
