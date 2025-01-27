@@ -26,7 +26,7 @@ Line::Line(std::shared_ptr<Point> start,
     if (! start->getGDALPoint().getSpatialReference()->IsSame(
             end->getGDALPoint().getSpatialReference()))
     {
-        qFatal("Mismatch spatial reference for the two points!");
+        throw std::runtime_error("Mismatch spatial reference for the two points!");
     }
     mLength = start->distance(*end);  // Calculate line segment length.
 }
@@ -409,8 +409,8 @@ GLine Line::reprojectTo(OGRSpatialReference* targetSR)
 {
     if (! targetSR || ! targetSR->IsGeographic())
     {
-        qFatal("Target Spatial Reference "
-               "is not valid or not a geographic CRS.");
+        throw std::runtime_error("Target Spatial Reference "
+                                 "is not valid or not a geographic CRS.");
     }
     std::shared_ptr<GPoint> ps =
         std::make_shared<GPoint>(start->reprojectTo(targetSR));
