@@ -2,7 +2,6 @@
 #include <QQueue>
 #include <functional>
 #include <set>
-#include <thread>
 #include <unordered_map>
 #include "optimizedvisibilitygraph.h"
 
@@ -25,6 +24,7 @@ OptimizedVisibilityGraph::OptimizedVisibilityGraph(
 {
     // Initialize Quadtree with polygons
     quadtree = std::make_unique<Quadtree>(polygons);
+    enableWrapAround = true;
 }
 
 // Destructor
@@ -55,6 +55,7 @@ void OptimizedVisibilityGraph::loadSeaPortsPolygonCoordinates(
 void OptimizedVisibilityGraph::setPolygons(
     const QVector<std::shared_ptr<Polygon>>& newPolygons)
 {
+    QWriteLocker locker(&quadtreeLock);  // Acquire write lock
     visibilityCache.clear();
     quadtree->clearTree();
     polygons = newPolygons;
@@ -66,58 +67,55 @@ QVector<std::shared_ptr<GPoint>> OptimizedVisibilityGraph::
     const QVector<std::shared_ptr<Polygon>>& allPolygons)
 {
 
-    QVector<std::shared_ptr<GPoint>> visibleNodes;
+    QReadLocker readLocker(&cacheLock);
+    if (visibilityCache.contains(node)) return visibilityCache[node];
+    readLocker.unlock();
 
-    // First, check if the visibility for the node is already cached
-    {
-        QReadLocker locker(&cacheLock);
-        if (visibilityCache.contains(node)) {
-            // Return the cached result
-            return visibilityCache[node];
-        }
-    }
 
-    // Prepare a vector of tasks
+    // Prepare tasks
     QVector<std::shared_ptr<GPoint>> tasks;
+
+    // Prepare candidate points using efficient iteration
     for (const auto& polygon : allPolygons) {
         if (polygon->contains(node)) continue;
 
-        for (const auto& point : polygon->outer()) {
-            if (point != node) tasks.push_back(point);
-        }
+        // Add outer boundary points
+        const auto outerPoints = polygon->outer();
+        std::copy_if(outerPoints.begin(), outerPoints.end(),
+                     std::back_inserter(tasks),
+                     [&node](const auto& p) { return *p != *node; });
 
+        // Add hole points
         for (const auto& hole : polygon->inners()) {
-            for (const auto& holePoint : hole) {
-                if (holePoint != node) tasks.push_back(holePoint);
-            }
+            std::copy_if(hole.begin(), hole.end(),
+                         std::back_inserter(tasks),
+                         [&node](const auto& p) { return *p != *node; });
         }
     }
 
-    // Visibility check function
-    auto checkVisibility = [this, node, &visibleNodes]
-        (std::shared_ptr<GPoint>& point)
-    {
-        if (isVisible(node, point))
-        {
-            QWriteLocker locker(&cacheLock);
-            visibleNodes.push_back(point);
-        }
-    };
+    // Parallel filter using QtConcurrent
+    QFuture<std::shared_ptr<GPoint>> future =
+        QtConcurrent::filtered(tasks,
+                               [this, node]
+                               (const std::shared_ptr<GPoint>& point) {
+                                   return isVisible(node, point);
+                               });
 
-    // Concurrently process each task
-    QtConcurrent::map(tasks.begin(), tasks.end(), checkVisibility);
+    // Get results and convert to QVector
+    QVector<std::shared_ptr<GPoint>> visibleNodes =
+        future.results().toVector();
 
-    // Wait for all tasks to finish
-    QFuture<void> future = QtConcurrent::map(tasks, checkVisibility);
-    future.waitForFinished();
-
-    // Cache the calculated visible nodes
-    {
-        QWriteLocker locker(&cacheLock);
-        visibilityCache[node].append(visibleNodes);
+    // Add manual connections
+    if (manualConnections.contains(node)) {
+        visibleNodes += manualConnections.value(node);
     }
 
-    return visibilityCache[node];
+    QWriteLocker writeLocker(&cacheLock);
+    if (!visibilityCache.contains(node)) { // Check again after acquiring write lock
+        visibilityCache.insert(node, visibleNodes);
+    }
+
+    return visibleNodes;
 }
 
 // with threads
@@ -126,7 +124,7 @@ QVector<std::shared_ptr<GPoint>> OptimizedVisibilityGraph::
     const std::shared_ptr<GPoint>& node,
     const std::shared_ptr<Polygon>& polygon)
 {
-    // First, check if the visibility for the node is already cached
+    // 1. check if the visibility for the node is already cached
     {
         QReadLocker locker(&cacheLock);
         if (visibilityCache.contains(node))
@@ -136,38 +134,64 @@ QVector<std::shared_ptr<GPoint>> OptimizedVisibilityGraph::
         }
     } // locker goes out of scope here, releasing the read lock >>> important
 
-    // Get a copy of the polygon's boundary points
-    QVector<std::shared_ptr<GPoint>> points = polygon->outer();
+    // 2. Prepare points list (exclude node itself)
+    QVector<std::shared_ptr<GPoint>> candidates;
+    const auto& outerPoints = polygon->outer();
+    std::copy_if(outerPoints.begin(), outerPoints.end(),
+                 std::back_inserter(candidates),
+                 [&node](const auto& p) { return *p != *node; });
 
-    // Define a lambda function for visibility check
-    auto checkVisibility = [this, &node](std::shared_ptr<GPoint>& point)
+    // 3. Parallel visibility check using filtered
+    QFuture<std::shared_ptr<GPoint>> future =
+        QtConcurrent::filtered(candidates,
+                               [this, node](const std::shared_ptr<GPoint>& point) {
+                                   return isVisible(node, point);
+                               }
+                               );
+
+    // 4. Wait for completion and get results
+    QVector<std::shared_ptr<GPoint>> visibleNodes =
+        future.results().toVector();
+
+    // 5. Double-checked locking pattern for cache update
     {
-        if (*(node) == *(point))
-        {
-            return;
+        QWriteLocker writeLocker(&cacheLock);
+        if (!visibilityCache.contains(node)) {
+            visibilityCache.insert(node, visibleNodes);
         }
+    }
 
-        // Implement the logic to check if 'point' is visible from 'node'
-        // Checking line of sight intersections
-        if (this->isVisible(node, point))
-        {
-            QWriteLocker locker(&cacheLock);
-            visibilityCache[node].push_back(point);
-        } // locker goes out of scope here, releasing the read lock
-    };
-
-    // Use QtConcurrent::map for parallel processing
-    QFuture<void> future =
-        QtConcurrent::map(points.begin(), points.end(), checkVisibility);
-
-    // Wait for all concurrent tasks to finish
-    // This step is necessary to ensure that all points have been processed
-    // before we proceed to return the result
-    future.waitForFinished();
-
-    // Now, return the cached result for the node
-    QReadLocker locker(&cacheLock);
     return visibilityCache.value(node);
+}
+
+void OptimizedVisibilityGraph::
+    addManualVisibleLine(const std::shared_ptr<GLine>& line) {
+    QWriteLocker locker(&cacheLock);
+
+    // Add line to manualLines
+    manualLines.append(line);
+
+    // Track connections for both directions
+    manualConnections[line->startPoint()].append(line->endPoint());
+    manualConnections[line->endPoint()].append(line->startPoint());
+
+    // Add points to manualPoints if new
+    if (!manualPoints.contains(line->startPoint())) {
+        manualPoints.append(line->startPoint());
+    }
+    if (!manualPoints.contains(line->endPoint())) {
+        manualPoints.append(line->endPoint());
+    }
+
+    visibilityCache.clear(); // Invalidate cache
+}
+
+void OptimizedVisibilityGraph::clearManualLines() {
+    QWriteLocker locker(&cacheLock);
+    manualLines.clear();
+    manualConnections.clear();
+    manualPoints.clear();
+    visibilityCache.clear();
 }
 
 
@@ -175,8 +199,6 @@ bool OptimizedVisibilityGraph::isVisible(
     const std::shared_ptr<GPoint>& node1,
     const std::shared_ptr<GPoint>& node2) const
 {
-    std::lock_guard<std::mutex> guard(mutex);
-
     if (!node1 || !node2) {
         throw std::runtime_error("Point is not valid!\n");
     }
@@ -198,105 +220,105 @@ bool OptimizedVisibilityGraph::isVisible(
 bool OptimizedVisibilityGraph::isSegmentVisible(
     const std::shared_ptr<GLine>& segment) const
 {
-    // 1. Quick check for length - if points are very close, return true
+    // Check if the segment is in manualLines (in any direction)
+    for (const auto& manualLine : manualLines) {
+        if (*manualLine == *segment || *manualLine == segment->reverse()) {
+            return true;
+        }
+    }
+
+    // Handle wrap-around segments
+    if (Quadtree::isSegmentCrossingAntimeridian(segment)) {
+        auto splitSegments = Quadtree::splitSegmentAtAntimeridian(segment);
+        for (const auto& seg : splitSegments) {
+            if (!isSegmentVisible(seg)) return false;
+        }
+        return true;
+    }
+
+    QReadLocker locker(&quadtreeLock);
+
+    // 1. Quick distance check
     if (segment->startPoint()->distance(*segment->endPoint()) <
         units::length::meter_t(1.0)) {
         return true;
     }
 
-    // 2. Get intersecting nodes using parallel processing
+    // 2. Get intersecting nodes
     auto intersectingNodes =
         quadtree->findNodesIntersectingLineSegmentParallel(segment);
 
-    // 3. Use quick bounding box rejection before detailed intersection
-    auto segBounds = std::make_pair(
-        std::min(segment->startPoint()->getLongitude().value(),
-                 segment->endPoint()->getLongitude().value()),
-        std::max(segment->startPoint()->getLongitude().value(),
-                 segment->endPoint()->getLongitude().value()));
+    // 3. Get segment bounds manually
+    auto segmentStart = segment->startPoint();
+    auto segmentEnd = segment->endPoint();
+    double segMinLon = std::min(segmentStart->getLongitude().value(),
+                                segmentEnd->getLongitude().value());
+    double segMaxLon = std::max(segmentStart->getLongitude().value(),
+                                segmentEnd->getLongitude().value());
+    double segMinLat = std::min(segmentStart->getLatitude().value(),
+                                segmentEnd->getLatitude().value());
+    double segMaxLat = std::max(segmentStart->getLatitude().value(),
+                                segmentEnd->getLatitude().value());
 
-    // 4. Process nodes in parallel for large datasets
-    if (intersectingNodes.size() > 1000) {
-        QAtomicInt hasIntersection = 0;
-
-        // Create a vector of line segments from nodes to process
-        QVector<QVector<std::shared_ptr<GLine>>> nodeSegmentsToProcess;
-        for (auto* node : intersectingNodes) {
-            nodeSegmentsToProcess.push_back(quadtree->
-                                            getAllSegmentsInNode(node));
+    // 4. Check edges in intersecting nodes
+    auto checkEdge = [&](const std::shared_ptr<GLine>& edge) {
+        // Skip adjacent edges
+        if ((*(edge->startPoint()) == *segmentStart) ||
+            (*(edge->startPoint()) == *segmentEnd) ||
+            (*(edge->endPoint()) == *segmentStart) ||
+            (*(edge->endPoint()) == *segmentEnd)) {
+            return false;
         }
 
-        // Process segments in parallel for faster checks
-        auto processSegments = [&hasIntersection, &segment, &segBounds]
-            (const QVector<std::shared_ptr<GLine>>& nodeSegments) {
-                if (hasIntersection.loadAcquire()) {
-                    return;
-                }
+        // Manual bounds check
+        auto edgeStart = edge->startPoint();
+        auto edgeEnd = edge->endPoint();
+        double edgeMinLon = std::min(edgeStart->getLongitude().value(),
+                                     edgeEnd->getLongitude().value());
+        double edgeMaxLon = std::max(edgeStart->getLongitude().value(),
+                                     edgeEnd->getLongitude().value());
+        double edgeMinLat = std::min(edgeStart->getLatitude().value(),
+                                     edgeEnd->getLatitude().value());
+        double edgeMaxLat = std::max(edgeStart->getLatitude().value(),
+                                     edgeEnd->getLatitude().value());
 
-                // Sort segments by distance to potentially
-                // find intersections faster
-                auto sortedSegments = nodeSegments;
-                std::sort(sortedSegments.begin(), sortedSegments.end(),
-                          [&segment](const auto& a, const auto& b) {
-                              return a->startPoint()->
-                                     distance(*segment->startPoint()) <
-                                     b->startPoint()->
-                                     distance(*segment->startPoint());
-                          });
+        // Bounding box rejection
+        if (edgeMaxLon < segMinLon || edgeMinLon > segMaxLon ||
+            edgeMaxLat < segMinLat || edgeMinLat > segMaxLat) {
+            return false;
+        }
 
-                // Check each segment in the node
-                for (const auto& edge : sortedSegments) {
-                    if (hasIntersection.loadAcquire()) break;
+        // Use existing intersects method with edge point checking
+        return segment->intersects(*edge, true);
+    };
 
-                    auto edgeBounds = std::make_pair(
-                        std::min(edge->startPoint()->getLongitude().value(),
-                                 edge->endPoint()->getLongitude().value()),
-                        std::max(edge->startPoint()->getLongitude().value(),
-                                 edge->endPoint()->getLongitude().value()));
+    // 5. Parallel processing for large datasets
+    if (intersectingNodes.size() > 1000) {
+        QAtomicInt hasIntersection(0);
 
-                    // Quick rejection test
-                    if (edgeBounds.second < segBounds.first ||
-                        edgeBounds.first > segBounds.second) {
-                        continue;
-                    }
+        auto processNode = [&](Quadtree::Node* node) {
+            if (hasIntersection.loadAcquire()) return;
 
-                    if (segment->intersects(*edge, true)) {
-                        hasIntersection.storeRelease(1);
-                        break;
-                    }
-                }
-            };
-
-        QFuture<void> future = QtConcurrent::map(
-            nodeSegmentsToProcess, processSegments);
-        future.waitForFinished();
-
-        return !hasIntersection.loadAcquire();
-
-    } else {
-        // Sequential processing for smaller datasets
-        for (auto* node : intersectingNodes) {
-            auto nodeSegments = quadtree->getAllSegmentsInNode(node);
-            for (const auto& edge : nodeSegments) {
-                auto edgeBounds = std::make_pair(
-                    std::min(edge->startPoint()->getLongitude().value(),
-                             edge->endPoint()->getLongitude().value()),
-                    std::max(edge->startPoint()->getLongitude().value(),
-                             edge->endPoint()->getLongitude().value()));
-
-                // Quick rejection test
-                if (edgeBounds.second < segBounds.first ||
-                    edgeBounds.first > segBounds.second) {
-                    continue;
-                }
-
-                if (segment->intersects(*edge, true)) {
-                    return false;
+            for (const auto& edge : quadtree->getAllSegmentsInNode(node)) {
+                if (checkEdge(edge)) {
+                    hasIntersection.storeRelease(1);
+                    break;
                 }
             }
-        }
-        return true;
+        };
+
+        QtConcurrent::blockingMap(intersectingNodes, processNode);
+        return !hasIntersection.loadAcquire();
     }
+
+    // 6. Sequential processing for small datasets
+    for (auto* node : intersectingNodes) {
+        for (const auto& edge : quadtree->getAllSegmentsInNode(node)) {
+            if (checkEdge(edge)) return false;
+        }
+    }
+
+    return true;
 }
 
 
@@ -328,6 +350,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
     std::set<std::pair<double, std::shared_ptr<GPoint>>> queue;
     std::shared_ptr<Polygon> currentPolygon = nullptr;
     std::shared_ptr<GPoint> newStart;
+    // Initialize distances with manual points
+    for (const auto& point : manualPoints) {
+        dist[point] = std::numeric_limits<double>::infinity();
+    }
 
     // check if the point is whinin the polygon structure.
     // If not, get the nearst point within the polygon structure.
@@ -337,6 +363,13 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         newStart =
             quadtree->findNearestNeighborPoint(start);
         currentPolygon = findContainingPolygon(newStart);
+    }
+    if (!currentPolygon) {
+        qWarning() << "Start point is not within any polygon and has no "
+                      "valid nearest point.";
+
+        // Handle case: point not in any polygon, perhaps return empty path
+        return ShortestPathResult();
     }
 
 
@@ -369,6 +402,11 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
             // (not within the polygon)
             visibleNodes =
                 getVisibleNodesBetweenPolygons(current, polygons);
+        }
+
+        if (enableWrapAround) {
+            auto wrapPoints = connectWrapAroundPoints(current);
+            visibleNodes.append(wrapPoints);
         }
 
         for (const auto& neighbor : visibleNodes)
@@ -443,27 +481,29 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             if (!currentPolygon || !currentPolygon->contains(current))
             {
                 currentPolygon = findContainingPolygon(current);
+                if (!currentPolygon) {
+                    // Handle as needed, e.g., skip or use between polygons
+                    continue;
+                }
             }
             neighbors =
                 getVisibleNodesWithinPolygon(current, currentPolygon);
 
             // Apply wrap-around logic if enabled
-            // if (enableWrapAround) {
-            //     std::shared_ptr<Point> wrapAroundPoints =
-            //         connectWrapAroundPoints(current);
-            //     neighbors.append(wrapAroundPoints);
-            // }
+            if (enableWrapAround) {
+                neighbors.append(connectWrapAroundPoints(current));
+            }
         }
         else
         {
             neighbors =
-                getVisibleNodesBetweenPolygons(current, polygons);
+                getVisibleNodesBetweenPolygons(current, polygons) +
+                manualPoints;
+
             // Apply wrap-around logic if enabled
-            // if (enableWrapAround) {
-            //     std::shared_ptr<Point> wrapAroundPoints =
-            //         connectWrapAroundPoints(current);
-            //     neighbors.append(wrapAroundPoints);
-            // }
+            if (enableWrapAround) {
+                neighbors.append(connectWrapAroundPoints(current));
+            }
         }
 
         for (const auto& neighbor : neighbors) {
@@ -649,54 +689,75 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathHelper(
     return result;
 }
 
-// QVector<std::shared_ptr<GPoint>> OptimizedVisibilityGraph::
-//     connectWrapAroundPoints(
-//         const std::shared_ptr<GPoint>& point,
-//         const std::shared_ptr<Polygon>& polygon)
-// {
-//     QVector<std::shared_ptr<GPoint>> wrapAroundPoints;
+QVector<std::shared_ptr<GPoint>> OptimizedVisibilityGraph::connectWrapAroundPoints(
+    const std::shared_ptr<GPoint>& point)
+{
+    QVector<std::shared_ptr<GPoint>> wrapAroundPoints;
+    if (!quadtree->isNearBoundary(point)) return wrapAroundPoints;
 
-//     // Determine the corresponding points on the opposite boundary
-//     // Example: If the point is near the right edge,
-//     // find points near the left edge and vice versa.
+    // Get map boundaries
+    const auto mapMin = quadtree->getMapMinPoint();
+    const auto mapMax = quadtree->getMapMaxPoint();
+    const double mapWidth =
+        (mapMax.getLongitude() - mapMin.getLongitude()).value();
 
-//     if (!quadtree->isNearBoundary(point))
-//     {
-//         return wrapAroundPoints;
-//     }
-//     // Here, wrap-around happens only on the x-axis
-//     double newX = (point->x() < quadtree->getMapMinPoint().x()) ?
-//                       quadtree->getMapMaxPoint().x().value() :
-//                       quadtree->getMapMinPoint().x().value();
+    // Create mirrored point
+    auto createMirrorPoint = [&](double offset) {
+        double newLon = point->getLongitude().value() + offset;
+        return std::make_shared<GPoint>(
+            units::angle::degree_t(newLon),
+            point->getLatitude()
+            );
+    };
 
-//     std::shared_ptr<GPoint> correspondingPoint =
-//         std::make_shared<GPoint>(
-//             units::length::meter_t(newX), point->y());
+    // Check left boundary
+    if ((mapMax.getLongitude() - point->getLongitude()).value() < 1.0) {
+        wrapAroundPoints.append(createMirrorPoint(-mapWidth));
+    }
+    // Check right boundary
+    else if ((point->getLongitude() - mapMin.getLongitude()).value() < 1.0) {
+        wrapAroundPoints.append(createMirrorPoint(mapWidth));
+    }
 
-//     QVector<std::shared_ptr<GPoint>> allPointsOnOppositeBoundary;
-//     if (mBoundaryType == BoundariesType::Water)
-//     {
-//         allPointsOnOppositeBoundary =
-//             getVisibleNodesWithinPolygon(correspondingPoint, polygon);
-//     }
-//     else
-//     {
-//         allPointsOnOppositeBoundary =
-//             getVisibleNodesBetweenPolygons(correspondingPoint, polygons);
-//     }
+    // Find visible nodes for mirrored points
+    QVector<std::shared_ptr<GPoint>> allVisible;
+    for (const auto& wrappedPoint : wrapAroundPoints) {
+        // Get visible nodes for wrapped point
+        QVector<std::shared_ptr<GPoint>> wrappedVisible;
+        if (mBoundaryType == BoundariesType::Water) {
+            if (auto poly = findContainingPolygon(point)) {
+                wrappedVisible =
+                    getVisibleNodesWithinPolygon(wrappedPoint, poly);
+            }
+        } else {
+            wrappedVisible =
+                getVisibleNodesBetweenPolygons(wrappedPoint, polygons);
+        }
 
+        // Convert back to original coordinate system
+        for (auto& p : wrappedVisible) {
+            double adjustedLon = p->getLongitude().value();
+            if (adjustedLon > 180) adjustedLon -= 360;
+            else if (adjustedLon < -180) adjustedLon += 360;
 
-//     // For each potential corresponding point, check if it's visible
-//     // and add it to the wrapAroundPoints vector.
-//     for (const auto& potentialPoint : allPointsOnOppositeBoundary)
-//     {
-//         if (isVisible(correspondingPoint, potentialPoint)) {
-//             wrapAroundPoints.push_back(potentialPoint);
-//         }
-//     }
+            allVisible.append(std::make_shared<GPoint>(
+                units::angle::degree_t(adjustedLon),
+                p->getLatitude()
+                ));
+        }
+    }
 
-//     return wrapAroundPoints;
-// }
+    // Filter valid visible points considering wrap-around
+    QVector<std::shared_ptr<GPoint>> validVisible;
+    for (const auto& candidate : allVisible) {
+        auto wrapSegment = std::make_shared<GLine>(point, candidate);
+        if (isSegmentVisible(wrapSegment)) {
+            validVisible.append(candidate);
+        }
+    }
+
+    return validVisible;
+}
 
 
 void OptimizedVisibilityGraph::clear()
