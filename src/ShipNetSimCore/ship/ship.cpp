@@ -44,7 +44,10 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
         mLoadedContainers =
             ContainerCore::ContainerMap(this);
     } catch (std::exception &e) {
-        throw e;
+        QString errorMsg = QString("Failed to initialize "
+                                   "ContainerMap: %1").arg(e.what());
+        emit errorOccurred(errorMsg);
+        throw; // Rethrow the exception after emitting the signal
     }
 
 #endif
@@ -68,56 +71,71 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
             else if (parameters["CalmWaterResistanceStrategy"].type() !=
                      typeid(nullptr))
             {
-                qFatal("Ship ID: %s - Calm water resistance strategy "
-                       "does not match recognized strategies!",
-                       mShipUserID.toUtf8().constData());
+                QString error =
+                    QString("Ship ID: %s - Calm water resistance strategy "
+                            "does not match recognized strategies!").
+                    arg(mShipUserID);
 
+
+                emit errorOccurred(error);
+                qFatal("%s", qPrintable(error));
             }
         }
-        catch (const std::bad_any_cast&) {
+        catch (const std::bad_any_cast& e) {
             // Handle error: the std::any_cast didn't work
+            QString errorMsg =
+                QString("Failed to cast CalmWaterResistanceStrategy: %1")
+                    .arg(e.what());
+            emit errorOccurred(errorMsg);
             mCalmResistanceStrategy = nullptr;
         }
     }
     else
     {
+        try {
         // Setting default strategies or configurations
         mCalmResistanceStrategy = new HoltropMethod();
+        } catch (const std::exception& e) {
+            QString errorMsg = QString("Failed to create HoltropMethod: "
+                                       "%1").arg(e.what());
+            emit errorOccurred(errorMsg);
+            throw; // Rethrow the exception after emitting the signal
+        }
 
     }
 
-    if (parameters.contains("DynamicResistanceStrategy"))
-    {
+    if (parameters.contains("DynamicResistanceStrategy")) {
         try {
             if (parameters["DynamicResistanceStrategy"].type() ==
                 typeid(LangMaoMethod*)) {
-                LangMaoMethod* temp =
-                    std::any_cast<LangMaoMethod*>(
-                    parameters["DynamicResistanceStrategy"]);
+                LangMaoMethod* temp = std::any_cast<LangMaoMethod*>
+                    (parameters["DynamicResistanceStrategy"]);
                 mDynamicResistanceStrategy = temp;
-
-                qWarning() << "Ship ID:" << mShipUserID << " - "
-                           << "- Unrecognized DynamicResistanceStrategy type!";
-
-
+            } else if (parameters["DynamicResistanceStrategy"].type()
+                       != typeid(nullptr)) {
+                QString errorMsg = QString("Ship ID: %1 - Failed to cast "
+                                           "DynamicResistanceStrategy").
+                                   arg(mShipUserID);
+                emit errorOccurred(errorMsg);
+                throw std::runtime_error(errorMsg.toStdString());
             }
-            else if (parameters["DynamicResistanceStrategy"].type() !=
-                   typeid(nullptr))
-            {
-                qFatal("Ship ID: %s - Failed to cast "
-                       "DynamicResistanceStrategy.",
-                       mShipUserID.toUtf8().constData());
-
-            }
-        }
-        catch (const std::bad_any_cast&) {
-            // Handle error: the std::any_cast didn't work
+        } catch (const std::bad_any_cast& e) {
+            QString errorMsg = QString("Failed to cast "
+                                       "DynamicResistanceStrategy: %1")
+                                   .arg(e.what());
+            emit errorOccurred(errorMsg);
             mDynamicResistanceStrategy = nullptr;
         }
-    }
-    else
-    {
-        mDynamicResistanceStrategy = new LangMaoMethod();
+    } else {
+        // Setting default strategy
+        try {
+            mDynamicResistanceStrategy = new LangMaoMethod();
+        } catch (const std::exception& e) {
+            QString errorMsg = QString("Failed to create LangMaoMethod: %1")
+                                   .arg(e.what());
+            emit errorOccurred(errorMsg);
+            throw; // Rethrow the exception after emitting the signal
+        }
     }
 
     mWaterlineLength =
@@ -293,10 +311,15 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
         (std::isnan(mBlockCoef) && std::isnan(mMidshipSectionCoef)) ||
         (std::isnan(mPrismaticCoef) && std::isnan(mMidshipSectionCoef)))
     {
-        qFatal("Ship ID: %s - More than one of these coefficients are not passed: "
-               "Block, Prismatic, Midship Coefficients! "
-               "Make sure at least two coefficients are defined!",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg =
+            QString("Ship ID: %1 - More than one of these coefficients "
+                    "are not passed: "
+                    "Block, Prismatic, Midship Coefficients! "
+                    "Make sure at least two coefficients are defined!")
+                .arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
+
     }
 
     mLengthwiseProjectionArea =
@@ -341,10 +364,18 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
                 "TanksDetails",
                 {});
         for (const auto& tankDetails : TanksDetails) {
+            try {
             std::shared_ptr<Tank> tank = std::make_shared<Tank>();
             tank->initialize(this);
             tank->setCharacteristics(tankDetails);
-            mEnergySources.push_back(std::static_pointer_cast<IEnergySource>(tank));
+            mEnergySources.push_back(
+                std::static_pointer_cast<IEnergySource>(tank));
+            } catch (const std::exception& e) {
+                QString errorMsg = QString("Failed to initialize Tank: %1")
+                                       .arg(e.what());
+                emit errorOccurred(errorMsg);
+                throw; // Rethrow the exception after emitting the signal
+            }
         }
 
         // TODO: Add other sources if neccessary
@@ -400,8 +431,10 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
     if (lines.empty() || points.empty() ||
         lines.size() < 1 || points.size() < 2)
     {
-        qFatal("Ship ID: %s - Path Lines and Points are not defined",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Path Lines and Points "
+                                   "are not defined").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
     }
     setPath(points, lines);
     setStartPoint(points.at(0));
@@ -412,38 +445,52 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
     reset();
 
 
-    QVector<IEnergySource*> rawVector = [&](){ QVector<IEnergySource*> r; for(auto& sp : mEnergySources) r.push_back(sp.get()); return r; }();
-    for (int i = 0; i < propellerCount; i++)
-    {
-        ShipGearBox* gearbox = new ShipGearBox();
-        QVector<IShipEngine *> engines;
-        engines.reserve(engineCountPerPropeller); // Reserve space
-
-        for (int j = 0; j < engineCountPerPropeller; j++)
-        {
-            ShipEngine *engine = new ShipEngine();
-            try {
-                engine->initialize(
-                    this,
-                    rawVector,
-                    parameters);
-            } catch (...) {
-                delete engine;
-                throw; // Rethrow the exception after cleaning up
-            }
-            engines.push_back(engine);
+    QVector<IEnergySource*> rawVector = [&]() {
+        QVector<IEnergySource*> r;
+        for (auto& sp : mEnergySources) {
+            r.push_back(sp.get());
         }
-        gearbox->initialize(this, engines, parameters);
-
-        // Create, initialize, and add the propeller to the ship
-        auto prop = new ShipPropeller();
+        return r;
+    }();
+    for (int i = 0; i < propellerCount; i++) {
         try {
-            prop->initialize(this, gearbox, parameters);
-        } catch (...) {
-            delete prop;
-            throw; // Rethrow the exception after cleaning up
+            ShipGearBox* gearbox = new ShipGearBox();
+            QVector<IShipEngine*> engines;
+            engines.reserve(engineCountPerPropeller);
+
+            for (int j = 0; j < engineCountPerPropeller; j++) {
+                try {
+                    ShipEngine* engine = new ShipEngine();
+                    engine->initialize(this, rawVector, parameters);
+                    engines.push_back(engine);
+                } catch (const std::exception& e) {
+                    QString errorMsg =
+                        QString("Failed to initialize ShipEngine: %1")
+                                           .arg(e.what());
+                    emit errorOccurred(errorMsg);
+                    throw; // Rethrow the exception after emitting the signal
+                }
+            }
+
+            gearbox->initialize(this, engines, parameters);
+
+            try {
+                auto prop = new ShipPropeller();
+                prop->initialize(this, gearbox, parameters);
+                mPropellers.push_back(prop);
+            } catch (const std::exception& e) {
+                QString errorMsg =
+                    QString("Failed to initialize ShipPropeller: %1")
+                                       .arg(e.what());
+                emit errorOccurred(errorMsg);
+                throw; // Rethrow the exception after emitting the signal
+            }
+        } catch (const std::exception& e) {
+            QString errorMsg =
+                QString("Failed to initialize ShipGearBox: %1").arg(e.what());
+            emit errorOccurred(errorMsg);
+            throw; // Rethrow the exception after emitting the signal
         }
-        mPropellers.push_back(prop); // add the propeller to the ship
     }
 
     for (auto& propeller : mPropellers) {
@@ -458,12 +505,14 @@ Ship::Ship(const QMap<QString, std::any>& parameters,
 
         auto p = maxEffectivePower/ nH;
 
-        if (propeller->getGearBox()->getEngines().at(0)->getCurrentOperationalLoad() ==
+        if (propeller->getGearBox()->getEngines().
+            at(0)->getCurrentOperationalLoad() ==
             IShipEngine::EngineOperationalLoad::Default) {
             units::angular_velocity::revolutions_per_minute_t n =
                 units::angular_velocity::revolutions_per_minute_t(
-                    60.0 * Va.value() / (propeller->getPropellerPitch().value() *
-                                         (1.0 - propeller->getPropellerSlip())));
+                    60.0 * Va.value() /
+                    (propeller->getPropellerPitch().value() *
+                     (1.0 - propeller->getPropellerSlip())));
             IShipEngine::EngineProperties ep;
             ep.RPM = n;
             ep.breakPower = p;
@@ -661,8 +710,10 @@ units::area::square_meter_t Ship::calc_WetSurfaceArea(
             );
     }
 
-    qFatal("Ship ID: %s - Wrong method selected!",
-           mShipUserID.toUtf8().constData());
+    QString errorMsg = QString("Ship ID: %1 - Wrong method "
+                               "selected!").arg(mShipUserID);
+    emit errorOccurred(errorMsg);
+    qFatal("%s", qPrintable(errorMsg));
 
     return units::area::square_meter_t(0.0);
 
@@ -805,8 +856,10 @@ bool Ship::checkSelectedMethodAssumptions(
     }
     else if (typeid(strategy) != typeid(nullptr))
     {
-        qFatal("Ship ID: %s - Resistance Strategy is not recognized!",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Resistance Strategy "
+                                   "is not recognized!").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
     }
     return true;
 }
@@ -856,8 +909,10 @@ double Ship::calc_WaterplaneAreaCoef(WaterPlaneCoefficientMethod method) const
     }
     else
     {
-        qFatal("Ship ID: %s - Wrong method selected!",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Wrong method "
+                                   "selected!").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
         return 0.0;
     }
 }
@@ -2269,17 +2324,23 @@ Ship::getStepAcceleration(
 }
 
 bool Ship::isCurrentlyDwelling() const {
+    QMutexLocker locker(&mDwellStateMutex);
+
     return mDwellStartTime.value() >= 0;
 }
 
 void Ship::forceToStopFor(units::time::second_t duration,
                           units::time::second_t currentTime)
 {
+    QMutexLocker locker(&mDwellStateMutex);
     mDwellStartTime = currentTime;
     mDwellDuration = duration;
 }
 
-units::time::second_t Ship::getRemainingDwellTime(units::time::second_t currentTime) const {
+units::time::second_t
+Ship::getRemainingDwellTime(units::time::second_t currentTime) const {
+    QMutexLocker locker(&mDwellStateMutex);
+
     if (mDwellStartTime.value() < 0) return units::time::second_t(0);
     units::time::second_t elapsedTime = currentTime - mDwellStartTime;
     units::time::second_t remainingTime = mDwellDuration - elapsedTime;
@@ -2289,6 +2350,7 @@ units::time::second_t Ship::getRemainingDwellTime(units::time::second_t currentT
 
 // When the train starts moving again, reset the dwell state
 void Ship::resetDwellState() {
+    QMutexLocker locker(&mDwellStateMutex);
     mDwellStartTime = units::time::second_t(-1.0);
     mDwellDuration  = units::time::second_t(0.0);
 }
@@ -2339,17 +2401,20 @@ void Ship::sail(units::time::second_t &currentSimulationTime,
             auto port =
                 SeaPortLoader::getClosestPortToPoint(nextStoppingPoint);
 
-            QString portID = port->getPortCode();
-            QString portName = port->getPortName();
+            QPair<QString, qsizetype> containersCount = {"", 0};
+            if (port) {
 
-            auto containers =
-                getContainersLeavingAtPort({portID, portName});
-            QJsonArray containersJson;
-            for (const auto& container : containers) {
-                containersJson.append(container->toJson());
+                QString portID = port->getPortCode();
+                QString portName = port->getPortName();
+
+                containersCount =
+                    countContainersLeavingAtPort({portID, portName});
             }
 
-            emit reachedSeaPort(getUserID(), portID, containersJson);
+
+            emit reachedSeaPort(getUserID(),
+                                containersCount.first,
+                                containersCount.second);
         }
 
         // Skip movement if we're still within the dwell time
@@ -2674,32 +2739,32 @@ QJsonObject Ship::getCurrentStateAsJson() const
     QJsonObject json;
 
     // Add simple attributes
-    json["ShipID"] = mShipUserID;
-    json["TravelledDistance"] = mTraveledDistance.value();
-    json["CurrentAcceleration"] = mAcceleration.value();
-    json["PreviousAcceleration"] = mPreviousAcceleration.value();
-    json["CurrentSpeed"] = mSpeed.value();
-    json["PreviousSpeed"] = mPreviousSpeed.value();
-    json["TotalThrust"] = mTotalThrust.value();
-    json["TotalResistance"] = mTotalResistance.value();
-    json["VesselWeight"] = mVesselWeight.value();
-    json["CargoWeight"] = mCargoWeight.value();
-    json["IsOn"] = mIsOn;
-    json["OutOfEnergy"] = mOutOfEnergy;
-    json["Loaded"] = mLoaded;
-    json["ReachedDestination"] = mReachedDestination;
+    json["shipID"] = mShipUserID;
+    json["travelledDistance"] = mTraveledDistance.value();
+    json["currentAcceleration"] = mAcceleration.value();
+    json["previousAcceleration"] = mPreviousAcceleration.value();
+    json["currentSpeed"] = mSpeed.value();
+    json["previousSpeed"] = mPreviousSpeed.value();
+    json["totalThrust"] = mTotalThrust.value();
+    json["totalResistance"] = mTotalResistance.value();
+    json["vesselWeight"] = mVesselWeight.value();
+    json["cargoWeight"] = mCargoWeight.value();
+    json["isOn"] = mIsOn;
+    json["outOfEnergy"] = mOutOfEnergy;
+    json["loaded"] = mLoaded;
+    json["reachedDestination"] = mReachedDestination;
     QJsonObject stateJson;
-    stateJson["EenergyConsumption"] = mCumConsumedEnergy.value();
+    stateJson["eenergyConsumption"] = mCumConsumedEnergy.value();
     QJsonArray fuelConsumptionArray;
     for (const auto& fuelEntry : mCumConsumedFuel) {
         QJsonObject fuelJson;
-        fuelJson["FuelType"] =
+        fuelJson["fuelType"] =
             ShipFuel::convertFuelTypeToString(fuelEntry.first);
-        fuelJson["ConsumedVolumeLiters"] = fuelEntry.second.value();
+        fuelJson["consumedVolumeLiters"] = fuelEntry.second.value();
         fuelConsumptionArray.append(fuelJson);
     }
-    stateJson["FuelConsumption"] = fuelConsumptionArray;
-    json["Consumption"] = stateJson;
+    stateJson["fuelConsumption"] = fuelConsumptionArray;
+    json["consumption"] = stateJson;
 
     // Add energy sources (as an array)
     QJsonArray energySourcesArray;
@@ -2707,48 +2772,65 @@ QJsonObject Ship::getCurrentStateAsJson() const
         // You can expand this if `IEnergySource` has more
         // detailed information to add
         QJsonObject energySourceJson;
-        energySourceJson["Capacity"] =
+        energySourceJson["capacity"] =
             energySource->getCurrentCapacityState();
-        energySourceJson["FuelType"] =
+        energySourceJson["fuelType"] =
             ShipFuel::convertFuelTypeToString(energySource->getFuelType());
-        energySourceJson["EnergyConsumed"] =
+        energySourceJson["energyConsumed"] =
             energySource->getTotalEnergyConsumed().value();
-        energySourceJson["Weight"] = energySource->getCurrentWeight().value();
+        energySourceJson["weight"] = energySource->getCurrentWeight().value();
         energySourcesArray.append(energySourceJson);
     }
-    json["EnergySources"] = energySourcesArray;
+    json["energySources"] = energySourcesArray;
 
     QJsonObject posJson;
     auto cp = mCurrentState.getCurrentPosition();
-    posJson["Latitude"] = cp.getLatitude().value();
-    posJson["Longitude"] = cp.getLongitude().value();
+    posJson["latitude"] = cp.getLatitude().value();
+    posJson["longitude"] = cp.getLongitude().value();
     QJsonArray xyPosition;
     xyPosition.append(cp.getLatitude().value());
     xyPosition.append(cp.getLongitude().value());
-    posJson["Position"] = xyPosition;
-    json["Position"] = posJson;
+    posJson["position"] = xyPosition;
+    json["position"] = posJson;
 
     // Environment conditions
     QJsonObject envJson;
-    envJson["WaterDepth"] = mCurrentState.getEnvironment().waterDepth.value();
-    envJson["Salinity"] = mCurrentState.getEnvironment().salinity.value();
-    envJson["Temperature"] = mCurrentState.getEnvironment().temperature.value();
-    envJson["WaveHeight"] = mCurrentState.getEnvironment().waveHeight.value();
-    envJson["WaveLength"] = mCurrentState.getEnvironment().waveLength.value();
-    envJson["WaveAngularFrequency"] =
+    envJson["waterDepth"] = mCurrentState.getEnvironment().waterDepth.value();
+    envJson["salinity"] = mCurrentState.getEnvironment().salinity.value();
+    envJson["temperature"] = mCurrentState.getEnvironment().temperature.value();
+    envJson["waveHeight"] = mCurrentState.getEnvironment().waveHeight.value();
+    envJson["waveLength"] = mCurrentState.getEnvironment().waveLength.value();
+    envJson["waveAngularFrequency"] =
         mCurrentState.getEnvironment().waveAngularFrequency.value();
-    json["Environment"] = envJson;
+    json["environment"] = envJson;
 
 #ifdef BUILD_SERVER_ENABLED
-    json["ContainerMap"] = mLoadedContainers.toJson();
+    json["containers"] = mLoadedContainers.toJson();
 #endif
+
+    auto p = getCurrentPosition();
+    auto p_shared = std::make_shared<GPoint>(p);
+    auto port =
+        SeaPortLoader::getClosestPortToPoint(p_shared,
+                                             units::length::meter_t(1'000.0));
+
+    if (port) {
+        json["closestPort"] = port->getPortName();
+    }
 
     // Convert to JSON document
     return json;
 }
 
+void Ship::requestCurrentStateAsJson() {
+    auto out = getCurrentStateAsJson();
+    emit shipStateAvailable(out);
+}
+
 #ifdef BUILD_SERVER_ENABLED
-QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
+QVector<ContainerCore::Container*> Ship::getLoadedContainers() {
+    QMutexLocker locker(&mContainerMutex);
+
     QVector<ContainerCore::Container*> containerList;
     for (auto &container : mLoadedContainers.getAllContainers()) {
         containerList.append(container);
@@ -2758,6 +2840,7 @@ QVector<ContainerCore::Container*> Ship::getLoadedContainers() const {
 
 void Ship::addContainer(ContainerCore::Container* container)
 {
+    QMutexLocker locker(&mContainerMutex);
     if (container) {
         mLoadedContainers.addContainer(container->getContainerID(), container);
         emit containersAdded();
@@ -2765,16 +2848,19 @@ void Ship::addContainer(ContainerCore::Container* container)
 }
 
 void Ship::addContainers(QJsonObject json) {
+    QMutexLocker locker(&mContainerMutex);
     mLoadedContainers.addContainers(json);
     emit containersAdded();
 }
 
-QVector<ContainerCore::Container *>
+QPair<QString, QVector<ContainerCore::Container *>>
 Ship::getContainersLeavingAtPort(const QVector<QString>& portNames)
 {
+    QMutexLocker locker(&mContainerMutex);
+
     // Early return if no port names provided
     if (portNames.isEmpty()) {
-        return QVector<ContainerCore::Container*>();
+        return {"", QVector<ContainerCore::Container*>()};
     }
 
     // Check each port until we find containers
@@ -2782,11 +2868,77 @@ Ship::getContainersLeavingAtPort(const QVector<QString>& portNames)
         auto containers =
             mLoadedContainers.dequeueContainersByNextDestination(portName);
         if (!containers.isEmpty()) {
-            return containers;
+            return {portName, containers};
         }
     }
 
-    return QVector<ContainerCore::Container*>();
+    return {"", QVector<ContainerCore::Container*>()};
+}
+
+QPair<QString, qsizetype>
+Ship::countContainersLeavingAtPort(const QVector<QString>& portNames)
+{
+    QMutexLocker locker(&mContainerMutex);
+
+    if (portNames.isEmpty()) {
+        return {"", 0};
+    }
+
+    qsizetype count = 0;
+    // Check each port until we find containers
+    for (const QString& portName : portNames) {
+        count =
+            mLoadedContainers.countContainersByNextDestination(portName);
+        if (count != 0) {
+            return {portName, count};
+        }
+    }
+    return {"", count};
+}
+
+void Ship::requestUnloadContainersAtPort(const QVector<QString> &portNames)
+{
+    QMutexLocker locker(&mContainerMutex);
+
+    QVector<QString> portN;
+    if (isReachedDestination() || portNames.isEmpty()) {
+
+        auto p = getCurrentPosition();
+        auto p_shared = std::make_shared<GPoint>(p);
+        auto closestPort =
+            SeaPortLoader::getClosestPortToPoint(p_shared);
+
+        if (closestPort) {
+            portN.push_back(closestPort->getPortName());
+            portN.push_back(closestPort->getPortCode());
+        }
+    }
+
+    for (auto port : portNames) {
+        portN.push_back(port);
+    }
+
+    if (isCurrentlyDwelling() || isReachedDestination()) {
+
+        auto containers =
+            getContainersLeavingAtPort(portN);
+
+        QJsonArray containersJson;
+        for (const auto& container : containers.second) {
+            containersJson.append(container->toJson());
+        }
+
+        emit containersUnloaded(getUserID(),
+                                containers.first,
+                                containersJson);
+    }
+}
+
+void Ship::requestShipToLeavePort()
+{
+    if (isCurrentlyDwelling() && !isReachedDestination()) {
+        resetDwellState();
+    }
 }
 #endif
 
@@ -2796,8 +2948,11 @@ QVector<units::length::meter_t> Ship::generateCumLinesLengths()
 
     if (n < 1)
     {
-        qFatal("Ship ID: %s - Ship number of links should "
-               "be greater than zero!", mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Ship number of links should "
+                                   "be greater than zero!").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
+
     }
 
     QVector<units::length::meter_t>
@@ -2821,9 +2976,11 @@ units::length::meter_t Ship::distanceToFinishFromPathNodeIndex(qsizetype i)
 {
     if (i < 0 || i > mLinksCumLengths.size())
     {
-        qFatal("Ship ID: %s - Node index should "
-               "be within zero and node path size!",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Node index should "
+                                   "be within zero and node path size!")
+                               .arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
     }
     if (i == mLinksCumLengths.size())
     {
@@ -2840,14 +2997,20 @@ Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
 {
     if (endIndex < startIndex)
     {
-        qFatal("Ship ID: %s - Start index is greater than end index",
-               mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - Start index is greater "
+                                   "than end index").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
     }
     if (startIndex < 0 || endIndex >= mLinksCumLengths.size())
     {
-        qFatal("Ship ID: %s - Node indices should "
-                            "be within zero and node path size!",
-               mShipUserID.toUtf8().constData());
+
+        QString errorMsg = QString("Ship ID: %1 - Node indices should "
+                                   "be within zero and node path size!")
+                               .arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
+
     }
 
     if (startIndex == endIndex) { return units::length::meter_t(0.0); }
@@ -2863,8 +3026,10 @@ units::length::meter_t Ship::distanceFromCurrentPositionToNodePathIndex(
 {
     if (endIndex > mLinksCumLengths.size() || endIndex < 0)
     {
-        qFatal("Ship ID: %s - End index should be between "
-               "zero and node path size!", mShipUserID.toUtf8().constData());
+        QString errorMsg = QString("Ship ID: %1 - End index should be between "
+                                   "zero and node path size!").arg(mShipUserID);
+        emit errorOccurred(errorMsg);
+        qFatal("%s", qPrintable(errorMsg));
     }
     qsizetype nextIndex = mPreviousPathPointIndex + 1;
     auto rest =
@@ -2881,7 +3046,7 @@ double Ship::progress()
     // if the ship has not yet been loaded, return 0.0
     if (! mLoaded) return 0.0;
     // if the ship reached its destination, return 1.0
-    if (mReachedDestination) return 1.0;
+    if (isReachedDestination()) return 1.0;
 
     // if neither, calculate the progress
 
