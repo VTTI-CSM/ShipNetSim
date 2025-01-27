@@ -188,6 +188,12 @@ public:
      */
     GPoint midpoint() const;
 
+    /**
+     * @brief Create a reversed copy of this line (start and end points swapped)
+     * @return A new GLine instance with reversed endpoints
+     */
+    GLine reverse() const;
+
     // Operator overloads
     /**
      * @brief Equality operator to compare two lines.
