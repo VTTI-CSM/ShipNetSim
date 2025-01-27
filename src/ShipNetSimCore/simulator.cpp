@@ -26,7 +26,8 @@ Simulator::Simulator(OptimizedNetwork* network,
     qDebug() << "Simulator initialized with" << mShips.size() << "ships.";
 
     if (!mNetwork) {
-        qFatal("Simulator initialization failed: Network pointer is null.");
+        throw std::runtime_error("Simulator initialization failed: "
+                                 "Network pointer is null.");
     }
 
     mOutputLocation = Utils::getHomeDirectory();
@@ -124,8 +125,10 @@ void Simulator::studyShipsResistance()
             ship->setSpeed(ss);
 
             if (!ship->getCalmResistanceStrategy()) {
-                qFatal("Ship ID: %s - Missing calm resistance strategy.",
-                       ship->getUserID().toUtf8().constData());
+                QString errorMsg = QString("Ship ID: %1 - Missing calm "
+                                           "resistance strategy.")
+                                       .arg(ship->getUserID());
+                throw std::runtime_error(errorMsg.toStdString());
             }
 
             // ship->setSpeed(units::velocity::meters_per_second_t(speedStep));
@@ -633,7 +636,7 @@ void Simulator::runSimulation(units::time::second_t runFor,
 
     }
 
-    if (!emitEndStepSignal) {
+    if (!std::isinf(runFor.value())){
         emit simulationReachedReportingTime(mSimulationTime,
                                             mProgressPercentage);
     }
