@@ -23,14 +23,14 @@ bool OptimizedNetwork::loadFirstAvailableTiffFile(
 
     if (loc == "")
     {
-        emit errorOccured("Could not find the tiff file");
+        emit errorOccurred("Could not find the tiff file");
         return false;
     }
     variable.dataset = readTIFFFile(loc.toStdString().c_str());
     if (variable.dataset->GetGeoTransform(
             variable.adfGeoTransform) != CE_None)
     {
-        emit errorOccured("Tiff file may not have an assigned SRS!");
+        emit errorOccurred("Tiff file may not have an assigned SRS!");
         return false;
     }
 
@@ -53,7 +53,7 @@ void OptimizedNetwork::initializeNetwork(QString filename, QString regionName)
 
     // Check if the file exists before trying to get its extension
     if (!fileInfo.exists()) {
-        emit errorOccured("File does not exist.");
+        emit errorOccurred("File does not exist.");
         return;
     }
 
@@ -67,11 +67,11 @@ void OptimizedNetwork::initializeNetwork(QString filename, QString regionName)
     }
     // shp file
     else if (extension == "shp") {
-        loadShapeFile(filename);
+        loadPolygonShapeFile(filename);
     }
     // other file extensions are not yet supported
     else {
-        emit errorOccured("file type is not supported!");
+        emit errorOccurred("file type is not supported!");
         return;
     }
 
@@ -81,7 +81,7 @@ void OptimizedNetwork::initializeNetwork(QString filename, QString regionName)
             NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
     mSeaPorts = SeaPortLoader::getPorts();
     if (! loadedSeaPorts) {
-        emit errorOccured("Sea Ports file could not be loaded!");
+        emit errorOccurred("Sea Ports file could not be loaded!");
         return;
     }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
@@ -117,7 +117,7 @@ void OptimizedNetwork::initializeNetwork(
             NetworkDefaults::seaPortsLocations(Utils::getDataDirectory()));
     mSeaPorts = SeaPortLoader::getPorts();
     if (! loadedSeaPorts) {
-        emit errorOccured("Sea Ports file could not be loaded!");
+        emit errorOccurred("Sea Ports file could not be loaded!");
         return;
     }
     else { mVisibilityGraph->loadSeaPortsPolygonCoordinates(mSeaPorts); }
@@ -163,7 +163,7 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly))
     {
-        emit errorOccured("Failed to open the network file.");
+        emit errorOccurred("Failed to open the network file.");
         return;
     }
 
@@ -224,11 +224,19 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
             if (!outerBoundary.isEmpty() ||
                 !holes.isEmpty())
             {
-                auto polygon =
-                    std::make_shared<Polygon>(outerBoundary,
-                                              holes,
-                                              waterBodyId);
-                mBoundaries.push_back(polygon);
+                try {
+                    auto polygon = std::make_shared<Polygon>(
+                        outerBoundary,
+                        holes,
+                        waterBodyId
+                        );
+                    mBoundaries.push_back(polygon);
+                } catch (const std::exception& e) {
+                    QString errorMsg =
+                        QString("Failed to create Polygon: %1").arg(e.what());
+                    emit errorOccurred(errorMsg);
+                    throw;
+                }
                 outerBoundary.clear();
                 holes.clear();
             }
@@ -276,17 +284,25 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
                 double lon = pointMatch.captured(2).toDouble();
                 double lat = pointMatch.captured(3).toDouble();
 
-                std::shared_ptr<GPoint> pt =
-                    std::make_shared<GPoint>(units::angle::degree_t(lon),
-                                             units::angle::degree_t(lat),
-                                             id);
-                currentBoundary.append(pt);
+                try {
+                    std::shared_ptr<GPoint> pt = std::make_shared<GPoint>(
+                        units::angle::degree_t(lon),
+                        units::angle::degree_t(lat),
+                        id
+                        );
+                    currentBoundary.append(pt);
+                } catch (const std::exception& e) {
+                    QString errorMsg =
+                        QString("Failed to create GPoint: %1").arg(e.what());
+                    emit errorOccurred(errorMsg);
+                    throw; // Rethrow the exception after emitting the signal
+                }
             }
             else
             {
                 // Handle invalid or unexpected lines
                 if (!line.isEmpty()) {
-                    emit errorOccured("Unexpected format or "
+                    emit errorOccurred("Unexpected format or "
                                 "content in line:" + line);
                 }
             }
@@ -297,29 +313,46 @@ void OptimizedNetwork::loadTxtFile(const QString& filename)
     if (!outerBoundary.isEmpty() ||
         !holes.isEmpty())
     {
-        auto polygon =
-            std::make_shared<Polygon>(outerBoundary,
-                                      holes,
-                                      waterBodyId);
-        mBoundaries.push_back(polygon);
+        try {
+            auto polygon = std::make_shared<Polygon>(
+                outerBoundary,
+                holes,
+                waterBodyId
+                );
+            mBoundaries.push_back(polygon);
+        } catch (const std::exception& e) {
+            QString errorMsg =
+                QString("Failed to create Polygon: %1").arg(e.what());
+            emit errorOccurred(errorMsg);
+            throw; // Rethrow the exception after emitting the signal
+        }
     }
 
     file.close();
 
-    mVisibilityGraph =
-        std::make_shared<OptimizedVisibilityGraph>(
+    try {
+        mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
             std::as_const(mBoundaries),
-            BoundariesType::Water);
+            BoundariesType::Water
+            );
+    } catch (const std::exception& e) {
+        QString errorMsg = QString("Failed to create"
+                                   " OptimizedVisibilityGraph: %1")
+                               .arg(e.what());
+        emit errorOccurred(errorMsg);
+        throw;
+    }
 }
 
-void OptimizedNetwork::loadShapeFile(const QString& filepath) {
+void OptimizedNetwork::loadPolygonShapeFile(const QString& filepath) {
 
     mBoundaries.clear();
     GDALDataset* poDS = static_cast<GDALDataset*>
         (GDALOpenEx(filepath.toStdString().c_str(),
                     GDAL_OF_VECTOR, NULL, NULL, NULL));
     if(poDS == NULL) {
-        emit errorOccured("Open shaefile failed.");
+        emit errorOccurred("Open shaefile failed.");
+        return;
     }
 
     OGRLayer* poLayer = poDS->GetLayer(0);
@@ -335,14 +368,16 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
         if (! poSRS->IsGeographic()) {
             CPLFree(pszSRS_WKT);
             GDALClose(poDS);
-            emit errorOccured("The spatial reference system is not geographic. "
+            emit errorOccurred("The spatial reference system is not geographic. "
                               "Exiting...");
+            return;
         }
 
         CPLFree(pszSRS_WKT);
     } else {
         GDALClose(poDS);
-        emit errorOccured("Spatial reference system is unknown. Exiting...");
+        emit errorOccurred("Spatial reference system is unknown. Exiting...");
+        return;
     }
 
 
@@ -371,10 +406,18 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
                     double x = poExteriorRing->getX(i);
                     double y = poExteriorRing->getY(i);
 
+                    try {
                     exterirorRinge.push_back(
                         std::make_shared<GPoint>(
                             GPoint(units::angle::degree_t(x),
                                    units::angle::degree_t(y))));
+                    } catch (const std::exception& e) {
+                        QString errorMsg =
+                            QString("Failed to create GPoint: %1")
+                                               .arg(e.what());
+                        emit errorOccurred(errorMsg);
+                        throw;
+                    }
                 }
 
                 shapeID ++; // increment the id
@@ -393,18 +436,33 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
                     double x = poInteriorRing->getX(j);
                     double y = poInteriorRing->getY(j);
 
-                    innerHoles[i].push_back(
-                        std::make_shared<GPoint>(
-                            GPoint(units::angle::degree_t(x),
-                                   units::angle::degree_t(y))));
+                    try {
+                        innerHoles[i].push_back(
+                            std::make_shared<GPoint>(
+                                GPoint(units::angle::degree_t(x),
+                                       units::angle::degree_t(y))));
+                    } catch (const std::exception& e) {
+                        QString errorMsg =
+                            QString("Failed to create GPoint: %1")
+                                               .arg(e.what());
+                        emit errorOccurred(errorMsg);
+                        throw;
+                    }
                 }
             }
 
-            auto polygon =
-                std::make_shared<Polygon>(exterirorRinge,
-                                          innerHoles,
-                                          QString::number(shapeID));
-            mBoundaries.push_back(polygon);
+            try {
+                auto polygon =
+                    std::make_shared<Polygon>(exterirorRinge,
+                                              innerHoles,
+                                              QString::number(shapeID));
+                mBoundaries.push_back(polygon);
+            } catch (const std::exception& e) {
+                QString errorMsg =
+                    QString("Failed to create Polygon: %1").arg(e.what());
+                emit errorOccurred(errorMsg);
+                throw;
+            }
 
         }
         OGRFeature::DestroyFeature(poFeature);
@@ -412,10 +470,18 @@ void OptimizedNetwork::loadShapeFile(const QString& filepath) {
 
     GDALClose(poDS);
 
-    mVisibilityGraph =
-        std::make_shared<OptimizedVisibilityGraph>(
-            std::as_const(mBoundaries),
-            BoundariesType::Water);
+    try {
+        mVisibilityGraph =
+            std::make_shared<OptimizedVisibilityGraph>(
+                std::as_const(mBoundaries),
+                BoundariesType::Water);
+    } catch (const std::exception& e) {
+        QString errorMsg =
+            QString("Failed to create OptimizedVisibilityGraph: %1")
+                               .arg(e.what());
+        emit errorOccurred(errorMsg);
+        throw;
+    }
 }
 
 void OptimizedNetwork::loadTiffData() {
@@ -496,14 +562,14 @@ GDALDataset *OptimizedNetwork::readTIFFFile(
 
     dataset = (GDALDataset *) GDALOpen(filename, GA_ReadOnly);
     if(dataset == nullptr) {
-        emit errorOccured(QString("Error opening file: ") + filename);
+        emit errorOccurred(QString("Error opening file: ") + filename);
         return {}; // Return an empty vector on failure
     }
 
     // Check for the number of bands in the TIFF file
     if(dataset->GetRasterCount() > 1) {
         GDALClose(dataset); // Close the dataset before throwing
-        emit errorOccured("TIFF file contains more than one band, "
+        emit errorOccurred("TIFF file contains more than one band, "
                           "which is not supported.");
     }
 
