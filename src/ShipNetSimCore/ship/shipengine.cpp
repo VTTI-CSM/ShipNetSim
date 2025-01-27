@@ -124,10 +124,11 @@ void ShipEngine::setParameters(const QMap<QString, std::any> &parameters)
         (parameters, "EngineTierIIPropertiesPoints", {});
     if (mEngineDefaultTierPropertiesPoints.size() != 4)
     {
-        qFatal("Engine safe operational zone properties is not defined! "
-               "Engine Properties (BrakePower, RPM, Efficiency) "
-               "must be defined at the"
-               " corners of the engine layout!");
+        throw std::runtime_error(
+            "Engine safe operational zone properties is not defined! "
+            "Engine Properties (BrakePower, RPM, Efficiency) "
+            "must be defined at the"
+            " corners of the engine layout!");
     }
 
     // set initial value
