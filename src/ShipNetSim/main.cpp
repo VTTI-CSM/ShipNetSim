@@ -335,9 +335,15 @@ int main(int argc, char *argv[])
         // Check if the parametric resistance flag is set
         if (parser.isSet(studyResistances))
         {
-            auto shipsDetails =
-                ShipsList::readShipsFile(shipsFile, nullptr, true);
-            ships = ShipsList::loadShipsFromParameters(shipsDetails);
+            try {
+                auto shipsDetails =
+                    ShipsList::readShipsFile(shipsFile, nullptr, true);
+                ships = ShipsList::loadShipsFromParameters(shipsDetails);
+            } catch (std::exception &e) {
+                std::cout << e.what();
+                return 1;
+            }
+
             SimulatorAPI::ContinuousMode::createNewSimulationEnvironment(
                 MAIN_SIMULATION_NAME, ships,
                 units::time::second_t(timeStep), false);
@@ -377,15 +383,17 @@ int main(int argc, char *argv[])
                 waterBoundariesFile, MAIN_SIMULATION_NAME);
 
             std::cout <<"\nLoading Ships!                 \n";
-            auto shipsDetails =
-                ShipsList::readShipsFile(shipsFile, net, false);
+
             try {
+                auto shipsDetails =
+                    ShipsList::readShipsFile(shipsFile, net, false);
                 ships =
                     ShipsList::loadShipsFromParameters(shipsDetails,
                                                        net,
                                                        false);
             } catch (std::exception &e) {
                 std::cout << e.what();
+                return 1;
             }
 
 
@@ -413,9 +421,8 @@ int main(int argc, char *argv[])
             QEventLoop loop;
             QObject::connect(&SimulatorAPI::ContinuousMode::getInstance(),
                              &SimulatorAPI::simulationFinished,
-                             &loop, [&loop](QVector<QString> networkNames){
-                                 if (networkNames.contains(
-                                         MAIN_SIMULATION_NAME))
+                             &loop, [&loop](QString networkName){
+                                 if (networkName == MAIN_SIMULATION_NAME)
                                  {
                                      loop.quit();
                                  }
