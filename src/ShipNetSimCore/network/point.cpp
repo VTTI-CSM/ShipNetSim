@@ -45,7 +45,7 @@ Point::Point(units::length::meter_t xCoord,
     if (!crc.IsEmpty()) {
         if (!crc.IsProjected())
         {
-            qFatal("Spatial reference must be projected!");
+            throw std::runtime_error("Spatial reference must be projected!");
         }
         // Clone the passed spatial reference and assign
         // it to spatialRef pointer
@@ -87,7 +87,8 @@ std::shared_ptr<OGRSpatialReference> Point::getDefaultProjectionReference()
 
         OGRErr err = Point::spatialRef->importFromWkt(pszWKT);
         if (err != OGRERR_NONE) {
-            qFatal("Failed to set World Behrmann spatial reference");
+            throw std::runtime_error("Failed to set World Behrmann "
+                                     "spatial reference");
         }
     }
     return Point::spatialRef;
@@ -105,15 +106,17 @@ void Point::setDefaultProjectionReference(std::string wellknownCS)
     OGRErr err = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
     if (err != OGRERR_NONE) {
         // Exit the function on failure
-        qFatal("Failed to interpret the provided spatial reference: %s",
-               qPrintable(QString::fromStdString(wellknownCS)));
+        throw std::runtime_error("Failed to interpret the "
+                                 "provided spatial reference: " +
+                                 wellknownCS);
     }
 
     // Check if the spatial reference is geodetic
     if (!tempRef->IsProjected()) {
         // Exit the function if not projected
-        qFatal("The provided spatial reference is not projected: %s",
-               qPrintable(QString::fromStdString(wellknownCS)));
+        throw std::runtime_error("The provided spatial reference "
+                                 "is not projected: " +
+                                 wellknownCS);
     }
 
     // If validation passed, assign the validated spatial
@@ -148,7 +151,7 @@ void Point::transformDatumTo(OGRSpatialReference *targetSR)
     }
     else
     {
-        qFatal("Target spatial reference is not projected!");
+        throw std::runtime_error("Target spatial reference is not projected!");
     }
 }
 
@@ -156,13 +159,13 @@ GPoint Point::reprojectTo(OGRSpatialReference *targetSR)
 {
     // Ensure the target Spatial Reference is valid and is a projected CRS
     if (!targetSR || !targetSR->IsGeographic()) {
-        qFatal("Target Spatial Reference "
-               "is not valid or not a geographic CRS.");
+        throw std::runtime_error("Target Spatial Reference "
+                                 "is not valid or not a geographic CRS.");
     }
 
     const OGRSpatialReference* currentSR = mOGRPoint.getSpatialReference();
     if (currentSR == nullptr) {
-        qFatal("Current Spatial Reference is not set.");
+        throw std::runtime_error("Current Spatial Reference is not set.");
     }
 
     // Create a coordinate transformation from the current
@@ -170,7 +173,7 @@ GPoint Point::reprojectTo(OGRSpatialReference *targetSR)
     OGRCoordinateTransformation* coordTransform =
         OGRCreateCoordinateTransformation(currentSR, targetSR);
     if (!coordTransform) {
-        qFatal("Failed to create coordinate transformation.");
+        throw std::runtime_error("Failed to create coordinate transformation.");
     }
 
     double x = mOGRPoint.getX();
@@ -179,7 +182,7 @@ GPoint Point::reprojectTo(OGRSpatialReference *targetSR)
     // Transform the point's coordinates from geographic to projected CRS
     if (!coordTransform->Transform(1, &x, &y)) {
         OCTDestroyCoordinateTransformation(coordTransform);
-        qFatal("Failed to transform point coordinates.");
+        throw std::runtime_error("Failed to transform point coordinates.");
     }
 
     OCTDestroyCoordinateTransformation(coordTransform);
