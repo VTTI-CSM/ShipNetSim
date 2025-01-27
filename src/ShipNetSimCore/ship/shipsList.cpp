@@ -17,7 +17,7 @@ QVector<QMap<QString, std::any>> readShipsFile(
     {
         if (network == nullptr)
         {
-            qFatal("network cannot be null");
+            throw ShipLoadException("Network cannot be null");
         }
     }
 
@@ -30,7 +30,7 @@ QVector<QMap<QString, std::any>> readShipsFile(
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
         // Log an error message if file cannot be opened.
-        qFatal("Failed to open the ships file: %s", qUtf8Printable(filename));
+        throw ShipLoadException("Failed to open the ships file: " + filename);
         return ships;
     }
 
@@ -80,8 +80,7 @@ QVector<QMap<QString, QString>> readShipsFileToStrings(QString filename)
     QFile file(filename);
     if (!file.open(QIODevice::ReadOnly)) {
         // Log an error message if file cannot be opened.
-        qFatal("Failed to open the ships file: %s",
-               qUtf8Printable(filename));
+        throw ShipLoadException("Failed to open the ships file: " + filename);
 
         return ships;
     }
@@ -143,8 +142,8 @@ QMap<QString, QString> readShipFromStringToStrings(QString line)
     }
     else
     {
-        qFatal("Not all parameters are provided! "
-               "\n Check the ships file");
+        throw ShipLoadException("Not all parameters are provided! "
+                                "\n Check the ships file");
     }
 
     return parameters;
@@ -190,7 +189,7 @@ QMap<QString, std::any> readShipFromString(QString line,
 
             if (!results.isValid())
             {
-                qFatal("Could not find ship path!\n");
+                throw ShipLoadException("Could not find ship path!\n");
             }
 
             parameters["PathPoints"] = results.points;
@@ -216,8 +215,8 @@ QMap<QString, std::any> readShipFromString(QString line,
     }
     else
     {
-        qFatal("Not all parameters are provided! "
-               "\n Check the ships file");
+        throw ShipLoadException("Not all parameters are provided! "
+                                "\n Check the ships file");
     }
 
     return parameters;
@@ -231,8 +230,8 @@ bool writeShipsFile(
     // Open the file for writing.
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qFatal("Failed to open the ships file %s for writing.",
-               qUtf8Printable(filename));
+        throw ShipLoadException("Failed to open the ships file " +
+                                filename + " for writing.");
         return false;
     }
 
@@ -275,8 +274,8 @@ bool writeShipsFile(
                 }
                 else
                 {
-                    qFatal("Missing non-optional parameter: %s",
-                           qPrintable(param.name));
+                    throw ShipLoadException("Missing non-optional parameter: "
+                                            + param.name);
                     return false;
                 }
             }
@@ -306,7 +305,7 @@ loadShipFromParameters(QMap<QString, T> shipDetails,
             QString value = it.value();
             auto param = findParamInfoByKey(key, FileOrderedparameters);
             if (!param) {
-                throw std::runtime_error("Could not find ship parameter");
+                throw ShipLoadException("Could not find ship parameter");
             }
             convertedParameters[key] =
                 param->converter(value, param->isOptional);
@@ -326,7 +325,7 @@ loadShipFromParameters(QMap<QString, T> shipDetails,
 
         if (!results.isValid())
         {
-            qFatal("Could not find ship path!\n");
+            throw ShipLoadException("Could not find ship path!\n");
         }
 
         convertedParameters["PathPoints"] = results.points;
@@ -417,15 +416,14 @@ std::shared_ptr<Ship> loadShipFromParameters(QJsonObject shipJson,
         } else if (it.value().isBool()) {
             value = it.value().toBool() ? "true" : "false";
         } else {
-            throw std::runtime_error("Unsupported value type for key: " +
-                                     key.toStdString());
+            throw ShipLoadException("Unsupported value type for key: " + key);
         }
 
         // Find the parameter converter based on the key
         auto param = findParamInfoByKey(key, FileOrderedparameters);
         if (!param) {
-            throw std::runtime_error("Could not find ship parameter "
-                                     "for key: " + key.toStdString());
+            throw ShipLoadException("Could not find ship parameter for key: "
+                                    + key);
         }
 
         // Convert the string value using the appropriate converter
@@ -446,7 +444,7 @@ std::shared_ptr<Ship> loadShipFromParameters(QJsonObject shipJson,
                                       PathFindingAlgorithm::Dijkstra);
 
         if (!results.isValid()) {
-            qFatal("Could not find ship path!\n");
+            throw ShipLoadException("Could not find ship path!");
         }
 
         // Add path points and lines to the parameters map
@@ -482,7 +480,8 @@ QVector<std::shared_ptr<Ship>> loadShipsFromJson(const QJsonObject& shipsJson,
 
     // The JSON object should contain an array of ships
     if (!shipsJson.contains("ships") || !shipsJson["ships"].isArray()) {
-        qWarning("The JSON does not contain a valid 'ships' array.");
+        throw ShipLoadException("The JSON does not contain a "
+                                "valid 'ships' array.");
         return ships;
     }
 
@@ -492,7 +491,8 @@ QVector<std::shared_ptr<Ship>> loadShipsFromJson(const QJsonObject& shipsJson,
     // Iterate over each ship object in the array
     for (const QJsonValue& shipValue : shipsArray) {
         if (!shipValue.isObject()) {
-            qWarning("Invalid ship definition in the JSON array.");
+            throw ShipLoadException("Invalid ship definition "
+                                    "in the JSON array.");
             continue;
         }
 
