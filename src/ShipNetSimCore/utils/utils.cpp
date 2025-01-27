@@ -62,9 +62,11 @@ QString getDataFile(const QString &fileName) {
     }
 
     // Fatal error if the file does not exist
-    qFatal("Data file '%s' not found in the resolved data directory: %s",
-           qPrintable(fileName), qPrintable(dataDir));
-    return QString();  // This will never be reached because qFatal terminates the application
+    QString errorMsg = QString("Data file '%1' not found in the resolved "
+                               "data directory: %2")
+                           .arg(fileName).arg(dataDir);
+    throw std::runtime_error(errorMsg.toStdString());
+    return QString();  // This will never be reached because of throw error
 }
 
 
