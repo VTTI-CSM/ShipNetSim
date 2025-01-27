@@ -178,9 +178,9 @@ void ShipPropeller::initialize(Ship *ship, IShipGearBox *gearbox,
 
     if (! KT.checkInputs(PD, mPropellerExpandedAreaRatio, mNumberOfblades))
     {
-        qFatal("Propeller efficiency cannot be "
-               "calculated with the current propeller "
-               "characteristics!");
+        throw std::runtime_error("Propeller efficiency cannot be "
+                                 "calculated with the current propeller "
+                                 "characteristics!");
     }
 
     // get the max effeciency of the propeller to set the
@@ -217,7 +217,7 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
         Utils::getValueFromMap<double>(parameters, "ShaftEfficiency", -1.0);
     if (mShaftEfficiency < 0.0)
     {
-        qFatal("Shaft efficiency is not defined!");
+        throw std::runtime_error("Shaft efficiency is not defined!");
     }
 
     mPropellerSlip = Utils::getValueFromMap<double>(parameters,
@@ -229,14 +229,14 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
             parameters, "PropellerDiameter", units::length::meter_t(-1.0));
     if (mPropellerDiameter.value() < 0.0)
     {
-        qFatal("Propeller diameter is not defined!");
+        throw std::runtime_error("Propeller diameter is not defined!");
     }
 
     mPropellerPitch = Utils::getValueFromMap<units::length::meter_t>(
         parameters, "PropellerPitch", units::length::meter_t(-1.0));
     if (mPropellerPitch.value() < 0.0)
     {
-        qFatal("Propeller pitch is not defined!");
+        throw std::runtime_error("Propeller pitch is not defined!");
     }
 
     mNumberOfblades = Utils::getValueFromMap<int>(
@@ -258,7 +258,8 @@ void ShipPropeller::setParameters(const QMap<QString, std::any> &parameters)
                                        "PropellerExpandedAreaRatio", -1.0);
     if (mPropellerExpandedAreaRatio < 0.0)
     {
-        qFatal("Propeller expanded area ratio is not defined!");
+        throw std::runtime_error("Propeller expanded area ratio "
+                                 "is not defined!");
     }
 
     mAllowPropellerEngineOptimization =
@@ -482,9 +483,10 @@ double ShipPropeller::getThrustCoefficient(
                   << ", Z: " << getPropellerBladesCount()
                   << ", RN: " << RN << "\n";
         // return 0.0;
-        qFatal("Thrust Coefficient cannot be a negative value!"
-               " Use a custom efficiency curve for the propeller "
-               "instead of the B-Series!");
+        throw std::runtime_error(
+            "Thrust Coefficient cannot be a negative value!"
+            " Use a custom efficiency curve for the propeller "
+            "instead of the B-Series!");
         return result;
     }
 }
@@ -515,9 +517,10 @@ double ShipPropeller::getTorqueCoefficient(
     }
     else
     {
-        qFatal("Torque Coefficient cannot be a negative value!"
-               " Use a custom efficiency curve for the propeller "
-               "instead of the B-Series!");
+        throw std::runtime_error(
+            "Torque Coefficient cannot be a negative value!"
+            " Use a custom efficiency curve for the propeller "
+            "instead of the B-Series!");
         return result;
     }
 }
@@ -764,7 +767,7 @@ IShipEngine::EngineProperties ShipPropeller::
                     "available power at these RPMs.")
                 .arg(minRPM.value())
                 .arg(maxRPM.value());
-        qFatal("%s", errorMessage.toLocal8Bit().constData());
+        throw std::runtime_error(errorMessage.toLocal8Bit().constData());
     }
 }
 
@@ -838,7 +841,7 @@ IShipEngine::EngineProperties ShipPropeller::solveEnginePropellerIntersection()
                     "available power at these RPMs.")
                 .arg(minRPM.value())
                 .arg(maxRPM.value());
-        qFatal("%s", errorMessage.toLocal8Bit().constData());
+        throw std::runtime_error(errorMessage.toLocal8Bit().constData());
     }
 
     // Update the last known best RPM
