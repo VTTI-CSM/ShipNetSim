@@ -50,21 +50,27 @@ private slots:
     void onSimulationResumed(QVector<QString> networkNames);
     void onSimulationRestarted(QVector<QString> networkNames);
     void onSimulationTerminated(QVector<QString> networkNames);
+    void onSimulationFinished(QString networkName);
     void onSimulationAdvanced(
         QMap<QString,
              QPair<units::time::second_t, double> > newSimulationTime);
-    void onSimulationProgressUpdate(int progressPercentage);
+    void onSimulationProgressUpdate(QPair<QString, int> progressPercentage);
     void onShipAddedToSimulator(const QString networkName,
                                 const QVector<QString> shipIDs);
     void onShipReachedDestination(const QJsonObject shipStatus);
-    void onSimulationResultsAvailable(QMap<QString, ShipsResults> results);
-    void onShipStateAvailable(const QJsonObject shipState);
+    void onSimulationResultsAvailable(QPair<QString, ShipsResults> results);
+    void onShipStateAvailable(QString networkName, QString shipID,
+                              const QJsonObject shipState);
     void onSimulatorStateAvailable(const QJsonObject simulatorState);
     void onContainersAddedToShip(QString networkName, QString shipID);
     void onShipReachedSeaPort(QString networkName, QString shipID,
-                              QString seaPortCode, QJsonArray containers);
+                              QString seaPortCode, qsizetype containersCount);
     void onPortsAvailable(QMap<QString,
                                QVector<QString>> networkPorts);
+    void onContainersUnloaded(QString networkName,
+                              QString shipID,
+                              QString seaPortName,
+                              QJsonArray containers);
 
     void onErrorOccurred(const QString& errorMessage);
     void onServerReset();
@@ -77,7 +83,7 @@ private:
     QThread *mRabbitMQThread = nullptr;
     QWaitCondition mWaitCondition;
     amqp_connection_state_t mRabbitMQConnection;
-    // std::unique_ptr<StepSimulationWorker> mSimulationWorker;  // Declare the worker
+    QMetaObject::Connection m_progressConnection;
 
     void processCommand(QJsonObject &jsonMessage);
     void consumeFromRabbitMQ();  // Function for consuming RabbitMQ messages
