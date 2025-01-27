@@ -45,8 +45,9 @@ void Polygon::validateRing(const OGRLinearRing& ring,
     // Check for sufficient number of points
     if (ring.getNumPoints() < 3)
     {
-        qFatal("%s is degenerate: requires at "
-               "least 3 unique points.", qPrintable(description));
+        throw std::runtime_error( description.toStdString() +
+                                 "is degenerate: requires at "
+                                 "least 3 unique points.");
     }
 
     // Check for unique points to avoid co-location
@@ -85,8 +86,9 @@ void Polygon::validateRing(const OGRLinearRing& ring,
                                std::make_shared<GPoint>(p2)))
         // if (arePointsCollinear(points[0], points[1], points[2]))
         {
-            qFatal("%s is degenerate: points "
-                   "are collinear.", qPrintable(description));
+            throw std::runtime_error(description.toStdString() +
+                                     "is degenerate: points "
+                                     "are collinear.");
         }
     }
 }
@@ -312,14 +314,14 @@ std::unique_ptr<OGRLinearRing> Polygon::offsetBoundary(
         OGRCreateCoordinateTransformation(currentSR, targetSR.get());
     if (!coordProjTransform) {
         OCTDestroyCoordinateTransformation(coordProjTransform);
-        qFatal("Failed to create coordinate transformation.");
+        throw std::runtime_error("Failed to create coordinate transformation.");
     }
 
     OGRCoordinateTransformation* coordReprojTransform =
         OGRCreateCoordinateTransformation(targetSR.get(), currentSR);
     if (!coordReprojTransform) {
         OCTDestroyCoordinateTransformation(coordReprojTransform);
-        qFatal("Failed to create coordinate transformation.");
+        throw std::runtime_error("Failed to create coordinate transformation.");
     }
 
     OGRLinearRing* transformedRing = static_cast<OGRLinearRing*>(ring.clone());
@@ -339,7 +341,7 @@ std::unique_ptr<OGRLinearRing> Polygon::offsetBoundary(
     if (bufferedPolygon) {
         newRing.reset(bufferedPolygon->getExteriorRing()->clone());
     } else {
-        qFatal("Buffered geometry is not a polygon.");
+        throw std::runtime_error("Buffered geometry is not a polygon.");
     }
 
 
