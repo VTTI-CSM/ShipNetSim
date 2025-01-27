@@ -12,36 +12,64 @@ SimulationWorker::SimulationWorker(
     QString summaryFilename, bool exportInsta,
     QString instaFilename, bool exportAllTrainsSummary)
 {
-    this->net =
-        new ShipNetSimCore::OptimizedNetwork(waterBoundariesFile, networkName);
-    auto ships =
-        ShipNetSimCore::ShipsList::loadShipsFromParameters(shipsRecords);
+
+    try {
+        this->net =
+            new ShipNetSimCore::OptimizedNetwork(waterBoundariesFile,
+                                                         networkName);
 
 
-    // check if the trainrecords is empty
-    if (ships.size() < 1) {
-        qDebug() << "No ships are added!";
+        auto ships =
+            ShipNetSimCore::ShipsList::loadShipsFromParameters(shipsRecords);
+
+        // check if the trainrecords is empty
+        if (ships.size() < 1) {
+            qDebug() << "No ships are added!";
+            return;
+        }
+
+        this->sim = new ShipNetSimCore::Simulator(net, ships, timeStep);
+        this->sim->setEndTime(endTime);
+        this->sim->setTimeStep(timeStep);
+        this->sim->setPlotFrequency(plotFrequency);
+        this->sim->setOutputFolderLocation(exportDir);
+        this->sim->setSummaryFilename(summaryFilename);
+        if (instaFilename.size() > 1) {
+            this->sim->setExportInstantaneousTrajectory(exportInsta,
+                                                        instaFilename);
+        }
+        this->sim->setExportIndividualizedShipsSummary(exportAllTrainsSummary);
+
+        connect(this->sim,
+                &ShipNetSimCore::Simulator::simulationResultsAvailable, this,
+                &SimulationWorker::onSimulationFinished);
+        connect(this->sim, &ShipNetSimCore::Simulator::plotShipsUpdated, this,
+                &::SimulationWorker::onShipsCoordinatesUpdated);
+        connect(this->sim, &ShipNetSimCore::Simulator::progressUpdated, this,
+                &SimulationWorker::onProgressUpdated);
+
+    } catch (std::exception &e) {
+        emit errorOccurred(QString("Error initializing SimulationWorker: %1")
+                               .arg(e.what()));
+        cleanup(); // Safely clean up allocated resources
+        return;
+    } catch (...) {
+        emit errorOccurred("Unknown error occurred during "
+                           "SimulationWorker initialization.");
+        cleanup(); // Safely clean up allocated resources
         return;
     }
+}
 
-    this->sim = new ShipNetSimCore::Simulator(net, ships, timeStep);
-    this->sim->setEndTime(endTime);
-    this->sim->setTimeStep(timeStep);
-    this->sim->setPlotFrequency(plotFrequency);
-    this->sim->setOutputFolderLocation(exportDir);
-    this->sim->setSummaryFilename(summaryFilename);
-    if (instaFilename.size() > 1) {
-        this->sim->setExportInstantaneousTrajectory(exportInsta,
-                                                    instaFilename);
+void SimulationWorker::cleanup() {
+    if (sim) {
+        delete sim;
+        sim = nullptr;
     }
-    this->sim->setExportIndividualizedShipsSummary(exportAllTrainsSummary);
-
-    connect(this->sim, &ShipNetSimCore::Simulator::simulationResultsAvailable, this,
-            &SimulationWorker::onSimulationFinished);
-    connect(this->sim, &ShipNetSimCore::Simulator::plotShipsUpdated, this,
-            &::SimulationWorker::onShipsCoordinatesUpdated);
-    connect(this->sim, &ShipNetSimCore::Simulator::progressUpdated, this,
-            &SimulationWorker::onProgressUpdated);
+    if (net) {
+        delete net;
+        net = nullptr;
+    }
 }
 
 void SimulationWorker::onProgressUpdated(int progressPercentage) {
