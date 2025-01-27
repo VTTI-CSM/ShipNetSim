@@ -1404,13 +1404,16 @@ public:
     QJsonObject getCurrentStateAsJson() const;
 
 #ifdef BUILD_SERVER_ENABLED
-    QVector<ContainerCore::Container*> getLoadedContainers() const;
+    QVector<ContainerCore::Container*> getLoadedContainers();
     void addContainer(ContainerCore::Container *container);
     void addContainers(QJsonObject json);
 #endif
 
 
 private:
+
+    mutable QMutex mDwellStateMutex; // For thread-safe dwell state access
+    QMutex mContainerMutex; // Mutex for thread-safe container operations
 
     //!< The ship ID
     QString mShipUserID;
@@ -2038,7 +2041,14 @@ signals:
                              ShipNetSimCore::GLine>> paths);
 
     void reachedSeaPort(QString shipID, QString seaPortCode,
-                        QJsonArray containers = QJsonArray());
+                        qsizetype containersLeavingCount);
+
+    void shipStateAvailable(QJsonObject shipState);
+
+    void containersUnloaded(QString shipID, QString seaPortCode,
+                            QJsonArray containers);
+
+    void errorOccurred(QString error) const;
 
 #ifdef BUILD_SERVER_ENABLED
     void containersAdded();
@@ -2086,9 +2096,18 @@ private slots:
 public slots:
 
 #ifdef BUILD_SERVER_ENABLED
-    QVector<ContainerCore::Container *>
+    QPair<QString, QVector<ContainerCore::Container *>>
     getContainersLeavingAtPort(const QVector<QString>& portNames);
+
+    QPair<QString, qsizetype>
+    countContainersLeavingAtPort(const QVector<QString>& portNames);
+
+    void requestUnloadContainersAtPort(const QVector<QString>& portNames);
+
+    void requestShipToLeavePort();
 #endif
+
+    void requestCurrentStateAsJson();
 
 };
 };
