@@ -32,7 +32,7 @@ GLine::GLine(std::shared_ptr<GPoint> start,
     if (! start->getGDALPoint().getSpatialReference()->IsSame(
             end->getGDALPoint().getSpatialReference()))
     {
-        qFatal("Mismatch spatial reference for the two points!");
+        throw std::runtime_error("Mismatch spatial reference for the two points!");
     }
     OGRPoint sp = start->getGDALPoint();
     line.addPoint(&sp);
@@ -110,8 +110,8 @@ Line GLine::projectTo(OGRSpatialReference* targetSR) const
 {
     if (! targetSR || ! targetSR->IsProjected())
     {
-        qFatal("Target Spatial Reference "
-               "is not valid or not a projected CRS.");
+        throw std::runtime_error("Target Spatial Reference "
+                                 "is not valid or not a projected CRS.");
     }
     std::shared_ptr<Point> ps =
         std::make_shared<Point>(start->projectTo(targetSR));
@@ -309,6 +309,11 @@ GPoint GLine::midpoint() const
 {
     const GPoint endPoint = *end.get();
     return start->getMiddlePoint(endPoint);
+}
+
+GLine GLine::reverse() const
+{
+    return GLine(end, start);  // Swap start and end points
 }
 
 GAlgebraicVector GLine::toAlgebraicVector(
