@@ -27,11 +27,6 @@ SimulationServer::SimulationServer(QObject *parent) :
 
 void SimulationServer::setupServer() {
 
-    // Connect the worker ready signal to resume RabbitMQ consumption
-    // connect(&SimulatorAPI::InteractiveMode::getInstance(),
-    //         &SimulatorAPI::workersReady, this,
-    //         &SimulationServer::onWorkerReady);
-    // Connect worker signals to slots
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &SimulatorAPI::networkLoaded, this,
             &SimulationServer::onSimulationNetworkLoaded);
@@ -45,19 +40,22 @@ void SimulationServer::setupServer() {
             &SimulatorAPI::simulationsRestarted, this,
             &SimulationServer::onSimulationRestarted);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
-            &::SimulatorAPI::simulationsTerminated, this,
+            &SimulatorAPI::simulationsTerminated, this,
             &SimulationServer::onSimulationTerminated);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
-            &::SimulatorAPI::shipsAddedToSimulation, this,
+            &SimulatorAPI::simulationFinished, this,
+            &SimulationServer::onSimulationFinished);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::shipsAddedToSimulation, this,
             &SimulationServer::onShipAddedToSimulator);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
-            &::SimulatorAPI::shipsReachedDestination, this,
+            &SimulatorAPI::shipsReachedDestination, this,
             &SimulationServer::onShipReachedDestination);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &SimulatorAPI::simulationResultsAvailable, this,
             &SimulationServer::onSimulationResultsAvailable);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
-            &SimulatorAPI::shipCurrentStateAvailable, this,
+            &SimulatorAPI::shipStateAvailable, this,
             &SimulationServer::onShipStateAvailable);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &SimulatorAPI::simulationCurrentStateAvailable, this,
@@ -74,6 +72,9 @@ void SimulationServer::setupServer() {
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &SimulatorAPI::availablePorts, this,
             &SimulationServer::onPortsAvailable);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::ContainersUnloaded, this,
+            &SimulationServer::onContainersUnloaded);
 }
 
 SimulationServer::~SimulationServer() {
@@ -310,7 +311,7 @@ void SimulationServer::stopRabbitMQServer() {
     amqp_connection_close(mRabbitMQConnection, AMQP_REPLY_SUCCESS);
 
     // Destroy the RabbitMQ connection
-    amqp_destroy_connection(mRabbitMQConnection);
+    if(mRabbitMQConnection) amqp_destroy_connection(mRabbitMQConnection);
 
     mRabbitMQConnection = nullptr;  // Set the connection to null to indicate it's closed
 
@@ -430,6 +431,57 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         return true;
     };
 
+    auto validateArray = [this](const QJsonObject &json,
+                                const QString &fieldName,
+                                const QString &commandName,
+                                bool allowEmpty = false,
+                                bool checkElementsAreStrings = true) -> bool {
+        if (!json.contains(fieldName)) {
+            QString error = "Missing parameter: " + fieldName
+                            + "in command:" + commandName;
+            qWarning() << error;
+            mWorkerBusy = false;
+            return false;
+        }
+
+        if (!json[fieldName].isArray()) {
+            QString error =
+                QString("'%1' must be an array for command: %2")
+                    .arg(fieldName, commandName);
+            qWarning() << error;
+            onErrorOccurred(error);
+            mWorkerBusy = false;
+            return false;
+        }
+
+        QJsonArray arr = json[fieldName].toArray();
+        if (!allowEmpty && arr.isEmpty()) {
+            QString error = QString("'%1' array cannot be empty "
+                                    "for command: %2")
+                                .arg(fieldName, commandName);
+            qWarning() << error;
+            onErrorOccurred(error);
+            mWorkerBusy = false;
+            return false;
+        }
+
+        if (checkElementsAreStrings) {
+            for (const QJsonValue& val : arr) {
+                if (!val.isString()) {
+                    QString error = QString("'%1' array contains non-string "
+                                            "elements for command: %2")
+                                        .arg(fieldName, commandName);
+                    qWarning() << error;
+                    onErrorOccurred(error);
+                    mWorkerBusy = false;
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
+
     QString command = jsonMessage["command"].toString();
 
     if (command == "defineSimulator") {
@@ -448,15 +500,30 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
 
         QString networkName =
             jsonMessage["networkName"].toString();
-        double timeStepValue = jsonMessage["timeStep"].toDouble();
+        double timeStepValue = jsonMessage["timeStep"].toDouble(-100);
+
+        if (timeStepValue == -100) {
+            QString error = QString("Simulator time step must be a double"
+                                    "Value passed is: %1")
+                                .arg(timeStepValue);
+            qWarning() << error;
+            onErrorOccurred(error);
+        }
+
+        if(timeStepValue <= 0) {
+            onErrorOccurred("Invalid time step value");
+            return;
+        }
 
         qDebug() << "[Server] Loading network: " << networkName
                  << " with time step: " << timeStepValue << "s.";
-        auto net =
-            SimulatorAPI::InteractiveMode::loadNetwork(networkPath,
-                                                       networkName);
 
-        auto shipsList = SimulatorAPI::loadShips(jsonMessage, net);
+        // load the network
+        SimulatorAPI::InteractiveMode::loadNetwork(networkPath,
+                                                   networkName);
+
+        // load the ships
+        auto shipsList = SimulatorAPI::loadShips(jsonMessage, networkName);
 
         qDebug() << "[Server] Creating new simulation environment "
                     "for network: " << networkName;
@@ -468,52 +535,70 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "runSimulator") {
         qInfo() << "[Server] Received command: Running simulation.";
 
-        if (!checkJsonField(jsonMessage, "networkNames", command) ||
+        // Validate parameters
+        if (!validateArray(jsonMessage, "networkNames", command) ||
             !checkJsonField(jsonMessage, "byTimeSteps", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'runSimulator'.";
-            return; // Skip processing this command
+            return;
         }
+
+        // Type check for byTimeSteps
+        if (!jsonMessage["byTimeSteps"].isDouble()) {
+            onErrorOccurred("'byTimeSteps' must be a numeric value");
+            mWorkerBusy = false;
+            return;
+        }
+
+        // Process networks
         QVector<QString> nets;
         QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
-        // Iterate over the QJsonArray and populate the QVector<QString>
         for (const QJsonValue &value : networkNamesArray) {
-            if (value.isString()) {
-                nets.append(value.toString());
-            }
+            nets.append(value.toString());
         }
-        double runBy = jsonMessage["byTimeSteps"].toDouble(60);
 
+        double runBy = jsonMessage["byTimeSteps"].toDouble(-100);
 
-        // Get progress signals only if running by short steps
-        bool getSignals = true;
-        if (runBy < 0) {  // run until end of simulation
-            getSignals = false;
+        if (runBy == -100) {
+            QString error = QString("Simulator time step must be a double"
+                                    "Value passed is: %1")
+                                .arg(runBy);
+            qWarning() << error;
+            onErrorOccurred(error);
         }
 
         qDebug() << "[Server] Executing simulation for networks: " << nets
                  << " with time step duration: " << runBy << "s.";
 
-        SimulatorAPI::InteractiveMode::runSimulation(
-            nets, units::time::second_t(runBy), getSignals);
+        // Connect simulationProgressUpdated if runBy is any value in [0, -inf]
+        if (runBy <= 0) {
+            if (m_progressConnection) {
+                disconnect(m_progressConnection);
+                m_progressConnection = QMetaObject::Connection();
+            }
+            m_progressConnection = connect(
+                &SimulatorAPI::InteractiveMode::getInstance(),
+                &SimulatorAPI::simulationProgressUpdated,
+                this,
+                &SimulationServer::onSimulationProgressUpdate
+                );
+        }
 
+        try {
+        SimulatorAPI::InteractiveMode::runSimulation(
+            nets, units::time::second_t(runBy), true);
+        } catch (std::exception &e) {
+            onErrorOccurred(e.what());
+        }
     } else if (command == "terminateSimulator") {
         qInfo() << "[Server] Received command: Terminating simulation.";
 
-        if (!checkJsonField(jsonMessage, "networkNames", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'terminateSimulator'.";
-
-            return; // Skip processing this command
+        if (!validateArray(jsonMessage, "networkNames", command)) {
+            return;
         }
 
         QVector<QString> nets;
         QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
-        // Iterate over the QJsonArray and populate the QVector<QString>
         for (const QJsonValue &value : networkNamesArray) {
-            if (value.isString()) {
-                nets.append(value.toString());
-            }
+            nets.append(value.toString());
         }
 
         qDebug() << "[Server] Terminating simulation for networks: " << nets;
@@ -523,18 +608,14 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "endSimulator") {
         qInfo() << "[Server] Received command: Ending simulation.";
 
-        if (!checkJsonField(jsonMessage, "networkNames", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'endSimulator'.";
-            return; // Skip processing this command
+        if (!validateArray(jsonMessage, "networkNames", command)) {
+            return;
         }
+
         QVector<QString> nets;
         QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
-        // Iterate over the QJsonArray and populate the QVector<QString>
         for (const QJsonValue &value : networkNamesArray) {
-            if (value.isString()) {
-                nets.append(value.toString());
-            }
+            nets.append(value.toString());
         }
 
         qDebug() << "[Server] Ending simulation for networks: " << nets;
@@ -546,11 +627,23 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
 
 
         if (!checkJsonField(jsonMessage, "networkName", command) ||
-            !checkJsonField(jsonMessage, "ships", command)) {
-            return; // Skip processing this command
+            !validateArray(jsonMessage, "ships",
+                           command, false, false)) {  // Don't check types
+            return;
         }
-        QString net =
-            jsonMessage["networkName"].toString();
+
+        // Additional validation for ship objects
+        QJsonArray shipsArray = jsonMessage["ships"].toArray();
+        for (const QJsonValue& shipVal : shipsArray) {
+            if (!shipVal.isObject()) {
+                onErrorOccurred("'ships' array contains "
+                                "invalid ship definitions");
+                mWorkerBusy = false;
+                return;
+            }
+        }
+
+        QString net = jsonMessage["networkName"].toString();
         auto ships = SimulatorAPI::loadShips(jsonMessage, net);
         SimulatorAPI::InteractiveMode::addShipToSimulation(net, ships);
 
@@ -560,8 +653,10 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         if (!checkJsonField(jsonMessage, "networkName", command) ||
             !checkJsonField(jsonMessage, "shipID", command) ||
             !checkJsonField(jsonMessage, "containers", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'addContainersToShip'.";
+            QString error = "[Server] Missing required fields "
+                            "for 'addContainersToShip'.";
+            onErrorOccurred(error);
+            qWarning() << error;
             return; // Skip processing this command
         }
         QString net =
@@ -579,8 +674,11 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         qInfo() << "[Server] Received command: Getting a list of sea ports.";
 
         if (!checkJsonField(jsonMessage, "networkName", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'getNetworkSeaPorts'.";
+            QString error = "[Server] Missing required fields "
+                            "for 'getNetworkSeaPorts'.";
+
+            onErrorOccurred(error);
+            qWarning() << error;
             return; // Skip processing this command
         }
 
@@ -594,6 +692,33 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
             requestAvailablePorts({net}, considerShipsPathOnly);
 
 
+    } else if (command == "unloadContainersFromShipAtCurrentTerminal") {
+        qInfo() << "[Server] Received command: Unloading containers to a ship.";
+
+        if (!checkJsonField(jsonMessage, "networkName", command) ||
+            !checkJsonField(jsonMessage, "shipID", command)) {
+            QString error = "[Server] Missing required fields "
+                            "for 'unloadContainersFromShipAtCurrentTerminal'.";
+
+            onErrorOccurred(error);
+            qWarning() << error;
+            return; // Skip processing this command
+        }
+
+        QString net =
+            jsonMessage["networkName"].toString();
+        QString shipID =
+            jsonMessage["shipID"].toString();
+
+        QVector<QString> portNames = QVector<QString>();
+        QJsonArray portNamesArray = jsonMessage["networkNames"].toArray();
+        for (const QJsonValue &value : portNamesArray) {
+            portNames.append(value.toString());
+        }
+
+        SimulatorAPI::InteractiveMode::
+            requestUnloadContainersAtPort(net, shipID, portNames);
+
     } else if (command == "restServer") {
         qInfo() << "[Server] Received command: Resetting the server.";
 
@@ -601,10 +726,11 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         onServerReset();
 
     } else {
-        qWarning() << "Unrecognized command:" << command;
+        QString error = "Unrecognized command:" + command;
+        onErrorOccurred(error);
+        qWarning() << error;
         onWorkerReady();
     }
-
 }
 
 void SimulationServer::onWorkerReady() {
@@ -709,13 +835,34 @@ void SimulationServer::onSimulationRestarted(QVector<QString> networkNames) {
 }
 
 void SimulationServer::onSimulationTerminated(QVector<QString> networkNames) {
+    if (m_progressConnection) {
+        disconnect(m_progressConnection);
+        m_progressConnection = QMetaObject::Connection();
+    }
+
     QJsonObject jsonMessage;
-    jsonMessage["event"] = "simulationEnded";
+    jsonMessage["event"] = "simulationTerminated";
     QJsonArray networkNamesArray;
     for (const QString &name : networkNames) {
         networkNamesArray.append(name);
     }
     jsonMessage["networkNames"] = networkNamesArray;
+    jsonMessage["host"] = ShipNetSim_NAME;
+    sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
+                        jsonMessage);
+
+    onWorkerReady();
+}
+
+void SimulationServer::onSimulationFinished(QString networkName) {
+    if (m_progressConnection) {
+        disconnect(m_progressConnection);
+        m_progressConnection = QMetaObject::Connection();
+    }
+
+    QJsonObject jsonMessage;
+    jsonMessage["event"] = "simulationFinished";
+    jsonMessage["networkName"] = networkName;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
@@ -755,16 +902,20 @@ void SimulationServer::onSimulationAdvanced(
     onWorkerReady();
 }
 
-void SimulationServer::onSimulationProgressUpdate(int progressPercentage)
+void SimulationServer::onSimulationProgressUpdate(
+    QPair<QString, int> progressPercentage)
 {
-    QJsonObject jsonMessage;
-    jsonMessage["event"] = "simulationProgressUpdate";
-    jsonMessage["newProgress"] = progressPercentage;
-    jsonMessage["host"] = ShipNetSim_NAME;
-    sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
-                        jsonMessage);
+    // Check if progressPercentage is a multiple of 5
+    if (progressPercentage.second % 5 == 0) {
+        QJsonObject jsonMessage;
+        jsonMessage["event"] = "simulationProgressUpdate";
+        jsonMessage["networkName"] = progressPercentage.first;
+        jsonMessage["newProgress"] = progressPercentage.second;
+        jsonMessage["host"] = ShipNetSim_NAME;
 
-    onWorkerReady();
+        // Send the message
+        sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(), jsonMessage);
+    }
 }
 
 void SimulationServer::onShipAddedToSimulator(const QString networkName,
@@ -794,9 +945,13 @@ void SimulationServer::onShipReachedDestination(const QJsonObject shipStatus) {
     onWorkerReady();
 }
 
-void SimulationServer::onShipStateAvailable(const QJsonObject shipState)  {
+void SimulationServer::onShipStateAvailable(QString networkName,
+                                            QString shipID,
+                                            const QJsonObject shipState)  {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "ShipState";
+    jsonMessage["networkName"] = networkName;
+    jsonMessage["shipID"] = shipID;
     jsonMessage["state"] = shipState;
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
@@ -819,17 +974,12 @@ void SimulationServer::
 }
 
 void SimulationServer::onSimulationResultsAvailable(
-    QMap<QString, ShipsResults> results)
+    QPair<QString, ShipsResults> results)
 {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "simulationResultsAvailable";
-
-    QJsonObject resultData;
-    for (auto it = results.constBegin(); it != results.constEnd(); ++it) {
-        resultData.insert(it.key(), it.value().toJson());
-    }
-    jsonMessage["results"] = resultData;
-
+    jsonMessage["networkName"] = results.first;
+    jsonMessage["shipResults"] = results.second.toJson();
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
@@ -853,15 +1003,15 @@ void SimulationServer::onContainersAddedToShip(QString networkName,
 
 void SimulationServer::onShipReachedSeaPort(
     QString networkName, QString shipID,
-    QString seaPortCode, QJsonArray containers)
+    QString seaPortCode, qsizetype containersCount)
 {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "shipReachedSeaPort";
     jsonMessage["networkName"] = networkName;
     jsonMessage["shipID"] = shipID;
-    jsonMessage["SeaPortCode"] = seaPortCode;
+    jsonMessage["seaPortCode"] = seaPortCode;
     jsonMessage["host"] = ShipNetSim_NAME;
-    jsonMessage["containers"] = containers;
+    jsonMessage["containersCount"] = containersCount;
 
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
@@ -889,14 +1039,37 @@ void SimulationServer::onPortsAvailable(QMap<QString,
         portsJson[it.key()] = portArray;
     }
 
-    jsonMessage["network_ports"] = portsJson;
+    jsonMessage["portNames"] = portsJson;
 
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
     onWorkerReady();
 }
 
+void SimulationServer::onContainersUnloaded(QString networkName,
+                                            QString shipID,
+                                            QString seaPortName,
+                                            QJsonArray containers)
+{
+    QJsonObject jsonMessage;
+    jsonMessage["event"] = "containersUnloaded";
+    jsonMessage["host"] = ShipNetSim_NAME;
+    jsonMessage["portName"] = seaPortName;
+    jsonMessage["shipID"] = shipID;
+    jsonMessage["containers"] = containers;
+
+    sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
+                        jsonMessage);
+    onWorkerReady();
+
+}
+
 void SimulationServer::onErrorOccurred(const QString &errorMessage) {
+    if (m_progressConnection) {
+        disconnect(m_progressConnection);
+        m_progressConnection = QMetaObject::Connection();
+    }
+
     QJsonObject jsonMessage;
     jsonMessage["event"] = "errorOccurred";
     jsonMessage["errorMessage"] = errorMessage;
