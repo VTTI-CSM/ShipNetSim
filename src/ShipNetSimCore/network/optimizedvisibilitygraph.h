@@ -234,11 +234,18 @@ public:
 
 private:
 
-    mutable std::mutex mutex;
+    mutable QReadWriteLock quadtreeLock;
 
     bool enableWrapAround;
 
     BoundariesType mBoundaryType;
+
+    /** Rivers representation */
+    QVector<std::shared_ptr<GLine>> manualLines;
+    QHash<std::shared_ptr<GPoint>,
+          QVector<std::shared_ptr<GPoint>>> manualConnections;
+    QVector<std::shared_ptr<GPoint>> manualPoints;
+
 
     /**
      * @brief Stores the polygons used to build the visibility graph.
@@ -276,6 +283,9 @@ private:
           QVector<std::shared_ptr<GPoint>>> visibilityCache;
 
 
+    void addManualVisibleLine(const std::shared_ptr<GLine>& line);
+    void clearManualLines();
+
     /// Determines if there is a direct line of sight between two nodes.
     bool isVisible(const std::shared_ptr<GPoint>& node1,
                    const std::shared_ptr<GPoint>& node2) const;
@@ -307,9 +317,8 @@ private:
         const std::shared_ptr<GPoint>& point);
 
     /// Connect left-right points of the map for a wrap-around technique
-    // QVector<std::shared_ptr<GPoint>> connectWrapAroundPoints(
-    //     const std::shared_ptr<GPoint>& point,
-    //     const std::shared_ptr<Polygon>& polygon);
+    QVector<std::shared_ptr<GPoint>> connectWrapAroundPoints(
+        const std::shared_ptr<GPoint>& point);
 
     ShortestPathResult findShortestPathHelper(
         QVector<std::shared_ptr<GPoint>> mustTraversePoints,
