@@ -47,6 +47,13 @@ namespace ShipNetSimCore
 namespace ShipsList
 {
 
+class ShipLoadException : public std::runtime_error {
+public:
+    explicit ShipLoadException(const QString& message)
+        : std::runtime_error(message.toStdString()) {}
+};
+
+
 /**
  * @var QList<QString> delim
  * @brief List of delimiters used to separate values in a file.
@@ -100,7 +107,8 @@ findParamInfoByKey(const QString& key, QVector<ParamInfo>& parameters)
  * @param errorMsg Error message to display if the conversion fails.
  * @return The converted double.
  */
-static double convertToDouble(const QString& str, const char* errorMsg, bool isOptional)
+static double convertToDouble(const QString& str,
+                              const char* errorMsg, bool isOptional)
 {
     if (isOptional)
     {
@@ -114,7 +122,8 @@ static double convertToDouble(const QString& str, const char* errorMsg, bool isO
     // Replace Unicode minus sign with standard minus
     // this may arise from some systems or the GUI
     QString normalizedStr = str;
-    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus (−) with ASCII minus (-)
+    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus
+                                                // (−) with ASCII minus (-)
 
 
     // otherwize, do the conversion
@@ -122,7 +131,7 @@ static double convertToDouble(const QString& str, const char* errorMsg, bool isO
     double result = normalizedStr.toDouble(&ok);
     if (!ok)
     {
-        qFatal(errorMsg, str.toUtf8().constData());
+        throw ShipLoadException(QString(errorMsg).arg(str));
     }
     return result;
 }
@@ -149,14 +158,15 @@ static int convertToInt(const QString &str,
     // Replace Unicode minus sign with standard minus
     // this may arise from some systems or the GUI
     QString normalizedStr = str;
-    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus (−) with ASCII minus (-)
+    normalizedStr.replace(QChar(0x2212), '-');  // Replace Unicode minus
+                                                // (−) with ASCII minus (-)
 
     // otherwize, do the conversion
     bool ok;
     int result = (int)(normalizedStr.toDouble(&ok)); // convert to int
     if (!ok) // check if the conversion worked!
     {
-        qFatal(errorMsg, str.toUtf8().constData()); // quit the process if not
+        throw ShipLoadException(QString(errorMsg).arg(str));
     }
     return result;
 }
@@ -368,10 +378,11 @@ static std::any toEnginePowerVectorT(const QString& str, bool isOptional)
     if (result.size() != 4) {
         // If there are not exactly 4 elements representing l1, l2, l3, l4,
         // terminate with a fatal error.
-        qFatal("Malformed Engine Properties."
-               "\nEngine Operational Power Settings must have "
-               "4 data points representing L1, L2, L3, L4 on the "
-               "engine layout!");
+        throw ShipLoadException(
+            "Malformed Engine Properties."
+            "\nEngine Operational Power Settings must have "
+            "4 data points representing L1, L2, L3, L4 on the "
+            "engine layout!");
     }
 
     return result;
@@ -420,10 +431,10 @@ static std::any toEnginePowerRPMEfficiencyT(const QString& str, bool isOptional)
         {
             // If there are not exactly 3 elements, terminate with a fatal
             // error.
-            qFatal("Malformed Engine Property: %s"
-                   "\nEngine Power-RPM-Efficiency Mapping must have "
-                   "3 values representing Break Power, RPM, Efficiency!",
-                   pointData.toUtf8().constData());
+            throw ShipLoadException(
+                "Malformed Engine Property: " + pointData +
+                "\nEngine Power-RPM-Efficiency Mapping must have "
+                "3 values representing Break Power, RPM, Efficiency!");
         }
 
         // Convert key and value to their respective units.
@@ -502,7 +513,7 @@ static std::any toPathPointsT(const QString& str, bool isOptional)
         // check if the coordinates are WGS84
         if (std::abs(x1.value()) > 180.0 || std::abs(x2.value()) > 90.0)
         {
-            qFatal("Not WGS Coordinate Points: %s", pair.toUtf8().constData());
+            throw ShipLoadException("Not WGS Coordinate Points: " + pair);
         }
 
         // If there are exactly two elements (x and y), create a Point
@@ -517,7 +528,7 @@ static std::any toPathPointsT(const QString& str, bool isOptional)
         {
             // If there are not exactly two elements, terminate with a
             // fatal error.
-            qFatal("Malformed key-value pair: %s", pair.toUtf8().constData());
+            throw ShipLoadException("Malformed key-value pair: " + pair);
         }
     }
     return points;
@@ -544,7 +555,8 @@ static std::any toAppendagesWetSurfacesT(const QString& str, bool isOptional)
     // if the string has no information, return nothing
     if (isOptional)
     {
-        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive)) // it is nan or na
+        if (str.isEmpty() ||
+            str.contains("na", Qt::CaseInsensitive)) // it is nan or na
         {
             return appendages;
         }
@@ -565,7 +577,8 @@ static std::any toAppendagesWetSurfacesT(const QString& str, bool isOptional)
         auto area =
             units::area::square_meter_t(
                 convertToDouble(keyValuePair[1].trimmed(),
-                                "Invalid double conversion for area: %s", false));
+                                "Invalid double conversion for area: %s",
+                                false));
 
         if (keyValuePair.size() == 2)
         {
@@ -575,7 +588,7 @@ static std::any toAppendagesWetSurfacesT(const QString& str, bool isOptional)
         }
         else
         {
-            qFatal("Malformed key-value pair: %s", pair.toUtf8().constData());
+            throw ShipLoadException("Malformed key-value pair: " + pair);
         }
     }
     return appendages;
@@ -647,7 +660,8 @@ static QString toString(const std::any& value) {
             std::any_cast<units::area::square_meter_t>(value).value());
     } else if (value.type() == typeid(units::angle::degree_t))
     {
-        return QString::number(std::any_cast<units::angle::degree_t>(value).value());
+        return QString::number(
+            std::any_cast<units::angle::degree_t>(value).value());
     } else if (value.type() == typeid(units::mass::metric_ton_t))
     {
         return QString::number(
@@ -706,7 +720,8 @@ static std::any toTanksDetails(const QString& str, bool isOptional) {
     // if the string has no information, return nothing
     if (isOptional)
     {
-        if (str.isEmpty() || str.contains("na", Qt::CaseInsensitive)) // it is nan or na
+        if (str.isEmpty() ||
+            str.contains("na", Qt::CaseInsensitive)) // it is nan or na
         {
             return tankDetails;
         }
@@ -726,15 +741,16 @@ static std::any toTanksDetails(const QString& str, bool isOptional) {
             std::any initialCapPercent = toDoubleT(values[2], false);
             std::any depthOfDischarge = toDoubleT(values[3], false);
 
-            tankDetails.push_back({{"FuelType", fuelType},
-                                   {"MaxCapacity", totalCapacity},
-                                   {"TankInitialCapacityPercentage", initialCapPercent},
-                                   {"TankDepthOfDischage", depthOfDischarge}
-                                 });
+            tankDetails.push_back(
+                {{"FuelType", fuelType},
+                    {"MaxCapacity", totalCapacity},
+                    {"TankInitialCapacityPercentage", initialCapPercent},
+                    {"TankDepthOfDischage", depthOfDischarge}
+                });
         }
         else
         {
-            qFatal("Malformed tank details: %s", entry.toUtf8().constData());
+            throw ShipLoadException("Malformed tank details: " + entry);
         }
     }
 
