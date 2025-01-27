@@ -105,7 +105,8 @@ struct tiffFileData {
      */
     void calculateGeographicExtents() {
         if (!dataset) {
-            qFatal("Dataset is null, cannot calculate geographic extents.");
+            throw std::runtime_error("Dataset is null, "
+                                     "cannot calculate geographic extents.");
             return;
         }
 
@@ -171,7 +172,7 @@ private:
     void loadTxtFile(const QString& filename);
 
     // load the shape file for the structure
-    void loadShapeFile(const QString& filepath);
+    void loadPolygonShapeFile(const QString& filepath);
 
     // load the tiff data
     void loadTiffData();
@@ -239,7 +240,7 @@ public:
 
 signals:
     void NetworkLoaded();
-    void errorOccured(QString error);
+    void errorOccurred(QString error);
 
 };
 };
