@@ -419,7 +419,7 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
         parameters, "MaxCharge", units::energy::kilowatt_hour_t(-1.0));
     if (maxCharge.value() < 0.0)
     {
-        qFatal("Battery max charge is not defined!");
+        throw std::runtime_error("Battery max charge is not defined!");
     }
 
     double initialChargePercentage =
@@ -427,7 +427,8 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
                                        "InitialChargePercentage",
                                        -1.0);
     if (initialChargePercentage < 0.0) {
-        qFatal("Battery initial charge percentage is not defined!");
+        throw std::runtime_error("Battery initial charge percentage "
+                                 "is not defined!");
     }
 
     double depthOfDischarge =
@@ -435,7 +436,7 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
                                        "DepthOfDischarge",
                                        -1.0);
     if (depthOfDischarge < 0.0) {
-        qFatal("Battery depth of charge is not defined!");
+        throw std::runtime_error("Battery depth of charge is not defined!");
     }
 
     double batteryCRate =
@@ -443,7 +444,7 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
                                        "CRate",
                                        -1.0);
     if (batteryCRate < 0.0) {
-        qFatal("Battery c-rate is not defined!");
+        throw std::runtime_error("Battery c-rate is not defined!");
     }
 
     double minRechargeSOC =
@@ -451,7 +452,8 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
                                        "MinRechargeSOC",
                                        -1.0);
     if (minRechargeSOC < 0.0) {
-        qFatal("Battery min recharge State of Charge is not defined!");
+        throw std::runtime_error("Battery min recharge State of Charge "
+                                 "is not defined!");
     }
 
     double maxRechargeSOC =
@@ -459,7 +461,8 @@ void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
                                        "MaxRechargeSOC",
                                        -1.0);
     if (maxRechargeSOC < 0.0) {
-        qFatal("Battery max recharge State of Charge is not defined!");
+        throw std::runtime_error("Battery max recharge State of Charge "
+                                 "is not defined!");
     }
 
     setBatteryCharacterstics(maxCharge, initialChargePercentage,
