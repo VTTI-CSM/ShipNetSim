@@ -130,6 +130,9 @@ public:
     ShipNetSimCore::Simulator* sim;
     /**< Pointer to the Network object used in the simulation. */
     ShipNetSimCore::OptimizedNetwork* net;
+
+private:
+    void cleanup();
 };
 
 #endif // SIMULATIONWORKER_H
