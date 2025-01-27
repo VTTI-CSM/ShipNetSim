@@ -183,7 +183,7 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
             "MaxCapacity",
             units::volume::liter_t(-1.0));
     if (maxCapacity.value() < 0.0) {
-        qFatal("Tank max capacity is not defined!");
+        throw std::runtime_error("Tank max capacity is not defined!");
     }
 
     double initialCapacityPercentage =
@@ -191,7 +191,8 @@ void Tank::setCharacteristics(const QMap<QString, std::any>& parameters)
                                        "TankInitialCapacityPercentage",
                                         -1.0);
     if (initialCapacityPercentage < 0.0) {
-        qFatal("Tank initial capacity percentage is not defined!");
+        throw std::runtime_error("Tank initial capacity percentage "
+                                 "is not defined!");
     }
 
     double depthOfDischarge =
