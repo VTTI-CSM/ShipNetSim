@@ -7,9 +7,15 @@
 #include <qtconcurrentmap.h>
 #include <queue>
 #include <stack>
+#include <thread>
 
 namespace ShipNetSimCore
 {
+
+unsigned int Quadtree::MIN_SEGMENTS_FOR_PARALLEL =
+    500 * std::max(1u, std::thread::hardware_concurrency());
+
+
 Quadtree::Node::Node(Quadtree* tree, Node* parent, int quadrant)
     : host(tree), quadrant(quadrant), isLeaf(true), parent(parent),
     min_point(std::make_shared<GPoint>(
@@ -365,7 +371,6 @@ QVector<Quadtree::Node*> Quadtree::findNodesIntersectingLineSegmentParallel(
     const std::shared_ptr<GLine>& segment) const
 {
     QVector<Node*> intersecting_nodes;
-    const int MIN_SEGMENTS_FOR_PARALLEL = 1000;
 
     if (root.line_segments.size() < MIN_SEGMENTS_FOR_PARALLEL) {
         return findNodesIntersectingLineSegment(segment);
@@ -480,8 +485,11 @@ std::vector<std::shared_ptr<GLine>> Quadtree::splitSegmentAtAntimeridian(
 {
     std::vector<std::shared_ptr<GLine>> adjustedSegments;
 
+    // Extract coordinates
     double startLon = segment->startPoint()->getLongitude().value();
     double endLon = segment->endPoint()->getLongitude().value();
+    double startLat = segment->startPoint()->getLatitude().value();
+    double endLat = segment->endPoint()->getLatitude().value();
 
     // Normalize longitudes to [0, 360) range to simplify calculations
     startLon = fmod((startLon + 360), 360);
@@ -491,6 +499,7 @@ std::vector<std::shared_ptr<GLine>> Quadtree::splitSegmentAtAntimeridian(
     bool crossesFromEastToWest = startLon > 180 && endLon < 180;
     bool crossesFromWestToEast = startLon < 180 && endLon > 180;
 
+    // If no wrap-around, return the original segment
     if (!crossesFromEastToWest && !crossesFromWestToEast) {
         // No wrap-around, return the original segment
         adjustedSegments.push_back(segment);
@@ -498,8 +507,6 @@ std::vector<std::shared_ptr<GLine>> Quadtree::splitSegmentAtAntimeridian(
     }
 
     // Calculate intersection latitude using linear interpolation
-    double startLat = segment->startPoint()->getLatitude().value();
-    double endLat = segment->endPoint()->getLatitude().value();
     double ratio = std::abs(startLon - 180.0) / std::abs(endLon - startLon);
     units::angle::degree_t intersectionLat =
         units::angle::degree_t(startLat + ratio * (endLat - startLat));
@@ -513,22 +520,39 @@ std::vector<std::shared_ptr<GLine>> Quadtree::splitSegmentAtAntimeridian(
 
     // Create two new segments from the original segment
     if (crossesFromEastToWest) {
-        adjustedSegments.push_back(
-            std::make_shared<GLine>(segment->startPoint(),
-                                    intersectionPoint));
-        adjustedSegments.push_back(
-            std::make_shared<GLine>(
-                std::make_shared<GPoint>(
-                    units::angle::degree_t(-180.0), intersectionLat),
-                segment->endPoint()));
-    } else { // crossesFromWestToEast
-        adjustedSegments.push_back(
-            std::make_shared<GLine>(
-                segment->startPoint(),
-                std::make_shared<GPoint>(
-                    units::angle::degree_t(180.0), intersectionLat)));
-        adjustedSegments.push_back(
-            std::make_shared<GLine>(intersectionPoint, segment->endPoint()));
+        // Segment crosses from east to west
+        if (*intersectionPoint != *segment->startPoint()) {
+            adjustedSegments.push_back(
+                std::make_shared<GLine>(segment->startPoint(),
+                                        intersectionPoint));
+        }
+        if (*intersectionPoint != *segment->endPoint()) {
+            adjustedSegments.push_back(
+                std::make_shared<GLine>(
+                    std::make_shared<GPoint>(
+                        units::angle::degree_t(-180.0), intersectionLat),
+                    segment->endPoint()));
+        }
+    } else {
+        // Segment crosses from west to east
+        if (*intersectionPoint != *segment->startPoint()) {
+            adjustedSegments.push_back(
+                std::make_shared<GLine>(
+                    segment->startPoint(),
+                    std::make_shared<GPoint>(
+                        units::angle::degree_t(180.0), intersectionLat)));
+        }
+        if (*intersectionPoint != *segment->endPoint()) {
+            adjustedSegments.push_back(
+                std::make_shared<GLine>(intersectionPoint,
+                                        segment->endPoint()));
+        }
+    }
+
+    // Handle edge case: If no segments were added (due to zero-length splits),
+    // return the original segment
+    if (adjustedSegments.empty()) {
+        adjustedSegments.push_back(segment);
     }
 
     return adjustedSegments;
@@ -868,13 +892,7 @@ void Quadtree::insertLineSegment(const std::shared_ptr<GLine>& segment)
 void Quadtree::insertLineSegmentHelper(const std::shared_ptr<GLine>& segment,
                                        Node* node)
 {
-    if (!node) return;
-
-    // Check if the segment intersects the node's bounding box
-    if (!(*node).doesLineSegmentIntersectNode(segment))
-    {
-        return; // Segment does not intersect this node
-    }
+    if (!node || !node->doesLineSegmentIntersectNode(segment)) return;
 
     if (node->isLeaf)
     {
@@ -890,7 +908,9 @@ void Quadtree::insertLineSegmentHelper(const std::shared_ptr<GLine>& segment,
             // Insert the segment into the appropriate child nodes
             for (int i = 0; i < 4; ++i)
             {
-                insertLineSegmentHelper(segment, node->children[i]);
+                if (node->children[i]->doesLineSegmentIntersectNode(segment)) {
+                    insertLineSegmentHelper(segment, node->children[i]);
+                }
             }
         }
     }
@@ -900,7 +920,9 @@ void Quadtree::insertLineSegmentHelper(const std::shared_ptr<GLine>& segment,
         // into the appropriate child nodes
         for (int i = 0; i < 4; ++i)
         {
-            insertLineSegmentHelper(segment, node->children[i]);
+            if (node->children[i]->doesLineSegmentIntersectNode(segment)) {
+                insertLineSegmentHelper(segment, node->children[i]);
+            }
         }
     }
 }
@@ -1224,7 +1246,6 @@ units::length::meter_t Quadtree::distanceFromPointToNode(
 std::shared_ptr<GPoint> Quadtree::findNearestNeighborPoint(
     const std::shared_ptr<GPoint>& point) const
 {
-    const int BATCH_SIZE = 1000;
     std::shared_ptr<GPoint> nearestPoint = nullptr;
     units::length::meter_t minDistance(std::numeric_limits<double>::max());
     QMutex mutex;
@@ -1257,7 +1278,7 @@ std::shared_ptr<GPoint> Quadtree::findNearestNeighborPoint(
         const Node* node = current.node;
 
         if (node->isLeaf) {
-            if (node->line_segments.size() > BATCH_SIZE) {
+            if (node->line_segments.size() > MIN_SEGMENTS_FOR_PARALLEL) {
                 // Parallel processing for large nodes using Qt concurrent
                 auto futurePoints = QtConcurrent::mapped(
                     node->line_segments,
@@ -1269,7 +1290,8 @@ std::shared_ptr<GPoint> Quadtree::findNearestNeighborPoint(
 
                         // Check start point
                         PointDist result;
-                        result.distance = point->distance(*segment->startPoint());
+                        result.distance =
+                            point->distance(*segment->startPoint());
                         result.point = segment->startPoint();
 
                         // Check end point
@@ -1354,15 +1376,12 @@ void Quadtree::clearTree()
     root.line_segments.clear();
     root.min_point = std::make_shared<GPoint>(); // Reset to default
     root.max_point = std::make_shared<GPoint>(); // Reset to default
-    root.min_point->setLongitude(
-        units::angle::degree_t(std::numeric_limits<double>::max()));
-    root.min_point->setLatitude(
-        units::angle::degree_t(std::numeric_limits<double>::max()));
 
-    root.max_point->setLongitude(
-        units::angle::degree_t(std::numeric_limits<double>::lowest()));
-    root.max_point->setLatitude(
-        units::angle::degree_t(std::numeric_limits<double>::lowest()));
+    // Reset to global boundaries
+    root.min_point->setLongitude(units::angle::degree_t(-180.0));
+    root.min_point->setLatitude(units::angle::degree_t(-90.0));
+    root.max_point->setLongitude(units::angle::degree_t(180.0));
+    root.max_point->setLatitude(units::angle::degree_t(90.0));
 
     // Initialize children pointers to nullptr
     std::fill(std::begin(root.children), std::end(root.children), nullptr);
@@ -1474,63 +1493,66 @@ void Quadtree::deserialize(std::istream& in) {
     }
 }
 
-void Quadtree::deserializeNode(std::istream& in, Node* node)
-{
-    if (!in)
-    {
-        throw std::runtime_error("Input stream is in a bad state.");
+void Quadtree::deserializeNode(std::istream& in, Node* parentNode) {
+    if (!in.good()) {
+        throw std::runtime_error("Input stream in bad state");
     }
 
+    // 1. Read null marker
     bool isNull;
     in.read(reinterpret_cast<char*>(&isNull), sizeof(isNull));
-    if (isNull)
-    {
-        node = nullptr;
-        return;
-    }
+    if (isNull) return;
 
-    node = new Node(this);
+    // 2. Deserialize node data into EXISTING node structure
+    parentNode->min_point->deserialize(in);
+    parentNode->max_point->deserialize(in);
 
-    // Deserialize the min and max points using GPoint's deserialize method
-    node->min_point = std::make_shared<GPoint>();
-    node->min_point->deserialize(in);
-
-    node->max_point = std::make_shared<GPoint>();
-    node->max_point->deserialize(in);
-
-    // Deserialize line segments
+    // 3. Deserialize line segments
     std::uint64_t numSegments;
     in.read(reinterpret_cast<char*>(&numSegments), sizeof(numSegments));
-    if (!in)
-    {
-        throw std::runtime_error("Failed to read number of line segments.");
+    parentNode->line_segments.clear();
+    parentNode->line_segments.reserve(numSegments);
+
+    for (std::uint64_t i = 0; i < numSegments; ++i) {
+        auto start = std::make_shared<GPoint>();
+        auto end = std::make_shared<GPoint>();
+        start->deserialize(in);
+        end->deserialize(in);
+        parentNode->line_segments.emplace_back(
+            std::make_shared<GLine>(start, end));
     }
 
-    for (std::uint64_t i = 0; i < numSegments; ++i)
-    {
-        auto startPoint = std::make_shared<GPoint>();
-        startPoint->deserialize(in);
+    // 4. Deserialize leaf status
+    in.read(reinterpret_cast<char*>(&parentNode->isLeaf),
+            sizeof(parentNode->isLeaf));
 
-        auto endPoint = std::make_shared<GPoint>();
-        endPoint->deserialize(in);
+    // 5. Deserialize children with proper parent relationships
+    if (!parentNode->isLeaf) {
+        for (int i = 0; i < 4; ++i) {
+            // Create new child with proper parent relationship
+            parentNode->children[i] = new Node(this, parentNode, i);
+            deserializeNode(in, parentNode->children[i]);
 
-        node->line_segments.push_back(
-            std::make_shared<GLine>(startPoint, endPoint));
-    }
-
-    // Deserialize leaf status
-    bool isLeaf;
-    in.read(reinterpret_cast<char*>(&isLeaf), sizeof(isLeaf));
-    node->isLeaf = isLeaf;
-
-    // Deserialize child nodes recursively
-    for (int i = 0; i < 4; ++i)
-    {
-        deserializeNode(in, node->children[i]);
-        if (!in)
-        {
-            throw std::runtime_error("Failed to deserialize child node.");
+            // Validate quadrant boundaries
+            const auto& child = parentNode->children[i];
+            if (child->min_point->getLongitude() <
+                    parentNode->min_point->getLongitude() ||
+                child->max_point->getLongitude() >
+                    parentNode->max_point->getLongitude() ||
+                child->min_point->getLatitude() <
+                    parentNode->min_point->getLatitude() ||
+                child->max_point->getLatitude() >
+                    parentNode->max_point->getLatitude())
+            {
+                throw std::runtime_error("Child node boundaries "
+                                         "exceed parent limits");
+            }
         }
+    } else {
+        // Ensure no children exist in leaf nodes
+        std::fill(std::begin(parentNode->children),
+                  std::end(parentNode->children),
+                  nullptr);
     }
 }
 
