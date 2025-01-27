@@ -7,6 +7,7 @@ SeaPort::SeaPort(GPoint newCoordinate) :
 
 void SeaPort::setPortCoordinate(GPoint newCoordinate) {
     mPortCoordinate = newCoordinate;
+    mPortCoordinate.MarkAsPort(units::time::second_t(1800.0));
 }
 
 void SeaPort::setCountryName(QString country) { mPortCountry = country; }
@@ -22,7 +23,7 @@ void SeaPort::setClosestPointOnWaterPolygon(
     mClosestPointOnWaterPolygon = newCoordinate;
     if (!mClosestPointOnWaterPolygon->isPort())
     {
-        mClosestPointOnWaterPolygon->MarkAsPort(units::time::second_t(0.0));
+        mClosestPointOnWaterPolygon->MarkAsPort(units::time::second_t(1800.0));
     }
 }
 
