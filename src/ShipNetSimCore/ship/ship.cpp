@@ -2829,8 +2829,6 @@ void Ship::requestCurrentStateAsJson() {
 
 #ifdef BUILD_SERVER_ENABLED
 QVector<ContainerCore::Container*> Ship::getLoadedContainers() {
-    QMutexLocker locker(&mContainerMutex);
-
     QVector<ContainerCore::Container*> containerList;
     for (auto &container : mLoadedContainers.getAllContainers()) {
         containerList.append(container);
@@ -2840,7 +2838,6 @@ QVector<ContainerCore::Container*> Ship::getLoadedContainers() {
 
 void Ship::addContainer(ContainerCore::Container* container)
 {
-    QMutexLocker locker(&mContainerMutex);
     if (container) {
         mLoadedContainers.addContainer(container->getContainerID(), container);
         emit containersAdded();
@@ -2848,7 +2845,6 @@ void Ship::addContainer(ContainerCore::Container* container)
 }
 
 void Ship::addContainers(QJsonObject json) {
-    QMutexLocker locker(&mContainerMutex);
     mLoadedContainers.addContainers(json);
     emit containersAdded();
 }
@@ -2856,8 +2852,6 @@ void Ship::addContainers(QJsonObject json) {
 QPair<QString, QVector<ContainerCore::Container *>>
 Ship::getContainersLeavingAtPort(const QVector<QString>& portNames)
 {
-    QMutexLocker locker(&mContainerMutex);
-
     // Early return if no port names provided
     if (portNames.isEmpty()) {
         return {"", QVector<ContainerCore::Container*>()};
@@ -2878,8 +2872,6 @@ Ship::getContainersLeavingAtPort(const QVector<QString>& portNames)
 QPair<QString, qsizetype>
 Ship::countContainersLeavingAtPort(const QVector<QString>& portNames)
 {
-    QMutexLocker locker(&mContainerMutex);
-
     if (portNames.isEmpty()) {
         return {"", 0};
     }
@@ -2898,8 +2890,6 @@ Ship::countContainersLeavingAtPort(const QVector<QString>& portNames)
 
 void Ship::requestUnloadContainersAtPort(const QVector<QString> &portNames)
 {
-    QMutexLocker locker(&mContainerMutex);
-
     QVector<QString> portN;
     if (isReachedDestination() || portNames.isEmpty()) {
 
