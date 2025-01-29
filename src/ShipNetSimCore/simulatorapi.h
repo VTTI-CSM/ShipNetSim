@@ -197,7 +197,7 @@ signals:
     * percentage (0-100)
     */
     void simulationProgressUpdated(
-        QPair<QString, int> currentSimulationProgress);
+        QString networkName, int currentSimulationProgress);
 
     /**
     * @brief Emitted when ships reach their designated destinations.
@@ -323,6 +323,41 @@ signals:
     void workersReady(QVector<QString> networkNames);
 
 protected:
+
+    static Mode mMode;
+
+    /** @brief Map of network names to their simulation data */
+    ThreadSafeAPIDataMap apiDataMap;
+
+    /** @brief Connection type for Qt signals/slots */
+    Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
+
+    /** @brief Tracks available ports information */
+    RequestData<QVector<QString>> mAvailablePortTracker;
+
+    /** @brief Tracks simulation time steps and progress */
+    RequestData<QPair<units::time::second_t, double>> mTimeStepTracker;
+
+    /** @brief Track ships reached destination */
+    RequestData<QJsonObject> mReachedDesTracker;
+
+    /** @brief Tracks pause operations */
+    RequestData<QString> mPauseTracker;
+
+    /** @brief Tracks resume operations */
+    RequestData<QString> mResumeTracker;
+
+    /** @brief Tracks termination operations */
+    RequestData<QString> mTerminateTracker;
+
+    /** @brief Tracks worker thread status */
+    RequestData<QString> mWorkerTracker;
+
+    /** @brief Tracks simulation restart operations */
+    RequestData<QString> mRestartTracker;
+
+
+
     /**
     * @brief Get the singleton instance of SimulatorAPI
     * @return Reference to the singleton instance
@@ -345,6 +380,15 @@ protected:
     * @details Performs cleanup of all simulation resources
     */
     ~SimulatorAPI();
+
+    /** @brief Default constructor for singleton pattern */
+    SimulatorAPI() = default;
+
+    /** @brief Deleted copy constructor to prevent copying */
+    SimulatorAPI(const SimulatorAPI&) = delete;
+
+    /** @brief Deleted assignment operator to prevent copying */
+    SimulatorAPI& operator=(const SimulatorAPI&) = delete;
 
     // Simulator control methods
 
@@ -513,6 +557,89 @@ protected:
     */
     bool isNetworkLoaded(QString networkName);
 
+    /**
+    * @brief Set up signal-slot connections for a network
+    * @param networkName Network to set up connections for
+    * @param mode Operation mode for signal handling
+    * @details Establishes all necessary connections between simulator,
+    * ships, and API components
+    */
+    void setupConnections(const QString& networkName, Mode mode);
+
+
+    /**
+    * @brief Check conditions and emit signal based on mode
+    * @param counter Current count of completed operations
+    * @param total Total expected operations
+    * @param networkNames List of networks involved
+    * @param signal Pointer to member signal to emit
+    * @param mode Operation mode
+    * @return true if signal was emitted, false otherwise
+    */
+    bool checkAndEmitSignal(const int &counter,
+                            const int total,
+                            const QVector<QString>& networkNames,
+                            void(SimulatorAPI::*signal)(QVector<QString>),
+                            Mode mode);
+
+    /**
+    * @brief Set up simulator instance for a network
+    * @param networkName Target network
+    * @param shipList Ships to initialize with
+    * @param timeStep Simulation time step
+    * @param isExternallyControlled External control flag
+    * @param mode Operation mode
+    */
+    void setupSimulator(
+        QString networkName,
+        QVector<std::shared_ptr<ShipNetSimCore::Ship>> &shipList,
+        units::time::second_t timeStep,
+        bool isExternallyControlled,
+        Mode mode);
+
+    /**
+    * @brief Load ships from various data sources
+    * These overloaded methods handle different input formats
+    */
+
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QJsonObject& ships,
+               QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship> >
+    mLoadShips(QJsonObject &ships,
+               ShipNetSimCore::OptimizedNetwork* network);
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QVector<QMap<QString, QString>> ships,
+               QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QVector<QMap<QString, std::any>> ships,
+               QString networkName = "");
+    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
+    mLoadShips(QString shipsFilePath,
+               QString networkName = "");
+
+    /**
+    * @brief Convert QVariant to std::any
+    * @param variant Source QVariant
+    * @return Equivalent std::any value
+    */
+    std::any convertQVariantToAny(const QVariant& variant);
+
+    /**
+    * @brief Convert Qt map to STL map
+    * @param qMap Source Qt map
+    * @return Equivalent STL map
+    */
+    std::map<std::string, std::any>
+    convertQMapToStdMap(const QMap<QString, QVariant>& qMap);
+
+    /**
+    * @brief Check if network's worker is busy
+    * @param networkName Network to check
+    * @return true if worker is busy
+    */
+    bool isWorkerBusy(QString networkName);
+
 
 
 protected slots:
@@ -573,16 +700,6 @@ protected slots:
 
 
     void finalizeSimulation(QVector<QString> networkNames);
-
-    // /**
-    // * @brief Restarts the simulation for the specified networks
-    // * @param networkNames List of networks to restart the simulation for
-    // *
-    // * @details This method restarts the simulation from the initial state for
-    // * the specified networks.
-    // * All simulation data is reset, and the simulation begins anew.
-    // */
-    // void restartSimulation(QVector<QString> networkNames);
 
     /**
     * @brief Pauses the simulation for the specified networks
@@ -680,143 +797,7 @@ protected slots:
                               QVector<QString> portIDs,
                               Mode mode);
 
-protected:
-    /** @brief Default constructor for singleton pattern */
-    SimulatorAPI() = default;
-
-    /** @brief Deleted copy constructor to prevent copying */
-    SimulatorAPI(const SimulatorAPI&) = delete;
-
-    /** @brief Deleted assignment operator to prevent copying */
-    SimulatorAPI& operator=(const SimulatorAPI&) = delete;
-
-    /**
-    * @brief Set up signal-slot connections for a network
-    * @param networkName Network to set up connections for
-    * @param mode Operation mode for signal handling
-    * @details Establishes all necessary connections between simulator,
-    * ships, and API components
-    */
-    void setupConnections(const QString& networkName, Mode mode);
-
-    // Protected Member Variables
-
-    /** @brief Map of network names to their simulation data */
-    ThreadSafeAPIDataMap apiDataMap;
-
-    /** @brief Connection type for Qt signals/slots */
-    Qt::ConnectionType mConnectionType = Qt::QueuedConnection;
-
-    /** @brief Tracks simulation results across networks */
-    RequestData<ShipsResults> mSimulationResultsTracker;
-
-    /** @brief Tracks available ports information */
-    RequestData<QVector<QString>> mAvailablePortTracker;
-
-    /** @brief Tracks simulation time steps and progress */
-    RequestData<QPair<units::time::second_t, double>> mTimeStepTracker;
-
-    /** @brief Tracks overall simulation progress */
-    RequestData<int> mProgressTracker;
-
-    /** @brief Track ships reached destination */
-    RequestData<QJsonObject> mReachedDesTracker;
-
-    /** @brief Tracks pause operations */
-    RequestData<QString> mPauseTracker;
-
-    /** @brief Tracks resume operations */
-    RequestData<QString> mResumeTracker;
-
-    /** @brief Tracks termination operations */
-    RequestData<QString> mTerminateTracker;
-
-    /** @brief Tracks simulation completion */
-    RequestData<QString> mFinishedTracker;
-
-    /** @brief Tracks worker thread status */
-    RequestData<QString> mWorkerTracker;
-
-    /** @brief Tracks simulation restart operations */
-    RequestData<QString> mRestartTracker;
-
-
-    /**
-    * @brief Check conditions and emit signal based on mode
-    * @param counter Current count of completed operations
-    * @param total Total expected operations
-    * @param networkNames List of networks involved
-    * @param signal Pointer to member signal to emit
-    * @param mode Operation mode
-    * @return true if signal was emitted, false otherwise
-    */
-    bool checkAndEmitSignal(const int &counter,
-                            const int total,
-                            const QVector<QString>& networkNames,
-                            void(SimulatorAPI::*signal)(QVector<QString>),
-                            Mode mode);
-
-    /**
-    * @brief Set up simulator instance for a network
-    * @param networkName Target network
-    * @param shipList Ships to initialize with
-    * @param timeStep Simulation time step
-    * @param isExternallyControlled External control flag
-    * @param mode Operation mode
-    */
-    void setupSimulator(
-        QString networkName,
-        QVector<std::shared_ptr<ShipNetSimCore::Ship>> &shipList,
-        units::time::second_t timeStep,
-        bool isExternallyControlled,
-        Mode mode);
-
-    /**
-    * @brief Load ships from various data sources
-    * These overloaded methods handle different input formats
-    */
-
-    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
-    mLoadShips(QJsonObject& ships,
-               QString networkName = "");
-    QVector<std::shared_ptr<ShipNetSimCore::Ship> >
-    mLoadShips(QJsonObject &ships,
-               ShipNetSimCore::OptimizedNetwork* network);
-    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
-    mLoadShips(QVector<QMap<QString, QString>> ships,
-               QString networkName = "");
-    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
-    mLoadShips(QVector<QMap<QString, std::any>> ships,
-               QString networkName = "");
-    QVector<std::shared_ptr<ShipNetSimCore::Ship>>
-    mLoadShips(QString shipsFilePath,
-               QString networkName = "");
-
-    /**
-    * @brief Convert QVariant to std::any
-    * @param variant Source QVariant
-    * @return Equivalent std::any value
-    */
-    std::any convertQVariantToAny(const QVariant& variant);
-
-    /**
-    * @brief Convert Qt map to STL map
-    * @param qMap Source Qt map
-    * @return Equivalent STL map
-    */
-    std::map<std::string, std::any>
-    convertQMapToStdMap(const QMap<QString, QVariant>& qMap);
-
-    /**
-    * @brief Check if network's worker is busy
-    * @param networkName Network to check
-    * @return true if worker is busy
-    */
-    bool isWorkerBusy(QString networkName);
-
 public:
-
-    static Mode mMode;
 
     /**
     * @brief Load ships from a JSON object configuration
@@ -1033,7 +1014,7 @@ public:
         * @brief end the simulation and produce the summary file
         * @param networkNames List of networks to end
         */
-        static void endSimulation(
+        static void finalizeSimulation(
             QVector<QString> networkNames);
 
         /**
