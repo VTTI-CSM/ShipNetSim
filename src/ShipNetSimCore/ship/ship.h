@@ -1413,7 +1413,6 @@ public:
 private:
 
     mutable QMutex mDwellStateMutex; // For thread-safe dwell state access
-    QMutex mContainerMutex; // Mutex for thread-safe container operations
 
     //!< The ship ID
     QString mShipUserID;
