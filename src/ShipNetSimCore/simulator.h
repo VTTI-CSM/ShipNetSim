@@ -26,7 +26,7 @@ private:
         units::time::second_t(1.0);
     /** (Immutable) the default end time */
     static constexpr units::time::second_t DefaultEndTime =
-        units::time::second_t(0.0);
+        units::time::second_t(std::numeric_limits<double>::infinity());
     /** (Immutable) true to default export instantaneous trajectory */
     static constexpr bool
         DefaultExportInstantaneousTrajectory = true;
