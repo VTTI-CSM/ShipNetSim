@@ -54,7 +54,8 @@ private slots:
     void onSimulationAdvanced(
         QMap<QString,
              QPair<units::time::second_t, double> > newSimulationTime);
-    void onSimulationProgressUpdate(QPair<QString, int> progressPercentage);
+    void onSimulationProgressUpdate(QString networkName,
+                                    int progressPercentage);
     void onShipAddedToSimulator(const QString networkName,
                                 const QVector<QString> shipIDs);
     void onShipReachedDestination(const QJsonObject shipStatus);
