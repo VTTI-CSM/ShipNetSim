@@ -572,7 +572,8 @@ void Simulator::runSimulation(units::time::second_t runFor,
         initializeSimulation(false);
     }
 
-    while (this->mSimulationTime <= this->mSimulationTime + runFor)
+    while ((this->mSimulationTime <= this->mSimulationTime + runFor) &&
+           (this->mSimulationTime <= this->mSimulationEndTime) )
     {
         {
             QMutexLocker locker(&mutex);  // Lock the mutex automatically
