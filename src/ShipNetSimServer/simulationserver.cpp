@@ -583,8 +583,8 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         }
 
         try {
-        SimulatorAPI::InteractiveMode::runSimulation(
-            nets, units::time::second_t(runBy), true);
+            SimulatorAPI::InteractiveMode::runSimulation(
+                nets, units::time::second_t(runBy), true);
         } catch (std::exception &e) {
             onErrorOccurred(e.what());
         }
@@ -620,7 +620,7 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
 
         qDebug() << "[Server] Ending simulation for networks: " << nets;
 
-        SimulatorAPI::InteractiveMode::endSimulation(nets);
+        SimulatorAPI::InteractiveMode::finalizeSimulation(nets);
 
     } else if (command == "addShipsToSimulator") {
         qInfo() << "[Server] Received command: Adding ships to the simulation.";
@@ -903,14 +903,14 @@ void SimulationServer::onSimulationAdvanced(
 }
 
 void SimulationServer::onSimulationProgressUpdate(
-    QPair<QString, int> progressPercentage)
+    QString networkName, int progressPercentage)
 {
     // Check if progressPercentage is a multiple of 5
-    if (progressPercentage.second % 5 == 0) {
+    if (progressPercentage % 5 == 0) {
         QJsonObject jsonMessage;
         jsonMessage["event"] = "simulationProgressUpdate";
-        jsonMessage["networkName"] = progressPercentage.first;
-        jsonMessage["newProgress"] = progressPercentage.second;
+        jsonMessage["networkName"] = networkName;
+        jsonMessage["newProgress"] = progressPercentage;
         jsonMessage["host"] = ShipNetSim_NAME;
 
         // Send the message
