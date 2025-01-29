@@ -1209,10 +1209,12 @@ void ShipNetSim::simulate() {
 
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
                 &SimulatorAPI::simulationProgressUpdated, this,[this]
-                (QPair<QString,int> progress)
+                (QString networkName, int progress)
                 {
-                    int prgs = progress.second;
-                    ui->progressBar->setValue(prgs);
+                    if (networkName == MAIN_SIMULATION_NAME) {
+                        int prgs = progress;
+                        ui->progressBar->setValue(prgs);
+                    }
                 }, Qt::QueuedConnection);
 
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
