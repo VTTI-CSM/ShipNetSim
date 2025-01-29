@@ -6,11 +6,6 @@
 #include "utils/shipscommon.h"
 #include <QThread>
 
-// // Conditional include for server mode functionality
-// #ifdef BUILD_SERVER_ENABLED
-// #include "Container/container.h"
-// #endif
-
 // Initialize static members
 
 QBasicMutex SimulatorAPI::s_instanceMutex;
@@ -74,10 +69,9 @@ void SimulatorAPI::
     setLocale();
 
     // Verify network exists
-    if (!apiDataMap.contains(networkName)) {
+    if (apiDataMap.contains(networkName)) {
         emit errorOccurred("A network with name " + networkName
-                           + " does not exist!"
-                           + "\nUse loadNetwork() first!");
+                           + " exist!");
         return;
     }
 
@@ -1194,11 +1188,8 @@ void SimulatorAPI::handleResultsAvailable(QString networkName,
 void SimulatorAPI::handleProgressUpdate(QString networkName,
                                         int progress)
 {
-    // Create immediate response for single network
-    QPair<QString, int> immediateProgress = {networkName, progress};
-
     // Emit and clean up
-    emit simulationProgressUpdated(immediateProgress);
+    emit simulationProgressUpdated(networkName, progress);
 }
 
 void SimulatorAPI::handleAvailablePorts(QString networkName,
@@ -2054,7 +2045,7 @@ void SimulatorAPI::InteractiveMode::
                                        getProgressSignal);
 }
 
-void SimulatorAPI::InteractiveMode::endSimulation(
+void SimulatorAPI::InteractiveMode::finalizeSimulation(
     QVector<QString> networkNames)
 {
     getInstance().finalizeSimulation(networkNames);
