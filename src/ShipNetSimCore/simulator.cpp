@@ -1114,9 +1114,9 @@ void Simulator::ProgressBar(QVector<std::shared_ptr<Ship>> ships,
         SetConsoleTextAttribute(hConsole, saved_attributes);
 
 #else \
-    // --------- macOS & Linux approach (ANSI escape codes) ----------- \
-    // \033[1;32m = Bright Green \
-    // \033[0m    = Reset color
+    /** --------- macOS & Linux approach (ANSI escape codes) ----------- \
+     \033[1;32m = Bright Green \
+     \033[0m    = Reset color **/
         out << "\033[1;32m"
             << "Progress: [" << bar << "] "
             << progressPercent << "%"
