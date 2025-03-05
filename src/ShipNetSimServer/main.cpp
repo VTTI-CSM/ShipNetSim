@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
 
     // Attach the logger first thing:
     ShipNetSimCore::Logger::attach("ShipNetSimServer");
+    ShipNetSimCore::Logger::setStdOutMinLogLevel(QtInfoMsg);
 
     // Set up the command-line parser
     QCommandLineParser parser;
@@ -76,7 +77,9 @@ int main(int argc, char *argv[]) {
     SimulationServer server;
     server.startRabbitMQServer(hostname.toStdString(), port);
 
-    // Detach logger and start event loop.
-    ShipNetSimCore::Logger::detach();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
+        ShipNetSimCore::Logger::detach();
+    });
+
     return app.exec();
 }
