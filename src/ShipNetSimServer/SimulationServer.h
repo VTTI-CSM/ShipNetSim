@@ -10,7 +10,7 @@
 #include <QJsonObject>
 #include <rabbitmq-c/amqp.h>
 #include <rabbitmq-c/tcp_socket.h>
-#include <container.h>
+#include <containerLib/container.h>
 #ifdef _WIN32
 struct timeval {
     long tv_sec;  // seconds
