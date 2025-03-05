@@ -30,8 +30,8 @@
 #include "../network/galgebraicvector.h"
 
 #ifdef BUILD_SERVER_ENABLED
-#include "Container/container.h"
-#include "Container/containermap.h"
+#include <containerLib/container.h>
+#include <containerLib/containermap.h>
 #endif
 
 namespace ShipNetSimCore
