@@ -64,14 +64,14 @@ if(BUILD_SERVER)
             # Copy container.dll only in Release mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/container.dll"
+                    "${CONTAINER_LIB_DIR}/container.dll"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/container.dll"
             )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             # Copy containerd.dll only in Debug mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/containerd.dll"
+                    "${CONTAINER_LIB_DIR}/containerd.dll"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/containerd.dll"
             )
         endif()
@@ -80,14 +80,14 @@ if(BUILD_SERVER)
             # Copy libcontainer.so only in Release mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/libContainer.so"
+                    "${CONTAINER_LIB_DIR}/libContainer.so"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libContainer.so"
             )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             # Copy libcontainerd.so only in Debug mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/libContainerd.so"
+                    "${CONTAINER_LIB_DIR}/libContainerd.so"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libContainerd.so"
             )
         endif()
@@ -96,14 +96,14 @@ if(BUILD_SERVER)
             # Copy libcontainer.dylib only in Release mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/libcontainer.dylib"
+                    "${CONTAINER_LIB_DIR}/libcontainer.dylib"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libcontainer.dylib"
             )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             # Copy libcontainerd.dylib only in Debug mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_SHRD_LIB_DIR}/libcontainerd.dylib"
+                    "${CONTAINER_LIB_DIR}/libcontainerd.dylib"
                     "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libcontainerd.dylib"
             )
         endif()
