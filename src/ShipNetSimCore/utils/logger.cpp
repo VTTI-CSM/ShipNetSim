@@ -2,7 +2,10 @@
 #include "logger.h"
 #include <QStandardPaths>
 #include <qmutex.h>
-
+#include <stdio.h>  // For fprintf
+#ifdef Q_OS_WIN
+#include <windows.h>  // For Windows console functions
+#endif
 
 namespace ShipNetSimCore
 {
@@ -139,11 +142,34 @@ void Logger::handler(QtMsgType type,
         }
     }
 
-    // Forward messages >= stdOutMinLogLevel to the default handler
+    // For terminal output, we bypass the default handler and implement our own
+    // to ensure proper color handling
     if (type >= stdOutMinLogLevel)
     {
-        // Call the default Qt message handler
-        // (ensuring any default behavior still occurs)
+#ifdef Q_OS_WIN
+        // Windows approach - reset console color first
+        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+        GetConsoleScreenBufferInfo(hConsole, &consoleInfo);
+        WORD saved_attributes = consoleInfo.wAttributes;
+
+        // Set to default color (white) for all message types
+        SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
+
+        // Print message directly
+        fprintf(stderr, "%s\n", qPrintable(msg));
+
+        // Reset to original attributes
+        SetConsoleTextAttribute(hConsole, saved_attributes);
+#else
+        // macOS/Linux approach - ensure we reset color first
+        fprintf(stderr, "\033[0m%s\n", qPrintable(msg));
+#endif
+    }
+    else
+    {
+        // For messages we don't want on console, still call default handler
+        // (it might direct to other outputs)
         (*QT_DEFAULT_MESSAGE_HANDLER)(type, context, msg);
     }
 }
