@@ -6,6 +6,14 @@
 #include "utils/shipscommon.h"
 #include <QThread>
 
+
+#ifndef QT_NO_DEBUG
+#define CHECK_TRUE(instruction) Q_ASSERT(instruction)
+#else
+#define CHECK_TRUE(instruction) (instruction)
+#endif
+
+
 // Initialize static members
 
 QBasicMutex SimulatorAPI::s_instanceMutex;
@@ -1605,7 +1613,13 @@ QJsonObject SimulatorAPI::requestSimulatorCurrentState(QString networkName)
 void SimulatorAPI::addContainersToShip(QString networkName, QString shipID,
                                        QJsonObject json)
 {
-    getShipByID(networkName, shipID)->addContainers(json);
+    auto addressedShip = getShipByID(networkName, shipID);
+    if(addressedShip) {
+        addressedShip->addContainers(json);
+    }
+    else {
+        emit errorOccurred("Ship with ID: " + shipID + " does not exist");
+    }
 }
 
 bool SimulatorAPI::isNetworkLoaded(QString networkName)
