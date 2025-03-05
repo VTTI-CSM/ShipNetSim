@@ -3,7 +3,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
-#include <container.h>
+#include <containerLib/container.h>
 #include "./VersionConfig.h"
 #include "utils/serverutils.h"
 
@@ -17,6 +17,9 @@ static const std::string COMMAND_QUEUE_NAME = "CargoNetSim.CommandQueue.ShipNetS
 static const std::string RESPONSE_QUEUE_NAME = "CargoNetSim.ResponseQueue.ShipNetSim";
 static const std::string RECEIVING_ROUTING_KEY = "CargoNetSim.Command.ShipNetSim";
 static const std::string PUBLISHING_ROUTING_KEY = "CargoNetSim.Response.ShipNetSim";
+
+static const int MAX_SEND_COMMAND_RETRIES = 3;
+
 
 SimulationServer::SimulationServer(QObject *parent) :
     QObject(parent), mWorkerBusy(false)
@@ -345,12 +348,18 @@ void SimulationServer::consumeFromRabbitMQ() {
             break;
         }
 
+        // Check if worker is busy before attempting to consume messages
+        bool workerIsBusy = false;
         {
             QMutexLocker locker(&mMutex);
-            if (mWorkerBusy) {
-                mWaitCondition.wait(&mMutex, 100);  // Wait for 100ms or until notified
-                continue;
-            }
+            workerIsBusy = mWorkerBusy;
+        }
+
+        if (workerIsBusy) {
+            // Process events while waiting for worker to be ready
+            QCoreApplication::processEvents();
+            QThread::msleep(100); // Small sleep to prevent CPU hogging
+            continue; // Skip message consumption and check again
         }
 
         amqp_rpc_reply_t res;
@@ -384,8 +393,7 @@ void SimulationServer::consumeFromRabbitMQ() {
                    res.library_error == AMQP_STATUS_TIMEOUT) {
             // Timeout reached but no message available, continue to next iteration
             // Sleep for 100ms before checking again to avoid a busy loop
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            continue;
+            QThread::msleep(50);
         } else {
             qCritical() << "Error receiving message from RabbitMQ. Type:"
                         << res.reply_type;
@@ -395,8 +403,8 @@ void SimulationServer::consumeFromRabbitMQ() {
             break;
         }
 
-        // Sleep for 100ms between each iteration to avoid busy-looping
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Process events to keep the application responsive
+        QCoreApplication::processEvents();
     }
 }
 
@@ -407,97 +415,156 @@ void SimulationServer::onDataReceivedFromRabbitMQ(
     {
         QMutexLocker locker(&mMutex);
         if (mWorkerBusy) {
-            qDebug() << "Simulator is busy, not consuming new messages.";
+            qInfo() << "Simulator is busy, not consuming new messages.";
             return;
         }
         mWorkerBusy = true;
     }
 
-    processCommand(message);
+    // Ensure mWorkerBusy is reset even if an exception occurs
+    struct WorkerGuard {
+        SimulationServer *server;
+        ~WorkerGuard() { server->onWorkerReady(); }
+    };
+    WorkerGuard guard{this};
+
+    try {
+        processCommand(message);
+    } catch (const std::exception &e) {
+        qCritical() << "Unhandled exception in processCommand: " << e.what();
+        onErrorOccurred("Internal server error: " + QString(e.what()));
+    } catch (...) {
+        qCritical() << "Unknown error in processCommand";
+        onErrorOccurred("Internal server error");
+    }
 }
 
 
 void SimulationServer::processCommand(QJsonObject &jsonMessage) {
 
-    auto checkJsonField = [this](const QJsonObject &json,
-                                 const QString &fieldName,
-                                 const QString &command) -> bool {
-        if (!json.contains(fieldName)) {
-            qWarning() << "Missing parameter:" << fieldName
-                       << "in command:" << command;
-            mWorkerBusy = false;
-            return false;
+    // Helper lambdas for validation
+    auto checkJsonField = [](const QJsonObject &json,
+                             const QString &fieldName,
+                             const QString &command) -> QPair<bool, QString>
+    {
+        if (!json.contains(fieldName))
+        {
+            QString error = "Missing parameter: " +
+                            fieldName +
+                            " in command: " +
+                            command;
+            qWarning() << error;
+            return {false, error};
         }
-        return true;
+        return {true, ""};
     };
 
-    auto validateArray = [this](const QJsonObject &json,
-                                const QString &fieldName,
-                                const QString &commandName,
-                                bool allowEmpty = false,
-                                bool checkElementsAreStrings = true) -> bool {
-        if (!json.contains(fieldName)) {
-            QString error = "Missing parameter: " + fieldName
-                            + "in command:" + commandName;
+    auto validateArray = [](const QJsonObject &json,
+                            const QString &fieldName,
+                            const QString &commandName,
+                            bool allowEmpty = false,
+                            bool checkElementsAreStrings = true) ->
+        QPair<bool, QString>
+    {
+        if (!json.contains(fieldName))
+        {
+            QString error = "Missing parameter: " +
+                            fieldName +
+                            " in command: " +
+                            commandName;
             qWarning() << error;
-            mWorkerBusy = false;
-            return false;
+            return {false, error};
         }
-
-        if (!json[fieldName].isArray()) {
-            QString error =
-                QString("'%1' must be an array for command: %2")
-                    .arg(fieldName, commandName);
+        if (!json[fieldName].isArray())
+        {
+            QString error = "'" + fieldName +
+                            "' must be an array for command: " +
+                            commandName;
             qWarning() << error;
-            onErrorOccurred(error);
-            mWorkerBusy = false;
-            return false;
+            return {false, error};
         }
-
         QJsonArray arr = json[fieldName].toArray();
         if (!allowEmpty && arr.isEmpty()) {
-            QString error = QString("'%1' array cannot be empty "
-                                    "for command: %2")
-                                .arg(fieldName, commandName);
+            QString error = "'" + fieldName +
+                            "' array cannot be empty for command: " +
+                            commandName;
             qWarning() << error;
-            onErrorOccurred(error);
-            mWorkerBusy = false;
-            return false;
+            return {false, error};
         }
-
-        if (checkElementsAreStrings) {
-            for (const QJsonValue& val : arr) {
-                if (!val.isString()) {
-                    QString error = QString("'%1' array contains non-string "
-                                            "elements for command: %2")
-                                        .arg(fieldName, commandName);
+        if (checkElementsAreStrings)
+        {
+            for (const QJsonValue &val : arr)
+            {
+                if (!val.isString())
+                {
+                    QString error = "'" +
+                                    fieldName +
+                                    "' array contains non-string elements "
+                                    "for command: " +
+                                    commandName;
                     qWarning() << error;
-                    onErrorOccurred(error);
-                    mWorkerBusy = false;
-                    return false;
+                    return {false, error};
                 }
             }
         }
-
-        return true;
+        return {true, ""};
     };
 
+    // Extract the command
+    if (!jsonMessage.contains("command"))
+    {
+        onErrorOccurred("Missing 'command' field in the message");
+        return;
+    }
     QString command = jsonMessage["command"].toString();
 
-    if (command == "defineSimulator") {
+    // Handle each command with improved error checking
+    if (command == "checkConnection") {
+        // Log the event for debugging (optional but recommended)
+        qInfo() << "[Server] Received command: checkConnection. "
+                   "Responding with 'connected'.";
+
+        // Create the response JSON object
+        QJsonObject response;
+        response["event"] = "connectionStatus";  // Identifies the response type
+        response["status"] = "connected";        // Confirms the server is connected
+        response["host"] = "ShipNetSim";         // Identifies the server
+
+        // Send the response via RabbitMQ
+        sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(), response);
+
+        // Signal that the worker is ready for the next command
+        onWorkerReady();
+        return;
+    }
+    else if (command == "defineSimulator") {
         qInfo() << "[Server] Received command: Initializing a new "
                    "simulation environment.";
 
         QString networkPath =
             ServerUtils::getOptionalString(jsonMessage, "networkFilePath");
 
-        if (!checkJsonField(jsonMessage, "networkName", command) ||
-            !checkJsonField(jsonMessage, "timeStep", command)) {
-            qWarning() << "[Server] Missing required fields "
-                          "for 'defineSimulator'.";
-            return; // Skip processing this command
+        // Validate required fields
+        QList<QPair<bool, QString>> checks;
+        checks << checkJsonField(jsonMessage, "networkName", command);
+        checks << checkJsonField(jsonMessage, "timeStep", command);
+
+        // Collect errors
+        QStringList errors;
+        for (const auto &check : checks)
+        {
+            if (!check.first)
+            {
+                errors << check.second;
+            }
+        }
+        if (!errors.isEmpty())
+        {
+            onErrorOccurred(errors.join("; "));
+            return;
         }
 
+        // Extract fields
         QString networkName =
             jsonMessage["networkName"].toString();
         double timeStepValue = jsonMessage["timeStep"].toDouble(-100);
@@ -535,18 +602,24 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "runSimulator") {
         qInfo() << "[Server] Received command: Running simulation.";
 
-        // Validate parameters
-        if (!validateArray(jsonMessage, "networkNames", command) ||
-            !checkJsonField(jsonMessage, "byTimeSteps", command)) {
+        // Validate networkNames array
+        auto arrayCheck = validateArray(jsonMessage,
+                                        "networkNames",
+                                        command);
+        if (!arrayCheck.first)
+        {
+            onErrorOccurred(arrayCheck.second);
             return;
         }
 
-        // Type check for byTimeSteps
-        if (!jsonMessage["byTimeSteps"].isDouble()) {
+        // Validate byTimeSteps
+        if (!jsonMessage.contains("byTimeSteps") ||
+            !jsonMessage["byTimeSteps"].isDouble())
+        {
             onErrorOccurred("'byTimeSteps' must be a numeric value");
-            mWorkerBusy = false;
             return;
         }
+
 
         // Process networks
         QVector<QString> nets;
@@ -591,9 +664,14 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "terminateSimulator") {
         qInfo() << "[Server] Received command: Terminating simulation.";
 
-        if (!validateArray(jsonMessage, "networkNames", command)) {
+        // Validate networkNames array
+        auto arrayCheck = validateArray(jsonMessage, "networkNames", command);
+        if (!arrayCheck.first)
+        {
+            onErrorOccurred(arrayCheck.second);
             return;
         }
+
 
         QVector<QString> nets;
         QJsonArray networkNamesArray = jsonMessage["networkNames"].toArray();
@@ -608,7 +686,11 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "endSimulator") {
         qInfo() << "[Server] Received command: Ending simulation.";
 
-        if (!validateArray(jsonMessage, "networkNames", command)) {
+        // Validate networkNames array
+        auto arrayCheck = validateArray(jsonMessage, "networkNames", command);
+        if (!arrayCheck.first)
+        {
+            onErrorOccurred(arrayCheck.second);
             return;
         }
 
@@ -625,12 +707,26 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "addShipsToSimulator") {
         qInfo() << "[Server] Received command: Adding ships to the simulation.";
 
+        // Validate required fields
+        QList<QPair<bool, QString>> checks;
+        checks << checkJsonField(jsonMessage, "networkName", command);
+        checks << checkJsonField(jsonMessage, "ships", command);
 
-        if (!checkJsonField(jsonMessage, "networkName", command) ||
-            !validateArray(jsonMessage, "ships",
-                           command, false, false)) {  // Don't check types
+        // Collect errors
+        QStringList errors;
+        for (const auto &check : checks)
+        {
+            if (!check.first)
+            {
+                errors << check.second;
+            }
+        }
+        if (!errors.isEmpty())
+        {
+            onErrorOccurred(errors.join("; "));
             return;
         }
+
 
         // Additional validation for ship objects
         QJsonArray shipsArray = jsonMessage["ships"].toArray();
@@ -650,15 +746,27 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "addContainersToShip") {
         qInfo() << "[Server] Received command: Adding containers to a ship.";
 
-        if (!checkJsonField(jsonMessage, "networkName", command) ||
-            !checkJsonField(jsonMessage, "shipID", command) ||
-            !checkJsonField(jsonMessage, "containers", command)) {
-            QString error = "[Server] Missing required fields "
-                            "for 'addContainersToShip'.";
-            onErrorOccurred(error);
-            qWarning() << error;
-            return; // Skip processing this command
+        // Validate required fields
+        QList<QPair<bool, QString>> checks;
+        checks << checkJsonField(jsonMessage, "networkName", command);
+        checks << checkJsonField(jsonMessage, "shipID", command);
+        checks << checkJsonField(jsonMessage, "containers", command);
+
+        // Collect errors
+        QStringList errors;
+        for (const auto &check : checks)
+        {
+            if (!check.first)
+            {
+                errors << check.second;
+            }
         }
+        if (!errors.isEmpty())
+        {
+            onErrorOccurred(errors.join("; "));
+            return;
+        }
+
         QString net =
             jsonMessage["networkName"].toString();
         QString shipID =
@@ -673,13 +781,23 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
     } else if (command == "getNetworkSeaPorts") {
         qInfo() << "[Server] Received command: Getting a list of sea ports.";
 
-        if (!checkJsonField(jsonMessage, "networkName", command)) {
-            QString error = "[Server] Missing required fields "
-                            "for 'getNetworkSeaPorts'.";
+        // Validate required fields
+        QList<QPair<bool, QString>> checks;
+        checks << checkJsonField(jsonMessage, "networkName", command);
 
-            onErrorOccurred(error);
-            qWarning() << error;
-            return; // Skip processing this command
+        // Collect errors
+        QStringList errors;
+        for (const auto &check : checks)
+        {
+            if (!check.first)
+            {
+                errors << check.second;
+            }
+        }
+        if (!errors.isEmpty())
+        {
+            onErrorOccurred(errors.join("; "));
+            return;
         }
 
         QString net =
@@ -694,15 +812,24 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
 
     } else if (command == "unloadContainersFromShipAtCurrentTerminal") {
         qInfo() << "[Server] Received command: Unloading containers to a ship.";
+        // Validate required fields
+        QList<QPair<bool, QString>> checks;
+        checks << checkJsonField(jsonMessage, "networkName", command);
+        checks << checkJsonField(jsonMessage, "shipID", command);
 
-        if (!checkJsonField(jsonMessage, "networkName", command) ||
-            !checkJsonField(jsonMessage, "shipID", command)) {
-            QString error = "[Server] Missing required fields "
-                            "for 'unloadContainersFromShipAtCurrentTerminal'.";
-
-            onErrorOccurred(error);
-            qWarning() << error;
-            return; // Skip processing this command
+        // Collect errors
+        QStringList errors;
+        for (const auto &check : checks)
+        {
+            if (!check.first)
+            {
+                errors << check.second;
+            }
+        }
+        if (!errors.isEmpty())
+        {
+            onErrorOccurred(errors.join("; "));
+            return;
         }
 
         QString net =
@@ -752,17 +879,26 @@ void SimulationServer::sendRabbitMQMessage(const QString &routingKey,
     messageBytes.len = messageData.size();
     messageBytes.bytes = messageData.data();
 
-    int publishStatus =
-        amqp_basic_publish(
-            mRabbitMQConnection, 1, amqp_cstring_bytes(EXCHANGE_NAME.c_str()),
+    int retries = MAX_SEND_COMMAND_RETRIES;
+    while (retries > 0) {
+        int publishStatus = amqp_basic_publish(
+            mRabbitMQConnection, 1,
+            amqp_cstring_bytes(EXCHANGE_NAME.c_str()),
             amqp_cstring_bytes(routingKey.toUtf8().constData()),
             0, 0, nullptr, messageBytes);
 
-    if (publishStatus != AMQP_STATUS_OK) {
-        qCritical() << "Failed to publish message to "
-                       "RabbitMQ with routing key:"
-                    << routingKey;
+        if (publishStatus == AMQP_STATUS_OK) {
+            return; // Success
+        }
+        qWarning() << "Failed to publish message to RabbitMQ "
+                      "with routing key:"
+                   << routingKey << ". Retrying...";
+        retries--;
+        QThread::msleep(1000); // Wait 1 second before retrying
     }
+    qCritical() << "Failed to publish message to RabbitMQ "
+                   "after retries with routing key:"
+                << routingKey;
 }
 
 
