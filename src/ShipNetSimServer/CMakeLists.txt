@@ -105,7 +105,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
         # Copy libcontainer.so and librabbitmq.so only in Release mode
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/libContainer.so"
+                "${CONTAINER_LIB_DIR}/libContainer.so"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainer.so"
         )
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
@@ -117,7 +117,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
         # Copy libcontainerd.so and librabbitmq.so only in Debug mode
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/libContainerd.so"
+                "${CONTAINER_LIB_DIR}/libContainerd.so"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainerd.so"
         )
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
