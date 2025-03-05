@@ -2839,12 +2839,19 @@ QVector<ContainerCore::Container*> Ship::getLoadedContainers() {
 void Ship::addContainer(ContainerCore::Container* container)
 {
     if (container) {
+        container->setContainerCurrentLocation("Ship_" + getUserID());
         mLoadedContainers.addContainer(container->getContainerID(), container);
         emit containersAdded();
     }
 }
 
 void Ship::addContainers(QJsonObject json) {
+    auto containers =
+        ContainerCore::ContainerMap::loadContainersFromJson(json);
+
+    for (auto container : containers) {
+        container->setContainerCurrentLocation("Ship_" + getUserID());
+    }
     mLoadedContainers.addContainers(json);
     emit containersAdded();
 }
