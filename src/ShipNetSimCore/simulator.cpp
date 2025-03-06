@@ -631,8 +631,6 @@ void Simulator::runSimulation(units::time::second_t runFor,
         // #             start: show progress on console                    #
         // ##################################################################
 
-        qDebug() << "Simulation ended.";
-
         this->ProgressBar(mShips, 100, emitEndStepSignal);
 
     }
