@@ -159,6 +159,10 @@ void SimulatorAPI::resetInstance() {
             // Retrieve the APIData for the current network
             APIData data = instance->apiDataMap.get(networkName);
 
+            if (data.simulator) {
+                data.simulator->terminateSimulation(false);
+            }
+
             // Clean up network
             if (data.network) {
                 if (data.network->thread() == data.workerThread) {
@@ -489,7 +493,6 @@ void SimulatorAPI::setupShipsConnection(
     {
         connect(ship.get(), &ShipNetSimCore::Ship::reachedDestination, this,
                 [this, networkName, ship, mode](const QJsonObject shipState) {
-                    qDebug() << "Current thread 9:" << QThread::currentThread();
                     handleShipReachedDestination(
                         networkName,
                         shipState,
@@ -1034,7 +1037,6 @@ void SimulatorAPI::
     //    when the worker thread finishes
     connect(workerThread, &QThread::finished, this,
             [this, networkName]() {
-                qDebug() << "Current thread 1:" << QThread::currentThread();
                 handleWorkersReady(networkName);
             }, mConnectionType);
 
@@ -1067,14 +1069,14 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
     connect(simulator,
             &ShipNetSimCore::Simulator::simulationResultsAvailable, this,
             [this, networkName](ShipsResults results) {
-                qDebug() << "Current thread 2:" << QThread::currentThread();
+                // qDebug() << "Current thread 2:" << QThread::currentThread();
                 handleResultsAvailable(networkName, results);
             }, mConnectionType);
 
     // Connect simulation finished signal
     connect(simulator, &ShipNetSimCore::Simulator::simulationFinished, this,
             [this, networkName]() {
-                qDebug() << "Current thread 3:" << QThread::currentThread();
+                // qDebug() << "Current thread 3:" << QThread::currentThread();
                 handleSimulationFinished(networkName);
             }, mConnectionType);
 
@@ -1176,10 +1178,8 @@ void SimulatorAPI::handleShipReachedDestination(QString networkName,
 
     QJsonObject response;
     QJsonObject networkData;
-    QJsonArray shipsArray;
 
-    shipsArray.append(shipState);
-    networkData["shipStates"] = shipsArray;
+    networkData["shipStates"] = shipState;
     response[networkName] = networkData;
 
     emit shipsReachedDestination(response);
