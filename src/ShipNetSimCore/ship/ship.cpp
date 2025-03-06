@@ -2754,7 +2754,7 @@ QJsonObject Ship::getCurrentStateAsJson() const
     json["loaded"] = mLoaded;
     json["reachedDestination"] = mReachedDestination;
     QJsonObject stateJson;
-    stateJson["eenergyConsumption"] = mCumConsumedEnergy.value();
+    stateJson["energyConsumption"] = mCumConsumedEnergy.value();
     QJsonArray fuelConsumptionArray;
     for (const auto& fuelEntry : mCumConsumedFuel) {
         QJsonObject fuelJson;
@@ -2805,7 +2805,7 @@ QJsonObject Ship::getCurrentStateAsJson() const
     json["environment"] = envJson;
 
 #ifdef BUILD_SERVER_ENABLED
-    json["containers"] = mLoadedContainers.toJson();
+    json["containersCount"] = mLoadedContainers.size();
 #endif
 
     auto p = getCurrentPosition();
@@ -2852,7 +2852,7 @@ void Ship::addContainers(QJsonObject json) {
     for (auto container : containers) {
         container->setContainerCurrentLocation("Ship_" + getUserID());
     }
-    mLoadedContainers.addContainers(json);
+    mLoadedContainers.addContainers(containers);
     emit containersAdded();
 }
 
