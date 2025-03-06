@@ -638,11 +638,13 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
             onErrorOccurred(error);
         }
 
-        qDebug() << "[Server] Executing simulation for networks: " << nets
-                 << " with time step duration: " << runBy << "s.";
+
 
         // Connect simulationProgressUpdated if runBy is any value in [0, -inf]
         if (runBy <= 0) {
+            qDebug() << "[Server] Executing simulation for networks: ["
+                     << nets.join(", ")
+                     << "] till end.";
             if (m_progressConnection) {
                 disconnect(m_progressConnection);
                 m_progressConnection = QMetaObject::Connection();
@@ -653,6 +655,11 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
                 this,
                 &SimulationServer::onSimulationProgressUpdate
                 );
+        }
+        else {
+            qDebug() << "[Server] Executing simulation for networks: ["
+                     << nets.join(", ")
+                     << "] with number of steps: " << runBy << "s.";
         }
 
         try {
