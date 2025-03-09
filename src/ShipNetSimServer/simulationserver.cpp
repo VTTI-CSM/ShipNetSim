@@ -817,12 +817,13 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
             requestAvailablePorts({net}, considerShipsPathOnly);
 
 
-    } else if (command == "unloadContainersFromShipAtCurrentTerminal") {
+    } else if (command == "unloadContainersFromShipAtTerminal") {
         qInfo() << "[Server] Received command: Unloading containers to a ship.";
         // Validate required fields
         QList<QPair<bool, QString>> checks;
         checks << checkJsonField(jsonMessage, "networkName", command);
         checks << checkJsonField(jsonMessage, "shipID", command);
+        checks << checkJsonField(jsonMessage, "terminalNames", command);
 
         // Collect errors
         QStringList errors;
@@ -845,7 +846,7 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
             jsonMessage["shipID"].toString();
 
         QVector<QString> portNames = QVector<QString>();
-        QJsonArray portNamesArray = jsonMessage["networkNames"].toArray();
+        QJsonArray portNamesArray = jsonMessage["terminalNames"].toArray();
         for (const QJsonValue &value : portNamesArray) {
             portNames.append(value.toString());
         }
@@ -1194,6 +1195,7 @@ void SimulationServer::onContainersUnloaded(QString networkName,
                                             QString seaPortName,
                                             QJsonArray containers)
 {
+    std::cout << "containers unloaded\n";
     QJsonObject jsonMessage;
     jsonMessage["event"] = "containersUnloaded";
     jsonMessage["host"] = ShipNetSim_NAME;
