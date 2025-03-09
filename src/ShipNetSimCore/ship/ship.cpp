@@ -2753,6 +2753,8 @@ QJsonObject Ship::getCurrentStateAsJson() const
     json["outOfEnergy"] = mOutOfEnergy;
     json["loaded"] = mLoaded;
     json["reachedDestination"] = mReachedDestination;
+    json["tripTime"] = mTripTime.value();
+
     QJsonObject stateJson;
     stateJson["energyConsumption"] = mCumConsumedEnergy.value();
     QJsonArray fuelConsumptionArray;
