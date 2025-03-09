@@ -1882,6 +1882,7 @@ void SimulatorAPI::requestUnloadContainersAtPort(QString networkName,
     if (apiData.ships.contains(shipID)) {
         // Request ship to unload containers
         apiData.ships.value(shipID)->requestUnloadContainersAtPort(portNames);
+        return; // Return once the request is processed.
     }
 
     // Emit an error if the ship does not exist
