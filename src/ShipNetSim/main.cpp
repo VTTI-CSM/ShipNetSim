@@ -450,7 +450,9 @@ int main(int argc, char *argv[])
     }
 
     // Detach logger and start event loop.
-    ShipNetSimCore::Logger::detach();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
+        ShipNetSimCore::Logger::detach();
+    });
     return 0;
     // return app.exec();
 }
