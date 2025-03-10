@@ -58,6 +58,7 @@ private slots:
                                     int progressPercentage);
     void onShipAddedToSimulator(const QString networkName,
                                 const QVector<QString> shipIDs);
+    void onAllShipsReachDestination(const QString networkName);
     void onShipReachedDestination(const QJsonObject shipStatus);
     void onSimulationResultsAvailable(QPair<QString, ShipsResults> results);
     void onShipStateAvailable(QString networkName, QString shipID,

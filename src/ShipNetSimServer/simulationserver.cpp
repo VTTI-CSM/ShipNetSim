@@ -55,6 +55,9 @@ void SimulationServer::setupServer() {
             &SimulatorAPI::shipsReachedDestination, this,
             &SimulationServer::onShipReachedDestination);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
+            &SimulatorAPI::allShipsReachedDestination, this,
+            &SimulationServer::onAllShipsReachDestination);
+    connect(&SimulatorAPI::InteractiveMode::getInstance(),
             &SimulatorAPI::simulationResultsAvailable, this,
             &SimulationServer::onSimulationResultsAvailable);
     connect(&SimulatorAPI::InteractiveMode::getInstance(),
@@ -919,7 +922,7 @@ void SimulationServer::onSimulationNetworkLoaded(QString networkName) {
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
-    onWorkerReady();
+    // onWorkerReady();
 }
 
 void SimulationServer::onSimulationCreated(QString networkName) {
@@ -1078,6 +1081,15 @@ void SimulationServer::onShipAddedToSimulator(const QString networkName,
     onWorkerReady();
 }
 
+void SimulationServer::onAllShipsReachDestination(const QString networkName) {
+    QJsonObject jsonMessage;
+    jsonMessage["event"] = "allShipsReachedDestination";
+    jsonMessage["host"] = ShipNetSim_NAME;
+    sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
+                        jsonMessage);
+    onWorkerReady();
+}
+
 void SimulationServer::onShipReachedDestination(const QJsonObject shipStatus) {
     QJsonObject jsonMessage;
     jsonMessage["event"] = "shipReachedDestination";
@@ -1085,8 +1097,6 @@ void SimulationServer::onShipReachedDestination(const QJsonObject shipStatus) {
     jsonMessage["host"] = ShipNetSim_NAME;
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
-
-    onWorkerReady();
 }
 
 void SimulationServer::onShipStateAvailable(QString networkName,
@@ -1101,7 +1111,7 @@ void SimulationServer::onShipStateAvailable(QString networkName,
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
-    onWorkerReady();
+    // onWorkerReady();
 }
 
 void SimulationServer::
@@ -1114,7 +1124,7 @@ void SimulationServer::
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
-    onWorkerReady();
+    // onWorkerReady();
 }
 
 void SimulationServer::onSimulationResultsAvailable(
@@ -1128,7 +1138,7 @@ void SimulationServer::onSimulationResultsAvailable(
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
-    onWorkerReady();
+    // onWorkerReady();
 }
 
 void SimulationServer::onContainersAddedToShip(QString networkName,
@@ -1160,7 +1170,7 @@ void SimulationServer::onShipReachedSeaPort(
     sendRabbitMQMessage(PUBLISHING_ROUTING_KEY.c_str(),
                         jsonMessage);
 
-    onWorkerReady();
+    // onWorkerReady();
 }
 
 void SimulationServer::onPortsAvailable(QMap<QString,
