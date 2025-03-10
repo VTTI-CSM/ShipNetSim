@@ -2766,6 +2766,7 @@ QJsonObject Ship::getCurrentStateAsJson() const
         fuelConsumptionArray.append(fuelJson);
     }
     stateJson["fuelConsumption"] = fuelConsumptionArray;
+    stateJson["carbonDioxideEmitted"] = getTotalCO2Emissions().value();
     json["consumption"] = stateJson;
 
     // Add energy sources (as an array)

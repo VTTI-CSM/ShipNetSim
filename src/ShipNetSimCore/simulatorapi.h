@@ -226,6 +226,14 @@ signals:
                                 const QVector<QString> shipIDs);
 
     /**
+     * @brief Emitted when all ships in the simulation have reached their
+     *          destination
+     * @param networkName Name of the network where all ships
+     *          reached destination
+     */
+    void allShipsReachedDestination(const QString networkName);
+
+    /**
     * @brief Emitted when simulation results are ready for retrieval.
     * @param results Map of network names to their respective simulation
     * results
@@ -761,6 +769,15 @@ protected slots:
     */
     void handleProgressUpdate(QString networkName,
                               int progress);
+
+    /**
+     * @brief Handler for all ships reaching their destination
+     * @param networkName Network providing results
+     *
+     * @details Processes simulation signal of all ships reached their
+     * destination and emits allShipsReachedDestination signal
+     */
+    void handleAllShipsReachedDestination(QString networkName);
 
     /**
     * @brief Handler for simulation results
