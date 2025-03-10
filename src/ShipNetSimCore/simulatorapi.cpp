@@ -1065,6 +1065,12 @@ void SimulatorAPI::setupConnections(const QString& networkName, Mode mode)
 
     auto& simulator = apiData.simulator;
 
+    connect(simulator,
+            &ShipNetSimCore::Simulator::allShipsReachedDestination, this,
+            [this, networkName]() {
+                handleAllShipsReachedDestination(networkName);
+            });
+
     // Connect simulation results available signal
     connect(simulator,
             &ShipNetSimCore::Simulator::simulationResultsAvailable, this,
@@ -1183,6 +1189,11 @@ void SimulatorAPI::handleShipReachedDestination(QString networkName,
     response[networkName] = networkData;
 
     emit shipsReachedDestination(response);
+}
+
+void SimulatorAPI::handleAllShipsReachedDestination(QString networkName)
+{
+    emit allShipsReachedDestination(networkName);
 }
 
 void SimulatorAPI::handleResultsAvailable(QString networkName,
