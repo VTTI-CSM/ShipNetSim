@@ -29,7 +29,7 @@
   <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a>
 </p>
 
-<p align="center>
+<p align="center">
   <a> For questions or feedback, contact <a href='mailto:AhmedAredah@vt.edu'>Ahmed Aredah</a> or <a href='mailto:HRakha@vtti.vt.edu'>Prof. Hesham Rakha<a>
 </p>
 
