@@ -29,6 +29,10 @@
   <a href="https://VTTI-CSM.github.io/ShipNetSim/" target="_blank">Documentation</a>
 </p>
 
+<p align="center>
+  <a> For questions or feedback, contact <a href='mailto:AhmedAredah@vt.edu'>Ahmed Aredah</a> or <a href='mailto:HRakha@vtti.vt.edu'>Prof. Hesham Rakha<a>
+</p>
+
 # Ship Network Simulator (ShipNetSim)
 ShipNetSim is an open-source simulation software designed to analyze ship energy consumption and emissions in extensive maritime networks. Built with a modular and adaptable structure using Qt6, it integrates propulsion-resistance models, real-time environmental data, and advanced path-finding algorithms for longitudinal vessel motion analysis.
 
