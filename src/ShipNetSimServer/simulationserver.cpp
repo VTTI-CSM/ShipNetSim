@@ -857,7 +857,7 @@ void SimulationServer::processCommand(QJsonObject &jsonMessage) {
         SimulatorAPI::InteractiveMode::
             requestUnloadContainersAtPort(net, shipID, portNames);
 
-    } else if (command == "restServer") {
+    } else if (command == "resetServer") {
         qInfo() << "[Server] Received command: Resetting the server.";
 
         SimulatorAPI::InteractiveMode::resetAPI();
