@@ -1,7 +1,11 @@
 set(SHIPNETSIM_GUI_NAME "ShipNetSimGUI" CACHE STRING "Project GUI name" FORCE)
 project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
+if(APPLE OR UNIX)
+    target_include_directories(${SHIPNETSIM_NAME} PRIVATE ${CUPS_INCLUDE_DIR})
+
+endif()
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport) # PrintSupport
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport) # PrintSupport
 find_package(Fontconfig REQUIRED)
 
 # Find OpenGL 
@@ -115,6 +119,10 @@ target_include_directories(${SHIPNETSIM_GUI_NAME} PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+if(APPLE OR UNIX)
+    target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE ${CUPS_LIBRARIES})
+endif()
+
 # Link necessary libraries
 target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     ShipNetSimCore
@@ -136,7 +144,7 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     osg3::osgUtil
     osg3::osgViewer
     osg3::osgSim
-    # osg3::osgText
+    osg3::osgText
     osg3::osgShadow
     osg3::OpenThreads
     Fontconfig::Fontconfig

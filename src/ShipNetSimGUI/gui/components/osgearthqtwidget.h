@@ -15,7 +15,7 @@
 // OSGEarth includes
 #include <osgEarth/Map>
 #include <osgEarth/MapNode>
-#include <osgEarthDrivers/engine_rex/RexTerrainEngineNode>
+// #include <osgEarthDrivers/engine_rex/RexTerrainEngineNode>
 #include <osgEarth/EarthManipulator>
 #include <osgEarth/Viewpoint>
 #include <osgEarth/AutoClipPlaneHandler>
@@ -34,7 +34,7 @@ public:
     void setMapNode(osg::ref_ptr<osg::Group> root);
     void addDefaultPorts();
 private:
-    osg::ref_ptr<AnnotationNode> _pickedAnno;
+    osg::ref_ptr<osgEarth::AnnotationNode> _pickedAnno;
     void configureView( osgViewer::View* view ) const;
     void printSceneGraph(const osg::Node* node, int level = 0);
 signals:

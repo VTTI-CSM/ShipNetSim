@@ -18,6 +18,7 @@
 #include <QDoubleSpinBox>
 #include <QMenu>
 #include <QContextMenuEvent>
+#include <QOpenGLContext>
 #include "../third_party/qcustomplot/qcustomplot.h"
 
 

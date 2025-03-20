@@ -14,7 +14,7 @@
 #include <QDialogButtonBox>
 #include <QStyledItemDelegate>
 #include "enginepowerpopupform.h"
-#include "enginerpmefficiencypopupform.h"
+// #include "enginerpmefficiencypopupform.h"
 #include "generalPopupForm.h"
 
 
@@ -68,45 +68,45 @@ public:
 
         connect(button, &QPushButton::clicked, this, [=, this]() mutable {
             if (mFormType == FormType::RPMEfficiency) {
-                EngineRPMEfficiencyPopupForm form(parent);
+                // EngineRPMEfficiencyPopupForm form(parent);
 
-                // Load data from textEdit into the form
-                QStringList entries =
-                    textEdit->toPlainText().split(";", Qt::SkipEmptyParts);
-                int row = 0;
-                for (const QString &entry : entries) {
-                    QStringList values = entry.split(", ");
-                    if (values.size() == 2) {
-                        if (row >= form.tableWidget->rowCount()) {
-                            form.tableWidget->insertRow(
-                                form.tableWidget->rowCount());
-                        }
-                        form.tableWidget->setItem(
-                            row, 0, new QTableWidgetItem(values[0])); // Engine RPM
-                        form.tableWidget->setItem(
-                            row, 2, new QTableWidgetItem(values[1])); // Efficiency
-                        row++;
-                    }
-                }
+                // // Load data from textEdit into the form
+                // QStringList entries =
+                //     textEdit->toPlainText().split(";", Qt::SkipEmptyParts);
+                // int row = 0;
+                // for (const QString &entry : entries) {
+                //     QStringList values = entry.split(", ");
+                //     if (values.size() == 2) {
+                //         if (row >= form.tableWidget->rowCount()) {
+                //             form.tableWidget->insertRow(
+                //                 form.tableWidget->rowCount());
+                //         }
+                //         form.tableWidget->setItem(
+                //             row, 0, new QTableWidgetItem(values[0])); // Engine RPM
+                //         form.tableWidget->setItem(
+                //             row, 2, new QTableWidgetItem(values[1])); // Efficiency
+                //         row++;
+                //     }
+                // }
 
-                if (form.exec() == QDialog::Accepted) {
-                    // Collect data from the table
-                    QString data;
-                    for (int row = 0; row < form.tableWidget->rowCount(); ++row)
-                    {
-                        if (form.tableWidget->item(row, 0) &&
-                            form.tableWidget->item(row, 2))
-                        {
-                            data += form.tableWidget->item(row, 0)->text() +
-                                    ", " +
-                                    form.tableWidget->item(row, 2)->text() +
-                                    "; ";
-                        }
-                    }
-                    textEdit->setText(data);
-                    emit const_cast<TextBoxButtonDelegate*>(this)->
-                        commitData(editor);
-                }
+                // if (form.exec() == QDialog::Accepted) {
+                //     // Collect data from the table
+                //     QString data;
+                //     for (int row = 0; row < form.tableWidget->rowCount(); ++row)
+                //     {
+                //         if (form.tableWidget->item(row, 0) &&
+                //             form.tableWidget->item(row, 2))
+                //         {
+                //             data += form.tableWidget->item(row, 0)->text() +
+                //                     ", " +
+                //                     form.tableWidget->item(row, 2)->text() +
+                //                     "; ";
+                //         }
+                //     }
+                //     textEdit->setText(data);
+                //     emit const_cast<TextBoxButtonDelegate*>(this)->
+                //         commitData(editor);
+                // }
             } else if (mFormType == FormType::Power) {
                 EnginePowerPopupForm form(parent);
 

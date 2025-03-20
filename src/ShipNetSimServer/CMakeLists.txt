@@ -63,6 +63,8 @@ target_compile_options(${SHIPNETSIM_SERVER_NAME} PRIVATE
     >
 )
 
+MESSAGE(STATUS "${CONTAINER_SHRD_LIB_DIR}/libcontainer.dylib")
+
 # Ensure the ShipNetSimCore DLL is copied to the output directory
 add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -126,31 +128,31 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
         )
     endif()
 elseif(APPLE) # macOS-specific logic
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Copy libcontainer.dylib and librabbitmq.dylib only in Release mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/libcontainer.dylib"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainer.dylib"
-        )
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
-        )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Copy libcontainerd.dylib and librabbitmq.dylib only in Debug mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/libcontainerd.dylib"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainerd.dylib"
-        )
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
-        )
-    endif()
+    # if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    #     # Copy libcontainer.dylib and librabbitmq.dylib only in Release mode
+    #     add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #             "${CONTAINER_SHRD_LIB_DIR}/libcontainer.dylib"
+    #             "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainer.dylib"
+    #     )
+    #     add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #             "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
+    #             "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
+    #     )
+    # elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    #     # Copy libcontainerd.dylib and librabbitmq.dylib only in Debug mode
+    #     add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #             "${CONTAINER_SHRD_LIB_DIR}/libcontainerd.dylib"
+    #             "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainerd.dylib"
+    #     )
+    #     add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+    #         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    #             "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
+    #             "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
+    #     )
+    # endif()
 endif()
 
 

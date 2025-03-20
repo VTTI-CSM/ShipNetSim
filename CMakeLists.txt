@@ -92,11 +92,18 @@ set(BUILD_INSTALLER ${BUILD_INSTALLER} CACHE BOOL "Build the INSTALLER component
 set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary directory")
 
 if(BUILD_GUI)
+    if(APPLE)
+        set(CUPS_INCLUDE_DIR "/usr/local/Cellar/cups/2.4.11/include" CACHE PATH "Default path to CUP's include directory")
+        set(CUPS_LIBRARIES "/usr/local/Cellar/cups/2.4.11/lib/libcups.dylib" CACHE PATH "Default path to CUP's libraries directory")
+        # Find CUPS package
+        find_package(Cups REQUIRED)
+    endif()
+
     # Manually specify paths for osgEarth, OpenSceneGraph, and osgQt
     if(WIN32)
         set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
     elseif(APPLE)
-        set(osgEarth_DIR "/usr/local/lib/cmake/osgEarth" CACHE PATH "Default path to osgEarth's cmake directory")
+        set(osgEarth_DIR "/usr/local/lib/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
     elseif(UNIX)
         set(osgEarth_DIR "/usr/local/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
     endif()
@@ -120,13 +127,13 @@ if(BUILD_GUI)
     if(WIN32)
         set(OSGQOPENGL_LIB "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib" CACHE PATH "Path to osgQt library")
     elseif(APPLE)
-        set(OSGQOPENGL_LIB "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt library")
+        set(OSGQOPENGL_LIB "/usr/local/lib/libosgQOpenGL.a" CACHE PATH "Path to osgQt library")
     elseif(UNIX)
         set(OSGQOPENGL_LIB "/usr/local/lib/libosgQOpenGLd.a" CACHE PATH "Path to osgQt library")
     endif()
 
     # Use these paths to find osgEarth and OpenSceneGraph
-    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
+    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgText osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
 
     find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")
