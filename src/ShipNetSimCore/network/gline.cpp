@@ -7,32 +7,32 @@ namespace ShipNetSimCore
 {
 GLine::GLine()
 {
-    start =
-        std::make_shared<GPoint>(GPoint(units::angle::degree_t(0.0),
-                                        units::angle::degree_t(0.0)));
-    end =
-        std::make_shared<GPoint>(GPoint(units::angle::degree_t(0.0),
-                                        units::angle::degree_t(0.0)));
+    start       = std::make_shared<GPoint>(GPoint(
+        units::angle::degree_t(0.0), units::angle::degree_t(0.0)));
+    end         = std::make_shared<GPoint>(GPoint(
+        units::angle::degree_t(0.0), units::angle::degree_t(0.0)));
     OGRPoint sp = start->getGDALPoint();
     line.addPoint(&sp);
 
     OGRPoint ep = end->getGDALPoint();
     line.addPoint(&ep);
 
-    mLength = units::length::meter_t(0.0);
-    mForwardAzimuth = units::angle::degree_t(0.0);
+    mLength          = units::length::meter_t(0.0);
+    mForwardAzimuth  = units::angle::degree_t(0.0);
     mBackwardAzimuth = units::angle::degree_t(0.0);
 }
 
 GLine::GLine(std::shared_ptr<GPoint> start,
-             std::shared_ptr<GPoint> end) :
-    start(start),  // Initialize start point.
-    end(end)      // Initialize end point.
+             std::shared_ptr<GPoint> end)
+    : start(start)
+    ,        // Initialize start point.
+    end(end) // Initialize end point.
 {
-    if (! start->getGDALPoint().getSpatialReference()->IsSame(
+    if (!start->getGDALPoint().getSpatialReference()->IsSame(
             end->getGDALPoint().getSpatialReference()))
     {
-        throw std::runtime_error("Mismatch spatial reference for the two points!");
+        throw std::runtime_error(
+            "Mismatch spatial reference for the two points!");
     }
     OGRPoint sp = start->getGDALPoint();
     line.addPoint(&sp);
@@ -40,9 +40,11 @@ GLine::GLine(std::shared_ptr<GPoint> start,
     OGRPoint ep = end->getGDALPoint();
     line.addPoint(&ep);
 
-    mLength = start->distance(*end);  // Calculate line segment length.
-    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
-    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
+    mLength = start->distance(*end); // Calculate line segment length.
+    mForwardAzimuth =
+        start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth =
+        start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
 // Destructor.
@@ -59,7 +61,7 @@ OGRLineString GLine::getGDALLine() const
 // Get length of the line segment.
 units::length::meter_t GLine::length() const
 {
-    return mLength;  // Return length of the line segment.
+    return mLength; // Return length of the line segment.
 }
 
 units::angle::degree_t GLine::forwardAzimuth() const
@@ -75,43 +77,48 @@ units::angle::degree_t GLine::backwardAzimuth() const
 // Get starting point of the line segment.
 std::shared_ptr<GPoint> GLine::startPoint() const
 {
-    return start;  // Return start point.
+    return start; // Return start point.
 }
 
 // Get ending point of the line segment.
 std::shared_ptr<GPoint> GLine::endPoint() const
 {
-    return end;  // Return end point.
+    return end; // Return end point.
 }
 
 void GLine::setStartPoint(std::shared_ptr<GPoint> sPoint)
 {
-    start = sPoint;
+    start       = sPoint;
     OGRPoint sp = start->getGDALPoint();
     line.setPoint(0, &sp);
 
-    mLength = start->distance(*end);  // Calculate line segment length.
-    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
-    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
+    mLength = start->distance(*end); // Calculate line segment length.
+    mForwardAzimuth =
+        start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth =
+        start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
 void GLine::setEndPoint(std::shared_ptr<GPoint> ePoint)
 {
-    end = ePoint;
+    end         = ePoint;
     OGRPoint ep = end->getGDALPoint();
     line.setPoint(1, &ep);
 
-    mLength = start->distance(*end);  // Calculate line segment length.
-    mForwardAzimuth = start->forwardAzimuth(*end); // calculate frwd azimuth
-    mBackwardAzimuth = start->backwardAzimuth(*end); // calculate bck azimuth
+    mLength = start->distance(*end); // Calculate line segment length.
+    mForwardAzimuth =
+        start->forwardAzimuth(*end); // calculate frwd azimuth
+    mBackwardAzimuth =
+        start->backwardAzimuth(*end); // calculate bck azimuth
 }
 
-Line GLine::projectTo(OGRSpatialReference* targetSR) const
+Line GLine::projectTo(OGRSpatialReference *targetSR) const
 {
-    if (! targetSR || ! targetSR->IsProjected())
+    if (!targetSR || !targetSR->IsProjected())
     {
-        throw std::runtime_error("Target Spatial Reference "
-                                 "is not valid or not a projected CRS.");
+        throw std::runtime_error(
+            "Target Spatial Reference "
+            "is not valid or not a projected CRS.");
     }
     std::shared_ptr<Point> ps =
         std::make_shared<Point>(start->projectTo(targetSR));
@@ -119,19 +126,19 @@ Line GLine::projectTo(OGRSpatialReference* targetSR) const
         std::make_shared<Point>(end->projectTo(targetSR));
 
     return Line(ps, pe);
-
 }
 
 // Determine orientation of three points.
 Line::Orientation GLine::orientation(std::shared_ptr<GPoint> p,
-                                    std::shared_ptr<GPoint> q,
-                                    std::shared_ptr<GPoint> r)
+                                     std::shared_ptr<GPoint> q,
+                                     std::shared_ptr<GPoint> r)
 {
     // create the projection SR
     std::shared_ptr<OGRSpatialReference> SR =
         Point::getDefaultProjectionReference();
 
-    // project the points to a projected map and check normal projection
+    // project the points to a projected map and check normal
+    // projection
     std::shared_ptr<Point> newp =
         std::make_shared<Point>(p->projectTo(SR.get()));
     std::shared_ptr<Point> newq =
@@ -144,16 +151,16 @@ Line::Orientation GLine::orientation(std::shared_ptr<GPoint> p,
 
 bool GLine::intersects(GLine &other, bool ignoreEdgePoints) const
 {
-    auto pointsAreClose = [=](
-                              const GPoint& p1, const GPoint& p2) -> bool {
+    auto pointsAreClose = [=](const GPoint &p1,
+                              const GPoint &p2) -> bool {
         return p1.distance(p2).value() <= TOLERANCE;
     };
 
-    if (ignoreEdgePoints &&
-        (pointsAreClose(*start, *other.start) ||
-         pointsAreClose(*start, *other.end) ||
-         pointsAreClose(*end, *other.start) ||
-         pointsAreClose(*end, *other.end)))
+    if (ignoreEdgePoints
+        && (pointsAreClose(*start, *other.start)
+            || pointsAreClose(*start, *other.end)
+            || pointsAreClose(*end, *other.start)
+            || pointsAreClose(*end, *other.end)))
     {
         return false; // Ignore intersection as it's at the endpoint
     }
@@ -163,26 +170,27 @@ bool GLine::intersects(GLine &other, bool ignoreEdgePoints) const
 }
 
 // Calculate angle between two line segments.
-units::angle::radian_t GLine::smallestAngleWith(GLine& other) const
+units::angle::radian_t GLine::smallestAngleWith(GLine &other) const
 {
     // Identify common point between line segments.
     std::shared_ptr<GPoint> commonPoint;
 
     // Identify the common point
-    if (*(this->startPoint()) == *(other.startPoint()) ||
-        *(this->startPoint()) == *(other.endPoint()))
+    if (*(this->startPoint()) == *(other.startPoint())
+        || *(this->startPoint()) == *(other.endPoint()))
     {
         commonPoint = this->startPoint();
     }
-    else if (*(this->endPoint()) == *(other.startPoint()) ||
-             *(this->endPoint()) == *(other.endPoint()))
+    else if (*(this->endPoint()) == *(other.startPoint())
+             || *(this->endPoint()) == *(other.endPoint()))
     {
         commonPoint = this->endPoint();
     }
     else
     {
         // Line segments do not share a common point.
-        // TODO: Solve this to not throw error in the middle of a simulation.
+        // TODO: Solve this to not throw error in the middle of a
+        // simulation.
         throw std::invalid_argument(
             "The lines do not share a common point.");
     }
@@ -209,7 +217,8 @@ units::angle::radian_t GLine::smallestAngleWith(GLine& other) const
         c = other.startPoint();
     }
 
-    // Compute the azimuths of the two lines from their shared starting point
+    // Compute the azimuths of the two lines from their shared
+    // starting point
     double azi1, azi2;
     azi1 = commonPoint->forwardAzimuth(*a).value();
     azi2 = commonPoint->forwardAzimuth(*c).value();
@@ -217,18 +226,20 @@ units::angle::radian_t GLine::smallestAngleWith(GLine& other) const
     // Calculate the angle between the two azimuths
     double angle = azi2 - azi1;
 
-
     // Normalize the angle to [0, 180]
     angle = fmod(angle + 360, 360);
-    if (angle > 180) angle = 360 - angle;
+    if (angle > 180)
+        angle = 360 - angle;
 
-    return units::angle::degree_t(angle).convert<units::angle::radian>();
+    return units::angle::degree_t(angle)
+        .convert<units::angle::radian>();
 }
 
-
-// Function to calculate the perpendicular distance from a point to the line.
-units::length::meter_t GLine::getPerpendicularDistance(
-    const GPoint& point) const  // Point from which distance is to be measured.
+// Function to calculate the perpendicular distance from a point to
+// the line.
+units::length::meter_t
+GLine::getPerpendicularDistance(const GPoint &point)
+    const // Point from which distance is to be measured.
 {
     // create the projection SR
     std::shared_ptr<OGRSpatialReference> SR =
@@ -237,7 +248,7 @@ units::length::meter_t GLine::getPerpendicularDistance(
         GPoint::getDefaultReprojectionReference();
 
     // project the line and the point to the cartesian system
-    Line newLine = projectTo(SR.get());
+    Line  newLine  = projectTo(SR.get());
     Point newPoint = point.projectTo(SR.get());
 
     // get the projected point on the line
@@ -248,8 +259,8 @@ units::length::meter_t GLine::getPerpendicularDistance(
 
     return GPointP.distance(point);
 }
-units::length::meter_t GLine::distanceToPoint(
-    const std::shared_ptr<GPoint>& point) const
+units::length::meter_t
+GLine::distanceToPoint(const std::shared_ptr<GPoint> &point) const
 {
     // create the projection SR
     std::shared_ptr<OGRSpatialReference> SR =
@@ -258,7 +269,7 @@ units::length::meter_t GLine::distanceToPoint(
         GPoint::getDefaultReprojectionReference();
 
     // project the line and the point to the cartesian system
-    Line newLine = projectTo(SR.get());
+    Line                   newLine = projectTo(SR.get());
     std::shared_ptr<Point> newPoint =
         std::make_shared<Point>(point->projectTo(SR.get()));
 
@@ -268,29 +279,28 @@ units::length::meter_t GLine::distanceToPoint(
     return point->distance(nearestPoint);
 }
 
-
 // Function to get the theoretical width of the line.
 units::length::meter_t GLine::getTheoriticalWidth() const
 {
-    return mWidth;  // Return the value of mWidth.
+    return mWidth; // Return the value of mWidth.
 }
 
 // Function to set the theoretical width of the line.
 void GLine::setTheoriticalWidth(const units::length::meter_t newWidth)
 {
-    mWidth = newWidth;  // Set the value of mWidth to newWidth.
+    mWidth = newWidth; // Set the value of mWidth to newWidth.
 }
 
 // Function to check the location of a point relative to the line.
-Line::LocationToLine GLine::getlocationToLine(
-    const std::shared_ptr<GPoint>& point) const
+Line::LocationToLine
+GLine::getlocationToLine(const std::shared_ptr<GPoint> &point) const
 {
     // create the projection SR
     std::shared_ptr<OGRSpatialReference> SR =
         Point::getDefaultProjectionReference();
 
     // project the line and the point to the cartesian system
-    Line newLine = projectTo(SR.get());
+    Line                   newLine = projectTo(SR.get());
     std::shared_ptr<Point> newPoint =
         std::make_shared<Point>(point->projectTo(SR.get()));
 
@@ -298,7 +308,7 @@ Line::LocationToLine GLine::getlocationToLine(
 }
 
 // Overloaded equality operator to compare two lines.
-bool GLine::operator==(const GLine& other) const
+bool GLine::operator==(const GLine &other) const
 {
     // Return true if the starting and ending points
     // of both lines are the same.
@@ -313,24 +323,26 @@ GPoint GLine::midpoint() const
 
 GLine GLine::reverse() const
 {
-    return GLine(end, start);  // Swap start and end points
+    return GLine(end, start); // Swap start and end points
 }
 
 GAlgebraicVector GLine::toAlgebraicVector(
     const std::shared_ptr<GPoint> startPoint) const
 {
-    GPoint begin, finish;  // Declare start and end points of the vector.
-    // Check if startPoint is the same as the starting point of the line.
+    GPoint begin,
+        finish; // Declare start and end points of the vector.
+    // Check if startPoint is the same as the starting point of the
+    // line.
     if (*startPoint == *start)
     {
-        begin = *start;  // Set begin to start.
+        begin  = *start; // Set begin to start.
         finish = *end;   // Set finish to end.
     }
     // If startPoint is not the starting point of the line.
     else
     {
-        begin = *end;     // Set begin to end.
-        finish = *start;  // Set finish to start.
+        begin  = *end;   // Set begin to end.
+        finish = *start; // Set finish to start.
     }
     // Create an algebraic vector from begin to finish and return it.
     GAlgebraicVector result(begin, finish);
@@ -338,7 +350,8 @@ GAlgebraicVector GLine::toAlgebraicVector(
 }
 
 // Function to convert the line to a string representation.
-QString GLine::toString(const QString &format, int decimalPercision) const
+QString GLine::toString(const QString &format,
+                        int            decimalPercision) const
 {
     // Get the string representations of the start and end points
     QString startStr =
@@ -355,4 +368,4 @@ QString GLine::toString(const QString &format, int decimalPercision) const
 
     return result; // Return the formatted string
 }
-};
+}; // namespace ShipNetSimCore

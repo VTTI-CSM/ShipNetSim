@@ -19,7 +19,8 @@ namespace ShipNetSimCore
 {
 /**
  * @class ShipGearBox
- * @brief Implementation of the IShipGearBox interface for ship gearboxes.
+ * @brief Implementation of the IShipGearBox interface for ship
+ * gearboxes.
  *
  * The ShipGearbox class is a concrete implementation of the
  * IShipGearBox interface, which defines the behavior and properties
@@ -50,15 +51,17 @@ public:
      *
      * This method is used to initialize the gearbox with a reference
      * to the ship it is part of, a list of engines connected to it,
-     * and a map of parameters that define its behavior and properties.
+     * and a map of parameters that define its behavior and
+     * properties.
      *
      * @param host Pointer to the ship that the gearbox is part of.
      * @param engines List of engines connected to the gearbox.
      * @param parameters Map of parameters defining the gearbox's
      * behavior and properties.
      */
-    void initialize(Ship *host, QVector<IShipEngine *> engines,
-                    const QMap<QString, std::any> &parameters) override;
+    void
+    initialize(Ship *host, QVector<IShipEngine *> engines,
+               const QMap<QString, std::any> &parameters) override;
 
     /**
      * @brief Sets the gearbox's parameters.
@@ -68,7 +71,8 @@ public:
      *
      * @param parameters Map of parameters to update.
      */
-    void setParameters(const QMap<QString, std::any> &parameters) override;
+    void
+    setParameters(const QMap<QString, std::any> &parameters) override;
 
     /**
      * @brief Retrieves the gearbox's output rotation speed.
@@ -113,13 +117,15 @@ public:
     /**
      * @brief set the engine new target state (max state) could be L1
      *
-     * @details This function sets the engine target state. The function
-     * is mainly designed to set the engine target state that
+     * @details This function sets the engine target state. The
+     * function is mainly designed to set the engine target state that
      * equates the engine power curve to the propeller curve.
      *
-     * @param newState the target state that the engine should abide by.
+     * @param newState the target state that the engine should abide
+     * by.
      */
-    void setEngineTargetState(IShipEngine::EngineProperties newState) override;
+    void setEngineTargetState(
+        IShipEngine::EngineProperties newState) override;
 
     void setEngineDefaultTargetState(
         IShipEngine::EngineProperties newState) override;
@@ -127,37 +133,43 @@ public:
     /**
      * @brief set the engine max power load.
      *
-     * @details This function sets the engine max power load. power load is
-     * the max power / max power the engine can reach. the power load is a
-     * fraction between 0 and 1.
+     * @details This function sets the engine max power load. power
+     * load is the max power / max power the engine can reach. the
+     * power load is a fraction between 0 and 1.
      *
-     * @param targetPowerLoad the target power load the engine should reach.
+     * @param targetPowerLoad the target power load the engine should
+     * reach.
      */
     void setEngineMaxPowerLoad(double targetPowerLoad) override;
 
     /**
-     * @brief Retrieves the gearbox's output power in the previous step.
+     * @brief Retrieves the gearbox's output power in the previous
+     * step.
      *
      * This method returns the output power of the gearbox in the
      * previous time step, in kilowatts.
      *
-     * @return The output power in the previous time step, in kilowatts.
+     * @return The output power in the previous time step, in
+     * kilowatts.
      */
     units::power::kilowatt_t getPreviousOutputPower() const override;
 
     void updateGearboxOperationalState() override;
 
     IShipEngine::EngineProperties getEngineOperationalPropertiesAtRPM(
-        units::angular_velocity::revolutions_per_minute_t rpm) override;
+        units::angular_velocity::revolutions_per_minute_t rpm)
+        override;
 
-    IShipEngine::EngineProperties getGearboxOperationalPropertiesAtRPM(
-        units::angular_velocity::revolutions_per_minute_t rpm) override;
+    IShipEngine::EngineProperties
+    getGearboxOperationalPropertiesAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm)
+        override;
 
 private:
-
-    double mEfficiency; // Gearbox efficiency in the range [0, 1].
+    double mEfficiency;    // Gearbox efficiency in the range [0, 1].
     double mGearRationTo1; // Gear ratio of the gearbox.
-    units::power::kilowatt_t mOutputPower; // Output power of the gearbox.
+    units::power::kilowatt_t
+        mOutputPower; // Output power of the gearbox.
 };
-};
+}; // namespace ShipNetSimCore
 #endif // SHIPGEARBOX_H

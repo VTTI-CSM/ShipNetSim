@@ -1,6 +1,7 @@
 /**
  * @file ShipPropeller.h
- * @brief This file contains the declaration of the ShipPropeller class.
+ * @brief This file contains the declaration of the ShipPropeller
+ * class.
  *
  * The ShipPropeller class is an implementation of the IShipPropeller
  * interface and represents the propeller of a ship. It handles the
@@ -21,7 +22,7 @@
 
 namespace ShipNetSimCore
 {
-class Ship;  // Forward declaration of the class ship
+class Ship; // Forward declaration of the class ship
 
 /**
  * @class ShipPropeller
@@ -29,9 +30,9 @@ class Ship;  // Forward declaration of the class ship
  *
  * The ShipPropeller class implements the IShipPropeller interface and
  * is responsible for calculating various propeller-related parameters
- * such as thrust, torque, RPM, etc. It uses the output from the gearbox
- * and various propeller and shaft efficiencies to calculate these
- * parameters.
+ * such as thrust, torque, RPM, etc. It uses the output from the
+ * gearbox and various propeller and shaft efficiencies to calculate
+ * these parameters.
  */
 class SHIPNETSIM_EXPORT ShipPropeller : public IShipPropeller
 {
@@ -47,12 +48,16 @@ public:
      * part of, a reference to the gearbox connected to it, and a
      * map of additional parameters.
      *
-     * @param ship A pointer to the ship that the propeller is part of.
-     * @param gearbox A pointer to the gearbox connected to the propeller.
-     * @param parameters A map of additional parameters for initialization.
+     * @param ship A pointer to the ship that the propeller is part
+     * of.
+     * @param gearbox A pointer to the gearbox connected to the
+     * propeller.
+     * @param parameters A map of additional parameters for
+     * initialization.
      */
-    void initialize(Ship *ship, IShipGearBox *gearbox,
-                    const QMap<QString, std::any> &parameters) override;
+    void
+    initialize(Ship *ship, IShipGearBox *gearbox,
+               const QMap<QString, std::any> &parameters) override;
 
     /**
      * @brief Sets the propeller's parameters.
@@ -62,7 +67,8 @@ public:
      *
      * @param parameters A map of parameters to update.
      */
-    void setParameters(const QMap<QString, std::any> &parameters) override;
+    void
+    setParameters(const QMap<QString, std::any> &parameters) override;
 
     // Getters and setters for various propeller-related parameters.
     /**
@@ -92,7 +98,6 @@ public:
 
     units::torque::newton_meter_t getShaftTorque();
 
-
     /**
      * @brief Gets the propeller efficiency.
      *
@@ -103,7 +108,6 @@ public:
      * @return The propeller efficiency.
      */
     double getPropellerEfficiency() override;
-
 
     /**
      * @brief Gets the effective power of the propeller.
@@ -145,7 +149,8 @@ public:
      *
      * @return The RPM of the propeller.
      */
-    units::angular_velocity::revolutions_per_minute_t getRPM() override;
+    units::angular_velocity::revolutions_per_minute_t
+    getRPM() override;
 
     /**
      * @brief Gets the torque produced by the propeller.
@@ -169,8 +174,9 @@ public:
      */
     double getThrustCoefficient(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) override;
 
     /**
      * @brief Gets the torque coefficient of the propeller.
@@ -184,11 +190,13 @@ public:
      */
     double getTorqueCoefficient(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) override;
 
     /**
-     * @brief Gets the theoritical ideal advance speed (V_a) of the ship.
+     * @brief Gets the theoritical ideal advance speed (V_a) of the
+     * ship.
      *
      * Returns the ideal advance speed of the ship considering
      * the propeller pitch and the number of revolutions when
@@ -199,8 +207,8 @@ public:
      */
     units::velocity::meters_per_second_t getIdealAdvanceSpeed(
         units::angular_velocity::revolutions_per_minute_t customRPM =
-        units::angular_velocity::revolutions_per_minute_t(
-            std::nan("uninitialized")));
+            units::angular_velocity::revolutions_per_minute_t(
+                std::nan("uninitialized")));
 
     /**
      * @brief Gets the advance ratio of the propeller.
@@ -214,8 +222,9 @@ public:
      */
     double getAdvanceRatio(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) override;
 
     /**
      * @brief Gets the propeller slip value.
@@ -228,10 +237,11 @@ public:
      */
     double getPropellerSlipToIdeal(
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(std::nan("unintialized")),
+            units::velocity::meters_per_second_t(
+                std::nan("unintialized")),
         units::angular_velocity::revolutions_per_minute_t customRPM =
-        units::angular_velocity::revolutions_per_minute_t(
-            std::nan("unintialized"))) override;
+            units::angular_velocity::revolutions_per_minute_t(
+                std::nan("unintialized"))) override;
 
     /**
      * @brief Gets the driving engines of the propeller.
@@ -244,54 +254,57 @@ public:
     const QVector<IShipEngine *> getDrivingEngines() const override;
 
     units::angular_velocity::revolutions_per_minute_t
-    getRPMFromAdvanceRatioAndMaxShipSpeed(double advanceRatio) override;
+    getRPMFromAdvanceRatioAndMaxShipSpeed(
+        double advanceRatio) override;
 
     units::angular_velocity::revolutions_per_minute_t
     getRPMFromAdvanceRatioAndShipSpeed(
-        double advanceRatio,
+        double                               advanceRatio,
         units::velocity::meters_per_second_t speed) override;
 
-    double getOptimumJ(units::velocity::meters_per_second_t speed) override;
+    double
+    getOptimumJ(units::velocity::meters_per_second_t speed) override;
 
-    units::angular_velocity::revolutions_per_minute_t
-    getOptimumRPM(units::velocity::meters_per_second_t speed) override;
-
+    units::angular_velocity::revolutions_per_minute_t getOptimumRPM(
+        units::velocity::meters_per_second_t speed) override;
 
 private:
     struct KCoef
     {
-    public: enum KType
+    public:
+        enum KType
         {
             Thrust,
             Torque
         };
         QVector<double> C;
-        QVector<int> s;
-        QVector<int> t;
-        QVector<int> u;
-        QVector<int> v;
-        KType type;
+        QVector<int>    s;
+        QVector<int>    t;
+        QVector<int>    u;
+        QVector<int>    v;
+        KType           type;
 
         bool checkInputs(double PD, double AreaRatio, int Z);
 
-        double getResult(double J, double PD,
-                         double AreaRatio, double Z, double Rn);
+        double getResult(double J, double PD, double AreaRatio,
+                         double Z, double Rn);
     };
 
     KCoef KT = KCoef();
     KCoef KQ = KCoef();
 
-    double mShaftEfficiency;  ///< Efficiency of the shaft.
+    double mShaftEfficiency; ///< Efficiency of the shaft.
     units::power::kilowatt_t
-        mPreviousEffectivePower;  ///< Previous effective power.
+        mPreviousEffectivePower; ///< Previous effective power.
 
-    double mLastBestJ = 0.8; // Default starting point if no bestJ known
+    double mLastBestJ =
+        0.8; // Default starting point if no bestJ known
     double mLastBestN = 10;
 
     // Private helper functions for calculating
     // various propeller-related parameters.
 
-    double getOpenWaterEfficiency(double J = std::nan("undefined"),
+    double getOpenWaterEfficiency(double J  = std::nan("undefined"),
                                   double KT = std::nan("undefined"),
                                   double KQ = std::nan("undefined"));
     double getRelativeEfficiency();
@@ -299,18 +312,18 @@ private:
 
     units::power::kilowatt_t getRequiredShaftPowerAtRPM(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) override;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) override;
 
     double calcPowerDifferenceBetweenEngineAndPropellerPowerAtRPM(
         units::angular_velocity::revolutions_per_minute_t rpm);
     IShipEngine::EngineProperties
-        getMinEngineCharacteristicsForPropellerAtRPM(
-            units::angular_velocity::revolutions_per_minute_t rpm);
+    getMinEngineCharacteristicsForPropellerAtRPM(
+        units::angular_velocity::revolutions_per_minute_t rpm);
     IShipEngine::EngineProperties solveEnginePropellerIntersection();
 
     bool mAllowPropellerEngineOptimization = false;
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // SHIPPROPELLER_H

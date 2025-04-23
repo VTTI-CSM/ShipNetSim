@@ -1,8 +1,9 @@
 /**
  * @file basegeometry.h
  *
- * @brief Defines the BaseGeometry class. BaseGeometry is an abstract class
- * which is the base class for all geometric shapes in the system.
+ * @brief Defines the BaseGeometry class. BaseGeometry is an abstract
+ * class which is the base class for all geometric shapes in the
+ * system.
  *
  * The class provides a virtual destructor and a pure virtual method
  * toString() which should be overridden by all derived classes to
@@ -52,7 +53,7 @@ public:
      * @return QString representing the geometric shape.
      */
     virtual QString toString(const QString &format = "",
-                             int decimalPercision = 5) const = 0;
+                             int decimalPercision  = 5) const = 0;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // BASEGEOMETRY_H

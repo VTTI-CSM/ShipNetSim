@@ -6,7 +6,7 @@ namespace ShipNetSimCore
 {
 IShipPropeller::IShipPropeller()
 {
-    mHost = nullptr;
+    mHost    = nullptr;
     mGearBox = nullptr;
 }
 
@@ -20,10 +20,12 @@ IShipPropeller::~IShipPropeller()
     }
 }
 
-void IShipPropeller::moveObjectToThread(QThread *thread) {
+void IShipPropeller::moveObjectToThread(QThread *thread)
+{
     this->moveToThread(thread);
 
-    if (mGearBox) {
+    if (mGearBox)
+    {
         mGearBox->moveObjectToThread(thread);
     }
 }
@@ -48,7 +50,6 @@ IShipGearBox *IShipPropeller::getGearBox() const
     return mGearBox;
 }
 
-
 units::length::meter_t IShipPropeller::getPropellerDiameter() const
 {
     return mPropellerDiameter;
@@ -71,7 +72,8 @@ void IShipPropeller::setPropellerPitch(
     mPropellerPitch = newPropellerPitch;
 }
 
-units::area::square_meter_t IShipPropeller::getPropellerExpandedBladeArea() const
+units::area::square_meter_t
+IShipPropeller::getPropellerExpandedBladeArea() const
 {
     return mExpandedBladeArea;
 }
@@ -82,7 +84,8 @@ void IShipPropeller::setPropellerExpandedBladeArea(
     mExpandedBladeArea = newExpandedBladeArea;
 }
 
-units::area::square_meter_t IShipPropeller::getPropellerDiskArea() const
+units::area::square_meter_t
+IShipPropeller::getPropellerDiskArea() const
 {
     return mPropellerDiskArea;
 }
@@ -110,30 +113,36 @@ int IShipPropeller::getPropellerBladesCount() const
     return mNumberOfblades;
 }
 
-void IShipPropeller::setPropellerBladesCount(int newPropellerBladesCount)
+void IShipPropeller::setPropellerBladesCount(
+    int newPropellerBladesCount)
 {
     mNumberOfblades = newPropellerBladesCount;
 }
 
-double IShipPropeller::getPropellerSlip() {
+double IShipPropeller::getPropellerSlip()
+{
     return mPropellerSlip;
 }
 
-void IShipPropeller::setPropellerSlip(double newSlip) {
+void IShipPropeller::setPropellerSlip(double newSlip)
+{
     mPropellerSlip = newSlip;
 }
 
-bool IShipPropeller::requestHigherEnginePower() {
+bool IShipPropeller::requestHigherEnginePower()
+{
     return mGearBox->requestHigherEnginePower();
 }
 
-bool IShipPropeller::requestLowerEnginePower() {
+bool IShipPropeller::requestLowerEnginePower()
+{
     return mGearBox->requestLowerEnginePower();
 }
 
 IShipEngine::EngineOperationalLoad
-IShipPropeller::getCurrentOperationalLoad() {
+IShipPropeller::getCurrentOperationalLoad()
+{
     return mGearBox->getCurrentOperationalLoad();
 }
 
-};
+}; // namespace ShipNetSimCore

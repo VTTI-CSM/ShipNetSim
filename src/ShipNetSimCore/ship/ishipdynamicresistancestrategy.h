@@ -5,9 +5,10 @@
 
 namespace ShipNetSimCore
 {
-class Ship;  // Forward declaration of the class ship
+class Ship; // Forward declaration of the class ship
 
-class IShipDynamicResistanceStrategy {
+class IShipDynamicResistanceStrategy
+{
 public:
     virtual ~IShipDynamicResistanceStrategy() = default;
 
@@ -25,5 +26,5 @@ public:
     virtual units::force::newton_t
     getTotalResistance(const Ship &ship) = 0;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // IDYNAMICRESISTANCE_H

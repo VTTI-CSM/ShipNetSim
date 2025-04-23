@@ -2,28 +2,31 @@
 #ifndef CYBERATTACK_H
 #define CYBERATTACK_H
 
-#include <QString>
-#include <QObject>
 #include <QMap>
+#include <QObject>
+#include <QString>
 
-namespace ShipNetSimCore {
+namespace ShipNetSimCore
+{
 
 class Ship;
 
-class CyberAttack : public QObject {
+class CyberAttack : public QObject
+{
     Q_OBJECT
 
 public:
-    enum AttackType {
+    enum AttackType
+    {
         GPS_Spoofing,
         CommunicationJamming,
         EngineControlHijack
     };
 
-    explicit CyberAttack(AttackType type, QObject* parent = nullptr);
+    explicit CyberAttack(AttackType type, QObject *parent = nullptr);
 
     // Set the attack target (e.g., a specific subsystem on the ship)
-    void setTarget(Ship* target);
+    void setTarget(Ship *target);
 
     // Execute the attack on the ship
     void executeAttack();
@@ -33,7 +36,7 @@ public:
 
     // Accessors for the attack type and status
     AttackType getAttackType() const;
-    bool isAttackActive() const;
+    bool       isAttackActive() const;
 
 signals:
     void attackStarted();
@@ -41,8 +44,8 @@ signals:
 
 private:
     AttackType mAttackType;
-    bool mAttackActive;
-    Ship* mTarget; // Pointer to the ship being attacked
+    bool       mAttackActive;
+    Ship      *mTarget; // Pointer to the ship being attacked
 };
 
 } // namespace ShipNetSimCore

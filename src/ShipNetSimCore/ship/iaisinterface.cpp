@@ -1,6 +1,7 @@
 #include "iaisinterface.h"
 
-namespace ShipNetSimCore {
+namespace ShipNetSimCore
+{
 
 // Explicit definition of virtual destructor
 IAISInterface::~IAISInterface() = default;

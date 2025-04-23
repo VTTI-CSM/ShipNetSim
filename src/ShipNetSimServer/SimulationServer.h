@@ -30,12 +30,10 @@ class SimulationServer : public QObject
 public:
     explicit SimulationServer(QObject *parent = nullptr);
     ~SimulationServer();
-    void startRabbitMQServer(const std::string &hostname,
-                             int                port);
+    void startRabbitMQServer(const std::string &hostname, int port);
     void sendRabbitMQMessage(const QString     &routingKey,
                              const QJsonObject &message);
-    void
-    stopRabbitMQServer(); // stop RabbitMQ server cleanly
+    void stopRabbitMQServer(); // stop RabbitMQ server cleanly
 
 signals:
     void dataReceived(QJsonObject message);
@@ -44,9 +42,8 @@ signals:
     void stopConsuming();
 
 private slots:
-    void onDataReceivedFromRabbitMQ(
-        QJsonObject           &message,
-        const amqp_envelope_t &envelope);
+    void onDataReceivedFromRabbitMQ(QJsonObject           &message,
+                                    const amqp_envelope_t &envelope);
     void onWorkerReady(); // resume processing when the
                           // worker is ready
 
@@ -55,40 +52,30 @@ private slots:
     void onSimulationCreated(QString networkName);
     void onSimulationPaused(QVector<QString> networkNames);
     void onSimulationResumed(QVector<QString> networkNames);
-    void
-    onSimulationRestarted(QVector<QString> networkNames);
-    void
-    onSimulationTerminated(QVector<QString> networkNames);
+    void onSimulationRestarted(QVector<QString> networkNames);
+    void onSimulationTerminated(QVector<QString> networkNames);
     void onSimulationFinished(QString networkName);
     void onSimulationAdvanced(
         QMap<QString, QPair<units::time::second_t, double>>
             newSimulationTime);
     void onSimulationProgressUpdate(QString networkName,
-                                    int progressPercentage);
-    void
-    onShipAddedToSimulator(const QString networkName,
-                           const QVector<QString> shipIDs);
-    void
-    onAllShipsReachDestination(const QString networkName);
-    void
-    onShipReachedDestination(const QJsonObject shipStatus);
+                                    int     progressPercentage);
+    void onShipAddedToSimulator(const QString          networkName,
+                                const QVector<QString> shipIDs);
+    void onAllShipsReachDestination(const QString networkName);
+    void onShipReachedDestination(const QJsonObject shipStatus);
     void onSimulationResultsAvailable(
         QPair<QString, ShipsResults> results);
-    void onShipStateAvailable(QString           networkName,
-                              QString           shipID,
+    void onShipStateAvailable(QString networkName, QString shipID,
                               const QJsonObject shipState);
-    void onSimulatorStateAvailable(
-        const QJsonObject simulatorState);
-    void onContainersAddedToShip(QString networkName,
-                                 QString shipID);
-    void onShipReachedSeaPort(QString   networkName,
-                              QString   shipID,
+    void onSimulatorStateAvailable(const QJsonObject simulatorState);
+    void onContainersAddedToShip(QString networkName, QString shipID);
+    void onShipReachedSeaPort(QString networkName, QString shipID,
                               QString   seaPortCode,
                               qsizetype containersCount);
-    void onPortsAvailable(
-        QMap<QString, QVector<QString>> networkPorts);
-    void onContainersUnloaded(QString    networkName,
-                              QString    shipID,
+    void
+    onPortsAvailable(QMap<QString, QVector<QString>> networkPorts);
+    void onContainersUnloaded(QString networkName, QString shipID,
                               QString    seaPortName,
                               QJsonArray containers);
 
@@ -98,11 +85,11 @@ private slots:
 private:
     std::string mHostname;
     int         mPort;
-    QMutex      mMutex;   // Mutex for protecting access to
-                          // mWorkerBusy
-    bool     mWorkerBusy; // To control the server run loop
-    QThread *mRabbitMQThread = nullptr;
-    QWaitCondition          mWaitCondition;
+    QMutex      mMutex;         // Mutex for protecting access to
+                                // mWorkerBusy
+    bool           mWorkerBusy; // To control the server run loop
+    QThread       *mRabbitMQThread = nullptr;
+    QWaitCondition mWaitCondition;
     amqp_connection_state_t mRabbitMQConnection;
     QMetaObject::Connection m_progressConnection;
 
@@ -116,18 +103,17 @@ private:
     void setupServer();
 
     QPair<bool, QString>
-    checkJsonField(const QJsonObject &json,
-                   const QString     &fieldName,
-                   const QString     &command,
-                   bool checkParamsObject = true);
+    checkJsonField(const QJsonObject &json, const QString &fieldName,
+                   const QString &command,
+                   bool           checkParamsObject = true);
 
     QJsonValue getJsonValue(const QJsonObject &json,
                             const QString     &fieldName);
 
-    QPair<bool, QString> validateArray(
-        const QJsonObject &json, const QString &fieldName,
-        const QString &commandName, bool allowEmpty = false,
-        bool checkElementsAreStrings = true);
+    QPair<bool, QString>
+    validateArray(const QJsonObject &json, const QString &fieldName,
+                  const QString &commandName, bool allowEmpty = false,
+                  bool checkElementsAreStrings = true);
 };
 
 #endif // SIMULATIONSERVER_H

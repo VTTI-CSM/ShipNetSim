@@ -27,19 +27,20 @@
 #ifndef OPTIMIZEDVISIBILITYGRAPH_H
 #define OPTIMIZEDVISIBILITYGRAPH_H
 
-#include <QReadWriteLock>
-#include <QHash>
-#include <QtConcurrent>
-#include <QVector>
-#include <QMap>
-#include "polygon.h"
 #include "gline.h"
+#include "polygon.h"
 #include "quadtree.h"
 #include "seaport.h"
+#include <QHash>
+#include <QMap>
+#include <QReadWriteLock>
+#include <QVector>
+#include <QtConcurrent>
 
 namespace ShipNetSimCore
 {
-enum class BoundariesType{
+enum class BoundariesType
+{
     Water,
     Land
 };
@@ -60,7 +61,7 @@ enum class PathFindingAlgorithm
  */
 struct ShortestPathResult
 {
-    QVector<std::shared_ptr<GLine>> lines;
+    QVector<std::shared_ptr<GLine>>  lines;
     QVector<std::shared_ptr<GPoint>> points;
 
     /**
@@ -69,7 +70,8 @@ struct ShortestPathResult
      * An output is valid if:
      *  1. Has 2 points minimum,
      *  2. Has 1 line minimum, and
-     *  3. Number of lines is less than number of points by only 1 count.
+     *  3. Number of lines is less than number of points by only 1
+     * count.
      *
      *
      * @return true if the result is valid, false otherwise.
@@ -82,15 +84,14 @@ struct ShortestPathResult
  *
  * This class defines the visibility graph based on the QuadTree.
  * It is recommended to use it when the dataset is very large and
- * the shortest path is computed between polygons. In this implementation,
- * the holes are not considered.
+ * the shortest path is computed between polygons. In this
+ * implementation, the holes are not considered.
  */
 class OptimizedVisibilityGraph : public QObject
 {
     Q_OBJECT
 
 public:
-
     /**
      * @brief Constructor to initialize the visibility graph
      *          with a set of polygons.
@@ -107,8 +108,7 @@ public:
      */
     OptimizedVisibilityGraph(
         const QVector<std::shared_ptr<Polygon>> usedPolygons,
-        BoundariesType boundaryType =
-        BoundariesType::Water);
+        BoundariesType boundaryType = BoundariesType::Water);
 
     /**
      * @brief Deconstructor to delete the visibility graph.
@@ -118,9 +118,9 @@ public:
     /**
      * @brief Get the left-lower corner point of the map
      * @details This function gets the lowerst point values in the map
-     *              which is equivilant to the buttom-left corner of the map.
-     *              The point has this structure:
-     *              (min long in the map, min latitude in the map)
+     *              which is equivilant to the buttom-left corner of
+     * the map. The point has this structure: (min long in the map,
+     * min latitude in the map)
      * @return The min point of the map.
      */
     GPoint getMinMapPoint();
@@ -128,9 +128,9 @@ public:
     /**
      * @brief Get the right-top corner point of the map
      * @details This function gets the highest point values in the map
-     *              which is equivilant to the top-right corner of the map.
-     *              The point has this structure:
-     *              (max long in the map, max latitude in the map)
+     *              which is equivilant to the top-right corner of the
+     * map. The point has this structure: (max long in the map, max
+     * latitude in the map)
      * @return The max point of the map.
      */
     GPoint getMaxMapPoint();
@@ -141,7 +141,7 @@ public:
      * @param seaPorts the seaports.
      */
     void loadSeaPortsPolygonCoordinates(
-        QVector<std::shared_ptr<SeaPort>>& seaPorts);
+        QVector<std::shared_ptr<SeaPort>> &seaPorts);
 
     /**
      * @brief Set Polygons that the visibility graph is build on.
@@ -155,8 +155,8 @@ public:
      *          used for building the visibility graph.
      *
      */
-    void setPolygons(
-        const QVector<std::shared_ptr<Polygon>>& newPolygons);
+    void
+    setPolygons(const QVector<std::shared_ptr<Polygon>> &newPolygons);
 
     /**
      * @brief Finds the shortest path between two points
@@ -166,9 +166,9 @@ public:
      * @return ShortestPathResult containing the points
      *          and lines forming the shortest path.
      */
-    ShortestPathResult findShortestPathAStar(
-        const std::shared_ptr<GPoint>& start,
-        const std::shared_ptr<GPoint>& goal);
+    ShortestPathResult
+    findShortestPathAStar(const std::shared_ptr<GPoint> &start,
+                          const std::shared_ptr<GPoint> &goal);
 
     /**
      * @brief Finds the shortest path between two points
@@ -178,9 +178,9 @@ public:
      * @return ShortestPathResult containing the points
      *          and lines forming the shortest path.
      */
-    ShortestPathResult findShortestPathDijkstra(
-        const std::shared_ptr<GPoint>& start,
-        const std::shared_ptr<GPoint>& goal);
+    ShortestPathResult
+    findShortestPathDijkstra(const std::shared_ptr<GPoint> &start,
+                             const std::shared_ptr<GPoint> &goal);
 
     /**
      * @brief Finds the shortest path that traverses through
@@ -210,22 +210,22 @@ public:
      * Example Usage:
      *
      * 1. Using with Dijkstra's algorithm:
-     *    auto pathDijkstra = optimizedVisibilityGraph.findShortestPath(
-     *        mustTraversePoints,
+     *    auto pathDijkstra =
+     * optimizedVisibilityGraph.findShortestPath( mustTraversePoints,
      *        std::bind(&OptimizedVisibilityGraph::findShortestPathDijkstra,
-     *                  &optimizedVisibilityGraph, std::placeholders::_1,
-     *                  std::placeholders::_2));
+     *                  &optimizedVisibilityGraph,
+     * std::placeholders::_1, std::placeholders::_2));
      *
      * 2. Using with A* algorithm:
      *    auto pathAStar = optimizedVisibilityGraph.findShortestPath(
      *        mustTraversePoints,
      *        std::bind(&OptimizedVisibilityGraph::findShortestPathAStar,
-     *                  &optimizedVisibilityGraph, std::placeholders::_1,
-     *                  std::placeholders::_2));
+     *                  &optimizedVisibilityGraph,
+     * std::placeholders::_1, std::placeholders::_2));
      */
     ShortestPathResult findShortestPath(
         QVector<std::shared_ptr<GPoint>> mustTraversePoints,
-        PathFindingAlgorithm algorithm);
+        PathFindingAlgorithm             algorithm);
 
     /**
      * @brief Clear the visibility graph cache
@@ -233,7 +233,6 @@ public:
     void clear();
 
 private:
-
     mutable QReadWriteLock quadtreeLock;
 
     bool enableWrapAround;
@@ -242,10 +241,9 @@ private:
 
     /** Rivers representation */
     QVector<std::shared_ptr<GLine>> manualLines;
-    QHash<std::shared_ptr<GPoint>,
-          QVector<std::shared_ptr<GPoint>>> manualConnections;
+    QHash<std::shared_ptr<GPoint>, QVector<std::shared_ptr<GPoint>>>
+                                     manualConnections;
     QVector<std::shared_ptr<GPoint>> manualPoints;
-
 
     /**
      * @brief Stores the polygons used to build the visibility graph.
@@ -279,52 +277,56 @@ private:
      * and reduce cost. It only gets cleaned if new polygons
      * are added or the user cleaned the class explicitly.
      */
-    QHash<std::shared_ptr<GPoint>,
-          QVector<std::shared_ptr<GPoint>>> visibilityCache;
+    QHash<std::shared_ptr<GPoint>, QVector<std::shared_ptr<GPoint>>>
+        visibilityCache;
 
-
-    void addManualVisibleLine(const std::shared_ptr<GLine>& line);
+    void addManualVisibleLine(const std::shared_ptr<GLine> &line);
     void clearManualLines();
 
-    /// Determines if there is a direct line of sight between two nodes.
-    bool isVisible(const std::shared_ptr<GPoint>& node1,
-                   const std::shared_ptr<GPoint>& node2) const;
-    ///  Determines if there is a direct line of sight between two nodes.
-    bool isSegmentVisible(
-        const std::shared_ptr<GLine>& segment) const;
+    /// Determines if there is a direct line of sight between two
+    /// nodes.
+    bool isVisible(const std::shared_ptr<GPoint> &node1,
+                   const std::shared_ptr<GPoint> &node2) const;
+    ///  Determines if there is a direct line of sight between two
+    ///  nodes.
+    bool
+    isSegmentVisible(const std::shared_ptr<GLine> &segment) const;
 
-    ///  Reconstructs the shortest path from a series of came-from nodes.
+    ///  Reconstructs the shortest path from a series of came-from
+    ///  nodes.
     ShortestPathResult reconstructPath(
-        const std::unordered_map<std::shared_ptr<GPoint>,
-                                 std::shared_ptr<GPoint>,
-                                 GPoint::Hash, GPoint::Equal>& cameFrom,
-        std::shared_ptr<GPoint> current);
+        const std::unordered_map<
+            std::shared_ptr<GPoint>, std::shared_ptr<GPoint>,
+            GPoint::Hash, GPoint::Equal> &cameFrom,
+        std::shared_ptr<GPoint>           current);
 
     QVector<std::shared_ptr<GPoint>> getVisibleNodesBetweenPolygons(
-            const std::shared_ptr<GPoint>& node,
-            const QVector<std::shared_ptr<Polygon>>& allPolygons);
+        const std::shared_ptr<GPoint>           &node,
+        const QVector<std::shared_ptr<Polygon>> &allPolygons);
 
     QVector<std::shared_ptr<GPoint>> getVisibleNodesWithinPolygon(
-        const std::shared_ptr<GPoint>& node,
-        const std::shared_ptr<Polygon>& polygon);
+        const std::shared_ptr<GPoint>  &node,
+        const std::shared_ptr<Polygon> &polygon);
 
     bool isPointVisibleWithinPolygon(
-        const std::shared_ptr<GPoint>& node,
-        const std::shared_ptr<GPoint>& target,
-        const std::shared_ptr<Polygon>& polygon);
+        const std::shared_ptr<GPoint>  &node,
+        const std::shared_ptr<GPoint>  &target,
+        const std::shared_ptr<Polygon> &polygon);
 
-    std::shared_ptr<Polygon> findContainingPolygon(
-        const std::shared_ptr<GPoint>& point);
+    std::shared_ptr<Polygon>
+    findContainingPolygon(const std::shared_ptr<GPoint> &point);
 
-    /// Connect left-right points of the map for a wrap-around technique
-    QVector<std::shared_ptr<GPoint>> connectWrapAroundPoints(
-        const std::shared_ptr<GPoint>& point);
+    /// Connect left-right points of the map for a wrap-around
+    /// technique
+    QVector<std::shared_ptr<GPoint>>
+    connectWrapAroundPoints(const std::shared_ptr<GPoint> &point);
 
     ShortestPathResult findShortestPathHelper(
         QVector<std::shared_ptr<GPoint>> mustTraversePoints,
-        std::function<ShortestPathResult(
-            const std::shared_ptr<GPoint>&,
-            const std::shared_ptr<GPoint>&)> pathfindingStrategy);
+        std::function<
+            ShortestPathResult(const std::shared_ptr<GPoint> &,
+                               const std::shared_ptr<GPoint> &)>
+            pathfindingStrategy);
     // /**
     //  * @brief Maps each unique point in the visibility graph
     //  *          to a unique identifier (node ID).
@@ -349,9 +351,6 @@ private:
     //  */
     // QVector<QVector<qsizetype>> edges;
 
-
-
-
     // /// Retrieves all nodes visible from a given node.
     // QVector<std::shared_ptr<Point>> getVisibleNodes(
     //     const std::shared_ptr<Point>& node);
@@ -362,5 +361,5 @@ private:
     // /// Creates an edge between two nodes.
     // void addEdge(qsizetype node1, qsizetype node2);
 };
-};
+}; // namespace ShipNetSimCore
 #endif // OPTIMIZEDVISIBILITYGRAPH_H

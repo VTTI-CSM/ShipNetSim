@@ -1,35 +1,44 @@
 #include "gpoint.h"
 #include "point.h"
 #include "qendian.h"
-#include <ogr_spatialref.h>
-#include <ogr_geometry.h>
 #include <GeographicLib/Geodesic.hpp>
+#include <ogr_geometry.h>
+#include <ogr_spatialref.h>
 
 namespace ShipNetSimCore
 {
 std::shared_ptr<OGRSpatialReference> GPoint::spatialRef = nullptr;
 
-GPoint::GPoint() : mOGRPoint(0.0, 0.0), mIsPort(false),
-    mDwellTime(units::time::second_t(0.0)) {}
+GPoint::GPoint()
+    : mOGRPoint(0.0, 0.0)
+    , mIsPort(false)
+    , mDwellTime(units::time::second_t(0.0))
+{
+}
 
-GPoint::GPoint( units::angle::degree_t lon, units::angle::degree_t lat,
+GPoint::GPoint(units::angle::degree_t lon, units::angle::degree_t lat,
                OGRSpatialReference crc)
-    : mIsPort(false), mDwellTime(units::time::second_t(0.0))
+    : mIsPort(false)
+    , mDwellTime(units::time::second_t(0.0))
 {
     // Initialize mOGRPoint with longitude and latitude
     setLatitude(lat);
     setLongitude(lon);
 
-    OGRSpatialReference* SR = nullptr;
-    if (!crc.IsEmpty()) {
+    OGRSpatialReference *SR = nullptr;
+    if (!crc.IsEmpty())
+    {
         if (!crc.IsGeographic())
         {
-            throw std::runtime_error("Spatial reference must be geodetic!");
+            throw std::runtime_error(
+                "Spatial reference must be geodetic!");
         }
         // Clone the passed spatial reference and assign
         // it to spatialRef pointer
         SR = crc.Clone();
-    } else {
+    }
+    else
+    {
         // If no spatial reference is passed, create a
         // new spatial reference for WGS84
         SR = getDefaultReprojectionReference()->Clone();
@@ -40,27 +49,32 @@ GPoint::GPoint( units::angle::degree_t lon, units::angle::degree_t lat,
     mOGRPoint.assignSpatialReference(SR);
 }
 
-// Constructor with optional CRS, defaults to an empty spatial reference
-GPoint::GPoint(units::angle::degree_t lon,
-               units::angle::degree_t lat,
-               QString ID,
-               OGRSpatialReference crc)
-    : mUserID(ID), mIsPort(false), mDwellTime(units::time::second_t(0.0))
+// Constructor with optional CRS, defaults to an empty spatial
+// reference
+GPoint::GPoint(units::angle::degree_t lon, units::angle::degree_t lat,
+               QString ID, OGRSpatialReference crc)
+    : mUserID(ID)
+    , mIsPort(false)
+    , mDwellTime(units::time::second_t(0.0))
 {
     // Initialize mOGRPoint with longitude and latitude
     setLatitude(lat);
     setLongitude(lon);
 
-    OGRSpatialReference* SR = nullptr;
-    if (!crc.IsEmpty()) {
+    OGRSpatialReference *SR = nullptr;
+    if (!crc.IsEmpty())
+    {
         if (!crc.IsGeographic())
         {
-            throw std::runtime_error("Spatial reference must be geodetic!");
+            throw std::runtime_error(
+                "Spatial reference must be geodetic!");
         }
         // Clone the passed spatial reference and assign
         // it to spatialRef pointer
         SR = crc.Clone();
-    } else {
+    }
+    else
+    {
         // If no spatial reference is passed, create a
         // new spatial reference for WGS84
         SR = getDefaultReprojectionReference()->Clone();
@@ -71,14 +85,19 @@ GPoint::GPoint(units::angle::degree_t lon,
     mOGRPoint.assignSpatialReference(SR);
 }
 
-std::shared_ptr<OGRSpatialReference> GPoint::getDefaultReprojectionReference()
+std::shared_ptr<OGRSpatialReference>
+GPoint::getDefaultReprojectionReference()
 {
-    // Initialize spatialRef with WGS84 if it hasn't been initialized yet
-    if (!GPoint::spatialRef) {
+    // Initialize spatialRef with WGS84 if it hasn't been initialized
+    // yet
+    if (!GPoint::spatialRef)
+    {
         GPoint::spatialRef = std::make_shared<OGRSpatialReference>();
-        OGRErr err = spatialRef->SetWellKnownGeogCS("WGS84");
-        if (err != OGRERR_NONE) {
-            throw std::runtime_error("Failed to set WGS84 spatial reference");
+        OGRErr err         = spatialRef->SetWellKnownGeogCS("WGS84");
+        if (err != OGRERR_NONE)
+        {
+            throw std::runtime_error(
+                "Failed to set WGS84 spatial reference");
         }
     }
     return GPoint::spatialRef;
@@ -86,7 +105,8 @@ std::shared_ptr<OGRSpatialReference> GPoint::getDefaultReprojectionReference()
 
 void GPoint::setDefaultReprojectionReference(std::string wellknownCS)
 {
-    if (!spatialRef) {
+    if (!spatialRef)
+    {
         GPoint::spatialRef = std::make_shared<OGRSpatialReference>();
     }
 
@@ -94,90 +114,110 @@ void GPoint::setDefaultReprojectionReference(std::string wellknownCS)
     std::shared_ptr<OGRSpatialReference> tempRef =
         std::make_shared<OGRSpatialReference>();
     OGRErr err = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
-    if (err != OGRERR_NONE) {
+    if (err != OGRERR_NONE)
+    {
         // Exit the function on failure
         throw std::runtime_error(
-            "Failed to interpret the provided spatial reference: " +
-            wellknownCS);
+            "Failed to interpret the provided spatial reference: "
+            + wellknownCS);
     }
 
     // Check if the spatial reference is geodetic
-    if (!tempRef->IsGeographic()) {
+    if (!tempRef->IsGeographic())
+    {
         // Exit the function if not geodetic
         throw std::runtime_error(
-            "The provided spatial reference is not geodetic: " +
-            wellknownCS);
+            "The provided spatial reference is not geodetic: "
+            + wellknownCS);
     }
 
     // If validation passed, assign the validated spatial
     // reference to the class's static member
     GPoint::spatialRef = tempRef;
-
 }
 
-OGRPoint GPoint::getGDALPoint() const { return mOGRPoint; }
+OGRPoint GPoint::getGDALPoint() const
+{
+    return mOGRPoint;
+}
 
 // Project this point to a given projected CRS
-Point GPoint::projectTo(OGRSpatialReference* targetSR) const  {
-    // Ensure the target Spatial Reference is valid and is a projected CRS
-    if (!targetSR || !targetSR->IsProjected()) {
-        throw std::runtime_error("Target Spatial Reference "
-                                 "is not valid or not a projected CRS.");
+Point GPoint::projectTo(OGRSpatialReference *targetSR) const
+{
+    // Ensure the target Spatial Reference is valid and is a projected
+    // CRS
+    if (!targetSR || !targetSR->IsProjected())
+    {
+        throw std::runtime_error(
+            "Target Spatial Reference "
+            "is not valid or not a projected CRS.");
     }
 
-    const OGRSpatialReference* currentSR = mOGRPoint.getSpatialReference();
-    if (currentSR == nullptr) {
-        throw std::runtime_error("Current Spatial Reference is not set.");
+    const OGRSpatialReference *currentSR =
+        mOGRPoint.getSpatialReference();
+    if (currentSR == nullptr)
+    {
+        throw std::runtime_error(
+            "Current Spatial Reference is not set.");
     }
 
     // Create a coordinate transformation from the current
     // geographic CRS to the target projected CRS
-    OGRCoordinateTransformation* coordTransform =
+    OGRCoordinateTransformation *coordTransform =
         OGRCreateCoordinateTransformation(currentSR, targetSR);
-    if (!coordTransform) {
-        throw std::runtime_error("Failed to create coordinate transformation.");
+    if (!coordTransform)
+    {
+        throw std::runtime_error(
+            "Failed to create coordinate transformation.");
     }
 
     double x = mOGRPoint.getX();
     double y = mOGRPoint.getY();
 
-    // Transform the point's coordinates from geographic to projected CRS
-    if (!coordTransform->Transform(1, &x, &y)) {
+    // Transform the point's coordinates from geographic to projected
+    // CRS
+    if (!coordTransform->Transform(1, &x, &y))
+    {
         OCTDestroyCoordinateTransformation(coordTransform);
-        throw std::runtime_error("Failed to transform point coordinates.");
+        throw std::runtime_error(
+            "Failed to transform point coordinates.");
     }
 
     OCTDestroyCoordinateTransformation(coordTransform);
 
     // Create and return the transformed point.
-    return Point(units::length::meter_t(x),
-                 units::length::meter_t(y),
+    return Point(units::length::meter_t(x), units::length::meter_t(y),
                  mUserID, *targetSR);
 }
 
-GPoint GPoint::pointAtDistanceAndHeading(units::length::meter_t distance,
-                                         units::angle::degree_t heading) const
+GPoint GPoint::pointAtDistanceAndHeading(
+    units::length::meter_t distance,
+    units::angle::degree_t heading) const
 {
     // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *thisSR =
+        mOGRPoint.getSpatialReference();
 
     double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
+    double flattening    = 1.0 / thisSR->GetInvFlattening();
 
-    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    // Create a GeographicLib::Geodesic object with the ellipsoid
+    // parameters
     const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
 
     double newLat, newLon;
     geod.Direct(this->getLatitude().value(),
-                this->getLongitude().value(),
-                heading.value(), distance.value(), newLat, newLon);
+                this->getLongitude().value(), heading.value(),
+                distance.value(), newLat, newLon);
 
     // Create a new GPoint with the calculated latitude and longitude.
-    // Assuming the spatial reference (SR) of the new point is the same
-    // as the current point.
-    const OGRSpatialReference* currentSR = mOGRPoint.getSpatialReference();
-    OGRSpatialReference* newSR = nullptr;
-    if (currentSR != nullptr) {
+    // Assuming the spatial reference (SR) of the new point is the
+    // same as the current point.
+    const OGRSpatialReference *currentSR =
+        mOGRPoint.getSpatialReference();
+    OGRSpatialReference *newSR = nullptr;
+    if (currentSR != nullptr)
+    {
         newSR = currentSR->Clone();
     }
 
@@ -185,17 +225,22 @@ GPoint GPoint::pointAtDistanceAndHeading(units::length::meter_t distance,
                   units::angle::degree_t(newLat), "NewPoint", *newSR);
 }
 
-void GPoint::transformDatumTo(OGRSpatialReference* targetSR)
+void GPoint::transformDatumTo(OGRSpatialReference *targetSR)
 {
     if (targetSR && targetSR->IsGeographic())
     {
-        const OGRSpatialReference* currentSR = mOGRPoint.getSpatialReference();
-        if (currentSR && !currentSR->IsSame(targetSR)) {
-            OGRCoordinateTransformation* coordTransform =
-                OGRCreateCoordinateTransformation(currentSR, targetSR);
-            if (coordTransform) {
+        const OGRSpatialReference *currentSR =
+            mOGRPoint.getSpatialReference();
+        if (currentSR && !currentSR->IsSame(targetSR))
+        {
+            OGRCoordinateTransformation *coordTransform =
+                OGRCreateCoordinateTransformation(currentSR,
+                                                  targetSR);
+            if (coordTransform)
+            {
                 double x = mOGRPoint.getX(), y = mOGRPoint.getY();
-                if (coordTransform->Transform(1, &x, &y)) {
+                if (coordTransform->Transform(1, &x, &y))
+                {
                     // Update the internal OGRPoint coordinates
                     mOGRPoint.setX(x);
                     mOGRPoint.setY(y);
@@ -209,19 +254,21 @@ void GPoint::transformDatumTo(OGRSpatialReference* targetSR)
     }
     else
     {
-        throw std::runtime_error("Target spatial reference is not geodetic!");
+        throw std::runtime_error(
+            "Target spatial reference is not geodetic!");
     }
-
 }
 
-
-units::length::meter_t GPoint::distance(const GPoint& other) const
+units::length::meter_t GPoint::distance(const GPoint &other) const
 {
     // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
-    const OGRSpatialReference* otherSR = other.mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *thisSR =
+        mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *otherSR =
+        other.mOGRPoint.getSpatialReference();
 
-    if (thisSR == nullptr || otherSR == nullptr) {
+    if (thisSR == nullptr || otherSR == nullptr)
+    {
         throw std::runtime_error("Spatial reference not "
                                  "set for one or both points.");
     }
@@ -231,30 +278,35 @@ units::length::meter_t GPoint::distance(const GPoint& other) const
         throw std::runtime_error("Mismatch geodetic datums!");
     }
 
-
     double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
+    double flattening    = 1.0 / thisSR->GetInvFlattening();
 
-    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    // Create a GeographicLib::Geodesic object with the ellipsoid
+    // parameters
     const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
 
     double t = 0.0, distance = 0.0;
     // Calculate the distance
-    geod.GenInverse(this->getLatitude().value(), this->getLongitude().value(),
-                 other.getLatitude().value(), other.getLongitude().value(),
-                 GeographicLib::Geodesic::mask::DISTANCE,
-                 distance, t, t, t, t, t, t);
+    geod.GenInverse(
+        this->getLatitude().value(), this->getLongitude().value(),
+        other.getLatitude().value(), other.getLongitude().value(),
+        GeographicLib::Geodesic::mask::DISTANCE, distance, t, t, t, t,
+        t, t);
 
     return units::length::meter_t(distance);
 }
 
-units::angle::degree_t GPoint::forwardAzimuth(const GPoint& other) const
+units::angle::degree_t
+GPoint::forwardAzimuth(const GPoint &other) const
 {
     // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
-    const OGRSpatialReference* otherSR = other.mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *thisSR =
+        mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *otherSR =
+        other.mOGRPoint.getSpatialReference();
 
-    if (thisSR == nullptr || otherSR == nullptr) {
+    if (thisSR == nullptr || otherSR == nullptr)
+    {
         throw std::runtime_error("Spatial reference not "
                                  "set for one or both points.");
     }
@@ -264,31 +316,36 @@ units::angle::degree_t GPoint::forwardAzimuth(const GPoint& other) const
         throw std::runtime_error("Mismatch geodetic datums!");
     }
 
-
     double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
+    double flattening    = 1.0 / thisSR->GetInvFlattening();
 
-    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    // Create a GeographicLib::Geodesic object with the ellipsoid
+    // parameters
     const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
 
     double t = 0.0, azimuth = 0.0;
 
     // Calculate the azimuth
-    geod.GenInverse(this->getLatitude().value(), this->getLongitude().value(),
-                    other.getLatitude().value(), other.getLongitude().value(),
-                    GeographicLib::Geodesic::mask::AZIMUTH,
-                    t, azimuth, t, t, t, t, t);
+    geod.GenInverse(
+        this->getLatitude().value(), this->getLongitude().value(),
+        other.getLatitude().value(), other.getLongitude().value(),
+        GeographicLib::Geodesic::mask::AZIMUTH, t, azimuth, t, t, t,
+        t, t);
 
     return units::angle::degree_t(azimuth);
 }
 
-units::angle::degree_t GPoint::backwardAzimuth(const GPoint& other) const
+units::angle::degree_t
+GPoint::backwardAzimuth(const GPoint &other) const
 {
     // Ensure the spatial reference is set for both points
-    const OGRSpatialReference* thisSR = mOGRPoint.getSpatialReference();
-    const OGRSpatialReference* otherSR = other.mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *thisSR =
+        mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *otherSR =
+        other.mOGRPoint.getSpatialReference();
 
-    if (thisSR == nullptr || otherSR == nullptr) {
+    if (thisSR == nullptr || otherSR == nullptr)
+    {
         throw std::runtime_error("Spatial reference not "
                                  "set for one or both points.");
     }
@@ -298,95 +355,119 @@ units::angle::degree_t GPoint::backwardAzimuth(const GPoint& other) const
         throw std::runtime_error("Mismatch geodetic datums!");
     }
 
-
     double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening = 1.0 / thisSR->GetInvFlattening();
+    double flattening    = 1.0 / thisSR->GetInvFlattening();
 
-    // Create a GeographicLib::Geodesic object with the ellipsoid parameters
+    // Create a GeographicLib::Geodesic object with the ellipsoid
+    // parameters
     const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
 
     double t = 0.0, azimuth = 0.0;
     // Calculate the azimuth
-    geod.GenInverse(other.getLatitude().value(), other.getLongitude().value(),
-                    this->getLatitude().value(), this->getLongitude().value(),
-                    GeographicLib::Geodesic::mask::AZIMUTH,
-                    t, azimuth, t, t, t, t, t);
+    geod.GenInverse(
+        other.getLatitude().value(), other.getLongitude().value(),
+        this->getLatitude().value(), this->getLongitude().value(),
+        GeographicLib::Geodesic::mask::AZIMUTH, t, azimuth, t, t, t,
+        t, t);
 
     return units::angle::degree_t(azimuth);
 }
 
-units::angle::degree_t GPoint::getLatitude() const {
+units::angle::degree_t GPoint::getLatitude() const
+{
     return units::angle::degree_t(mOGRPoint.getY());
 }
 
-units::angle::degree_t GPoint::getLongitude() const {
+units::angle::degree_t GPoint::getLongitude() const
+{
     return units::angle::degree_t(mOGRPoint.getX());
 }
 
-bool GPoint::isPort() const { return mIsPort; }
+bool GPoint::isPort() const
+{
+    return mIsPort;
+}
 
-units::time::second_t GPoint::getDwellTime() const { return mDwellTime; }
+units::time::second_t GPoint::getDwellTime() const
+{
+    return mDwellTime;
+}
 
-void GPoint::setLatitude(units::angle::degree_t lat) {
+void GPoint::setLatitude(units::angle::degree_t lat)
+{
     double normalizedLat = lat.value();
 
     // Normalize latitude to the range [-90, 90]
     // If latitude goes beyond 90 or -90, it flips direction.
-    while (normalizedLat > 90.0 || normalizedLat < -90.0) {
-        if (normalizedLat > 90.0) {
+    while (normalizedLat > 90.0 || normalizedLat < -90.0)
+    {
+        if (normalizedLat > 90.0)
+        {
             normalizedLat = 180.0 - normalizedLat;
-        } else if (normalizedLat < -90.0) {
+        }
+        else if (normalizedLat < -90.0)
+        {
             normalizedLat = -180.0 - normalizedLat;
         }
     }
 
-    mOGRPoint.setY(normalizedLat); // Update the internal OGRPoint as well
+    mOGRPoint.setY(
+        normalizedLat); // Update the internal OGRPoint as well
 }
 
-void GPoint::setLongitude(units::angle::degree_t lon) {
+void GPoint::setLongitude(units::angle::degree_t lon)
+{
     double normalizedLon = lon.value();
 
     // Normalize longitude to the range [-180, 180]
-    while (normalizedLon > 180.0 || normalizedLon < -180.0) {
-        if (normalizedLon > 180.0) {
+    while (normalizedLon > 180.0 || normalizedLon < -180.0)
+    {
+        if (normalizedLon > 180.0)
+        {
             normalizedLon -= 360.0;
-        } else if (normalizedLon < -180.0) {
+        }
+        else if (normalizedLon < -180.0)
+        {
             normalizedLon += 360.0;
         }
     }
 
-    mOGRPoint.setX(normalizedLon); // Update the internal OGRPoint as well
+    mOGRPoint.setX(
+        normalizedLon); // Update the internal OGRPoint as well
 }
 
 void GPoint::MarkAsNonPort()
 {
-    mIsPort = false;
+    mIsPort    = false;
     mDwellTime = units::time::second_t(0.0);
 }
 
 void GPoint::MarkAsPort(units::time::second_t dwellTime)
 {
-    mIsPort = true;
+    mIsPort    = true;
     mDwellTime = dwellTime;
 }
 
 // Implementation of getMiddlePoint
-GPoint GPoint::getMiddlePoint(const GPoint& endPoint) const
+GPoint GPoint::getMiddlePoint(const GPoint &endPoint) const
 {
-    auto midLat =
-        units::angle::degree_t((this->getLatitude().value() +
-                                endPoint.getLatitude().value()) / 2.0);
+    auto midLat = units::angle::degree_t(
+        (this->getLatitude().value() + endPoint.getLatitude().value())
+        / 2.0);
     auto midLon =
-        units::angle::degree_t((this->getLongitude().value() +
-                                endPoint.getLongitude().value()) / 2.0);
-    return GPoint(midLat, midLon, "Midpoint", *mOGRPoint.getSpatialReference());
+        units::angle::degree_t((this->getLongitude().value()
+                                + endPoint.getLongitude().value())
+                               / 2.0);
+    return GPoint(midLat, midLon, "Midpoint",
+                  *mOGRPoint.getSpatialReference());
 }
 
 // Function to convert the point to a string representation.
-QString GPoint::toString(const QString &format, int decimalPercision) const
+QString GPoint::toString(const QString &format,
+                         int            decimalPercision) const
 {
-    QString xStr =
-        QString::number(getLongitude().value(), 'f', decimalPercision);
+    QString xStr = QString::number(getLongitude().value(), 'f',
+                                   decimalPercision);
     QString yStr =
         QString::number(getLatitude().value(), 'f', decimalPercision);
     QString idStr = mUserID.isEmpty() ? "N/A" : mUserID;
@@ -402,25 +483,28 @@ QString GPoint::toString(const QString &format, int decimalPercision) const
 }
 
 // Implementation of the nested Hash structure
-std::size_t GPoint::Hash::operator()(const std::shared_ptr<GPoint>& p) const
+std::size_t
+GPoint::Hash::operator()(const std::shared_ptr<GPoint> &p) const
 {
-    if (!p) return 0; // Handle null pointers
+    if (!p)
+        return 0; // Handle null pointers
 
     auto x_value = p->getLatitude().value();
     auto y_value = p->getLongitude().value();
 
-    return std::hash<decltype(x_value)>()(x_value) ^
-           std::hash<decltype(y_value)>()(y_value);
+    return std::hash<decltype(x_value)>()(x_value)
+           ^ std::hash<decltype(y_value)>()(y_value);
 }
 
 bool GPoint::operator==(const GPoint &other) const
 {
     // Return true if both x and y coordinates are the same.
-    return getLatitude() == other.getLatitude() &&
-           getLongitude() == other.getLongitude();
+    return getLatitude() == other.getLatitude()
+           && getLongitude() == other.getLongitude();
 }
 
-GPoint GPoint::operator+(const GPoint& other) const {
+GPoint GPoint::operator+(const GPoint &other) const
+{
     GPoint result;
     result.setLatitude(this->getLatitude() + other.getLatitude());
     result.setLongitude(this->getLongitude() + other.getLongitude());
@@ -428,7 +512,8 @@ GPoint GPoint::operator+(const GPoint& other) const {
 }
 
 // Overload the - operator for subtracting two GPoint instances
-GPoint GPoint::operator-(const GPoint& other) const {
+GPoint GPoint::operator-(const GPoint &other) const
+{
     GPoint result;
     result.setLatitude(this->getLatitude() - other.getLatitude());
     result.setLongitude(this->getLongitude() - other.getLongitude());
@@ -436,64 +521,70 @@ GPoint GPoint::operator-(const GPoint& other) const {
 }
 
 // Implementation of the nested Equal structure
-bool GPoint::Equal::operator()(const std::shared_ptr<GPoint>& lhs,
-                              const std::shared_ptr<GPoint>& rhs) const
+bool GPoint::Equal::operator()(
+    const std::shared_ptr<GPoint> &lhs,
+    const std::shared_ptr<GPoint> &rhs) const
 {
-    if (!lhs || !rhs) return false; // Handle null pointers
+    if (!lhs || !rhs)
+        return false; // Handle null pointers
     return *lhs == *rhs;
 }
 
-void GPoint::serialize(std::ostream& out) const
+void GPoint::serialize(std::ostream &out) const
 {
-    if (!out) {
-        throw std::runtime_error("Output stream is not ready for writing.");
+    if (!out)
+    {
+        throw std::runtime_error(
+            "Output stream is not ready for writing.");
     }
 
     // Serialize x-coordinate
-    std::uint64_t xNet =
-        qToBigEndian(std::bit_cast<std::uint64_t>(getLongitude().value()));
-    out.write(reinterpret_cast<const char*>(&xNet), sizeof(xNet));
+    std::uint64_t xNet = qToBigEndian(
+        std::bit_cast<std::uint64_t>(getLongitude().value()));
+    out.write(reinterpret_cast<const char *>(&xNet), sizeof(xNet));
 
     // Serialize y-coordinate
-    std::uint64_t yNet =
-        qToBigEndian(std::bit_cast<std::uint64_t>(getLatitude().value()));
-    out.write(reinterpret_cast<const char*>(&yNet), sizeof(yNet));
+    std::uint64_t yNet = qToBigEndian(
+        std::bit_cast<std::uint64_t>(getLatitude().value()));
+    out.write(reinterpret_cast<const char *>(&yNet), sizeof(yNet));
 
     // Serialize mUserID as string length followed by string data
-    std::string userIDStr = mUserID.toStdString();
+    std::string   userIDStr = mUserID.toStdString();
     std::uint64_t userIDLen =
         qToBigEndian(static_cast<std::uint64_t>(userIDStr.size()));
-    out.write(reinterpret_cast<const char*>(&userIDLen),
+    out.write(reinterpret_cast<const char *>(&userIDLen),
               sizeof(userIDLen));
     out.write(userIDStr.c_str(), userIDStr.size());
 
     // Serialize mIsPort
-    out.write(reinterpret_cast<const char*>(&mIsPort),
+    out.write(reinterpret_cast<const char *>(&mIsPort),
               sizeof(mIsPort));
 
     // Serialize mDwellTime
-    std::uint64_t dwellTimeNet =
-        qToBigEndian(std::bit_cast<std::uint64_t>(mDwellTime.value()));
-    out.write(reinterpret_cast<const char*>(&dwellTimeNet),
+    std::uint64_t dwellTimeNet = qToBigEndian(
+        std::bit_cast<std::uint64_t>(mDwellTime.value()));
+    out.write(reinterpret_cast<const char *>(&dwellTimeNet),
               sizeof(dwellTimeNet));
 
     // Check for write failures
-    if (!out) {
+    if (!out)
+    {
         throw std::runtime_error("Failed to write point"
                                  " data to output stream.");
     }
 }
 
-void GPoint::deserialize(std::istream& in)
+void GPoint::deserialize(std::istream &in)
 {
     if (!in)
     {
-        throw std::runtime_error("Input stream is not ready for reading.");
+        throw std::runtime_error(
+            "Input stream is not ready for reading.");
     }
 
     // Deserialize x-coordinate
     std::uint64_t xNet;
-    in.read(reinterpret_cast<char*>(&xNet), sizeof(xNet));
+    in.read(reinterpret_cast<char *>(&xNet), sizeof(xNet));
     if (!in)
     {
         throw std::runtime_error("Failed to read x-coordinate"
@@ -503,8 +594,9 @@ void GPoint::deserialize(std::istream& in)
 
     // Deserialize y-coordinate
     std::uint64_t yNet;
-    in.read(reinterpret_cast<char*>(&yNet), sizeof(yNet));
-    if (!in) {
+    in.read(reinterpret_cast<char *>(&yNet), sizeof(yNet));
+    if (!in)
+    {
         throw std::runtime_error("Failed to read y-coordinate "
                                  "from input stream.");
     }
@@ -512,7 +604,7 @@ void GPoint::deserialize(std::istream& in)
 
     // Deserialize userID
     std::uint64_t userIDLen;
-    in.read(reinterpret_cast<char*>(&userIDLen), sizeof(userIDLen));
+    in.read(reinterpret_cast<char *>(&userIDLen), sizeof(userIDLen));
     userIDLen = qFromBigEndian(userIDLen);
     std::string userIDStr(userIDLen, '\0');
     in.read(&userIDStr[0], userIDLen);
@@ -524,7 +616,7 @@ void GPoint::deserialize(std::istream& in)
     mUserID = QString::fromStdString(userIDStr);
 
     // Deserialize mIsPort
-    in.read(reinterpret_cast<char*>(&mIsPort), sizeof(mIsPort));
+    in.read(reinterpret_cast<char *>(&mIsPort), sizeof(mIsPort));
     if (!in)
     {
         throw std::runtime_error("Failed to read mIsPort "
@@ -533,9 +625,10 @@ void GPoint::deserialize(std::istream& in)
 
     // Deserialize mDwellTime
     std::uint64_t dwellTimeNet;
-    in.read(reinterpret_cast<char*>(&dwellTimeNet),
+    in.read(reinterpret_cast<char *>(&dwellTimeNet),
             sizeof(dwellTimeNet));
-    if (!in) {
+    if (!in)
+    {
         throw std::runtime_error("Failed to read dwell "
                                  "time from input stream.");
     }
@@ -543,12 +636,12 @@ void GPoint::deserialize(std::istream& in)
         qFromBigEndian(std::bit_cast<double>(dwellTimeNet)));
 }
 
-
 // Definition of the stream insertion operator
-std::ostream& operator<<(std::ostream& os, const GPoint& point) {
-    os << "Point(ID: " << point.mUserID.toStdString() <<
-        ", Lat: " << point.getLatitude().value() <<
-        ", Lon: " << point.getLongitude().value() << ")";
+std::ostream &operator<<(std::ostream &os, const GPoint &point)
+{
+    os << "Point(ID: " << point.mUserID.toStdString()
+       << ", Lat: " << point.getLatitude().value()
+       << ", Lon: " << point.getLongitude().value() << ")";
     return os;
 }
-}
+} // namespace ShipNetSimCore

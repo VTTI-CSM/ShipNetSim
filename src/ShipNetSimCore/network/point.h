@@ -5,10 +5,11 @@
  * which represents a point in a two-dimensional space.
  *
  * The Point class is derived from the BaseGeometry class. It includes
- * properties such as coordinates, unique ID, index, and dwell time if the
- * point is a port. It provides methods to calculate the distance between
- * points, check the validity of the point, and get a string representation
- * of the point. It also provides operator overloads for equality.
+ * properties such as coordinates, unique ID, index, and dwell time if
+ * the point is a port. It provides methods to calculate the distance
+ * between points, check the validity of the point, and get a string
+ * representation of the point. It also provides operator overloads
+ * for equality.
  *
  * @author Ahmed Aredah
  * @date 10.12.2023
@@ -16,13 +17,13 @@
 #ifndef POINT_H
 #define POINT_H
 
+#include "../../third_party/units/units.h"
+#include "basegeometry.h"
+#include <cmath>
+#include <functional>
 #include <gdal.h>
 #include <ogr_geometry.h>
 #include <ogr_spatialref.h>
-#include "basegeometry.h"
-#include <functional>
-#include <cmath>
-#include "../../third_party/units/units.h"
 
 namespace ShipNetSimCore
 {
@@ -33,11 +34,12 @@ class GPoint; // Forward declaration
  *
  * @brief Represents a point in a two-dimensional space.
  *
- * This class stores the x and y coordinates of the point, a unique ID,
- * and an index. If the point is a port, it also stores the dwell time.
- * It provides methods to calculate the distance to another point,
- * check the validity of the point, and get a string representation of
- * the point. It also includes operator overloads for equality.
+ * This class stores the x and y coordinates of the point, a unique
+ * ID, and an index. If the point is a port, it also stores the dwell
+ * time. It provides methods to calculate the distance to another
+ * point, check the validity of the point, and get a string
+ * representation of the point. It also includes operator overloads
+ * for equality.
  */
 class Point : public BaseGeometry
 {
@@ -60,20 +62,24 @@ public:
      * @param yCoord The y-coordinate of the point.
      * @param ID The unique ID of the point.
      */
-    Point(units::length::meter_t xCoord, units::length::meter_t yCoord,
-          QString ID, OGRSpatialReference crc = OGRSpatialReference());
+    Point(units::length::meter_t xCoord,
+          units::length::meter_t yCoord, QString ID,
+          OGRSpatialReference crc = OGRSpatialReference());
 
     OGRPoint getGDALPoint() const;
 
-    Point pointAtDistanceAndHeading(units::length::meter_t distance,
-                                    units::angle::degree_t heading) const;
+    Point
+    pointAtDistanceAndHeading(units::length::meter_t distance,
+                              units::angle::degree_t heading) const;
 
-    void transformDatumTo(OGRSpatialReference* targetSR);
-    GPoint reprojectTo(OGRSpatialReference* targetSR);
+    void   transformDatumTo(OGRSpatialReference *targetSR);
+    GPoint reprojectTo(OGRSpatialReference *targetSR);
 
-    static std::shared_ptr<OGRSpatialReference> getDefaultProjectionReference();
+    static std::shared_ptr<OGRSpatialReference>
+    getDefaultProjectionReference();
 
-    static void setDefaultProjectionReference(std::string wellknownCS);
+    static void
+    setDefaultProjectionReference(std::string wellknownCS);
 
     /**
      * @brief Parameterized constructor.
@@ -83,7 +89,8 @@ public:
      * @param xCoord The x-coordinate of the point.
      * @param yCoord The y-coordinate of the point.
      */
-    Point(units::length::meter_t xCoord, units::length::meter_t yCoord);
+    Point(units::length::meter_t xCoord,
+          units::length::meter_t yCoord);
 
     /**
      * @brief Destructor.
@@ -106,16 +113,17 @@ public:
      * @return Distance to the other point.
      */
     [[nodiscard]] units::length::meter_t
-    distance(const Point &endPoint,
+    distance(const Point           &endPoint,
              units::length::meter_t mapWidth =
-             units::length::meter_t(std::nan("No Value"))) const;
+                 units::length::meter_t(std::nan("No Value"))) const;
 
     /**
-     * @brief Converts the GPoint object to a formatted string representation.
+     * @brief Converts the GPoint object to a formatted string
+     * representation.
      *
-     * This function dynamically formats the output string based on the
-     * user-provided format string. Placeholders in the format string are
-     * replaced as follows:
+     * This function dynamically formats the output string based on
+     * the user-provided format string. Placeholders in the format
+     * string are replaced as follows:
      * - `%x`: Replaced with the longitude value.
      * - `%y`: Replaced with the latitude value.
      * - `%id`: Replaced with the user ID (or "N/A" if no ID is set).
@@ -123,9 +131,10 @@ public:
      * The replacement is case-insensitive, allowing placeholders such
      * as `%X`, `%Y`, or `%ID`.
      *
-     * @param format A QString specifying the desired format of the output.
-     *               It must include placeholders (`%x`, `%y`, `%id`) for
-     *               the longitude, latitude, and user ID, respectively.
+     * @param format A QString specifying the desired format of the
+     * output. It must include placeholders (`%x`, `%y`, `%id`) for
+     *               the longitude, latitude, and user ID,
+     * respectively.
      *
      * @return A QString containing the formatted output with
      *          placeholders replaced.
@@ -141,9 +150,9 @@ public:
      * qDebug() << point.toString(format);
      * // Output: "ID: Ship123 at (10.123, 20.456)"
      */
-    [[nodiscard]] QString toString(
-        const QString &format= "(%x, %y)",
-        int decimalPercision = 5) const override;
+    [[nodiscard]] QString
+    toString(const QString &format           = "(%x, %y)",
+             int            decimalPercision = 5) const override;
 
     /**
      * @brief Equality operator.
@@ -156,8 +165,8 @@ public:
     [[nodiscard]] bool operator==(const Point &other) const;
 
     [[nodiscard]] Point operator*(const double scale) const;
-    [[nodiscard]] Point operator+(const Point& other) const;
-    [[nodiscard]] Point operator-(const Point& other) const;
+    [[nodiscard]] Point operator+(const Point &other) const;
+    [[nodiscard]] Point operator-(const Point &other) const;
 
     /**
      * @brief Check if two points are exactly equal.
@@ -165,7 +174,7 @@ public:
      * @param other The other point.
      * @return True if exactly equal, false otherwise.
      */
-    [[nodiscard]] bool isExactlyEqual(const Point& other) const;
+    [[nodiscard]] bool isExactlyEqual(const Point &other) const;
 
     /**
      * @brief Get the x-coordinate of the point.
@@ -217,21 +226,24 @@ public:
     void setY(units::length::meter_t newY);
 
     /**
-     * @brief get the middle point between the current point and an end point.
+     * @brief get the middle point between the current point and an
+     * end point.
      * @param endPoint The end point of the segment.
-     * @return the middle point between the current point and the end point.
+     * @return the middle point between the current point and the end
+     * point.
      */
-    [[nodiscard]] Point getMiddlePoint(const Point& endPoint);
+    [[nodiscard]] Point getMiddlePoint(const Point &endPoint);
 
     /**
      * @brief Serialize the point to a binary format and write it
      *          to an output stream.
      *
-     * This function serializes the point class data to a binary format.
-     * The serialized data is written to the provided outptut stream.
-     * The serialization format is designed for efficient storage and
-     * is not hyman-readable. This function is typically used to save
-     * the state of the point to a file or transmit it over a network.
+     * This function serializes the point class data to a binary
+     * format. The serialized data is written to the provided outptut
+     * stream. The serialization format is designed for efficient
+     * storage and is not hyman-readable. This function is typically
+     * used to save the state of the point to a file or transmit it
+     * over a network.
      *
      * @param out The output stream to which the point is serialized.
      *              This stream should be opened in binary mode to
@@ -244,7 +256,7 @@ public:
      *          outFile.close();
      *      }
      */
-    void serialize(std::ostream& out) const;
+    void serialize(std::ostream &out) const;
 
     /**
      * @brief Deserialize the point from a binary formate read from
@@ -254,14 +266,14 @@ public:
      * and reconstructs the point. The binary format should match the
      * format produced by the serialize function.
      * This function is typically used to load a point from a file
-     * or received it from a network transmission. The existing content
-     * of the Point is clearned before deserialization. If the binary
-     * data is corrupted or improperly formatted,
-     * The behavior of this function is undefined, and the resulting
-     * Point may be incomplete or invalid.
+     * or received it from a network transmission. The existing
+     * content of the Point is clearned before deserialization. If the
+     * binary data is corrupted or improperly formatted, The behavior
+     * of this function is undefined, and the resulting Point may be
+     * incomplete or invalid.
      *
-     * @param in The input stream from which the Point is deserialized.
-     *              This stream should be opened in binary mode to
+     * @param in The input stream from which the Point is
+     * deserialized. This stream should be opened in binary mode to
      *              coorectly handle the binary data.
      *
      * Usage Example:
@@ -271,44 +283,46 @@ public:
      *         inFile.close();
      *     }
      */
-    void deserialize(std::istream& in);
+    void deserialize(std::istream &in);
 
     // Nested custom hash function for Point
-    struct Hash {
-        std::size_t operator()(
-            const std::shared_ptr<Point>& p) const;
+    struct Hash
+    {
+        std::size_t operator()(const std::shared_ptr<Point> &p) const;
     };
 
     // Nested custom equality function for Point
-    struct Equal {
-        bool operator()(const std::shared_ptr<Point>& lhs,
-                        const std::shared_ptr<Point>& rhs) const;
+    struct Equal
+    {
+        bool operator()(const std::shared_ptr<Point> &lhs,
+                        const std::shared_ptr<Point> &rhs) const;
     };
 
     /**
      * @brief Stream insertion operator for Point.
      *
-     * Outputs a string representation of the Point to an output stream.
+     * Outputs a string representation of the Point to an output
+     * stream.
      *
      * @param os The output stream.
      * @param point The Point object to be outputted.
      * @return Reference to the output stream.
      */
-    friend std::ostream& operator<<(std::ostream& os, const Point& point);
-
+    friend std::ostream &operator<<(std::ostream &os,
+                                    const Point  &point);
 
 private:
     OGRPoint mOGRPoint; ///< GDAL Point definition
-    QString mUserID; ///< The unique ID of the point.
-    bool mIsPort; ///< Flag indicating if the point is a port.
+    QString  mUserID;   ///< The unique ID of the point.
+    bool     mIsPort;   ///< Flag indicating if the point is a port.
     units::time::second_t
         mDwellTime; ///< The dwell time if the point is a port.
 
-     /// The default Coordinate system
+    /// The default Coordinate system
     static std::shared_ptr<OGRSpatialReference> spatialRef;
 };
 
-};
+}; // namespace ShipNetSimCore
 
 /**
  * @struct std::hash<Point>
@@ -319,9 +333,9 @@ private:
  * enabling them to be used as keys in std::unordered_map or other
  * hash-based containers.
  */
-template <>
-struct std::hash<ShipNetSimCore::Point> {
-    std::size_t operator()(const ShipNetSimCore::Point& p) const;
+template <> struct std::hash<ShipNetSimCore::Point>
+{
+    std::size_t operator()(const ShipNetSimCore::Point &p) const;
 };
 
 #endif // POINT_H

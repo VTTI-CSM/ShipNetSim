@@ -1,15 +1,15 @@
 /**
  * @file line.h
  *
- * @brief This file declares the Line class, which represents a geometric
- *        line segment in a two-dimensional space. The Line class inherits
- *        from the BaseGeometry class and encapsulates the properties and
- *        behaviors relevant to a line segment. It provides various methods
- *        to calculate geometric properties of the line and its relationships
- *        with other geometric objects.
+ * @brief This file declares the Line class, which represents a
+ * geometric line segment in a two-dimensional space. The Line class
+ * inherits from the BaseGeometry class and encapsulates the
+ * properties and behaviors relevant to a line segment. It provides
+ * various methods to calculate geometric properties of the line and
+ * its relationships with other geometric objects.
  *
- *        The Line class uses the units library to handle various physical
- *        units, ensuring type-safe calculations.
+ *        The Line class uses the units library to handle various
+ * physical units, ensuring type-safe calculations.
  *
  * @author Ahmed Aredah
  * @date 10.12.2023
@@ -17,10 +17,10 @@
 #ifndef LINE_H
 #define LINE_H
 
-#include "basegeometry.h"
-#include "point.h"
 #include "../../third_party/units/units.h"
 #include "algebraicvector.h"
+#include "basegeometry.h"
+#include "point.h"
 #include <cmath>
 #include <memory>
 
@@ -31,26 +31,28 @@ class GLine; // forward declaration
 /**
  * @class Line
  *
- * @brief Represents a geometric line segment in a two-dimensional space.
+ * @brief Represents a geometric line segment in a two-dimensional
+ * space.
  *
- *        The Line class encapsulates the properties and behaviors of a line
- *        segment. It contains start and end points, length, maximum speed,
- *        width, and depth properties. Various geometric and relational methods
- *        are provided to calculate properties and relationships with other
- *        geometric objects.
+ *        The Line class encapsulates the properties and behaviors of
+ * a line segment. It contains start and end points, length, maximum
+ * speed, width, and depth properties. Various geometric and
+ * relational methods are provided to calculate properties and
+ * relationships with other geometric objects.
  */
 class Line : public BaseGeometry
 {
 private:
-    std::shared_ptr<Point> start; // Start point of the line.
-    std::shared_ptr<Point> end;   // End point of the line.
+    std::shared_ptr<Point> start;   // Start point of the line.
+    std::shared_ptr<Point> end;     // End point of the line.
     units::length::meter_t mLength; // Length of the line.
-    units::length::meter_t mWidth; // Width of the line.
+    units::length::meter_t mWidth;  // Width of the line.
 public:
     /**
      * @brief Enum for specifying start or end of the line.
      */
-    enum class LineEnd {
+    enum class LineEnd
+    {
         Start,
         End
     };
@@ -58,7 +60,8 @@ public:
     /**
      * @brief Enum for orientation of points or lines.
      */
-    enum Orientation {
+    enum Orientation
+    {
         Collinear,
         Clockwise,
         CounterClockwise
@@ -80,8 +83,7 @@ public:
      * @param start A shared pointer to the start point of the line.
      * @param end A shared pointer to the end point of the line.
      */
-    Line(std::shared_ptr<Point> start,
-         std::shared_ptr<Point> end);
+    Line(std::shared_ptr<Point> start, std::shared_ptr<Point> end);
 
     /**
      * @brief Destructor to clean up resources.
@@ -127,7 +129,8 @@ public:
      * @param other The other line to check intersection with.
      * @return True if lines intersect, false otherwise.
      */
-    bool intersects(const Line& other, bool ignoreEdgePoints = true) const;
+    bool intersects(const Line &other,
+                    bool        ignoreEdgePoints = true) const;
 
     /**
      * @brief Calculate the angle with another line.
@@ -135,42 +138,45 @@ public:
      * @param other The other line to calculate angle with.
      * @return The angle between the two lines.
      */
-    units::angle::radian_t angleWith(Line& other) const;
+    units::angle::radian_t angleWith(Line &other) const;
 
     /**
      * @brief Get a point on the line by distance from one end.
      *
      * @param distance The distance from the specified end.
      * @param from The specified end to measure the distance from.
-     * @return The point on the line at the specified distance from the end.
+     * @return The point on the line at the specified distance from
+     * the end.
      */
     Point getPointByDistance(units::length::meter_t distance,
-                             LineEnd from) const;
+                             LineEnd                from) const;
 
     /**
      * @brief Get a point on the line by distance from another point.
      *
      * @param distance The distance from the specified point.
      * @param from The specified point to measure the distance from.
-     * @return The point on the line at the specified distance from the point.
+     * @return The point on the line at the specified distance from
+     * the point.
      */
     Point getPointByDistance(units::length::meter_t distance,
                              std::shared_ptr<Point> from) const;
 
-    Point getNearestPoint(
-        const std::shared_ptr<Point>& point) const;
+    Point getNearestPoint(const std::shared_ptr<Point> &point) const;
 
-    Point getProjectionFrom(const Point& point) const;
+    Point getProjectionFrom(const Point &point) const;
     /**
-     * @brief Calculate the perpendicular distance from a point to the line.
+     * @brief Calculate the perpendicular distance from a point to the
+     * line.
      *
      * @param point The point to calculate the distance from.
      * @return The perpendicular distance from the point to the line.
      */
-    units::length::meter_t getPerpendicularDistance(const Point& point) const;
+    units::length::meter_t
+    getPerpendicularDistance(const Point &point) const;
 
-    units::length::meter_t distanceToPoint(
-        const std::shared_ptr<Point>& point) const;
+    units::length::meter_t
+    distanceToPoint(const std::shared_ptr<Point> &point) const;
 
     /**
      * @return The theoretical width of the line.
@@ -192,8 +198,8 @@ public:
      * @param startPoint The point from which to create the vector.
      * @return The algebraic vector representation of the line.
      */
-    AlgebraicVector toAlgebraicVector(
-        const std::shared_ptr<Point> startPoint) const;
+    AlgebraicVector
+    toAlgebraicVector(const std::shared_ptr<Point> startPoint) const;
 
     // Location of a point relative to a line
     /**
@@ -202,10 +208,10 @@ public:
      * @param point The point to determine the location of.
      * @return The location of the point relative to the line.
      */
-    LocationToLine getlocationToLine(
-        const std::shared_ptr<Point>& point) const;
+    LocationToLine
+    getlocationToLine(const std::shared_ptr<Point> &point) const;
 
-    GLine reprojectTo(OGRSpatialReference* targetSR);
+    GLine reprojectTo(OGRSpatialReference *targetSR);
 
     // /**
     //  * @brief Check if the line falls within a bounding box
@@ -228,44 +234,51 @@ public:
      * @param other The other line to compare with.
      * @return True if lines are equal, false otherwise.
      */
-    bool operator==(const Line& other) const;
+    bool operator==(const Line &other) const;
 
     // BaseGeometry method override
     /**
-     * @brief Converts the GLine object to a formatted string representation.
+     * @brief Converts the GLine object to a formatted string
+     * representation.
      *
-     * This function dynamically formats the output string based on the
-     * user-provided format string. Placeholders in the format string are
-     * replaced as follows:
-     * - `%start`: Replaced with the string representation of the start point.
-     * - `%end`: Replaced with the string representation of the end point.
+     * This function dynamically formats the output string based on
+     * the user-provided format string. Placeholders in the format
+     * string are replaced as follows:
+     * - `%start`: Replaced with the string representation of the
+     * start point.
+     * - `%end`: Replaced with the string representation of the end
+     * point.
      *
-     * The replacement is case-insensitive, allowing placeholders such as
+     * The replacement is case-insensitive, allowing placeholders such
+     * as
      * `%START` or `%End`.
-     * If no format is provided, the default format `"Start Point: %start
+     * If no format is provided, the default format `"Start Point:
+     * %start
      * || End Point: %end"` is used.
      *
-     * @param format A QString specifying the desired format of the output.
-     *               It must include placeholders (`%start`, `%end`) for
-     *               the start and end points, respectively. If not provided,
-     *               the default format `"Start Point: %start ||
-     *               End Point: %end"` is used.
+     * @param format A QString specifying the desired format of the
+     * output. It must include placeholders (`%start`, `%end`) for the
+     * start and end points, respectively. If not provided, the
+     * default format `"Start Point: %start || End Point: %end"` is
+     * used.
      *
-     * @return A QString containing the formatted output with placeholders
-     *          replaced.
-     *         If a placeholder is missing, it will not be replaced.
+     * @return A QString containing the formatted output with
+     * placeholders replaced. If a placeholder is missing, it will not
+     * be replaced.
      *
      * @example
      * GLine line;
      * line.setStart(new GPoint(10.123, 20.456, "StartID"));
      * line.setEnd(new GPoint(30.789, 40.987, "EndID"));
      *
-     * qDebug() << line.toString();                         // Default: "Start Point: (10.123, 20.456) || End Point: (30.789, 40.987)"
-     * qDebug() << line.toString("%start -> %end");         // Custom: "(10.123, 20.456) -> (30.789, 40.987)"
+     * qDebug() << line.toString();                         //
+     * Default: "Start Point: (10.123, 20.456) || End Point:
+     * (30.789, 40.987)" qDebug() << line.toString("%start -> %end");
+     * // Custom: "(10.123, 20.456) -> (30.789, 40.987)"
      */
     QString toString(const QString &format =
-                     "Start Point: %start || End Point: %end",
+                         "Start Point: %start || End Point: %end",
                      int decimalPercision = 5) const override;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // LINE_H

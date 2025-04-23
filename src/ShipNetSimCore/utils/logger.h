@@ -2,9 +2,9 @@
  * @file logger.h
  * @brief Logger Class Header
  *
- * This file contains the Logger class which provides functionality for
- * custom logging in a Qt application. The logger writes messages to a
- * specified log file and optionally to the standard output.
+ * This file contains the Logger class which provides functionality
+ * for custom logging in a Qt application. The logger writes messages
+ * to a specified log file and optionally to the standard output.
  *
  * @author Ahmed Aredah
  * @date 8/17/2023
@@ -13,15 +13,15 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include <QObject>
-#include <QDebug>
-#include <QFile>
-#include <QDateTime>
-#include <QDir>
-#include <iostream>
-#include <QTextStream>
-#include <qmutex.h>
 #include "../export.h"
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QObject>
+#include <QTextStream>
+#include <iostream>
+#include <qmutex.h>
 
 namespace ShipNetSimCore
 {
@@ -29,15 +29,14 @@ namespace ShipNetSimCore
  * @class Logger
  * @brief Custom logger for Qt applications
  *
- * The Logger class is designed to provide a custom logging mechanism for
- * Qt-based applications. It can write logs to a file and to the
+ * The Logger class is designed to provide a custom logging mechanism
+ * for Qt-based applications. It can write logs to a file and to the
  * standard output based on specified minimum log levels.
  */
 class SHIPNETSIM_EXPORT Logger : public QObject
 {
     Q_OBJECT
 public:
-
     /**
      * @brief Constructor
      * @param parent Parent QObject
@@ -63,16 +62,17 @@ public:
     /**
      * @brief Custom message handler.
      *
-     * Writes messages to the log file and/or standard output depending
-     * on the current minimum log levels set.
+     * Writes messages to the log file and/or standard output
+     * depending on the current minimum log levels set.
      *
      * @param type Type of message.
-     * @param context Contextual information about the source of the message.
+     * @param context Contextual information about the source of the
+     * message.
      * @param msg The message content.
      */
-    static void handler(QtMsgType type,
+    static void handler(QtMsgType                 type,
                         const QMessageLogContext &context,
-                        const QString &msg);
+                        const QString            &msg);
 
     /**
      * @brief Stop logging operations.
@@ -126,7 +126,6 @@ private:
 
     /// Mutex for thread safety
     static QMutex g_logMutex;
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // LOGGER_H

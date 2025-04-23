@@ -33,105 +33,99 @@ namespace ShipNetSimCore
 class HoltropMethod : public IShipCalmResistanceStrategy
 {
 public:
-
     ~HoltropMethod();
 
     /**
      * @copydoc IShipResistanceStrategy::getfrictionalResistance()
      */
     units::force::newton_t getfrictionalResistance(
-        const Ship &ship,
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getAppendageResistance()
      */
     units::force::newton_t getAppendageResistance(
-        const Ship &ship,
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getWaveResistance()
      */
-    units::force::newton_t
-    getWaveResistance(
-        const Ship &ship,
+    units::force::newton_t getWaveResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getBulbousBowResistance()
      */
-    units::force::newton_t
-    getBulbousBowResistance(
-        const Ship &ship,
+    units::force::newton_t getBulbousBowResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
-     * @copydoc IShipResistanceStrategy::getImmersedTransomPressureResistance()
+     * @copydoc
+     * IShipResistanceStrategy::getImmersedTransomPressureResistance()
      */
-    units::force::newton_t
-    getImmersedTransomPressureResistance(
-        const Ship &ship,
+    units::force::newton_t getImmersedTransomPressureResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
-     * @copydoc IShipResistanceStrategy::getModelShipCorrelationResistance()
+     * @copydoc
+     * IShipResistanceStrategy::getModelShipCorrelationResistance()
      */
-    units::force::newton_t
-    getModelShipCorrelationResistance(
-        const Ship &ship,
+    units::force::newton_t getModelShipCorrelationResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getAirResistance()
      */
-    units::force::newton_t
-    getAirResistance(
-        const Ship &ship,
+    units::force::newton_t getAirResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getTotalResistance()
      */
-    units::force::newton_t
-    getTotalResistance(
-        const Ship &ship,
+    units::force::newton_t getTotalResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::calc_SpeedOfAdvance()
      */
-    units::velocity::meters_per_second_t
-    calc_SpeedOfAdvance(
-        const Ship &ship,
+    units::velocity::meters_per_second_t calc_SpeedOfAdvance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getCoefficientOfResistance()
      */
     double getCoefficientOfResistance(
-        const Ship& ship,
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) override;
 
     /**
      * @copydoc IShipResistanceStrategy::getHullEffeciency()
@@ -139,7 +133,8 @@ public:
     double getHullEffeciency(const Ship &ship) override;
 
     /**
-     * @copydoc IShipResistanceStrategy::getPropellerRotationEfficiency()
+     * @copydoc
+     * IShipResistanceStrategy::getPropellerRotationEfficiency()
      */
     double getPropellerRotationEfficiency(const Ship &ship) override;
 
@@ -152,29 +147,27 @@ public:
      */
     std::string getMethodName() override;
 
-
 private:
-
-    double c1 = std::nan("uninitialized");
-    double c2 = std::nan("uninitialized");
-    double c3 = std::nan("uninitialized");
-    double c4 = std::nan("uninitialized");
-    double c5 = std::nan("uninitialized");
-    double c7 = std::nan("uninitialized");
-    double C8 = std::nan("uninitialized");
-    double C9 = std::nan("uninitialized");
-    double C11 = std::nan("uninitialized");
-    double c14 = std::nan("uninitialized");
-    double c15 = std::nan("uninitialized");
-    double c16 = std::nan("uninitialized");
-    double c17 = std::nan("uninitialized");
-    double C19 = std::nan("uninitialized");
-    double C20 = std::nan("uninitialized");
-    double CP1 = std::nan("uninitialized");
+    double c1     = std::nan("uninitialized");
+    double c2     = std::nan("uninitialized");
+    double c3     = std::nan("uninitialized");
+    double c4     = std::nan("uninitialized");
+    double c5     = std::nan("uninitialized");
+    double c7     = std::nan("uninitialized");
+    double C8     = std::nan("uninitialized");
+    double C9     = std::nan("uninitialized");
+    double C11    = std::nan("uninitialized");
+    double c14    = std::nan("uninitialized");
+    double c15    = std::nan("uninitialized");
+    double c16    = std::nan("uninitialized");
+    double c17    = std::nan("uninitialized");
+    double C19    = std::nan("uninitialized");
+    double C20    = std::nan("uninitialized");
+    double CP1    = std::nan("uninitialized");
     double lambda = std::nan("uninitialized");
-    double m1 = std::nan("uninitialized");
-    double m3 = std::nan("uninitialized");
-    double PB = std::nan("uninitialized");
+    double m1     = std::nan("uninitialized");
+    double m3     = std::nan("uninitialized");
+    double PB     = std::nan("uninitialized");
 
     double get_C1(const Ship &ship);
     double get_C2(const Ship &ship);
@@ -195,11 +188,10 @@ private:
     double get_lambda(const Ship &ship);
     double get_m1(const Ship &ship);
     double get_m3(const Ship &ship);
-    double get_PB(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double get_PB(const Ship                          &ship,
+                  units::velocity::meters_per_second_t customSpeed =
+                      units::velocity::meters_per_second_t(
+                          std::nan("Unintialized")));
 
     double mThrustDeductionFraction = std::nan("uninitialized");
 
@@ -216,9 +208,6 @@ private:
     double calc_c_20(const Ship &ship);
 
     double calc_c_p1(const Ship &ship);
-
-
-
 
     /**
      * @brief Computes the c_7 coefficient.
@@ -287,11 +276,10 @@ private:
      * @param ship Ship object reference.
      * @return m_4 value.
      */
-    double calc_m_4(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_m_4(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
     /**
      * @brief Computes the c_17 coefficient.
@@ -347,66 +335,64 @@ private:
      * @param ship Ship object reference.
      * @return F_n_T value.
      */
-    double calc_F_n_T(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double
+    calc_F_n_T(const Ship                          &ship,
+               units::velocity::meters_per_second_t customSpeed =
+                   units::velocity::meters_per_second_t(
+                       std::nan("Unintialized")));
 
     /**
      * @brief Computes the c_6 coefficient.
      * @param ship Ship object reference.
      * @return c_6 value.
      */
-    double calc_c_6(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_c_6(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
     /**
      * @brief Computes the h_F value.
      * @param ship Ship object reference.
      * @return h_F value in meters.
      */
-    units::length::meter_t calc_h_F(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    units::length::meter_t
+    calc_h_F(const Ship                          &ship,
+             units::velocity::meters_per_second_t customSpeed =
+                 units::velocity::meters_per_second_t(
+                     std::nan("Unintialized")));
 
     /**
      * @brief Computes the h_W value.
      * @param ship Ship object reference.
      * @return h_W value in meters.
      */
-    units::length::meter_t calc_h_W(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    units::length::meter_t
+    calc_h_W(const Ship                          &ship,
+             units::velocity::meters_per_second_t customSpeed =
+                 units::velocity::meters_per_second_t(
+                     std::nan("Unintialized")));
 
     /**
      * @brief Computes the F_n_i value.
      * @param ship Ship object reference.
      * @return F_n_i value.
      */
-    double calc_F_n_i(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) override;
+    double
+    calc_F_n_i(const Ship                          &ship,
+               units::velocity::meters_per_second_t customSpeed =
+                   units::velocity::meters_per_second_t(
+                       std::nan("Unintialized"))) override;
 
     /**
      * @brief Computes the p_B value.
      * @param ship Ship object reference.
      * @return p_B value.
      */
-    double calc_p_B(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_p_B(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
     /**
      * @brief Computes the equivalent appendage form factor.
@@ -421,11 +407,11 @@ private:
      * @param customSpeed Optional custom speed value.
      * @return Resistance 'a' component.
      */
-    units::force::newton_t calc_R_Wa(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    units::force::newton_t
+    calc_R_Wa(const Ship                          &ship,
+              units::velocity::meters_per_second_t customSpeed =
+                  units::velocity::meters_per_second_t(
+                      std::nan("Unintialized")));
 
     /**
      * @brief Computes wave resistance 'b' component.
@@ -433,42 +419,37 @@ private:
      * @param customSpeed Optional custom speed value.
      * @return Resistance 'b' component.
      */
-    units::force::newton_t calc_R_Wb(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    units::force::newton_t
+    calc_R_Wb(const Ship                          &ship,
+              units::velocity::meters_per_second_t customSpeed =
+                  units::velocity::meters_per_second_t(
+                      std::nan("Unintialized")));
 
     /**
      * @brief Computes the C_F coefficient.
      * @param ship Ship object reference.
      * @return C_F value.
      */
-    double calc_C_F(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_C_F(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
-    double calc_C_V(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_C_V(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
-    double calc_w_s(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized")));
+    double calc_w_s(const Ship                          &ship,
+                    units::velocity::meters_per_second_t customSpeed =
+                        units::velocity::meters_per_second_t(
+                            std::nan("Unintialized")));
 
     double calc_t(const Ship &ship);
 
     double calc_rotEff(Ship &ship);
 
-
     friend class HoltropResistanceMethodTest;
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // RESISTANCESTRATEGY_H
