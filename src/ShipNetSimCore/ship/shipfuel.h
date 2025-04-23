@@ -1,7 +1,8 @@
 /**
  * @file ShipFuel.h
  * @brief This file contains the definition of the ShipFuel class,
- *        which is responsible for managing the ship's fuel operations.
+ *        which is responsible for managing the ship's fuel
+ * operations.
  *
  * @author Ahmed Aredah
  * @date 10.12.2023
@@ -9,11 +10,11 @@
 #ifndef SHIPFUEL_H
 #define SHIPFUEL_H
 
+#include "../../third_party/units/units.h"
 #include "../export.h"
+#include <QVector>
 #include <iostream>
 #include <map>
-#include <QVector>
-#include "../../third_party/units/units.h"
 
 namespace ShipNetSimCore
 {
@@ -25,9 +26,7 @@ namespace ShipNetSimCore
 class SHIPNETSIM_EXPORT ShipFuel
 {
 
-
 public:
-
     /**
      * @enum FuelType
      * @brief Represents the type of fuel used.
@@ -44,14 +43,15 @@ public:
      *   and boilers.
      * - LNG (Liquefied Natural Gas): A cleaner alternative to other
      *   fossil fuels, used in engines designed to handle gas fuels.
-     * - MDO (Marine Diesel Oil): A blend of gasoil and heavy fuel oil,
-     *   used in ship engines.
-     * - MGO (Marine Gas Oil): A type of fuel oil used in ship engines,
-     *   derived from distilling crude oil.
-     * - Biofuel: A renewable energy source made from organic materials,
-     *   used as an alternative to fossil fuels in engines.
+     * - MDO (Marine Diesel Oil): A blend of gasoil and heavy fuel
+     * oil, used in ship engines.
+     * - MGO (Marine Gas Oil): A type of fuel oil used in ship
+     * engines, derived from distilling crude oil.
+     * - Biofuel: A renewable energy source made from organic
+     * materials, used as an alternative to fossil fuels in engines.
      */
-    enum class FuelType {
+    enum class FuelType
+    {
         Diesel,
         HFO, // Heavy Fuel Oil
         LNG, // Liquefied Natural Gas
@@ -67,8 +67,8 @@ public:
      * @param fuelType The type of the fuel.
      * @return The weight of the fuel.
      */
-    static units::mass::kilogram_t getWeight(units::volume::liter_t quantity,
-                                             FuelType fuelType);
+    static units::mass::kilogram_t
+    getWeight(units::volume::liter_t quantity, FuelType fuelType);
 
     /**
      * @brief Converts kilowatt hours to liters of fuel.
@@ -76,9 +76,9 @@ public:
      * @param fuelType The type of the fuel.
      * @return The equivalent liters of fuel.
      */
-    static units::volume::liter_t convertKwhToLiters(
-        units::energy::kilowatt_hour_t energy,
-        FuelType fuelType);
+    static units::volume::liter_t
+    convertKwhToLiters(units::energy::kilowatt_hour_t energy,
+                       FuelType                       fuelType);
 
     /**
      * @brief Converts liters of fuel to kilowatt hours.
@@ -86,18 +86,19 @@ public:
      * @param fuelType The type of the fuel.
      * @return The equivalent kilowatt hours of energy.
      */
-    static units::energy::kilowatt_hour_t convertLitersToKwh(
-        units::volume::liter_t volume,
-        FuelType fuelType);
+    static units::energy::kilowatt_hour_t
+    convertLitersToKwh(units::volume::liter_t volume,
+                       FuelType               fuelType);
 
     /**
      * @brief Convert the volume of fuel in liters to the equivalent
      * carbon dioxide (CO2) content in kilograms.
      *
      * This function calculates the amount of carbon dioxide produced
-     * from burning a given volume of fuel, based on the carbon content
-     * of the specified fuel type. The function will throw an exception
-     * if the provided fuel type is not found in the fuel details.
+     * from burning a given volume of fuel, based on the carbon
+     * content of the specified fuel type. The function will throw an
+     * exception if the provided fuel type is not found in the fuel
+     * details.
      *
      * @param volume The volume of the fuel in liters.
      * @param fuelType The type of the fuel.
@@ -105,18 +106,19 @@ public:
      * @throws std::runtime_error If the fuel type is not found in
      * the fuel details.
      */
-    static units::mass::kilogram_t convertLitersToCarbonDioxide(
-        units::volume::liter_t volume,
-        FuelType fuelType);
+    static units::mass::kilogram_t
+    convertLitersToCarbonDioxide(units::volume::liter_t volume,
+                                 FuelType               fuelType);
 
     /**
      * @brief Convert the volume of fuel in liters to the equivalent
      * sulfur dioxide (SO2) content in kilograms.
      *
      * This function calculates the amount of sulfur dioxide produced
-     * from burning a given volume of fuel, based on the sulfur content
-     * of the specified fuel type. The function will throw an exception
-     * if the provided fuel type is not found in the fuel details.
+     * from burning a given volume of fuel, based on the sulfur
+     * content of the specified fuel type. The function will throw an
+     * exception if the provided fuel type is not found in the fuel
+     * details.
      *
      * @param volume The volume of the fuel in liters.
      * @param fuelType The type of the fuel.
@@ -124,12 +126,13 @@ public:
      * @throws std::runtime_error If the fuel type is not found in
      * the fuel details.
      */
-    static units::mass::kilogram_t convertLitersToSulfurDioxide(
-        units::volume::liter_t volume,
-        FuelType fuelType);
+    static units::mass::kilogram_t
+    convertLitersToSulfurDioxide(units::volume::liter_t volume,
+                                 FuelType               fuelType);
 
     /**
-     * @brief get fuel types supported in the simulator as a QStringList.
+     * @brief get fuel types supported in the simulator as a
+     * QStringList.
      * @return a list of fuel types.
      */
     static QStringList getFuelTypeList();
@@ -145,16 +148,18 @@ public:
      * @param fuelType The type of the fuel.
      * @return a string representation of the fuel type.
      */
-    static QString convertFuelTypeToString(ShipFuel::FuelType fuelType);
+    static QString
+    convertFuelTypeToString(ShipFuel::FuelType fuelType);
 
-    struct FuelProperties {
+    struct FuelProperties
+    {
         units::density::kilograms_per_liter_t density;
-        units::energy::megajoule_t calorificValue;
-        double carbonContent;
-        double sulfureContent;
+        units::energy::megajoule_t            calorificValue;
+        double                                carbonContent;
+        double                                sulfureContent;
     };
-private:
 
+private:
     /**
      * @brief Map of fuel types to their properties.
      */
@@ -164,7 +169,6 @@ private:
      * @brief A list of all supported fuel types in the simulator.
      */
     static QVector<FuelType> mFuelTypes;
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // SHIPFUEL_H

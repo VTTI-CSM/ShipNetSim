@@ -2,14 +2,15 @@
  * @file quad.h
  * @brief Quadtree Data Structure Implementation.
  *
- * This file contains the declaration of the Quadtree class and its associated
- * Node structure. The Quadtree class is designed for efficient spatial
- * partitioning and querying of two-dimensional geometric data, particularly
- * line segments. It is mainly used in visibility graph creation, that is
- * used in ship path definition.
+ * This file contains the declaration of the Quadtree class and its
+ * associated Node structure. The Quadtree class is designed for
+ * efficient spatial partitioning and querying of two-dimensional
+ * geometric data, particularly line segments. It is mainly used in
+ * visibility graph creation, that is used in ship path definition.
  *
- * The Quadtree decomposes space into four quadrants at each level, allowing
- * for efficient spatial querying and management of geometric data.
+ * The Quadtree decomposes space into four quadrants at each level,
+ * allowing for efficient spatial querying and management of geometric
+ * data.
  *
  * @author Ahmed Aredah
  * @date 12.12.2023
@@ -19,10 +20,10 @@
 #ifndef QUADTREE_H
 #define QUADTREE_H
 
-#include <QRectF>
-#include "gpoint.h"
 #include "gline.h"
+#include "gpoint.h"
 #include "polygon.h"
+#include <QRectF>
 
 namespace ShipNetSimCore
 {
@@ -37,7 +38,8 @@ namespace ShipNetSimCore
  * require fast lookup of spatial data, such as collision
  * detection or rendering.
  */
-class Quadtree {
+class Quadtree
+{
 
     static unsigned int MIN_SEGMENTS_FOR_PARALLEL;
 
@@ -53,7 +55,7 @@ public:
     struct Node
     {
 
-        Quadtree* host;
+        Quadtree *host;
         /// Quadrant of the node: 0=top-left, 1=top-right,
         /// 2=bottom-left, 3=bottom-right.
         int quadrant;
@@ -62,58 +64,56 @@ public:
         /// GLine segments contained in the node.
         QVector<std::shared_ptr<GLine>> line_segments;
         /// Pointers to child nodes.
-        Node* children[4];
+        Node *children[4];
         /// Pointer to the parent node.
-        Node* parent;
+        Node *parent;
         /// Minimum point defining the node's bounding box.
         std::shared_ptr<GPoint> min_point;
         /// Maximum point defining the node's bounding box.
         std::shared_ptr<GPoint> max_point;
 
-
-        Node(Quadtree* tree, Node* parent = nullptr, int quadrant = -1);
+        Node(Quadtree *tree, Node *parent = nullptr,
+             int quadrant = -1);
         ~Node();
 
         // Disable copy constructor and copy assignment operator
-        Node(const Node& other) = delete;
-        Node& operator=(const Node& other) = delete;
+        Node(const Node &other)            = delete;
+        Node &operator=(const Node &other) = delete;
 
         // Disable move constructor and move assignment operator
-        Node(Node&& other) noexcept = delete;
-        Node& operator=(Node&& other) noexcept = delete;
+        Node(Node &&other) noexcept            = delete;
+        Node &operator=(Node &&other) noexcept = delete;
 
         // Node(const Node& other);  // Copy constructor
         // Node(Node&& other) noexcept;  // Move constructor
-        // Node& operator=(const Node& other);  // Copy assignment operator
-        // Node& operator=(Node&& other) noexcept;  // Move assignment operator
+        // Node& operator=(const Node& other);  // Copy assignment
+        // operator Node& operator=(Node&& other) noexcept;  // Move
+        // assignment operator
 
         /// Maximum point defining the node's bounding box.
         void subdivide(Quadtree *tree);
 
         /// Distribute segments to child nodes
         std::shared_ptr<GLine> distributeSegmentToChildren(
-            const std::shared_ptr<GLine>& segment);
+            const std::shared_ptr<GLine> &segment);
 
         /// Creates child nodes during subdivision.
         void createChildren(Quadtree *tree);
 
         bool doesLineSegmentIntersectNode(
-            const std::shared_ptr<GLine>& segment) const;
+            const std::shared_ptr<GLine> &segment) const;
 
         bool standardIntersectionCheck(
-            const std::shared_ptr<GLine>& segment) const;
+            const std::shared_ptr<GLine> &segment) const;
 
-        bool isPointWithinNode(const std::shared_ptr<GPoint>& point) const;
+        bool
+        isPointWithinNode(const std::shared_ptr<GPoint> &point) const;
 
         units::length::meter_t distanceFromPointToBoundingBox(
-            const std::shared_ptr<GPoint>& point) const;
+            const std::shared_ptr<GPoint> &point) const;
     };
 
 private:
-
-
-
-
     /// Maximum number of line segments a node can
     /// hold before subdividing.
     /// leave it to 1 so the visibility graph can work
@@ -122,91 +122,92 @@ private:
     /// Root node of the quadtree
     Node root;
 
-    const double tolerance = 0.1; // Small tolerance for double precision
+    const double tolerance =
+        0.1; // Small tolerance for double precision
 
-
-    std::shared_ptr<GPoint> wrapPoint(
-        const std::shared_ptr<GPoint>& point) const;
+    std::shared_ptr<GPoint>
+    wrapPoint(const std::shared_ptr<GPoint> &point) const;
 
     void findIntersectingNodesHelper(
-        const std::shared_ptr<GLine>& segment,
-        const Node& node,
-        QVector<Node*>& intersecting_nodes) const;
+        const std::shared_ptr<GLine> &segment, const Node &node,
+        QVector<Node *> &intersecting_nodes) const;
 
     // void findLineSegmentHelper(const Node* node,
-    //                            const std::shared_ptr<GPoint>& point1,
-    //                            const std::shared_ptr<GPoint>& point2,
-    //                            std::shared_ptr<GLine>& result) const;
+    //                            const std::shared_ptr<GPoint>&
+    //                            point1, const
+    //                            std::shared_ptr<GPoint>& point2,
+    //                            std::shared_ptr<GLine>& result)
+    //                            const;
 
-    void insertLineSegmentHelper(
-        const std::shared_ptr<GLine>& segment,
-        Node* node);
+    void
+    insertLineSegmentHelper(const std::shared_ptr<GLine> &segment,
+                            Node                         *node);
 
-    bool deleteLineSegmentHelper(
-        const std::shared_ptr<GLine>& segment,
-        Node* node);
+    bool
+    deleteLineSegmentHelper(const std::shared_ptr<GLine> &segment,
+                            Node                         *node);
 
-    int getMaxDepthHelper(const Node* node, int currentDepth) const;
+    int getMaxDepthHelper(const Node *node, int currentDepth) const;
 
     void rangeQueryHelper(
-        const QRectF& range,
-        const Node* node,
-        QVector<std::shared_ptr<GLine>>& foundSegments) const;
+        const QRectF &range, const Node *node,
+        QVector<std::shared_ptr<GLine>> &foundSegments) const;
 
-    void findNearestNeighborHelper(const std::shared_ptr<GPoint>& point,
-                                   const Node* node,
-                                   std::shared_ptr<GLine>& nearestSegment,
-                                   units::length::meter_t& minDistance) const;
+    void findNearestNeighborHelper(
+        const std::shared_ptr<GPoint> &point, const Node *node,
+        std::shared_ptr<GLine> &nearestSegment,
+        units::length::meter_t &minDistance) const;
 
     void findNearestNeighborPointHelper(
-        const std::shared_ptr<GPoint>& point,
-        const Node* node,
-        std::shared_ptr<GPoint>& nearestPoint,
-        units::length::meter_t& minDistance) const;
+        const std::shared_ptr<GPoint> &point, const Node *node,
+        std::shared_ptr<GPoint> &nearestPoint,
+        units::length::meter_t  &minDistance) const;
 
     void checkAndUpdateMinDistance(
-        const std::shared_ptr<GPoint>& targetPoint,
-        const std::shared_ptr<GPoint>& point,
-        std::shared_ptr<GPoint>& nearestPoint,
-        units::length::meter_t& minDistance) const;
+        const std::shared_ptr<GPoint> &targetPoint,
+        const std::shared_ptr<GPoint> &point,
+        std::shared_ptr<GPoint>       &nearestPoint,
+        units::length::meter_t        &minDistance) const;
 
-    bool isNodeAtLeftEdge(const Node* node) const;
-    bool isNodeAtRightEdge(const Node* node) const;
-    QVector<Quadtree::Node*> findNodesOnRightEdge() const;
-    QVector<Quadtree::Node*> findNodesOnLeftEdge() const;
-
+    bool isNodeAtLeftEdge(const Node *node) const;
+    bool isNodeAtRightEdge(const Node *node) const;
+    QVector<Quadtree::Node *> findNodesOnRightEdge() const;
+    QVector<Quadtree::Node *> findNodesOnLeftEdge() const;
 
     /**
      * @brief Calculates the minimum distance from a point
      * to a node's bounding box.
      * @param point The point from which to measure.
-     * @param node The node whose bounding box is used for measurement.
+     * @param node The node whose bounding box is used for
+     * measurement.
      * @return The minimum distance between the point and the node's
      * bounding box.
      */
-    units::length::meter_t distanceFromPointToNode(
-        const std::shared_ptr<GPoint>& point,
-        const Node* node) const;
+    units::length::meter_t
+    distanceFromPointToNode(const std::shared_ptr<GPoint> &point,
+                            const Node *node) const;
 
     /**
-     * @brief Checks if a line segment intersects with a given rectangular range.
+     * @brief Checks if a line segment intersects with a given
+     * rectangular range.
      * @param segment The line segment to check.
      * @param range The rectangular range.
-     * @return True if the segment intersects the range, false otherwise.
-     */   
-    bool segmentIntersectsRange(const std::shared_ptr<GLine>& segment,
-                                const QRectF& range) const;
+     * @return True if the segment intersects the range, false
+     * otherwise.
+     */
+    bool segmentIntersectsRange(const std::shared_ptr<GLine> &segment,
+                                const QRectF &range) const;
     /**
      * @brief Helper function to recursively delete nodes.
      * @param node The current node to delete.
      */
-    void clearTreeHelper(Node* node);
+    void clearTreeHelper(Node *node);
 
-    void serializeNode(std::ostream& out, const Node* node) const;
+    void serializeNode(std::ostream &out, const Node *node) const;
 
-    void deserializeNode(std::istream& in, Node* parentNode);
+    void deserializeNode(std::istream &in, Node *parentNode);
+
 public:
-
     /**
      * @brief Constructor for Quadtree.
      * @brief Default constructor for quadtree.
@@ -215,9 +216,10 @@ public:
 
     /**
      * @brief Constructor for Quadtree.
-     * @param polygons A collection of polygons to initialize the quadtree.
+     * @param polygons A collection of polygons to initialize the
+     * quadtree.
      */
-    Quadtree(const QVector<std::shared_ptr<Polygon>>& polygons);
+    Quadtree(const QVector<std::shared_ptr<Polygon>> &polygons);
 
     /**
      * @brief Finds nodes in the quadtree that intersect
@@ -231,8 +233,8 @@ public:
      * @return A vector of pointers to nodes that
      * intersect the given line segment.
      */
-    QVector<Node*> findNodesIntersectingLineSegment(
-        const std::shared_ptr<GLine>& segment) const;
+    QVector<Node *> findNodesIntersectingLineSegment(
+        const std::shared_ptr<GLine> &segment) const;
 
     /**
      * @brief Finds nodes in the quadtree that intersect
@@ -246,8 +248,9 @@ public:
      * @return A vector of pointers to nodes that
      * intersect the given line segment.
      */
-    QVector<Quadtree::Node*> findNodesIntersectingLineSegmentParallel(
-        const std::shared_ptr<GLine>& segment) const;
+    QVector<Quadtree::Node *>
+    findNodesIntersectingLineSegmentParallel(
+        const std::shared_ptr<GLine> &segment) const;
 
     /**
      * @brief Retrieves all line segments within a given node.
@@ -255,15 +258,15 @@ public:
      * @return A vector of shared pointers to line segments contained
      * in the node.
      */
-    QVector<std::shared_ptr<GLine>> getAllSegmentsInNode(
-        const Node* node) const;
+    QVector<std::shared_ptr<GLine>>
+    getAllSegmentsInNode(const Node *node) const;
 
     /**
      * @brief Retrieves adjacent nodes to a given node.
      * @param node The node for which adjacent nodes are to be found.
      * @return A vector of pointers to adjacent nodes.
      */
-    QVector<Node*> getAdjacentNodes(const Node* node) const;
+    QVector<Node *> getAdjacentNodes(const Node *node) const;
 
     /**
      * @brief Searches for a line segment connecting two
@@ -273,22 +276,23 @@ public:
      * @return A shared pointer to the found line segment,
      * or nullptr if not found.
      */
-    std::shared_ptr<GLine> findLineSegment(
-        const std::shared_ptr<GPoint>& point1,
-        const std::shared_ptr<GPoint>& point2) const;
+    std::shared_ptr<GLine>
+    findLineSegment(const std::shared_ptr<GPoint> &point1,
+                    const std::shared_ptr<GPoint> &point2) const;
 
     /**
      * @brief Inserts a new line segment into the quadtree.
      * @param segment The line segment to be inserted.
      */
-    void insertLineSegment(const std::shared_ptr<GLine>& segment);
+    void insertLineSegment(const std::shared_ptr<GLine> &segment);
 
     /**
      * @brief Deletes a line segment from the quadtree.
      * @param segment The line segment to be deleted.
-     * @return True if the segment was found and deleted, false otherwise.
+     * @return True if the segment was found and deleted, false
+     * otherwise.
      */
-    bool deleteLineSegment(const std::shared_ptr<GLine>& segment);
+    bool deleteLineSegment(const std::shared_ptr<GLine> &segment);
 
     /**
      * @brief Returns the maximum depth of the quadtree.
@@ -299,25 +303,29 @@ public:
     /**
      * @brief Performs a range query on the quadtree.
      * @param range The rectangular area for the query.
-     * @return A vector of shared pointers to line segments within the range.
+     * @return A vector of shared pointers to line segments within the
+     * range.
      */
-    QVector<std::shared_ptr<GLine>> rangeQuery(const QRectF& range) const;
+    QVector<std::shared_ptr<GLine>>
+    rangeQuery(const QRectF &range) const;
 
     /**
-     * @brief Performs a range query on the quadtree with parellel processing.
+     * @brief Performs a range query on the quadtree with parellel
+     * processing.
      * @param range The rectangular area for the query.
-     * @return A vector of shared pointers to line segments within the range.
+     * @return A vector of shared pointers to line segments within the
+     * range.
      */
-    QVector<std::shared_ptr<GLine>> rangeQueryParallel(
-        const QRectF& range) const;
+    QVector<std::shared_ptr<GLine>>
+    rangeQueryParallel(const QRectF &range) const;
     /**
      * @brief Finds the nearest line segment to a given point.
      * @param point The reference point for the search.
-     * @return A shared pointer to the nearest line segment, or nullptr
-     *  if none is found.
+     * @return A shared pointer to the nearest line segment, or
+     * nullptr if none is found.
      */
-    std::shared_ptr<GLine> findNearestNeighbor(
-        const std::shared_ptr<GPoint>& point) const;
+    std::shared_ptr<GLine>
+    findNearestNeighbor(const std::shared_ptr<GPoint> &point) const;
 
     /**
      * @brief Finds the nearest neighbor point to a given point.
@@ -326,14 +334,15 @@ public:
      * if none is found.
      */
     std::shared_ptr<GPoint> findNearestNeighborPoint(
-        const std::shared_ptr<GPoint>& point) const;
+        const std::shared_ptr<GPoint> &point) const;
 
-    // check if a segment crosses the antimeridian line (min x of the map)
+    // check if a segment crosses the antimeridian line (min x of the
+    // map)
     static bool isSegmentCrossingAntimeridian(
-        const std::shared_ptr<GLine>& segment);
+        const std::shared_ptr<GLine> &segment);
 
-    static std::vector<std::shared_ptr<GLine>> splitSegmentAtAntimeridian(
-        const std::shared_ptr<GLine>& segment);
+    static std::vector<std::shared_ptr<GLine>>
+    splitSegmentAtAntimeridian(const std::shared_ptr<GLine> &segment);
 
     // check if a segment crosses the min X Coordinate GLine
     // bool getSegmentCrossesMinLongitudeLine(
@@ -356,17 +365,17 @@ public:
      * @brief Serializes the Quadtree to a binary format and writes it
      *          to an output stream.
      *
-     * This function traverses the Quadtree and serializes each node's data,
-     * including its bounding box and any contained line segments, to a
-     * binary format. The serialized data is written to the provided output
-     * stream. The serialization format is designed for efficient storage
-     * and is not human-readable. This function is typically used
-     * to save the state of the Quadtree to a file or transmit it over
-     * a network.
+     * This function traverses the Quadtree and serializes each node's
+     * data, including its bounding box and any contained line
+     * segments, to a binary format. The serialized data is written to
+     * the provided output stream. The serialization format is
+     * designed for efficient storage and is not human-readable. This
+     * function is typically used to save the state of the Quadtree to
+     * a file or transmit it over a network.
      *
-     * @param out The output stream to which the Quadtree is serialized.
-     *          This stream should be opened in binary mode to correctly
-     *          handle the binary data.
+     * @param out The output stream to which the Quadtree is
+     * serialized. This stream should be opened in binary mode to
+     * correctly handle the binary data.
      *
      * Usage Example:
      *     std::ofstream outFile("quadtree.bin", std::ios::binary);
@@ -375,7 +384,7 @@ public:
      *         outFile.close();
      *     }
      */
-    void serialize(std::ostream& out) const;
+    void serialize(std::ostream &out) const;
 
     /**
      * @brief Deserializes a Quadtree from a binary format read
@@ -391,9 +400,9 @@ public:
      * the behavior of this function is undefined, and the resulting
      * Quadtree may be incomplete or invalid.
      *
-     * @param in The input stream from which the Quadtree is deserialized.
-     *          This stream should be opened in binary mode to correctly
-     *          handle the binary data.
+     * @param in The input stream from which the Quadtree is
+     * deserialized. This stream should be opened in binary mode to
+     * correctly handle the binary data.
      *
      * Usage Example:
      *     std::ifstream inFile("quadtree.bin", std::ios::binary);
@@ -402,7 +411,7 @@ public:
      *         inFile.close();
      *     }
      */
-    void deserialize(std::istream& in);
+    void deserialize(std::istream &in);
 
     /**
      * @brief Gets the map width.
@@ -429,7 +438,7 @@ public:
      * @param point a pointer to the subject point.
      * @return true if the point is on the edge of the map.
      */
-    bool isNearBoundary(const std::shared_ptr<GPoint>& point) const;
+    bool isNearBoundary(const std::shared_ptr<GPoint> &point) const;
 
     /**
      * @brief get the map min point.
@@ -442,8 +451,6 @@ public:
      * @return a point with the top right corner of the map.
      */
     GPoint getMapMaxPoint() const;
-
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // QUADTREE_H

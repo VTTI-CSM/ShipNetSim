@@ -1,16 +1,16 @@
 /**
  * @file IShipPropeller.h
  *
- * @brief This file contains the declaration of the IShipPropeller interface,
- * which represents a propeller for a ship.
+ * @brief This file contains the declaration of the IShipPropeller
+ * interface, which represents a propeller for a ship.
  *
  * This interface defines the methods that should be implemented by
  * any class that represents a propeller for a ship. The propeller
  * takes the mechanical power from the gearbox and converts it into
- * thrust to propel the ship. The interface provides methods to initialize
- * the propeller, set and get the ship and gearbox associated with the
- * propeller, set propeller parameters, and get the propeller's
- * efficiency, power, thrust, and other properties.
+ * thrust to propel the ship. The interface provides methods to
+ * initialize the propeller, set and get the ship and gearbox
+ * associated with the propeller, set propeller parameters, and get
+ * the propeller's efficiency, power, thrust, and other properties.
  *
  * @author Ahmed Aredah
  * @date 10.10.2023
@@ -22,14 +22,14 @@
 #include "../../third_party/units/units.h"
 #include "ishipengine.h"
 #include "ishipgearbox.h"
-#include <QObject>
 #include <QMap>
+#include <QObject>
 #include <QString>
 #include <any>
 
 namespace ShipNetSimCore
 {
-class Ship;             ///< Forward declaration of ship class.
+class Ship; ///< Forward declaration of ship class.
 /**
  * @brief The IShipPropeller class
  * @class IShipPropeller
@@ -54,15 +54,16 @@ public:
     void moveObjectToThread(QThread *thread);
 
     /**
-     * @brief Initialize the propeller with the associated ship, gearbox,
-     * and parameters.
+     * @brief Initialize the propeller with the associated ship,
+     * gearbox, and parameters.
      *
      * @param ship The ship associated with the propeller.
      * @param gearbox The gearbox connected to the propeller.
      * @param parameters The parameters for setting up the propeller.
      */
-    virtual void initialize(Ship *ship, IShipGearBox *gearbox,
-                            const QMap<QString, std::any>& parameters) = 0;
+    virtual void
+    initialize(Ship *ship, IShipGearBox *gearbox,
+               const QMap<QString, std::any> &parameters) = 0;
 
     /**
      * @brief Set the ship associated with the propeller.
@@ -76,7 +77,7 @@ public:
      *
      * @param gearbox The gearbox connected to the propeller.
      */
-    void setGearBox(IShipGearBox* gearbox);
+    void setGearBox(IShipGearBox *gearbox);
 
     /**
      * @brief Get the ship associated with the propeller.
@@ -97,7 +98,8 @@ public:
      *
      * @param parameters The parameters for setting up the propeller.
      */
-    virtual void setParameters(const QMap<QString, std::any>& parameters) = 0;
+    virtual void
+    setParameters(const QMap<QString, std::any> &parameters) = 0;
 
     /**
      * @brief Get the diameter of the propeller.
@@ -126,7 +128,8 @@ public:
      *
      * @param newPropellerPitch The new Pitch of the propeller.
      */
-    void setPropellerPitch(const units::length::meter_t newPropellerPitch);
+    void
+    setPropellerPitch(const units::length::meter_t newPropellerPitch);
 
     /**
      * @brief Get the expanded blade area of the propeller.
@@ -150,7 +153,8 @@ public:
      *
      * @return The disk area of the propeller.
      */
-    [[nodiscard]] units::area::square_meter_t getPropellerDiskArea() const;
+    [[nodiscard]] units::area::square_meter_t
+    getPropellerDiskArea() const;
 
     /**
      * @brief Set the disk area of the propeller.
@@ -173,7 +177,8 @@ public:
      * @param newPropellerExpandedAreaRation The new expanded
      * area ratio of the propeller.
      */
-    void setPropellerExpandedAreaRatio(double newPropellerExpandedAreaRatio);
+    void setPropellerExpandedAreaRatio(
+        double newPropellerExpandedAreaRatio);
 
     [[nodiscard]] int getPropellerBladesCount() const;
 
@@ -189,7 +194,8 @@ public:
     /**
      * @brief Set the shaft efficiency of the propeller.
      *
-     * @param newShaftEfficiency The new shaft efficiency of the propeller.
+     * @param newShaftEfficiency The new shaft efficiency of the
+     * propeller.
      */
     virtual void setShaftEfficiency(double newShaftEfficiency) = 0;
 
@@ -199,7 +205,6 @@ public:
      * @return The propeller efficiency.
      */
     virtual double getPropellerEfficiency() = 0;
-
 
     /**
      * @brief Get the effective power of the propeller.
@@ -234,7 +239,8 @@ public:
      *
      * @return The revolutions per minute (RPM) of the propeller.
      */
-    virtual units::angular_velocity::revolutions_per_minute_t getRPM() = 0;
+    virtual units::angular_velocity::revolutions_per_minute_t
+    getRPM() = 0;
 
     /**
      * @brief Get the thrust coefficient of the propeller.
@@ -243,8 +249,9 @@ public:
      */
     virtual double getThrustCoefficient(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the torque coefficient of the propeller.
@@ -253,8 +260,9 @@ public:
      */
     virtual double getTorqueCoefficient(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the advanced ratio of the propeller.
@@ -263,37 +271,42 @@ public:
      */
     virtual double getAdvanceRatio(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) = 0;
 
     /**
      * @brief Get the driving engines of the propeller.
      *
      * @return The driving engines of the propeller.
      */
-    virtual const QVector<IShipEngine*> getDrivingEngines() const = 0;
+    virtual const QVector<IShipEngine *>
+    getDrivingEngines() const = 0;
 
     virtual units::angular_velocity::revolutions_per_minute_t
     getRPMFromAdvanceRatioAndMaxShipSpeed(double advanceRatio) = 0;
 
     virtual units::angular_velocity::revolutions_per_minute_t
     getRPMFromAdvanceRatioAndShipSpeed(
-        double advanceRatio, units::velocity::meters_per_second_t speed) = 0;
+        double                               advanceRatio,
+        units::velocity::meters_per_second_t speed) = 0;
 
-    virtual double getOptimumJ(units::velocity::meters_per_second_t speed) = 0;
+    virtual double
+    getOptimumJ(units::velocity::meters_per_second_t speed) = 0;
 
     virtual units::angular_velocity::revolutions_per_minute_t
     getOptimumRPM(units::velocity::meters_per_second_t speed) = 0;
 
     virtual double getPropellerSlipToIdeal(
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(std::nan("unintialized")),
+            units::velocity::meters_per_second_t(
+                std::nan("unintialized")),
         units::angular_velocity::revolutions_per_minute_t customRPM =
-        units::angular_velocity::revolutions_per_minute_t(
-            std::nan("unintialized"))) = 0;
+            units::angular_velocity::revolutions_per_minute_t(
+                std::nan("unintialized"))) = 0;
 
     double getPropellerSlip();
-    void setPropellerSlip(double newSlip);
+    void   setPropellerSlip(double newSlip);
 
     bool requestHigherEnginePower();
 
@@ -303,27 +316,28 @@ public:
 
     virtual units::power::kilowatt_t getRequiredShaftPowerAtRPM(
         units::angular_velocity::revolutions_per_minute_t rpm,
-        units::velocity::meters_per_second_t speed =
-        units::velocity::meters_per_second_t(std::nan("uninitialized"))) = 0;
+        units::velocity::meters_per_second_t              speed =
+            units::velocity::meters_per_second_t(
+                std::nan("uninitialized"))) = 0;
 
 protected:
-    Ship *mHost;            /**< The ship associated with the propeller. */
-    IShipGearBox* mGearBox; /**< The gearbox connected to the propeller. */
+    Ship *mHost; /**< The ship associated with the propeller. */
+    IShipGearBox
+        *mGearBox; /**< The gearbox connected to the propeller. */
     units::length::meter_t
         mPropellerDiameter; /**< The diameter of the propeller. */
     units::length::meter_t
-        mPropellerPitch;    /**< The pitch of the propeller. */
+        mPropellerPitch; /**< The pitch of the propeller. */
     units::area::square_meter_t
-        mExpandedBladeArea; /**< The expanded blade area of the propeller. */
+        mExpandedBladeArea; /**< The expanded blade area of the
+                               propeller. */
     units::area::square_meter_t
         mPropellerDiskArea; /**< The disk area of the propeller. */
-    int mNumberOfblades; /**< Number of blades in the propeller. */
-
+    int mNumberOfblades;    /**< Number of blades in the propeller. */
 
     double mPropellerSlip;
     /**< The expanded area ratio of the propeller. */
-    double
-        mPropellerExpandedAreaRatio;
+    double mPropellerExpandedAreaRatio;
 };
-};
-#endif //I_SHIPPROPELLER_H
+}; // namespace ShipNetSimCore
+#endif // I_SHIPPROPELLER_H

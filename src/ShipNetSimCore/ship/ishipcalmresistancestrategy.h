@@ -3,7 +3,8 @@
  * @brief This file defines the IShipResistancePropulsionStrategy
  * interface, which provides methods for calculating different
  * types of resistance experienced by a ship, including frictional,
- * appendage, wave, and air resistance, as well as the total resistance.
+ * appendage, wave, and air resistance, as well as the total
+ * resistance.
  *
  * This interface allows for the implementation of different
  * resistance prediction methods, and includes functions to
@@ -21,13 +22,14 @@
 
 namespace ShipNetSimCore
 {
-class Ship;  // Forward declaration of the class ship
+class Ship; // Forward declaration of the class ship
 
 /**
  * @brief The IShipResistanceStrategy class
  * @class IShipResistanceStrategy
  *
- * Provides an interface to manage multiple resistance prediction methods
+ * Provides an interface to manage multiple resistance prediction
+ * methods
  */
 class IShipCalmResistanceStrategy
 {
@@ -38,18 +40,17 @@ public:
     /**
      * @brief Calculates the frictional resistance of the ship.
      *
-     * This function determines the resistance caused by the viscous drag
-     * between the ship's hull and the surrounding fluid.
+     * This function determines the resistance caused by the viscous
+     * drag between the ship's hull and the surrounding fluid.
      *
      * @param ship A constant reference to the Ship object.
      * @return Frictional resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getfrictionalResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getfrictionalResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the appendage resistance of the ship.
@@ -61,12 +62,11 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Appendage resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getAppendageResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getAppendageResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the wave resistance of the ship.
@@ -78,13 +78,11 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Wave resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getWaveResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getWaveResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
-
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the bulbous bow resistance of the ship.
@@ -97,12 +95,11 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Bulbous bow resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getBulbousBowResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getBulbousBowResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the resistance due to pressure changes
@@ -113,14 +110,15 @@ public:
      * This function calculates this resistance component.
      *
      * @param ship A constant reference to the Ship object.
-     * @return Resistance due to immersed transom pressure in kilonewtons.
+     * @return Resistance due to immersed transom pressure in
+     * kilonewtons.
      */
     virtual units::force::newton_t
     getImmersedTransomPressureResistance(
-        const Ship &ship,
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the resistance due to correlations between
@@ -134,12 +132,11 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Model ship correlation resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getModelShipCorrelationResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getModelShipCorrelationResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the air resistance experienced by the ship.
@@ -152,12 +149,11 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Air resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getAirResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getAirResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the total resistance of the ship.
@@ -169,41 +165,40 @@ public:
      * @param ship A constant reference to the Ship object.
      * @return Total resistance in kilonewtons.
      */
-    virtual units::force::newton_t
-    getTotalResistance(
-        const Ship &ship,
+    virtual units::force::newton_t getTotalResistance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the speed of advance of the ship.
      *
-     * The speed of advance is the effective speed of the ship through water,
-     * accounting for factors like current and wind.
+     * The speed of advance is the effective speed of the ship through
+     * water, accounting for factors like current and wind.
      *
      * @param ship A constant reference to the Ship object.
      * @param customSpeed Optional custom speed parameter.
      * @return The speed of advance in meters per second.
      */
-    virtual units::velocity::meters_per_second_t
-    calc_SpeedOfAdvance(
-        const Ship &ship,
+    virtual units::velocity::meters_per_second_t calc_SpeedOfAdvance(
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Get the coefficient of total resistance
      * @param ship A constant reference to the Ship object.
      * @param customSpeed Optional custom speed parameter.
-     * @return The coefficient of resistance of the ship at the current speed.
+     * @return The coefficient of resistance of the ship at the
+     * current speed.
      */
     virtual double getCoefficientOfResistance(
-        const Ship& ship,
+        const Ship                          &ship,
         units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+            units::velocity::meters_per_second_t(
+                std::nan("Unintialized"))) = 0;
 
     /**
      * @brief Calculates the hull efficiency of the ship.
@@ -218,30 +213,33 @@ public:
     virtual double getHullEffeciency(const Ship &ship) = 0;
 
     /**
-     * @brief Calculates the propeller rotation efficiency of the ship.
+     * @brief Calculates the propeller rotation efficiency of the
+     * ship.
      *
      * Propeller rotation efficiency is a measure of how effectively
      * the ship's propeller converts rotational energy into forward
      * motion, with higher values indicating better performance.
      *
      * @param ship A constant reference to the Ship object.
-     * @return The propeller rotation efficiency, a dimensionless ratio.
+     * @return The propeller rotation efficiency, a dimensionless
+     * ratio.
      */
-    virtual double getPropellerRotationEfficiency(const Ship &ship) = 0;
+    virtual double
+    getPropellerRotationEfficiency(const Ship &ship) = 0;
 
     /**
-     * @brief Gets the thrust deduction fraction due to the hull interaction.
+     * @brief Gets the thrust deduction fraction due to the hull
+     * interaction.
      * @param ship A constant reference to the Ship object.
      * @return The thrust deduction fraction, a dimensionless ratio.
      */
     virtual double getThrustDeductionFraction(const Ship &ship) = 0;
 
-
-    virtual double calc_F_n_i(
-        const Ship &ship,
-        units::velocity::meters_per_second_t customSpeed =
-        units::velocity::meters_per_second_t(
-            std::nan("Unintialized"))) = 0;
+    virtual double
+    calc_F_n_i(const Ship                          &ship,
+               units::velocity::meters_per_second_t customSpeed =
+                   units::velocity::meters_per_second_t(
+                       std::nan("Unintialized"))) = 0;
     /**
      * @brief Retrieves the name of the resistance prediction method.
      *
@@ -253,5 +251,5 @@ public:
      */
     virtual std::string getMethodName() = 0;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // ISHIPRESISTANCE_H

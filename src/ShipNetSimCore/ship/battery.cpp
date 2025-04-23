@@ -1,7 +1,7 @@
 #include "battery.h"
-#include <iostream>
 #include "../utils/utils.h"
 #include "ship.h"
+#include <iostream>
 
 namespace ShipNetSimCore
 {
@@ -24,44 +24,49 @@ void Battery::setBatteryMaxCharge(
 }
 
 // Getter method for the initial charge of the battery.
-units::energy::kilowatt_hour_t Battery::getBatteryInitialCharge() const
+units::energy::kilowatt_hour_t
+Battery::getBatteryInitialCharge() const
 {
     // Return the initial charge of the battery.
     return this->batteryInitialCharge;
 }
 
 // Setter method for the initial charge of the battery.
-void Battery::setBatteryInitialCharge(double newInitialChargePercentage)
+void Battery::setBatteryInitialCharge(
+    double newInitialChargePercentage)
 {
     // Calculate and set the initial charge based on the
     // provided percentage and the battery's max capacity.
-    this->batteryInitialCharge = batteryMaxCapacity *
-                                 newInitialChargePercentage;
+    this->batteryInitialCharge =
+        batteryMaxCapacity * newInitialChargePercentage;
 }
 
 // Getter method for the current charge of the battery.
-units::energy::kilowatt_hour_t Battery::getBatteryCurrentCharge() const
+units::energy::kilowatt_hour_t
+Battery::getBatteryCurrentCharge() const
 {
     // Return the current charge of the battery.
     return this->batteryCurrentCharge;
 }
 
 // Method to consume energy from the battery.
-EnergyConsumptionData Battery::consume(
-    units::time::second_t timeStep,
-    units::energy::kilowatt_hour_t consumedCharge)
+EnergyConsumptionData
+Battery::consume(units::time::second_t          timeStep,
+                 units::energy::kilowatt_hour_t consumedCharge)
 {
     EnergyConsumptionData result; // To store consumption details.
 
-    // Check if the desired energy amount is drainable from the battery.
-    if (! isBatteryDrainable(consumedCharge))
+    // Check if the desired energy amount is drainable from the
+    // battery.
+    if (!isBatteryDrainable(consumedCharge))
     {
-        // If not, set the result to indicate unsuccessful energy supply.
+        // If not, set the result to indicate unsuccessful energy
+        // supply.
         result.isEnergySupplied = false;
-        result.energyConsumed = units::energy::kilowatt_hour_t(0.0);
+        result.energyConsumed   = units::energy::kilowatt_hour_t(0.0);
         result.energyNotConsumed = consumedCharge;
-        result.fuelConsumed =
-            {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
+        result.fuelConsumed      = {ShipFuel::FuelType::Electric,
+                                    units::volume::liter_t(0.0)};
         return result;
     }
     // Calculate the maximum energy the
@@ -69,7 +74,8 @@ EnergyConsumptionData Battery::consume(
     units::energy::kilowatt_hour_t batteryMax_kwh =
         getBatteryMaxDischarge(timeStep);
 
-    // If the requested energy exceeds the maximum the battery can supply.
+    // If the requested energy exceeds the maximum the battery can
+    // supply.
     if (consumedCharge > batteryMax_kwh)
     {
         units::energy::kilowatt_hour_t EC_extra_kwh =
@@ -79,14 +85,15 @@ EnergyConsumptionData Battery::consume(
         this->batteryCumEnergyConsumed += batteryMax_kwh;
         this->batteryCumNetEnergyConsumed += batteryMax_kwh;
         batteryCurrentCharge -= batteryMax_kwh;
-        batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
+        batteryStateOfCharge =
+            batteryCurrentCharge / batteryMaxCapacity;
 
         // Set the result details.
-        result.isEnergySupplied = true;
-        result.energyConsumed = batteryMax_kwh;
+        result.isEnergySupplied  = true;
+        result.energyConsumed    = batteryMax_kwh;
         result.energyNotConsumed = EC_extra_kwh;
-        result.fuelConsumed =
-            {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
+        result.fuelConsumed      = {ShipFuel::FuelType::Electric,
+                                    units::volume::liter_t(0.0)};
         // mHost->addToCummulativeConsumedEnergy(batteryMax_kwh);
         return result;
     }
@@ -98,22 +105,22 @@ EnergyConsumptionData Battery::consume(
     batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
 
     // Set the result details.
-    result.isEnergySupplied = true;
-    result.energyConsumed = consumedCharge;
+    result.isEnergySupplied  = true;
+    result.energyConsumed    = consumedCharge;
     result.energyNotConsumed = units::energy::kilowatt_hour_t(0.0);
-    result.fuelConsumed =
-        {ShipFuel::FuelType::Electric, units::volume::liter_t(0.0)};
+    result.fuelConsumed      = {ShipFuel::FuelType::Electric,
+                                units::volume::liter_t(0.0)};
     // mHost->addToCummulativeConsumedEnergy(consumedCharge);
     return result;
 }
 
 // Recharge the battery with energy specifically for hybrid systems.
 units::energy::kilowatt_hour_t Battery::rechargeBatteryForHybrids(
-    units::time::second_t timeStep,
+    units::time::second_t          timeStep,
     units::energy::kilowatt_hour_t recharge)
 {
     // Check if the battery is in a state where it can be recharged.
-    if (! isBatteryRechargable())
+    if (!isBatteryRechargable())
     {
         return units::energy::kilowatt_hour_t(0.0);
     }
@@ -130,7 +137,8 @@ units::energy::kilowatt_hour_t Battery::rechargeBatteryForHybrids(
         this->batteryCumEnergyConsumed -= batteryMax_kwh;
         this->batteryCumNetEnergyConsumed -= batteryMax_kwh;
         batteryCurrentCharge += batteryMax_kwh;
-        batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
+        batteryStateOfCharge =
+            batteryCurrentCharge / batteryMaxCapacity;
 
         // Return the actual recharge amount.
         return batteryMax_kwh;
@@ -147,12 +155,13 @@ units::energy::kilowatt_hour_t Battery::rechargeBatteryForHybrids(
 }
 
 // Recharge the battery using regenerated energy.
-units::energy::kilowatt_hour_t Battery::rechargeBatteryByRegeneratedEnergy(
-    units::time::second_t timeStep,
+units::energy::kilowatt_hour_t
+Battery::rechargeBatteryByRegeneratedEnergy(
+    units::time::second_t          timeStep,
     units::energy::kilowatt_hour_t recharge)
 {
     // Check if the battery is in a state where it can be recharged.
-    if (! isBatteryRechargable())
+    if (!isBatteryRechargable())
     {
         return units::energy::kilowatt_hour_t(0.0);
     }
@@ -171,7 +180,8 @@ units::energy::kilowatt_hour_t Battery::rechargeBatteryByRegeneratedEnergy(
         this->batteryCumEnergyRegenerated += batteryMax_kwh;
         this->batteryCumNetEnergyConsumed -= batteryMax_kwh;
         batteryCurrentCharge += batteryMax_kwh;
-        batteryStateOfCharge = batteryCurrentCharge / batteryMaxCapacity;
+        batteryStateOfCharge =
+            batteryCurrentCharge / batteryMaxCapacity;
 
         // Return the actual recharge amount.
         return batteryMax_kwh;
@@ -205,7 +215,7 @@ double Battery::getBatteryDOD() const
 void Battery::setBatteryDOD(double newBatteryDOD)
 {
     // Ensure the provided DOD is within a valid range.
-    if (newBatteryDOD<=1 && newBatteryDOD>0.0)
+    if (newBatteryDOD <= 1 && newBatteryDOD > 0.0)
     {
         batteryDOD = newBatteryDOD;
     }
@@ -242,12 +252,13 @@ bool Battery::isBatteryDrainable(
     // check if the battery reaches the low level of charge,
     // enable the recharge request
     this->IsBatteryExceedingThresholds();
-    return (requiredCharge <= this->batteryCurrentCharge &&
-            batteryStateOfCharge > (1.0- batteryDOD));
+    return (requiredCharge <= this->batteryCurrentCharge
+            && batteryStateOfCharge > (1.0 - batteryDOD));
 }
 
 // Check if the battery can drain the required charge.
-bool Battery::isBatteryRechargable() {
+bool Battery::isBatteryRechargable()
+{
     // check if the battery reaches the max level of charge,
     // disable the recharge request
     this->IsBatteryExceedingThresholds();
@@ -256,15 +267,17 @@ bool Battery::isBatteryRechargable() {
 
 // Helper function to check if the battery's state
 // of charge is within certain thresholds.
-bool Battery::IsBatteryExceedingThresholds(){
-    if (this->batteryStateOfCharge >=
-        this->batteryRechargeSOCUpperBound)
+bool Battery::IsBatteryExceedingThresholds()
+{
+    if (this->batteryStateOfCharge
+        >= this->batteryRechargeSOCUpperBound)
     {
-        // If battery is charged above upper bound, disable recharging.
+        // If battery is charged above upper bound, disable
+        // recharging.
         this->enableRecharge = false;
     }
-    else if (this->batteryStateOfCharge <
-               this->batteryRechargeSOCLowerBound)
+    else if (this->batteryStateOfCharge
+             < this->batteryRechargeSOCLowerBound)
     {
         // If battery is charged below lower bound, enable recharging.
         this->enableRecharge = true;
@@ -272,7 +285,8 @@ bool Battery::IsBatteryExceedingThresholds(){
     return this->enableRecharge;
 }
 
-// Getter method to retrieve the total energy consumed from the battery.
+// Getter method to retrieve the total energy consumed from the
+// battery.
 units::energy::kilowatt_hour_t Battery::getTotalEnergyConsumed()
 {
     return batteryCumEnergyConsumed;
@@ -283,39 +297,36 @@ void Battery::reset()
 {
     // Reset all tracking values for energy consumed,
     // regenerated, and net consumption.
-    batteryCumEnergyConsumed =
-        units::energy::kilowatt_hour_t(0.0);
-    batteryCumEnergyRegenerated =
-        units::energy::kilowatt_hour_t(0.0);
-    batteryCumNetEnergyConsumed =
-        units::energy::kilowatt_hour_t(0.0);
+    batteryCumEnergyConsumed    = units::energy::kilowatt_hour_t(0.0);
+    batteryCumEnergyRegenerated = units::energy::kilowatt_hour_t(0.0);
+    batteryCumNetEnergyConsumed = units::energy::kilowatt_hour_t(0.0);
 
     // Reset the battery's current charge to its initial charge.
-    batteryCurrentCharge =
-        batteryInitialCharge;
+    batteryCurrentCharge = batteryInitialCharge;
 
     // Recalculate the battery's state of charge.
     batteryStateOfCharge =
-        (batteryInitialCharge/batteryMaxCapacity).value();
+        (batteryInitialCharge / batteryMaxCapacity).value();
 }
 
 // Helper function to calculate the maximum discharge energy
 // for the battery based on a time step.
-units::energy::kilowatt_hour_t Battery::getBatteryMaxDischarge(
-    units::time::second_t timeStep) {
+units::energy::kilowatt_hour_t
+Battery::getBatteryMaxDischarge(units::time::second_t timeStep)
+{
     // returns the max discharge in kWh
-    return (batteryMaxCapacity / batteryDischargeCRate) *
-           timeStep.convert<units::time::hour>().value();
+    return (batteryMaxCapacity / batteryDischargeCRate)
+           * timeStep.convert<units::time::hour>().value();
 }
 
 // Helper function to calculate the maximum recharge energy
 // for the battery based on a time step.
-units::energy::kilowatt_hour_t Battery::getBatteryMaxRecharge(
-    units::time::second_t timeStep){
+units::energy::kilowatt_hour_t
+Battery::getBatteryMaxRecharge(units::time::second_t timeStep)
+{
     // returns the max recharge in kWh
-    return (batteryMaxCapacity /
-            batteryRechargeCRate) *
-           timeStep.convert<units::time::hour>().value();
+    return (batteryMaxCapacity / batteryRechargeCRate)
+           * timeStep.convert<units::time::hour>().value();
 }
 
 // Method to determine if the battery requires recharging.
@@ -332,12 +343,13 @@ double Battery::getBatteryRechargeSOCUpperBound() const
     return batteryRechargeSOCUpperBound;
 }
 
-// Set a new upper bound for the battery's State of Charge during recharging.
+// Set a new upper bound for the battery's State of Charge during
+// recharging.
 void Battery::setBatteryRechargeSOCUpperBound(
     double newBatteryRechargeSOCUpperBound)
 {
-    // Check the new upper bound against limits and adjust if necessary.
-    // Ensure it's within acceptable discharge levels.
+    // Check the new upper bound against limits and adjust if
+    // necessary. Ensure it's within acceptable discharge levels.
     if (newBatteryRechargeSOCUpperBound < (1 - batteryDOD))
     {
         batteryRechargeSOCUpperBound = 1 - batteryDOD;
@@ -346,32 +358,34 @@ void Battery::setBatteryRechargeSOCUpperBound(
     {
         batteryRechargeSOCUpperBound = batteryDOD;
     }
-    else{
+    else
+    {
         batteryRechargeSOCUpperBound =
             newBatteryRechargeSOCUpperBound;
     }
 
     // Ensure that the upper bound isn't set
     // lower than the current lower bound.
-    if (batteryRechargeSOCUpperBound <
-        batteryRechargeSOCLowerBound)
+    if (batteryRechargeSOCUpperBound < batteryRechargeSOCLowerBound)
     {
-        batteryRechargeSOCUpperBound =
-            batteryRechargeSOCLowerBound;
+        batteryRechargeSOCUpperBound = batteryRechargeSOCLowerBound;
     }
 }
 
-// Get the lower bound for the battery's State of Charge during recharging.
+// Get the lower bound for the battery's State of Charge during
+// recharging.
 double Battery::getBatteryRechargeSOCLowerBound() const
 {
     return batteryRechargeSOCLowerBound;
 }
 
-// Set a new lower bound for the battery's State of Charge during recharging.
+// Set a new lower bound for the battery's State of Charge during
+// recharging.
 void Battery::setBatteryRechargeSOCLowerBound(
     double newBatteryRechargeSOCLowerBound)
 {
-    // Ensure the new lower bound lies within the acceptable discharge levels.
+    // Ensure the new lower bound lies within the acceptable discharge
+    // levels.
     if (newBatteryRechargeSOCLowerBound < (1 - batteryDOD))
     {
         batteryRechargeSOCLowerBound = 1 - batteryDOD;
@@ -388,19 +402,23 @@ void Battery::setBatteryRechargeSOCLowerBound(
 }
 
 // Retrieve the total energy consumption from the battery.
-units::energy::kilowatt_hour_t Battery::getBatteryCumEnergyConsumption()
+units::energy::kilowatt_hour_t
+Battery::getBatteryCumEnergyConsumption()
 {
     return this->batteryCumEnergyConsumed;
 }
 
 // Retrieve the total energy regenerated back into the battery.
-units::energy::kilowatt_hour_t Battery::getBatteryCumEnergyRegenerated()
+units::energy::kilowatt_hour_t
+Battery::getBatteryCumEnergyRegenerated()
 {
     return this->batteryCumEnergyRegenerated;
 }
 
-// Calculate and return the net energy consumption (consumed - regenerated).
-units::energy::kilowatt_hour_t Battery::getBatteryCumNetEnergyConsumption()
+// Calculate and return the net energy consumption (consumed -
+// regenerated).
+units::energy::kilowatt_hour_t
+Battery::getBatteryCumNetEnergyConsumption()
 {
     return this->batteryCumNetEnergyConsumed;
 }
@@ -409,65 +427,66 @@ units::energy::kilowatt_hour_t Battery::getBatteryCumNetEnergyConsumption()
 // state of charge and the depth of discharge.
 bool Battery::batteryHasCharge()
 {
-    return batteryStateOfCharge > (1.0- batteryDOD);
+    return batteryStateOfCharge > (1.0 - batteryDOD);
 }
 
-void Battery::setCharacteristics(const QMap<QString, std::any> &parameters)
+void Battery::setCharacteristics(
+    const QMap<QString, std::any> &parameters)
 {
     units::energy::kilowatt_hour_t maxCharge =
         Utils::getValueFromMap<units::energy::kilowatt_hour_t>(
-        parameters, "MaxCharge", units::energy::kilowatt_hour_t(-1.0));
+            parameters, "MaxCharge",
+            units::energy::kilowatt_hour_t(-1.0));
     if (maxCharge.value() < 0.0)
     {
-        throw std::runtime_error("Battery max charge is not defined!");
+        throw std::runtime_error(
+            "Battery max charge is not defined!");
     }
 
-    double initialChargePercentage =
-        Utils::getValueFromMap<double>(parameters,
-                                       "InitialChargePercentage",
-                                       -1.0);
-    if (initialChargePercentage < 0.0) {
+    double initialChargePercentage = Utils::getValueFromMap<double>(
+        parameters, "InitialChargePercentage", -1.0);
+    if (initialChargePercentage < 0.0)
+    {
         throw std::runtime_error("Battery initial charge percentage "
                                  "is not defined!");
     }
 
-    double depthOfDischarge =
-        Utils::getValueFromMap<double>(parameters,
-                                       "DepthOfDischarge",
-                                       -1.0);
-    if (depthOfDischarge < 0.0) {
-        throw std::runtime_error("Battery depth of charge is not defined!");
+    double depthOfDischarge = Utils::getValueFromMap<double>(
+        parameters, "DepthOfDischarge", -1.0);
+    if (depthOfDischarge < 0.0)
+    {
+        throw std::runtime_error(
+            "Battery depth of charge is not defined!");
     }
 
     double batteryCRate =
-        Utils::getValueFromMap<double>(parameters,
-                                       "CRate",
-                                       -1.0);
-    if (batteryCRate < 0.0) {
+        Utils::getValueFromMap<double>(parameters, "CRate", -1.0);
+    if (batteryCRate < 0.0)
+    {
         throw std::runtime_error("Battery c-rate is not defined!");
     }
 
-    double minRechargeSOC =
-        Utils::getValueFromMap<double>(parameters,
-                                       "MinRechargeSOC",
-                                       -1.0);
-    if (minRechargeSOC < 0.0) {
-        throw std::runtime_error("Battery min recharge State of Charge "
-                                 "is not defined!");
+    double minRechargeSOC = Utils::getValueFromMap<double>(
+        parameters, "MinRechargeSOC", -1.0);
+    if (minRechargeSOC < 0.0)
+    {
+        throw std::runtime_error(
+            "Battery min recharge State of Charge "
+            "is not defined!");
     }
 
-    double maxRechargeSOC =
-        Utils::getValueFromMap<double>(parameters,
-                                       "MaxRechargeSOC",
-                                       -1.0);
-    if (maxRechargeSOC < 0.0) {
-        throw std::runtime_error("Battery max recharge State of Charge "
-                                 "is not defined!");
+    double maxRechargeSOC = Utils::getValueFromMap<double>(
+        parameters, "MaxRechargeSOC", -1.0);
+    if (maxRechargeSOC < 0.0)
+    {
+        throw std::runtime_error(
+            "Battery max recharge State of Charge "
+            "is not defined!");
     }
 
     setBatteryCharacterstics(maxCharge, initialChargePercentage,
-                             depthOfDischarge, batteryCRate, maxRechargeSOC,
-                             minRechargeSOC);
+                             depthOfDischarge, batteryCRate,
+                             maxRechargeSOC, minRechargeSOC);
 }
 
 units::mass::kilogram_t Battery::getCurrentWeight()
@@ -482,18 +501,15 @@ ShipFuel::FuelType Battery::getFuelType()
 
 void Battery::setFuelType(ShipFuel::FuelType fuelType)
 {
-    (void) fuelType;
+    (void)fuelType;
     return;
 }
 
 // Set the battery's main characteristics and initial conditions.
 void Battery::setBatteryCharacterstics(
     units::energy::kilowatt_hour_t maxCharge,
-    double initialChargePercentage,
-    double depthOfDischarge,
-    double batteryCRate,
-    double maxRechargeSOC,
-    double minRechargeSOC)
+    double initialChargePercentage, double depthOfDischarge,
+    double batteryCRate, double maxRechargeSOC, double minRechargeSOC)
 {
     this->setBatteryMaxCharge(maxCharge);
     this->setBatteryInitialCharge(initialChargePercentage);
@@ -503,7 +519,7 @@ void Battery::setBatteryCharacterstics(
     this->setBatteryCRate(batteryCRate);
     this->setBatteryRechargeSOCLowerBound(minRechargeSOC);
     this->setBatteryRechargeSOCUpperBound(maxRechargeSOC);
-    this->mFuelType = ShipFuel::FuelType::Electric;
+    this->mFuelType   = ShipFuel::FuelType::Electric;
     this->mFuelWeight = units::mass::kilogram_t(0.0);
 }
-};
+}; // namespace ShipNetSimCore

@@ -1,11 +1,11 @@
 #ifndef GALGEBRAICVECTOR_H
 #define GALGEBRAICVECTOR_H
 
-#include <QVector>
+#include "../../third_party/units/units.h"
+#include "algebraicvector.h"
 #include "gline.h"
 #include "gpoint.h"
-#include "algebraicvector.h"
-#include "../../third_party/units/units.h"
+#include <QVector>
 
 namespace ShipNetSimCore
 {
@@ -15,8 +15,8 @@ public:
     /**
      * @brief Default constructor.
      *
-     * Constructs a default geodetic AlgebraicVector with initial position
-     * at origin.
+     * Constructs a default geodetic AlgebraicVector with initial
+     * position at origin.
      */
     GAlgebraicVector();
 
@@ -27,15 +27,16 @@ public:
      * @param startPoint The start point of the vector.
      * @param endPoint The end point of the vector.
      */
-    GAlgebraicVector(const GPoint startPoint, const GPoint& endPoint);
+    GAlgebraicVector(const GPoint startPoint, const GPoint &endPoint);
 
     /**
      * @brief Sets the target position and maximum rate of turn (ROT).
      *
      * @param target The target position to reach.
-     * @param maxROTPerSec The maximum rate of turn in degrees per second.
+     * @param maxROTPerSec The maximum rate of turn in degrees per
+     * second.
      */
-    void setTargetAndMaxROT(const GPoint& target,
+    void setTargetAndMaxROT(const GPoint          &target,
                             units::angle::degree_t maxROTPerSec);
 
     /**
@@ -46,13 +47,14 @@ public:
     GPoint getTarget();
 
     /**
-     * @brief Moves the vector by a given distance in a given time step.
+     * @brief Moves the vector by a given distance in a given time
+     * step.
      *
      * @param distance The distance to move.
      * @param timeStep The time step of the movement.
      */
     void moveByDistance(units::length::meter_t distance,
-                        units::time::second_t timeStep);
+                        units::time::second_t  timeStep);
 
     units::angle::degree_t getVectorAzimuth() const;
 
@@ -72,7 +74,8 @@ public:
 
     /**
      * @brief Sets the current position of the vector.
-     * @param newPosition the new position as a result of cyber attack.
+     * @param newPosition the new position as a result of cyber
+     * attack.
      */
     void setCurrentPosition(GPoint newPosition);
 
@@ -90,7 +93,7 @@ public:
      * @param otherPoint The point to calculate the angle to.
      * @return The angle to the other point in degrees.
      */
-    units::angle::degree_t angleTo(const GPoint& otherPoint) const;
+    units::angle::degree_t angleTo(const GPoint &otherPoint) const;
 
     AlgebraicVector::Environment getEnvironment() const;
 
@@ -101,14 +104,16 @@ public:
     void restoreLatestCorrectPosition();
 
 private:
-    bool mIsUpdating = true;  ///< Is the GPS updating.
-    GLine mCurrentHeadingVector_backup; ///< this is a backup vector for attacks.
-    GLine mCurrentHeadingVector; ///< The vector that holds the direction of movement.
-    units::angle::degree_t
-        mMaxROTPerSec_;  ///< Maximum rate of turn in degrees per second.
+    bool  mIsUpdating = true;           ///< Is the GPS updating.
+    GLine mCurrentHeadingVector_backup; ///< this is a backup vector
+                                        ///< for attacks.
+    GLine mCurrentHeadingVector;        ///< The vector that holds the
+                                        ///< direction of movement.
+    units::angle::degree_t mMaxROTPerSec_; ///< Maximum rate of turn
+                                           ///< in degrees per second.
 
     units::angle::degree_t mCurrentCourse; ///< Azimuth of the vector
-    bool mIsRotating;  ///< Indicates whether the vector is rotating.
+    bool mIsRotating; ///< Indicates whether the vector is rotating.
     AlgebraicVector::Environment mStateEnv;
 
     /**
@@ -116,19 +121,20 @@ private:
      *
      * @param endPoint The end point of the vector.
      */
-    void setHeadingByEndPoint(const GPoint& endPoint);
+    void setHeadingByEndPoint(const GPoint &endPoint);
 
     /**
      * @brief Rotates the vector to the target position by the maximum
      * rate of turn in a given time step.
      *
      * @param target The target position to rotate to.
-     * @param maxROTPerSec The maximum rate of turn in degrees per second.
+     * @param maxROTPerSec The maximum rate of turn in degrees per
+     * second.
      * @param timeStep The time step of the rotation.
      */
-    void rotateToTargetByMaxROT(const GPoint& target,
+    void rotateToTargetByMaxROT(const GPoint          &target,
                                 units::angle::degree_t maxROTPerSec,
-                                units::time::second_t timeStep);
+                                units::time::second_t  timeStep);
 };
-};
+}; // namespace ShipNetSimCore
 #endif // GALGEBRAICVECTOR_H

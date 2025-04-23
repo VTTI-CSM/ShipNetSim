@@ -1,11 +1,12 @@
 #ifndef SERVERUTILS_H
 #define SERVERUTILS_H
 
-#include <optional>
-#include <QString>
 #include <QJsonObject>
+#include <QString>
+#include <optional>
 
-namespace ServerUtils {
+namespace ServerUtils
+{
 
 inline QString getOptionalString(const QJsonObject &json,
                                  const QString     &key)
@@ -18,14 +19,12 @@ inline QString getOptionalString(const QJsonObject &json,
     }
 
     // Then check in the params object if it exists
-    if (json.contains("params")
-        && json["params"].isObject())
+    if (json.contains("params") && json["params"].isObject())
     {
         QJsonObject params = json["params"].toObject();
         if (params.contains(key) && params[key].isString())
         {
-            QString value =
-                params[key].toString().trimmed();
+            QString value = params[key].toString().trimmed();
             return (value.isEmpty()) ? "default" : value;
         }
     }
@@ -33,5 +32,5 @@ inline QString getOptionalString(const QJsonObject &json,
     // Return default if key is not found in either location
     return "default";
 }
-}
+} // namespace ServerUtils
 #endif // SERVERUTILS_H

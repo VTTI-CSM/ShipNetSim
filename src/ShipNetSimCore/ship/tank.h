@@ -19,10 +19,10 @@
 #ifndef TANK_H
 #define TANK_H
 
-#include "../export.h"
-#include "shipfuel.h"
-#include "ienergysource.h"
 #include "../../third_party/units/units.h"
+#include "../export.h"
+#include "ienergysource.h"
+#include "shipfuel.h"
 
 namespace ShipNetSimCore
 {
@@ -45,20 +45,21 @@ private:
     units::volume::liter_t tankCumConsumedFuel =
         units::volume::liter_t(0.0);
 
-
 public:
     /**
-     * @brief Set the main properties of the tank (initialize the tank)
+     * @brief Set the main properties of the tank (initialize the
+     * tank)
      *
-     * @param maxCapacity   The maximum capacity the tank can hold in liters
+     * @param maxCapacity   The maximum capacity the tank can hold in
+     * liters
      * @param initialCapacityPercentage
-     *                      The initial capacity percentage that the tank
-     *                      holds once the ship is loaded onto the network.
+     *                      The initial capacity percentage that the
+     * tank holds once the ship is loaded onto the network.
      * @param depthOfDischarge
      *                      The allowable depth of discharge, the tank
      *                      can drain to.
      */
-    void SetTankCharacteristics(ShipFuel::FuelType fuelType,
+    void SetTankCharacteristics(ShipFuel::FuelType     fuelType,
                                 units::volume::liter_t maxCapacity,
                                 double initialCapacityPercentage,
                                 double depthOfDischarge);
@@ -78,7 +79,8 @@ public:
     /**
      * Sets the maximum capacity of the tank
      *
-     * @param newMaxCapacity The new maximum capacity of the tank in liters.
+     * @param newMaxCapacity The new maximum capacity of the tank in
+     * liters.
      */
     void setTankMaxCapacity(units::volume::liter_t newMaxCapacity);
 
@@ -109,15 +111,17 @@ public:
      *
      * @param consumedAmount The amount of fuel to consume
      *                          from the tank in liters.
-     * @returns The actual amount of fuel consumed from the tank in liters.
+     * @returns The actual amount of fuel consumed from the tank in
+     * liters.
      */
-    EnergyConsumptionData consume(
-        units::time::second_t timeStep,
-        units::energy::kilowatt_hour_t consumedkWh) override;
+    EnergyConsumptionData
+    consume(units::time::second_t          timeStep,
+            units::energy::kilowatt_hour_t consumedkWh) override;
 
     /**
      * @brief refuel the tank
-     * @param refuelAmount  The amount of fuel to refuel the tank with.
+     * @param refuelAmount  The amount of fuel to refuel the tank
+     * with.
      * @return true if refueled.
      */
     bool refuel(units::volume::liter_t refuelAmount);
@@ -130,7 +134,8 @@ public:
     double getTankStateOfCapacity() const;
 
     /**
-     * Checks if the specified amount of fuel is drainable from the tank
+     * Checks if the specified amount of fuel is drainable from the
+     * tank
      *
      * @param consumedAmount The amount of fuel to be
      *                          drained from the tank in liters.
@@ -168,17 +173,21 @@ public:
     units::volume::liter_t getTankCumConsumedFuel() const;
 
     /**
-     * @brief Get the current fuel type stored in the energy source container.
+     * @brief Get the current fuel type stored in the energy source
+     * container.
      *
-     * This method is called to get the fuel type of the energy source.
+     * This method is called to get the fuel type of the energy
+     * source.
      *
      * @return ShipFuel::FuelType
      */
     ShipFuel::FuelType getFuelType() override;
 
     /**
-     * @brief Set the current fuel type stored in the energy source container.
-     * @param fuelType The fuel type stored in the energy source container.
+     * @brief Set the current fuel type stored in the energy source
+     * container.
+     * @param fuelType The fuel type stored in the energy source
+     * container.
      */
     void setFuelType(ShipFuel::FuelType fuelType) override;
 
@@ -208,21 +217,23 @@ public:
      *                      - MaxCapacity: The max capacity of
      *                                      the tank in liters.
      *                      - InitialCapacityPercentage: The initial
-     *                                      proportion of the tank capacity.
-     *                      - DepthOfDischarge: The max proportion depth of
-     *                                      fuel it is allowed to drain to.
+     *                                      proportion of the tank
+     * capacity.
+     *                      - DepthOfDischarge: The max proportion
+     * depth of fuel it is allowed to drain to.
      */
-    void setCharacteristics(const QMap<QString, std::any> &parameters) override;
-
+    void setCharacteristics(
+        const QMap<QString, std::any> &parameters) override;
 
     /**
      * @brief Get current weight of the tank and its content.
      *
-     * This function is called to get the current updated tank total weight.
+     * This function is called to get the current updated tank total
+     * weight.
      *
      * @return the current tank weight in kilogram.
      */
     units::mass::kilogram_t getCurrentWeight() override;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // TANK_H

@@ -1,33 +1,35 @@
 #ifndef SEAPORTLOADER_H
 #define SEAPORTLOADER_H
 
+#include "../export.h"
+#include "seaport.h"
 #include <QString>
 #include <qthreadstorage.h>
-#include "seaport.h"
-#include "../export.h"
 
-namespace ShipNetSimCore {
+namespace ShipNetSimCore
+{
 // class SeaPort;
 class GPoint;
 
-class SHIPNETSIM_EXPORT SeaPortLoader {
+class SHIPNETSIM_EXPORT SeaPortLoader
+{
 public:
     // Delete copy constructor and assignment operator
-    SeaPortLoader(const SeaPortLoader&) = delete;
-    SeaPortLoader& operator=(const SeaPortLoader&) = delete;
+    SeaPortLoader(const SeaPortLoader &)            = delete;
+    SeaPortLoader &operator=(const SeaPortLoader &) = delete;
 
     // Load ports from file
-    static bool loadPortsFromFile(const QString& filePath);
+    static bool loadPortsFromFile(const QString &filePath);
 
     // Get closest port to point (static for direct access)
-    static std::shared_ptr<SeaPort>
-    getClosestPortToPoint(const std::shared_ptr<GPoint> point,
-                          units::length::meter_t maxDistance =
-                          units::length::meter_t(
-                              std::numeric_limits<double>::infinity()));
+    static std::shared_ptr<SeaPort> getClosestPortToPoint(
+        const std::shared_ptr<GPoint> point,
+        units::length::meter_t maxDistance = units::length::meter_t(
+            std::numeric_limits<double>::infinity()));
 
     // reads the seaports as vector
-    static QVector<std::shared_ptr<SeaPort>> readSeaPorts(const char* filename);
+    static QVector<std::shared_ptr<SeaPort>>
+    readSeaPorts(const char *filename);
 
     /**
      * @brief loads the sea ports from the default geojson file
@@ -38,7 +40,8 @@ public:
     loadFirstAvailableSeaPorts();
 
     // load the GEOJSON file
-    static bool loadFirstAvailableSeaPortsFile(QVector<QString> locations);
+    static bool
+    loadFirstAvailableSeaPortsFile(QVector<QString> locations);
 
     static QVector<std::shared_ptr<SeaPort>> getPorts();
 
@@ -50,5 +53,5 @@ private:
     static QThreadStorage<QVector<std::shared_ptr<SeaPort>>> mPorts;
 };
 
-};  // namespace ShipNetSimCore
+}; // namespace ShipNetSimCore
 #endif // SEAPORTLOADER_H

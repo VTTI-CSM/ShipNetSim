@@ -2,7 +2,7 @@ BasedOnStyle: LLVM
 Language: Cpp
 
 # Maximum line width
-ColumnLimit: 60
+ColumnLimit: 70
 
 # Use spaces, 4-wide
 IndentWidth: 4

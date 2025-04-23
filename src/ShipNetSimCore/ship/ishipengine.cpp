@@ -5,44 +5,47 @@ namespace ShipNetSimCore
 
 QVector<IShipEngine::EngineOperationalLoad>
     IShipEngine::mEngineOperationalLoad = {
-    IShipEngine::EngineOperationalLoad::Low,
-    IShipEngine::EngineOperationalLoad::Economic,
-    IShipEngine::EngineOperationalLoad::ReducedMCR,
-    IShipEngine::EngineOperationalLoad::MCR
-};
+        IShipEngine::EngineOperationalLoad::Low,
+        IShipEngine::EngineOperationalLoad::Economic,
+        IShipEngine::EngineOperationalLoad::ReducedMCR,
+        IShipEngine::EngineOperationalLoad::MCR};
 
 QVector<IShipEngine::EngineOperationalTier>
     IShipEngine::mEngineOperationalTier = {
-    IShipEngine::EngineOperationalTier::tierII,
-    IShipEngine::EngineOperationalTier::TierIII
-};
+        IShipEngine::EngineOperationalTier::tierII,
+        IShipEngine::EngineOperationalTier::TierIII};
 
 IShipEngine::EngineProperties IShipEngine::getEngineRatingProperties()
 {
     return mEngineDefaultTierPropertiesPoints.back();
 }
 
-bool
-IShipEngine::requestHigherEnginePower()
+bool IShipEngine::requestHigherEnginePower()
 {
-    if (mCurrentOperationalLoad == EngineOperationalLoad::UserDefined) {
-        qWarning() << "Engine is operating in user defined engine curve. "
-                      "Cannot provide higher operational load!";
+    if (mCurrentOperationalLoad == EngineOperationalLoad::UserDefined)
+    {
+        qWarning()
+            << "Engine is operating in user defined engine curve. "
+               "Cannot provide higher operational load!";
         return false;
     }
     QVector<EngineProperties> currentProps =
-        (mCurrentOperationalTier == EngineOperationalTier::tierII) ?
-            mEngineDefaultTierPropertiesPoints :
-            mEngineNOxReducedTierPropertiesPoints;
+        (mCurrentOperationalTier == EngineOperationalTier::tierII)
+            ? mEngineDefaultTierPropertiesPoints
+            : mEngineNOxReducedTierPropertiesPoints;
 
-    std::sort(currentProps.begin(), currentProps.end(),
-              [](const EngineProperties& a, const EngineProperties& b) {
-                  return EngineProperties::compareByBreakPower(a, b, true);
-              });
+    std::sort(
+        currentProps.begin(), currentProps.end(),
+        [](const EngineProperties &a, const EngineProperties &b) {
+            return EngineProperties::compareByBreakPower(a, b, true);
+        });
 
-    // Find the first element that has a breakPower greater than targetState
-    for (const auto& prop : currentProps) {
-        if (prop.breakPower > mEngineTargetState.breakPower) {
+    // Find the first element that has a breakPower greater than
+    // targetState
+    for (const auto &prop : currentProps)
+    {
+        if (prop.breakPower > mEngineTargetState.breakPower)
+        {
             setEngineTargetState(prop);
             return true;
         }
@@ -51,28 +54,33 @@ IShipEngine::requestHigherEnginePower()
     return false;
 }
 
-bool
-IShipEngine::requestLowerEnginePower()
+bool IShipEngine::requestLowerEnginePower()
 {
-    if (mCurrentOperationalLoad == EngineOperationalLoad::UserDefined) {
-        qWarning() << "Engine is operating in user defined engine curve. "
-                      "Cannot provide higher operational load!";
+    if (mCurrentOperationalLoad == EngineOperationalLoad::UserDefined)
+    {
+        qWarning()
+            << "Engine is operating in user defined engine curve. "
+               "Cannot provide higher operational load!";
         return false;
     }
 
     QVector<EngineProperties> currentProps =
-        (mCurrentOperationalTier == EngineOperationalTier::tierII) ?
-            mEngineDefaultTierPropertiesPoints :
-            mEngineNOxReducedTierPropertiesPoints;
+        (mCurrentOperationalTier == EngineOperationalTier::tierII)
+            ? mEngineDefaultTierPropertiesPoints
+            : mEngineNOxReducedTierPropertiesPoints;
 
-    std::sort(currentProps.begin(), currentProps.end(),
-              [](const EngineProperties& a, const EngineProperties& b) {
-                  return EngineProperties::compareByBreakPower(a, b, false);
-              });
+    std::sort(
+        currentProps.begin(), currentProps.end(),
+        [](const EngineProperties &a, const EngineProperties &b) {
+            return EngineProperties::compareByBreakPower(a, b, false);
+        });
 
-    // Find the first element that has a breakPower greater than targetState
-    for (const auto& prop : currentProps) {
-        if (prop.breakPower < mEngineTargetState.breakPower) {
+    // Find the first element that has a breakPower greater than
+    // targetState
+    for (const auto &prop : currentProps)
+    {
+        if (prop.breakPower < mEngineTargetState.breakPower)
+        {
             setEngineTargetState(prop);
             return true;
         }
@@ -81,42 +89,34 @@ IShipEngine::requestLowerEnginePower()
     return false;
 }
 
-
-
-IShipEngine::EngineProperties
-IShipEngine::getEnginePropertiesAtRPM(
+IShipEngine::EngineProperties IShipEngine::getEnginePropertiesAtRPM(
     units::angular_velocity::revolutions_per_minute_t rpm)
 {
     IShipEngine::EngineProperties ep;
     ep.RPM = rpm;
     ep.breakPower =
-        units::power::kilowatt_t(
-        Utils::linearInterpolateAtX(mRPMList, mEnginePowerList, rpm.value()));
+        units::power::kilowatt_t(Utils::linearInterpolateAtX(
+            mRPMList, mEnginePowerList, rpm.value()));
 
-    ep.efficiency =
-        Utils::linearInterpolateAtX(mRPMList,
-                                    mEfficiencyList, rpm.value());
+    ep.efficiency = Utils::linearInterpolateAtX(
+        mRPMList, mEfficiencyList, rpm.value());
 
     return ep;
 }
 
-IShipEngine::EngineProperties
-IShipEngine::getEnginePropertiesAtPower(
-    units::power::kilowatt_t p,
+IShipEngine::EngineProperties IShipEngine::getEnginePropertiesAtPower(
+    units::power::kilowatt_t           p,
     IShipEngine::EngineOperationalTier tier)
 {
     setEngineOperationalTier(tier);
 
-
     IShipEngine::EngineProperties ep;
     ep.breakPower = p;
-    ep.RPM =
-        units::angular_velocity::revolutions_per_minute_t(
-            Utils::linearInterpolateAtX(mEnginePowerList,
-                                        mRPMList, p.value()));
-    ep.efficiency =
-        Utils::linearInterpolateAtX(mEnginePowerList,
-                                    mEfficiencyList, p.value());
+    ep.RPM        = units::angular_velocity::revolutions_per_minute_t(
+        Utils::linearInterpolateAtX(mEnginePowerList, mRPMList,
+                                           p.value()));
+    ep.efficiency = Utils::linearInterpolateAtX(
+        mEnginePowerList, mEfficiencyList, p.value());
 
     return ep;
 }
@@ -126,14 +126,16 @@ units::torque::newton_meter_t IShipEngine::getEngineTorqueByRPM(
 {
     auto breakPower =
         units::power::kilowatt_t(
-            Utils::linearInterpolateAtX(mRPMList, mEnginePowerList, rpm.value()))
+            Utils::linearInterpolateAtX(mRPMList, mEnginePowerList,
+                                        rpm.value()))
             .convert<units::power::watt>();
 
-    auto rps = rpm.convert<units::angular_velocity::radians_per_second>();
+    auto rps =
+        rpm.convert<units::angular_velocity::radians_per_second>();
 
-    return units::torque::newton_meter_t(breakPower.value() / rps.value());
+    return units::torque::newton_meter_t(breakPower.value()
+                                         / rps.value());
 }
-
 
 void IShipEngine::setEngineProperitesSetting(
     QVector<IShipEngine::EngineProperties> engineSettings)
@@ -141,7 +143,7 @@ void IShipEngine::setEngineProperitesSetting(
     mEnginePowerList.clear();
     mRPMList.clear();
     mEfficiencyList.clear();
-    for (auto& le: engineSettings)
+    for (auto &le : engineSettings)
     {
         mEnginePowerList.push_back(le.breakPower.value());
         mRPMList.push_back(le.RPM.value());
@@ -150,7 +152,8 @@ void IShipEngine::setEngineProperitesSetting(
 }
 
 // -----------------------------------------------------------------------------
-// ---------------------------- Getters & Setters ------------------------------
+// ---------------------------- Getters & Setters
+// ------------------------------
 // -----------------------------------------------------------------------------
 
 IShipEngine::EngineOperationalLoad
@@ -166,16 +169,19 @@ IShipEngine::getCurrentOperationalTier()
 }
 
 QVector<IShipEngine::EngineOperationalLoad>
-IShipEngine::getEngineOperationalLoads() {
+IShipEngine::getEngineOperationalLoads()
+{
     return mEngineOperationalLoad;
 }
 
 QVector<IShipEngine::EngineOperationalTier>
-IShipEngine::getEngineOperationalTiers() {
+IShipEngine::getEngineOperationalTiers()
+{
     return mEngineOperationalTier;
 }
 
-IShipEngine::EngineProperties IShipEngine::getEngineTargetState() {
+IShipEngine::EngineProperties IShipEngine::getEngineTargetState()
+{
     return mEngineTargetState;
 }
 
@@ -189,7 +195,8 @@ IShipEngine::EngineProperties IShipEngine::getEnginePreviousState()
     return mEnginePreviousState;
 }
 
-IShipEngine::EngineProperties IShipEngine::getEngineCurrentState() {
+IShipEngine::EngineProperties IShipEngine::getEngineCurrentState()
+{
     return mEngineCurrentState;
 }
 
@@ -199,62 +206,72 @@ bool IShipEngine::isRPMWithinOperationalRange(
     return (rpm.value() >= 0.0 && rpm.value() <= mRPMList.back());
 }
 
-bool IShipEngine::isPowerWithinOperationalRange(units::power::kilowatt_t power)
+bool IShipEngine::isPowerWithinOperationalRange(
+    units::power::kilowatt_t power)
 {
-    return (power.value() >= 0.0 &&
-            power.value() <= mEnginePowerList.back());
+    return (power.value() >= 0.0
+            && power.value() <= mEnginePowerList.back());
 }
 
 // -----------------------------------------------------------------------------
 
-void IShipEngine::setEngineTierIICurve(QVector<EngineProperties> newCurve)
+void IShipEngine::setEngineTierIICurve(
+    QVector<EngineProperties> newCurve)
 {
-    std::sort(newCurve.begin(), newCurve.end(),
-              [](const EngineProperties& a, const EngineProperties& b) {
-                  return EngineProperties::compareByBreakPower(a, b, true);
-              });
+    std::sort(
+        newCurve.begin(), newCurve.end(),
+        [](const EngineProperties &a, const EngineProperties &b) {
+            return EngineProperties::compareByBreakPower(a, b, true);
+        });
     mUserEngineCurveInDefaultTier = newCurve;
 }
 
-void IShipEngine::setEngineTierIIICurve(QVector<EngineProperties> newCurve)
+void IShipEngine::setEngineTierIIICurve(
+    QVector<EngineProperties> newCurve)
 {
-    std::sort(newCurve.begin(), newCurve.end(),
-              [](const EngineProperties& a, const EngineProperties& b) {
-                  return EngineProperties::compareByBreakPower(a, b, true);
-              });
+    std::sort(
+        newCurve.begin(), newCurve.end(),
+        [](const EngineProperties &a, const EngineProperties &b) {
+            return EngineProperties::compareByBreakPower(a, b, true);
+        });
     mUserEngineCurveInNOxReducedTier = newCurve;
 }
 
-void IShipEngine::setEngineDefaultTargetState(EngineProperties newState)
+void IShipEngine::setEngineDefaultTargetState(
+    EngineProperties newState)
 {
     mEngineDefaultTargetState = newState;
 }
 
-IShipEngine::EngineProperties IShipEngine::getEngineDefaultTargetState()
+IShipEngine::EngineProperties
+IShipEngine::getEngineDefaultTargetState()
 {
     return mEngineDefaultTargetState;
 }
 
-void IShipEngine::setEngineTargetState(EngineProperties newState) {
-    if (mEngineTargetState != newState) {
+void IShipEngine::setEngineTargetState(EngineProperties newState)
+{
+    if (mEngineTargetState != newState)
+    {
         mEngineTargetState = newState;
         emit engineTargetStateChanged(mEngineTargetState);
     }
-
 }
 
-void IShipEngine::setEngineCurrentState(EngineProperties newState) {
-    if (mEngineCurrentState != newState) {
+void IShipEngine::setEngineCurrentState(EngineProperties newState)
+{
+    if (mEngineCurrentState != newState)
+    {
         mEngineCurrentState = newState;
         emit engineCurrentStateChanged(newState);
     }
-
 }
 
 void IShipEngine::setEngineOperationalLoad(
     IShipEngine::EngineOperationalLoad targetLoad)
 {
-    if (targetLoad != mCurrentOperationalLoad) {
+    if (targetLoad != mCurrentOperationalLoad)
+    {
         mCurrentOperationalLoad = targetLoad;
         emit operationalLoadChanged(targetLoad);
     }
@@ -263,7 +280,8 @@ void IShipEngine::setEngineOperationalLoad(
 bool IShipEngine::setEngineOperationalTier(
     IShipEngine::EngineOperationalTier targetTier)
 {
-    if (mCurrentOperationalTier != targetTier) {
+    if (mCurrentOperationalTier != targetTier)
+    {
         mCurrentOperationalTier = targetTier;
         emit engineOperationalTierChanged(targetTier);
         return true;
@@ -271,4 +289,4 @@ bool IShipEngine::setEngineOperationalTier(
     return false;
 }
 
-}
+} // namespace ShipNetSimCore

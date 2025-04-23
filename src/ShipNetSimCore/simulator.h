@@ -2,17 +2,17 @@
 #define SIMULATOR_H
 
 #include "export.h"
+#include "network/optimizednetwork.h"
 #include "qmutex.h"
 #include "qwaitcondition.h"
-#include "network/optimizednetwork.h"
 // #include <string>
 // #include <iostream>
 // #include <filesystem>
 // #include <fstream>
-#include <QObject>
-#include <QDir>
 #include "utils/data.h"
 #include "utils/shipscommon.h"
+#include <QDir>
+#include <QObject>
 
 namespace ShipNetSimCore
 {
@@ -26,11 +26,12 @@ private:
         units::time::second_t(1.0);
     /** (Immutable) the default end time */
     static constexpr units::time::second_t DefaultEndTime =
-        units::time::second_t(std::numeric_limits<double>::infinity());
+        units::time::second_t(
+            std::numeric_limits<double>::infinity());
     /** (Immutable) true to default export instantaneous trajectory */
-    static constexpr bool
-        DefaultExportInstantaneousTrajectory = true;
-    /** (Immutable) the default instantaneous trajectory empty filename */
+    static constexpr bool DefaultExportInstantaneousTrajectory = true;
+    /** (Immutable) the default instantaneous trajectory empty
+     * filename */
     inline static const QString
         DefaultInstantaneousTrajectoryEmptyFilename = "";
     /** (Immutable) the default summary empty filename */
@@ -39,19 +40,20 @@ private:
     inline static const QString
         DefaultInstantaneousTrajectoryFilename = "shipTrajectory_";
     /** (Immutable) the default summary filename */
-    inline static const QString
-        DefaultSummaryFilename =  "shipSummary_";
+    inline static const QString DefaultSummaryFilename =
+        "shipSummary_";
 
     struct shipLinksSpeedResults
     {
         QVector<units::velocity::meters_per_second_t> freeFlowSpeeds;
-        QVector<std::shared_ptr<Line>> pathLines;
+        QVector<std::shared_ptr<Line>>                pathLines;
     };
 
     struct criticalPoints
     {
         QVector<units::length::meter_t> gapToCriticalPoint;
-        QVector<units::velocity::meters_per_second_t> speedAtCriticalPoint;
+        QVector<units::velocity::meters_per_second_t>
+                      speedAtCriticalPoint;
         QVector<bool> isFollowingAnotherShip;
     };
 
@@ -64,7 +66,7 @@ private:
     /** The time step */
     units::time::second_t mTimeStep;
     /** The network */
-    OptimizedNetwork* mNetwork;
+    OptimizedNetwork *mNetwork;
     /** Allow the simulator to be externally controlled */
     bool mIsExternallyControlled;
     /** The frequency of plotting the ships */
@@ -78,7 +80,7 @@ private:
     /** Full path of the trajectory file*/
     QString mTrajectoryFullPath;
     /** The progress */
-    int mProgressStep = -1;
+    int    mProgressStep       = -1;
     double mProgressPercentage = -1.0;
     /** True to run simulation endlessly */
     // bool mRunSimulationEndlessly;
@@ -97,10 +99,9 @@ private:
     /** Number of ships that are inactive due to high resistance */
     int mInactiveShipsCount = 0;
 
-    QString mSummaryTextData = "";
-    QString mSummaryFullPath = "";
-    bool mSimulatorInitialized = false;
-
+    QString mSummaryTextData      = "";
+    QString mSummaryFullPath      = "";
+    bool    mSimulatorInitialized = false;
 
     /**
      * Determines if we can check all ships reached destination
@@ -119,7 +120,7 @@ private:
      *
      * @param 	ship	The ship.
      */
-    void playShipOneTimeStep(std::shared_ptr <Ship> ship);
+    void playShipOneTimeStep(std::shared_ptr<Ship> ship);
 
     /**
      * Progress bar
@@ -131,7 +132,8 @@ private:
      * @param 	bar_length	(Optional) Length of the bar.
      */
     void ProgressBar(QVector<std::shared_ptr<Ship>> ships,
-                     int bar_length = 100, bool emitProgressSignal = true);
+                     int                            bar_length = 100,
+                     bool emitProgressSignal = true);
 
     void initializeAllShips();
 
@@ -150,17 +152,16 @@ private:
     bool checkAllShipsAreNotMoving();
 
 public:
-    explicit Simulator(OptimizedNetwork* network,
-                       QVector<std::shared_ptr<Ship>> shipList,
-                       units::time::second_t simulatorTimeStep =
-                       DefaultTimeStep,
-                       bool isExternallyControlled = false,
-                       QObject *parent = nullptr);
-
+    explicit Simulator(
+        OptimizedNetwork              *network,
+        QVector<std::shared_ptr<Ship>> shipList,
+        units::time::second_t simulatorTimeStep = DefaultTimeStep,
+        bool                  isExternallyControlled = false,
+        QObject              *parent                 = nullptr);
 
     ~Simulator();
 
-    void moveObjectToThread(QThread* thread);
+    void moveObjectToThread(QThread *thread);
 
     /**
      * @brief Study the ships resistance.
@@ -169,7 +170,6 @@ public:
      * it only increments the ship speed and measures the resistance.
      */
     void studyShipsResistance();
-
 
     /**
      * @brief add a ship to the simulator
@@ -220,14 +220,15 @@ public:
      * @author	Ahmed Aredah
      * @date	2/28/2023
      *
-     * @param newEndTime    the new end time of the simulator in seconds.
-     *                      Zero means do not stop untill all ships
-     *                      reach destination.
+     * @param newEndTime    the new end time of the simulator in
+     * seconds. Zero means do not stop untill all ships reach
+     * destination.
      */
     void setEndTime(units::time::second_t newEndTime);
 
     /**
-     * @brief set the plot frequency of ships, this only works in the gui
+     * @brief set the plot frequency of ships, this only works in the
+     * gui
      * @param newPlotFrequency
      */
     void setPlotFrequency(int newPlotFrequency);
@@ -245,14 +246,15 @@ public:
 
     /**
      * @brief set summary filename.
-     * @param newfilename           the new file name of the summary file.
+     * @param newfilename           the new file name of the summary
+     * file.
      */
-    void setSummaryFilename(QString newfilename =
-                            DefaultSummaryEmptyFilename);
+    void setSummaryFilename(
+        QString newfilename = DefaultSummaryEmptyFilename);
 
     /**
-     * @brief set export instantaneous ship trajectory for all ships in the
-     * simulator at every simulation time step.
+     * @brief set export instantaneous ship trajectory for all ships
+     * in the simulator at every simulation time step.
      *
      * @author	Ahmed Aredah
      * @date	2/28/2023
@@ -260,22 +262,23 @@ public:
      * @param exportInstaTraject        a boolean to enable or disable
      *                                  the export trajectory
      * @param newInstaTrajectFilename   a path to the file in case the
-     *                                  exportInstaTraject is set to true.
+     *                                  exportInstaTraject is set to
+     * true.
      */
     void setExportInstantaneousTrajectory(
-        bool exportInstaTraject,
+        bool    exportInstaTraject,
         QString newInstaTrajectFilename =
-        DefaultInstantaneousTrajectoryEmptyFilename);
-
+            DefaultInstantaneousTrajectoryEmptyFilename);
 
     /**
-     * @brief set the export individualized ships summary for all ships
-     * in the simulator.
+     * @brief set the export individualized ships summary for all
+     *ships in the simulator.
      *
-     *@param exportAllShipsSummary a boolean to enable or disable exporting
-     *individualized ships summary.
+     *@param exportAllShipsSummary a boolean to enable or disable
+     *exporting individualized ships summary.
      */
-    void setExportIndividualizedShipsSummary(bool exportAllShipsSummary);
+    void
+    setExportIndividualizedShipsSummary(bool exportAllShipsSummary);
 
     QJsonObject getCurrentStateAsJson();
 
@@ -289,24 +292,25 @@ signals:
     void progressUpdated(int progressPercentage);
 
     /**
-     * @brief Updates the plot of ships with their start and end points.
+     * @brief Updates the plot of ships with their start and end
+     * points.
      *
-     * @param shipsStartEndPoints A vector containing the names of the ships
-     *                            along with their start and end points.
+     * @param shipsStartEndPoints A vector containing the names of the
+     * ships along with their start and end points.
      */
-    void plotShipsUpdated(
-        QVector<std::pair<QString, GPoint>> shipsPoints);
+    void
+    plotShipsUpdated(QVector<std::pair<QString, GPoint>> shipsPoints);
 
     /**
      * @brief Signals that a new simulation results is available.
      *
      * @param results   The simulation results struct
      */
-    void simulationResultsAvailable(
-        ShipsResults results);
+    void simulationResultsAvailable(ShipsResults results);
 
     /**
-     * @brief Signals that all ships in the simulator reached their destination.
+     * @brief Signals that all ships in the simulator reached their
+     * destination.
      */
     void allShipsReachedDestination();
 
@@ -327,7 +331,7 @@ signals:
 
     void simulationReachedReportingTime(
         units::time::second_t simulationTime,
-        double progressPercentage);
+        double                progressPercentage);
 
     void availablePorts(QVector<QString> ports);
 
@@ -360,11 +364,11 @@ public slots:
      * @author	Ahmed Aredah
      * @date	2/28/2023
      */
-    void runSimulation(units::time::second_t runFor =
-                       units::time::second_t(
-                           std::numeric_limits<double>::infinity()),
-                       bool endSimulationAfterRun = true,
-                       bool emitEndStepSignal = true);
+    void runSimulation(
+        units::time::second_t runFor = units::time::second_t(
+            std::numeric_limits<double>::infinity()),
+        bool endSimulationAfterRun = true,
+        bool emitEndStepSignal     = true);
 
     // /**
     //  * @brief run the simulation by specific number of steps
@@ -401,11 +405,10 @@ public slots:
     getAvailablePorts(bool considerShipsPathPortsOnly);
 
 private:
-    QMutex mutex;
+    QMutex         mutex;
     QWaitCondition pauseCond;
-    bool mIsSimulatorPaused = false;
-    bool mIsSimulatorRunning = true;
-
+    bool           mIsSimulatorPaused  = false;
+    bool           mIsSimulatorRunning = true;
 };
-};
+}; // namespace ShipNetSimCore
 #endif // SIMULATOR_H

@@ -2,12 +2,13 @@
 #define UPDATECHECKER_H
 
 #include "../export.h"
-#include <QObject>
 #include <QNetworkAccessManager>
+#include <QObject>
 
 namespace ShipNetSimCore
 {
-class SHIPNETSIM_EXPORT UpdateChecker : public QObject {
+class SHIPNETSIM_EXPORT UpdateChecker : public QObject
+{
     Q_OBJECT
 
 public:
@@ -22,9 +23,11 @@ private slots:
 
 private:
     QNetworkAccessManager *manager;
-    QString currentVersion; // Add a member to store the current version of the app
+    QString currentVersion; // Add a member to store the current
+                            // version of the app
 
-    void handleSslErrors(QNetworkReply *reply, const QList<QSslError> &errors);
+    void handleSslErrors(QNetworkReply          *reply,
+                         const QList<QSslError> &errors);
 };
-};
+}; // namespace ShipNetSimCore
 #endif // UPDATECHECKER_H

@@ -3,11 +3,10 @@
  * @brief This file declares the Battery class.
  *        The Battery class represents a battery used in a ship.
  *        It stores information about the battery's capacity,
- *        charge level, state of charge, discharge rate, recharge rate,
- *        depth of discharge, and other properties.
- *        The Battery class provides methods for setting and
- *        retrieving battery properties, consuming and recharging
- *        the battery, and checking battery status.
+ *        charge level, state of charge, discharge rate, recharge
+ * rate, depth of discharge, and other properties. The Battery class
+ * provides methods for setting and retrieving battery properties,
+ * consuming and recharging the battery, and checking battery status.
  *        Note: The implementation of the class is not provided
  *        in this declaration file.
  *              It should be implemented separately in a
@@ -19,10 +18,10 @@
 #ifndef BATTERY_H
 #define BATTERY_H
 
-#include "../export.h"
-#include <iostream>
 #include "../../third_party/units/units.h"
+#include "../export.h"
 #include "ienergysource.h"
+#include <iostream>
 
 namespace ShipNetSimCore
 {
@@ -62,7 +61,8 @@ private:
 public:
     /**
      * @brief Sets the battery characteristics.
-     * @param maxCharge The maximum charge the battery can hold in kWh.
+     * @param maxCharge The maximum charge the battery can hold in
+     * kWh.
      * @param initialChargePercentage The initial charge percentage
      *          of the battery.
      * @param depthOfDischarge The allowable depth of discharge
@@ -73,12 +73,11 @@ public:
      * @param minRechargeSOC The minimum State of Charge the battery
      *          reaches when being drained (optional).
      */
-    void setBatteryCharacterstics(units::energy::kilowatt_hour_t maxCharge,
-                                  double initialChargePercentage,
-                                  double depthOfDischarge,
-                                  double batteryCRate,
-                                  double maxRechargeSOC = 0.9,
-                                  double minRechargeSOC = 0.5);
+    void setBatteryCharacterstics(
+        units::energy::kilowatt_hour_t maxCharge,
+        double initialChargePercentage, double depthOfDischarge,
+        double batteryCRate, double maxRechargeSOC = 0.9,
+        double minRechargeSOC = 0.5);
 
     /**
      * @brief Get the current state of charge.
@@ -93,9 +92,11 @@ public:
 
     /**
      * @brief Sets the maximum charge of the battery.
-     * @param newMaxCharge The new maximum charge of the battery in kWh.
+     * @param newMaxCharge The new maximum charge of the battery in
+     * kWh.
      */
-    void setBatteryMaxCharge(units::energy::kilowatt_hour_t newMaxCharge);
+    void
+    setBatteryMaxCharge(units::energy::kilowatt_hour_t newMaxCharge);
 
     /**
      * @brief Gets the initial charge of the battery.
@@ -105,7 +106,8 @@ public:
 
     /**
      * @brief Sets the initial charge of the battery.
-     * @param newInitialCharge The new initial charge of the battery in kWh.
+     * @param newInitialCharge The new initial charge of the battery
+     * in kWh.
      */
     void setBatteryInitialCharge(double newInitialCharge);
 
@@ -123,9 +125,9 @@ public:
      *         the consumption was successful
      *         and the actual amount of charge consumed.
      */
-    EnergyConsumptionData consume(
-        units::time::second_t timeStep,
-        units::energy::kilowatt_hour_t consumedCharge) override;
+    EnergyConsumptionData
+    consume(units::time::second_t          timeStep,
+            units::energy::kilowatt_hour_t consumedCharge) override;
 
     /**
      * @brief Recharges the battery for hybrid vehicles.
@@ -133,9 +135,8 @@ public:
      * @param recharge The amount of charge to be recharged.
      * @return The actual amount of charge recharged.
      */
-    units::energy::kilowatt_hour_t
-    rechargeBatteryForHybrids(
-        units::time::second_t timeStep,
+    units::energy::kilowatt_hour_t rechargeBatteryForHybrids(
+        units::time::second_t          timeStep,
         units::energy::kilowatt_hour_t recharge);
 
     /**
@@ -144,9 +145,8 @@ public:
      * @param recharge The amount of charge to be recharged.
      * @return The actual amount of charge recharged.
      */
-    units::energy::kilowatt_hour_t
-    rechargeBatteryByRegeneratedEnergy(
-        units::time::second_t timeStep,
+    units::energy::kilowatt_hour_t rechargeBatteryByRegeneratedEnergy(
+        units::time::second_t          timeStep,
         units::energy::kilowatt_hour_t recharge);
 
     /**
@@ -176,16 +176,19 @@ public:
 
     /**
      * @brief Sets the C-Rate of discharge for the battery.
-     * @param newBatteryCRate The new C-Rate of discharge for the battery.
+     * @param newBatteryCRate The new C-Rate of discharge for the
+     * battery.
      */
     void setBatteryCRate(double newBatteryCRate);
 
     /**
-     * @brief Checks if the battery can be drained by the required charge.
+     * @brief Checks if the battery can be drained by the required
+     * charge.
      * @param requiredCharge The required charge to be drained.
      * @return True if the battery can be drained, false otherwise.
      */
-    bool isBatteryDrainable(units::energy::kilowatt_hour_t requiredCharge);
+    bool
+    isBatteryDrainable(units::energy::kilowatt_hour_t requiredCharge);
 
     /**
      * @brief Checks if the battery can be recharged.
@@ -198,16 +201,16 @@ public:
      * @param timeStep The time step in seconds.
      * @return The maximum discharge of the battery in kWh.
      */
-    units::energy::kilowatt_hour_t getBatteryMaxDischarge(
-        units::time::second_t timeStep);
+    units::energy::kilowatt_hour_t
+    getBatteryMaxDischarge(units::time::second_t timeStep);
 
     /**
      * @brief Gets the maximum recharge of the battery.
      * @param timeStep The time step in seconds.
      * @return The maximum recharge of the battery in kWh.
      */
-    units::energy::kilowatt_hour_t getBatteryMaxRecharge(
-        units::time::second_t timeStep);
+    units::energy::kilowatt_hour_t
+    getBatteryMaxRecharge(units::time::second_t timeStep);
 
     /**
      * @brief Checks if the battery requires a recharge.
@@ -216,26 +219,30 @@ public:
     bool isRechargeRequired() const;
 
     /**
-     * @brief Gets the upper bound of the battery's recharge state of charge.
+     * @brief Gets the upper bound of the battery's recharge state of
+     * charge.
      * @return The upper bound of the recharge state of charge.
      */
     double getBatteryRechargeSOCUpperBound() const;
 
     /**
-     * @brief Sets the upper bound of the battery's recharge state of charge.
+     * @brief Sets the upper bound of the battery's recharge state of
+     * charge.
      * @param newBatteryMaxSOC The new upper bound of the recharge
      * state of charge.
      */
     void setBatteryRechargeSOCUpperBound(double newBatteryMaxSOC);
 
     /**
-     * @brief Gets the lower bound of the battery's recharge state of charge.
+     * @brief Gets the lower bound of the battery's recharge state of
+     * charge.
      * @return The lower bound of the recharge state of charge.
      */
     double getBatteryRechargeSOCLowerBound() const;
 
     /**
-     * @brief Sets the lower bound of the battery's recharge state of charge.
+     * @brief Sets the lower bound of the battery's recharge state of
+     * charge.
      * @param newBatteryRechargeSOCLowerBound The new lower bound
      * of the recharge state of charge.
      */
@@ -243,22 +250,26 @@ public:
         double newBatteryRechargeSOCLowerBound);
 
     /**
-     * @brief Gets the cumulative energy consumption for this battery only.
+     * @brief Gets the cumulative energy consumption for this battery
+     * only.
      * @return The cumulative energy consumption for this battery.
      */
     units::energy::kilowatt_hour_t getBatteryCumEnergyConsumption();
 
     /**
-     * @brief Gets the cumulative energy regenerated for this battery only.
+     * @brief Gets the cumulative energy regenerated for this battery
+     * only.
      * @return The cumulative energy regenerated for this battery.
      */
     units::energy::kilowatt_hour_t getBatteryCumEnergyRegenerated();
 
     /**
-     * @brief Gets the cumulative net energy consumption for this battery.
+     * @brief Gets the cumulative net energy consumption for this
+     * battery.
      * @return The cumulative net energy consumption for this battery.
      */
-    units::energy::kilowatt_hour_t getBatteryCumNetEnergyConsumption();
+    units::energy::kilowatt_hour_t
+    getBatteryCumNetEnergyConsumption();
 
     /**
      * @brief Checks if the battery has enough charge.
@@ -268,7 +279,8 @@ public:
 
     /**
      * @brief Checks if the battery exceeds certain thresholds.
-     * @return True if the battery exceeds the thresholds, false otherwise.
+     * @return True if the battery exceeds the thresholds, false
+     * otherwise.
      */
     bool IsBatteryExceedingThresholds();
 
@@ -286,33 +298,38 @@ public:
     void reset() override;
 
     // IEnergySource interface
-    void setCharacteristics(const QMap<QString, std::any> &parameters) override;
+    void setCharacteristics(
+        const QMap<QString, std::any> &parameters) override;
 
     /**
      * @brief Get current weight of the battery and its content.
      *
      * This function is not yet implemented.     *
-     * This function is called to get the current updated tank total weight.
+     * This function is called to get the current updated tank total
+     * weight.
      *
      * @return the current tank weight in kilogram.
      */
     units::mass::kilogram_t getCurrentWeight() override;
 
     /**
-     * @brief Get the current fuel type stored in the energy source container.
+     * @brief Get the current fuel type stored in the energy source
+     * container.
      *
-     * This method is called to get the fuel type of the energy source.
+     * This method is called to get the fuel type of the energy
+     * source.
      *
      * @return ShipFuel::FuelType
      */
     ShipFuel::FuelType getFuelType() override;
 
     /**
-     * @brief Set the current fuel type stored in the energy source container.
-     * @param fuelType The fuel type stored in the energy source container.
+     * @brief Set the current fuel type stored in the energy source
+     * container.
+     * @param fuelType The fuel type stored in the energy source
+     * container.
      */
     void setFuelType(ShipFuel::FuelType fuelType) override;
-
 };
-};
+}; // namespace ShipNetSimCore
 #endif // BATTERY_H

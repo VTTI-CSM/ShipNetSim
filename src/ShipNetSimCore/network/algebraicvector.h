@@ -1,7 +1,7 @@
 /**
  * @file algebraicvector.h
- * @brief The file contains the declaration of the AlgebraicVector class
- * which is used to represent a vector in a 2D space.
+ * @brief The file contains the declaration of the AlgebraicVector
+ * class which is used to represent a vector in a 2D space.
  *
  * The AlgebraicVector class provides functionalities for rotating and
  * moving the vector to a target position, and calculating various
@@ -14,17 +14,17 @@
 #ifndef ALGEBRAICVECTOR_H
 #define ALGEBRAICVECTOR_H
 
-#include <QVector>
-#include "point.h"
 #include "../../third_party/units/units.h"
+#include "point.h"
+#include <QVector>
 
 namespace ShipNetSimCore
 {
 class AlgebraicVector
 {
 public:
-
-    struct Environment {
+    struct Environment
+    {
         units::temperature::celsius_t temperature =
             units::temperature::celsius_t(0.0);
         units::concentration::pptd_t salinity =
@@ -33,8 +33,9 @@ public:
             units::length::meter_t(0.0);
         units::frequency::hertz_t waveFrequency =
             units::frequency::hertz_t(0.0);
-        units::angular_velocity::radians_per_second_t waveAngularFrequency =
-            units::angular_velocity::radians_per_second_t(0.0);
+        units::angular_velocity::radians_per_second_t
+            waveAngularFrequency =
+                units::angular_velocity::radians_per_second_t(0.0);
         units::length::meter_t waveLength =
             units::length::meter_t(0.0);
         units::velocity::meters_per_second_t windSpeed_Northward =
@@ -44,8 +45,8 @@ public:
         units::length::meter_t waterDepth =
             units::length::meter_t(0.0);
 
-        units::angle::degree_t getEncounterAngle(
-            units::angle::degree_t shipHeadingAzimuth)
+        units::angle::degree_t
+        getEncounterAngle(units::angle::degree_t shipHeadingAzimuth)
         {
             auto waveDirectionAz =
                 calculateAzimuth(windSpeed_Northward.value(),
@@ -55,16 +56,17 @@ public:
                                            waveDirectionAz);
         }
 
-        bool checkEnvironmentValidity() const {
-            return !(std::isnan(temperature.value()) ||
-                     std::isnan(salinity.value()) ||
-                     std::isnan(waveHeight.value()) ||
-                     std::isnan(waveFrequency.value()) ||
-                     std::isnan(waveAngularFrequency.value()) ||
-                     std::isnan(waveLength.value()) ||
-                     std::isnan(windSpeed_Northward.value()) ||
-                     std::isnan(windSpeed_Eastward.value()) ||
-                     std::isnan(waterDepth.value()));
+        bool checkEnvironmentValidity() const
+        {
+            return !(std::isnan(temperature.value())
+                     || std::isnan(salinity.value())
+                     || std::isnan(waveHeight.value())
+                     || std::isnan(waveFrequency.value())
+                     || std::isnan(waveAngularFrequency.value())
+                     || std::isnan(waveLength.value())
+                     || std::isnan(windSpeed_Northward.value())
+                     || std::isnan(windSpeed_Eastward.value())
+                     || std::isnan(waterDepth.value()));
         }
 
     private:
@@ -74,33 +76,34 @@ public:
             units::angle::degree_t waveDirectionAzimuth) const
         {
             // Calculate the absolute difference
-            units::angle::degree_t mu =
-                units::math::abs(waveDirectionAzimuth -
-                                 shipHeadingAzimuth);
+            units::angle::degree_t mu = units::math::abs(
+                waveDirectionAzimuth - shipHeadingAzimuth);
 
             // Normalize to 0-360 degrees
-            mu = units::angle::degree_t(fmod(mu.value() + 360.0, 360.0));
+            mu = units::angle::degree_t(
+                fmod(mu.value() + 360.0, 360.0));
 
             // Adjust to 0-180 degrees
-            if (mu.value() > 180.0) {
+            if (mu.value() > 180.0)
+            {
                 mu = units::angle::degree_t(360.0) - mu;
             }
 
             return mu;
         }
 
-
         // Function to calculate the azimuth angle of any wave/wind
-        units::angle::degree_t calculateAzimuth(
-            double Northward, double Eastward) const
+        units::angle::degree_t calculateAzimuth(double Northward,
+                                                double Eastward) const
         {
             // Convert from radians to degrees
             units::angle::degree_t waveAzimuth =
-                units::angle::radian_t(atan2(Eastward, Northward)).
-                convert<units::angle::degrees>();
+                units::angle::radian_t(atan2(Eastward, Northward))
+                    .convert<units::angle::degrees>();
 
             // Ensure the angle is in the range [0, 360)
-            if (waveAzimuth.value() < 0.0) {
+            if (waveAzimuth.value() < 0.0)
+            {
                 waveAzimuth += units::angle::degree_t(360.0);
             }
 
@@ -117,20 +120,22 @@ public:
     AlgebraicVector();
 
     /**
-     * @brief Constructs an AlgebraicVector with given start and end points.
+     * @brief Constructs an AlgebraicVector with given start and end
+     * points.
      *
      * @param startPoint The start point of the vector.
      * @param endPoint The end point of the vector.
      */
-    AlgebraicVector(const Point startPoint, const Point& endPoint);
+    AlgebraicVector(const Point startPoint, const Point &endPoint);
 
     /**
      * @brief Sets the target position and maximum rate of turn (ROT).
      *
      * @param target The target position to reach.
-     * @param maxROTPerSec The maximum rate of turn in degrees per second.
+     * @param maxROTPerSec The maximum rate of turn in degrees per
+     * second.
      */
-    void setTargetAndMaxROT(const Point& target,
+    void setTargetAndMaxROT(const Point           &target,
                             units::angle::degree_t maxROTPerSec);
 
     /**
@@ -141,20 +146,24 @@ public:
     Point getTarget();
 
     /**
-     * @brief Moves the vector by a given distance in a given time step.
+     * @brief Moves the vector by a given distance in a given time
+     * step.
      *
      * @param distance The distance to move.
      * @param timeStep The time step of the movement.
      */
     void moveByDistance(units::length::meter_t distance,
-                        units::time::second_t timeStep);
+                        units::time::second_t  timeStep);
 
-    units::angle::degree_t getOrientationAngleWithRespectToNorth() const;
+    units::angle::degree_t
+    getOrientationAngleWithRespectToNorth() const;
 
     /**
-     * @brief Gets the getOrientationWithRespectToTarget of the vector in degrees.
+     * @brief Gets the getOrientationWithRespectToTarget of the vector
+     * in degrees.
      *
-     * @return The getOrientationWithRespectToTarget of the vector in degrees.
+     * @return The getOrientationWithRespectToTarget of the vector in
+     * degrees.
      */
     units::angle::degree_t getOrientationWithRespectToTarget() const;
 
@@ -185,20 +194,21 @@ public:
      * @param otherPoint The point to calculate the angle to.
      * @return The angle to the other point in degrees.
      */
-    units::angle::degree_t angleTo(const Point& otherPoint) const;
+    units::angle::degree_t angleTo(const Point &otherPoint) const;
 
     Environment getEnvironment() const;
 
     void setEnvironment(const Environment env);
 
 private:
-    Point mTargetPoint_;  ///< The target position to reach.
-    units::angle::degree_t
-        mMaxROTPerSec_;  ///< Maximum rate of turn in degrees per second.
-    Point mPosition_;  ///< The current position of the vector.
+    Point mTargetPoint_; ///< The target position to reach.
+    units::angle::degree_t mMaxROTPerSec_; ///< Maximum rate of turn
+                                           ///< in degrees per second.
+    Point mPosition_; ///< The current position of the vector.
     QVector<units::length::meter_t>
-        mOrientation;  ///< Orientation of the vector toward a target point.
-    bool mIsRotating;  ///< Indicates whether the vector is rotating.
+        mOrientation; ///< Orientation of the vector toward a target
+                      ///< point.
+    bool mIsRotating; ///< Indicates whether the vector is rotating.
     Environment mStateEnv;
 
     /**
@@ -206,20 +216,21 @@ private:
      *
      * @param endPoint The end point of the vector.
      */
-    void setOrientationByEndPoint(const Point& endPoint);
+    void setOrientationByEndPoint(const Point &endPoint);
 
     /**
      * @brief Rotates the vector to the target position by the maximum
      * rate of turn in a given time step.
      *
      * @param target The target position to rotate to.
-     * @param maxROTPerSec The maximum rate of turn in degrees per second.
+     * @param maxROTPerSec The maximum rate of turn in degrees per
+     * second.
      * @param timeStep The time step of the rotation.
      */
-    void rotateToTargetByMaxROT(const Point& target,
+    void rotateToTargetByMaxROT(const Point           &target,
                                 units::angle::degree_t maxROTPerSec,
-                                units::time::second_t timeStep);
+                                units::time::second_t  timeStep);
 };
-};
+}; // namespace ShipNetSimCore
 
 #endif // ALGEBRAICVECTOR_H
