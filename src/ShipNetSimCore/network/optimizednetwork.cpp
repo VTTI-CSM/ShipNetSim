@@ -716,6 +716,12 @@ OptimizedNetwork::findShortestPath(std::shared_ptr<GPoint> startPoint,
                                    std::shared_ptr<GPoint> endpoint,
                                    PathFindingAlgorithm    algorithm)
 {
+    if (!mVisibilityGraph)
+    {
+        emit errorOccurred("Visibility graph not initialized");
+        return ShortestPathResult();
+    }
+
     if (algorithm == PathFindingAlgorithm::AStar)
     {
         return mVisibilityGraph->findShortestPathAStar(startPoint,
@@ -732,24 +738,37 @@ ShortestPathResult OptimizedNetwork::findShortestPath(
     QVector<std::shared_ptr<GPoint>> points,
     PathFindingAlgorithm             algorithm)
 {
-    // If already in the correct thread, call the function directly
+    // Check for null visibility graph
+    if (!mVisibilityGraph)
+    {
+        emit errorOccurred("Visibility graph not initialized");
+        return ShortestPathResult();
+    }
+
+    // Same-thread case
     if (QThread::currentThread() == this->thread())
     {
         return mVisibilityGraph->findShortestPath(points, algorithm);
     }
 
-    // Otherwise, use invokeMethod to execute in the correct thread
-    ShortestPathResult result;
+    // Cross-thread case - use QFuture for safer data passing
+    QFutureInterface<ShortestPathResult> futureInterface;
+    futureInterface.reportStarted();
+
     QMetaObject::invokeMethod(
         this,
-        [&]() {
-            result =
+        [this, points, algorithm, &futureInterface]() {
+            // Execute in the correct thread
+            ShortestPathResult localResult =
                 mVisibilityGraph->findShortestPath(points, algorithm);
+            futureInterface.reportResult(localResult);
+            futureInterface.reportFinished();
         },
-        Qt::BlockingQueuedConnection); // Wait for the result before
-                                       // proceeding
+        Qt::QueuedConnection);
 
-    return result;
+    QFuture<ShortestPathResult> future = futureInterface.future();
+    future.waitForFinished();
+    return future.result();
 }
 
 QString OptimizedNetwork::getRegionName()

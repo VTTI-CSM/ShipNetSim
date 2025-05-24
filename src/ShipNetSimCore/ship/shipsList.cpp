@@ -186,7 +186,7 @@ QMap<QString, std::any> readShipFromString(QString           line,
                 parameters, "Path",
                 QVector<std::shared_ptr<GPoint>>());
             ShortestPathResult results = network->findShortestPath(
-                pathPoints, PathFindingAlgorithm::Dijkstra);
+                pathPoints, PathFindingAlgorithm::AStar);
 
             if (!results.isValid())
             {
@@ -338,7 +338,7 @@ loadShipFromParameters(QMap<QString, T>  shipDetails,
                 convertedParameters, "Path",
                 QVector<std::shared_ptr<GPoint>>());
         ShortestPathResult results = network->findShortestPath(
-            pathPoints, PathFindingAlgorithm::Dijkstra);
+            pathPoints, PathFindingAlgorithm::AStar);
 
         if (!results.isValid())
         {
@@ -468,7 +468,7 @@ loadShipFromParameters(QJsonObject       shipJson,
 
         // Use the network to find the shortest path
         ShortestPathResult results = network->findShortestPath(
-            pathPoints, PathFindingAlgorithm::Dijkstra);
+            pathPoints, PathFindingAlgorithm::AStar);
 
         if (!results.isValid())
         {

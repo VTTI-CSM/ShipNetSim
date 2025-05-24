@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Build from GitHub
+  shipnetsim-builder:
+    build:
+      context: https://github.com/VTTI-CSM/ShipNetSim.git
+      dockerfile: Dockerfile
+      args:
+        GITHUB_BRANCH: main
+    image: shipnetsim:latest
+    container_name: shipnetsim-builder
+    command: echo "Build complete"
+
+  # CLI version
+  shipnetsim-cli:
+    image: shipnetsim:latest
+    container_name: shipnetsim-cli
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    working_dir: /app
+    command: ./ShipNetSim
+
+  # Server version with RabbitMQ
+  shipnetsim-server:
+    image: shipnetsim:latest
+    container_name: shipnetsim-server
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+    volumes:
+      - ./data:/app/data
+    working_dir: /app
+    command: ./ShipNetSimServer
+    networks:
+      - shipnetsim-network
+
+  # GUI version
+  shipnetsim-gui:
+    image: shipnetsim:latest
+    container_name: shipnetsim-gui
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./data:/app/data
+      - ./output:/app/output
+    devices:
+      - /dev/dri:/dev/dri
+    working_dir: /app
+    command: ./ShipNetSimGUI
+    network_mode: host
+    user: root
+
+  # Development environment
+  shipnetsim-dev:
+    build:
+      context: https://github.com/VTTI-CSM/ShipNetSim.git
+      dockerfile: Dockerfile
+      target: builder
+    image: shipnetsim:dev
+    container_name: shipnetsim-dev
+    environment:
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./workspace:/workspace
+    working_dir: /app
+    command: /bin/bash
+    stdin_open: true
+    tty: true
+    network_mode: host
+
+  # RabbitMQ service
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: shipnetsim-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+    networks:
+      - shipnetsim-network
+
+networks:
+  shipnetsim-network:
+    driver: bridge

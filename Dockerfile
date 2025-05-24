@@ -1,0 +1,260 @@
+# Use pre-built Qt6 image as base
+# FROM stateoftheartio/qt6:6.7-gcc-aqt AS builder
+FROM stateoftheartio/qt6:6.8-gcc-aqt AS builder
+
+# Switch to root for package installation
+USER root
+
+# Install newer GCC first
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
+    apt-get install -y gcc-11 g++-11 && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 60 --slave /usr/bin/g++ g++ /usr/bin/g++-11 && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 40 --slave /usr/bin/g++ g++ /usr/bin/g++-9 && \
+    gcc --version && g++ --version
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    build-essential \
+    cmake \
+    git \
+    pkg-config \
+    # X11 and OpenGL for GUI support
+    libx11-dev \
+    libxext-dev \
+    libxrandr-dev \
+    libxcursor-dev \
+    libxi-dev \
+    libxinerama-dev \
+    libxxf86vm-dev \
+    libxss-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xfixes0 \
+    x11-apps \
+    # System libraries
+    libssl-dev \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    libwebp-dev \
+    # CUPS for Qt6PrintSupport
+    libcups2-dev \
+    # GDAL
+    libpq-dev \
+    gdal-bin \
+    libgdal-dev \
+    # GeographicLib
+    libgeographic-dev \
+    # RabbitMQ-C
+    librabbitmq-dev \
+    # Dependencies for osgEarth
+    libcurl4-openssl-dev \
+    libgeos-dev \
+    libsqlite3-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libpoco-dev \
+    # OpenSceneGraph
+    libopenscenegraph-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /build
+
+# Build and install osgEarth from source
+# Build and install osgEarth from source (Release and Debug)
+RUN git clone --branch osgearth-3.5 https://github.com/gwaldron/osgearth.git /tmp/osgearth && \
+    cd /tmp/osgearth && \
+    # Build Release version
+    mkdir build-release && cd build-release && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_OSGEARTH_EXAMPLES=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    cd .. && \
+    # Build Debug version
+    mkdir build-debug && cd build-debug && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_OSGEARTH_EXAMPLES=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    cd / && \
+    rm -rf /tmp/osgearth
+
+# Move everything from lib64 to lib directory
+RUN mv /usr/local/lib64/* /usr/local/lib/ && \
+    rmdir /usr/local/lib64 && \
+    ldconfig
+
+# Build and install osgQt
+RUN git clone --branch topic/Qt6 https://github.com/AhmedAredah/osgQt.git /tmp/osgQt && \
+    cd /tmp/osgQt && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 \
+        -DBUILD_OSG_EXAMPLES=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/osgQt
+
+# Build and install KDReports
+RUN git clone https://github.com/KDAB/KDReports.git /tmp/kdreports && \
+    cd /tmp/kdreports && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DKDReports_QT6=ON \
+        -DKDReports_STATIC=OFF \
+        -DKDReports_TESTS=OFF \
+        -DKDReports_EXAMPLES=OFF \
+        -DKDReports_DOCS=OFF \
+        -DKDReports_PYTHON_BINDINGS=OFF \
+        -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/kdreports
+
+# Build and install Container library
+RUN git clone https://github.com/AhmedAredah/container.git /tmp/container && \
+cd /tmp/container && \
+mkdir build && cd build && \
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 \
+    -DBUILD_PYTHON_BINDINGS=OFF && \
+make -j$(nproc) && \
+make install && \
+rm -rf /tmp/container
+
+# Build and install rabbitmq-c from source with CMake support
+RUN git clone https://github.com/alanxz/rabbitmq-c.git /tmp/rabbitmq-c && \
+    cd /tmp/rabbitmq-c && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_TESTS=OFF \
+        -DBUILD_TOOLS=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/rabbitmq-c
+
+# Set Qt6 environment variables
+ENV Qt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6
+ENV PATH=/opt/Qt/6.8.0/gcc_64/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu
+
+# Clone the ShipNetSim repository
+ARG GITHUB_BRANCH=main
+RUN git  clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
+
+# Build the project
+WORKDIR /app
+
+# Fix C++ standard, GDAL CONFIG mode calls, GeographicLib target, OSG targets, bit_cast, and add GeographicLib CMake module path
+RUN sed -i 's/set(CMAKE_CXX_STANDARD 23)/set(CMAKE_CXX_STANDARD 23)/' /app/CMakeLists.txt && \
+    find /app -name "CMakeLists.txt" -exec sed -i 's/find_package(GDAL.*)/find_package(GDAL REQUIRED MODULE)/g' {} \; && \
+    find /app -name "CMakeLists.txt" -exec sed -i 's/find_package(GeographicLib.*)/find_package(GeographicLib REQUIRED MODULE)/g' {} \; && \
+    find /app -name "CMakeLists.txt" -exec sed -i 's/GeographicLib::GeographicLib/${GeographicLib_LIBRARIES}/g' {} \; && \
+    find /app -name "CMakeLists.txt" -exec sed -i 's/osg3::[^ ]*/\${OPENSCENEGRAPH_LIBRARIES}/g' {} \; && \
+    sed -i '/^project(/a list(APPEND CMAKE_MODULE_PATH /usr/share/cmake/geographiclib)' /app/CMakeLists.txt
+
+RUN mkdir -p build && cd build && \
+    CMAKE_PREFIX_PATH=/usr/local \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_FIND_DEBUG_MODE=OFF \
+        -DBUILD_GUI=ON \
+        -DBUILD_SERVER=ON \
+        -DBUILD_INSTALLER=OFF \
+        -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 \
+        -DRabbitMQ-C_DIR=/usr/lib/x86_64-linux-gnu/cmake/rabbitmq-c \
+        -DOSGQOPENGL_LIB=/usr/local/lib/libosgQOpenGL.a && \
+    cat CMakeCache.txt && \
+    make -j$(nproc)
+
+# # Create a user for running applications
+# RUN useradd -m -s /bin/bash shipnetsim
+
+# # Runtime stage
+# FROM ubuntu:22.04
+
+# ENV DEBIAN_FRONTEND=noninteractive
+
+# # Install runtime dependencies
+# RUN apt-get update && apt-get install -y \
+#     # OpenGL and X11
+#     libgl1-mesa-glx \
+#     libglu1-mesa \
+#     libx11-6 \
+#     libxext6 \
+#     libxrender1 \
+#     libxcb1 \
+#     libxkbcommon-x11-0 \
+#     libxcb-icccm4 \
+#     libxcb-image0 \
+#     libxcb-keysyms1 \
+#     libxcb-randr0 \
+#     libxcb-render-util0 \
+#     # OpenSceneGraph runtime
+#     libopenscenegraph161 \
+#     # Other runtime dependencies
+#     libgdal30 \
+#     libgeographic19 \
+#     librabbitmq4 \
+#     libfontconfig1 \
+#     libfreetype6 \
+#     && rm -rf /var/lib/apt/lists/*
+
+# # Copy built binaries and libraries from builder
+# COPY --from=builder /app/build/src/ShipNetSim/ShipNetSim /app/
+# COPY --from=builder /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app/
+# COPY --from=builder /app/build/src/ShipNetSimServer/ShipNetSimServer /app/
+# COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/local/lib/
+# COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
+# COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
+
+# # Copy Qt6 libraries from builder
+# COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libQt6*.so* /usr/local/lib/
+# COPY --from=builder /opt/Qt/6.8.0/gcc_64/plugins /usr/local/lib/qt6/plugins
+
+# # Copy data directory
+# COPY --from=builder /app/src/data /app/data
+
+# # Set library paths
+# ENV LD_LIBRARY_PATH=/usr/local/lib:/opt/Qt/6.8.0/gcc_64/lib:/usr/lib/x86_64-linux-gnu
+# ENV QT_PLUGIN_PATH=/usr/local/lib/qt6/plugins
+
+# # Update library cache
+# RUN ldconfig
+
+# # Create non-root user
+# RUN useradd -m -s /bin/bash shipnetsim
+# USER shipnetsim
+
+# WORKDIR /app
+# CMD ["./ShipNetSimServer"]
