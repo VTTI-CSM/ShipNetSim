@@ -71,7 +71,7 @@ endif()
 # -------------------------------------------------------
 
 # Option to build GUI components
-option(BUILD_GUI "Build the GUI components" ON)
+option(BUILD_GUI "Build the GUI components" OFF)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 

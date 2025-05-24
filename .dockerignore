@@ -1,0 +1,35 @@
+# Build directories
+build/
+build-*/
+cmake-build-*/
+.cmake/
+
+# IDE files
+.idea/
+.vscode/
+*.user
+*.autosave
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Documentation (optional, to reduce image size)
+docs/
+*.md
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Build outputs
+*.o
+*.so
+*.a
+*.dll
+*.exe

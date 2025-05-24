@@ -658,49 +658,60 @@ bool Quadtree::isSegmentCrossingAntimeridian(
         return false;
     }
 
-    // Get coordinates and handle poles
-    double startLon = segment->startPoint()->getLongitude().value();
-    double endLon   = segment->endPoint()->getLongitude().value();
-    double startLat = segment->startPoint()->getLatitude().value();
-    double endLat   = segment->endPoint()->getLatitude().value();
-
-    // Pole handling - if either point is at/near poles,
-    // longitude differences don't matter
-    const double POLE_THRESHOLD = 89.9; // degrees
-    if (std::abs(startLat) > POLE_THRESHOLD
-        || std::abs(endLat) > POLE_THRESHOLD)
+    try
     {
+
+        // Get coordinates and handle poles
+        double startLon =
+            segment->startPoint()->getLongitude().value();
+        double endLon = segment->endPoint()->getLongitude().value();
+        double startLat =
+            segment->startPoint()->getLatitude().value();
+        double endLat = segment->endPoint()->getLatitude().value();
+
+        // Pole handling - if either point is at/near poles,
+        // longitude differences don't matter
+        const double POLE_THRESHOLD = 89.9; // degrees
+        if (std::abs(startLat) > POLE_THRESHOLD
+            || std::abs(endLat) > POLE_THRESHOLD)
+        {
+            return false;
+        }
+
+        // Normalize longitudes to [-180, 180] range first
+        auto normalizeLongitude = [](double lon) -> double {
+            // First bring into [-180, 180] range
+            lon = std::fmod(lon + 180.0, 360.0);
+            if (lon < 0)
+                lon += 360.0;
+            return lon - 180.0;
+        };
+
+        startLon = normalizeLongitude(startLon);
+        endLon   = normalizeLongitude(endLon);
+
+        // Calculate the shortest distance between longitudes
+        double lonDiff = std::abs(endLon - startLon);
+        if (lonDiff > 180.0)
+        {
+            lonDiff = 360.0 - lonDiff;
+        }
+
+        // Calculate the actual path distance
+        double directDist = std::abs(endLon - startLon);
+
+        // If the direct distance is significantly larger than
+        // the shortest possible distance, the segment crosses the
+        // antimeridian
+        const double TOLERANCE =
+            1e-10; // Small tolerance for floating-point comparison
+        return directDist > (lonDiff + TOLERANCE);
+    }
+    catch (const std::exception &e)
+    {
+        qWarning() << "Exception in antimeridian check:" << e.what();
         return false;
     }
-
-    // Normalize longitudes to [-180, 180] range first
-    auto normalizeLongitude = [](double lon) -> double {
-        // First bring into [-180, 180] range
-        lon = std::fmod(lon + 180.0, 360.0);
-        if (lon < 0)
-            lon += 360.0;
-        return lon - 180.0;
-    };
-
-    startLon = normalizeLongitude(startLon);
-    endLon   = normalizeLongitude(endLon);
-
-    // Calculate the shortest distance between longitudes
-    double lonDiff = std::abs(endLon - startLon);
-    if (lonDiff > 180.0)
-    {
-        lonDiff = 360.0 - lonDiff;
-    }
-
-    // Calculate the actual path distance
-    double directDist = std::abs(endLon - startLon);
-
-    // If the direct distance is significantly larger than
-    // the shortest possible distance, the segment crosses the
-    // antimeridian
-    const double TOLERANCE =
-        1e-10; // Small tolerance for floating-point comparison
-    return directDist > (lonDiff + TOLERANCE);
 }
 
 QVector<std::shared_ptr<GLine>>
@@ -1532,44 +1543,51 @@ void Quadtree::clearTreeHelper(Node *node)
     if (!node)
         return;
 
-    // Use iterative approach with a stack to prevent recursion stack
-    // overflow
-    std::stack<Node *> nodeStack;
-    nodeStack.push(node);
+    // Use a safer approach for tree traversal
+    std::queue<Node *>  nodeQueue;
+    std::vector<Node *> nodesToDelete;
 
-    while (!nodeStack.empty())
+    // Process children of root node
+    for (int i = 0; i < 4; ++i)
     {
-        Node *current = nodeStack.top();
+        if (node->children[i])
+        {
+            nodeQueue.push(node->children[i]);
+            node->children[i] = nullptr; // Clear reference
+        }
+    }
 
-        // Check if all children have been processed
-        bool allChildrenProcessed = true;
+    // Process all descendants
+    while (!nodeQueue.empty())
+    {
+        Node *current = nodeQueue.front();
+        nodeQueue.pop();
+
+        // Queue for deletion
+        nodesToDelete.push_back(current);
+
+        // Process children
         for (int i = 0; i < 4; ++i)
         {
             if (current->children[i])
             {
-                allChildrenProcessed = false;
-                nodeStack.push(current->children[i]);
-                current->children[i] =
-                    nullptr; // Prevent reprocessing
-                break;
-            }
-        }
-
-        // If all children are processed, we can safely delete this
-        // node
-        if (allChildrenProcessed)
-        {
-            nodeStack.pop();
-            if (current != node)
-            { // Don't delete the root node
-                current->line_segments.clear();
-                delete current;
+                nodeQueue.push(current->children[i]);
+                current->children[i] = nullptr;
             }
         }
     }
 
-    // Clear the root node's data
+    // Delete all nodes
+    for (Node *nodeToDelete : nodesToDelete)
+    {
+        nodeToDelete->line_segments.clear();
+        delete nodeToDelete;
+    }
+
+    // Clear root node data
     node->line_segments.clear();
+    std::fill(std::begin(node->children), std::end(node->children),
+              nullptr);
 }
 
 void Quadtree::serialize(std::ostream &out) const
