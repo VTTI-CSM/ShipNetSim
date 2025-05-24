@@ -395,7 +395,7 @@ void Polygon::transformOuterBoundary(bool                   inward,
     // Retrieve the current outer boundary (exterior ring) of the
     // polygon
     const OGRLinearRing *currentOuterRing =
-        mPolygon.getExteriorRing();
+        static_cast<OGRLinearRing *>(mPolygon.getExteriorRing());
 
     // Offset the current outer boundary to create a new ring
     std::unique_ptr<OGRLinearRing> newOuterRing =
@@ -510,7 +510,9 @@ Polygon::getMaxClearWidth(const GLine &line) const
     };
 
     // Calculate clear widths for the outer boundary
-    const OGRLinearRing *outerRing = mPolygon.getExteriorRing();
+    const OGRLinearRing *outerRing =
+        static_cast<const OGRLinearRing *>(
+            mPolygon.getExteriorRing());
     calculateClearWidths(outerRing);
 
     // Calculate clear widths for each inner hole
