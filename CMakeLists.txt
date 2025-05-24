@@ -28,7 +28,7 @@ endif()
 
 # Compiler settings
 # Set the C++20 standard to be used for compiling
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 # Ensure that the selected C++ standard is a
 # requirement for the compiler
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
