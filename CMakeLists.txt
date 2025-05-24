@@ -252,7 +252,7 @@ endif()
 
 # Find packages with specified or default paths
 find_package(GDAL REQUIRED MODULE) # HINTS ${GDAL_ROOT_HINTS}
-find_package(GeographicLib REQUIRED HINTS ${GeographicLib_ROOT_HINTS})
+find_package(GeographicLib REQUIRED MODULE) # HINTS ${GeographicLib_ROOT_HINTS}
 
 
 
