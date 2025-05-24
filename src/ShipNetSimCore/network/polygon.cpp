@@ -107,8 +107,8 @@ void Polygon::setOuterPoints(
     std::vector<OGRLinearRing *> tempInteriorRings;
     for (int i = 0; i < mPolygon.getNumInteriorRings(); ++i)
     {
-        OGRLinearRing *interiorRing =
-            mPolygon.getInteriorRing(i)->clone();
+        OGRLinearRing *interiorRing = static_cast<OGRLinearRing *>(
+            mPolygon.getInteriorRing(i)->clone());
         tempInteriorRings.push_back(interiorRing);
     }
 
@@ -147,8 +147,8 @@ void Polygon::setInnerHolesPoints(
     mInnerHoles = newInners;
 
     // Temporarily store exterior rings
-    OGRLinearRing *tempExteriorRing =
-        mPolygon.getExteriorRing()->clone();
+    OGRLinearRing *tempExteriorRing = static_cast<OGRLinearRing *>(
+        mPolygon.getExteriorRing()->clone());
 
     // Clear the polygon and update the exterior ring
     mPolygon.empty();
@@ -372,7 +372,8 @@ Polygon::offsetBoundary(const OGRLinearRing &ring, bool inward,
 
     if (bufferedPolygon)
     {
-        newRing.reset(bufferedPolygon->getExteriorRing()->clone());
+        newRing.reset(static_cast<OGRLinearRing *>(
+            bufferedPolygon->getExteriorRing()->clone()));
     }
     else
     {
