@@ -134,7 +134,7 @@ if(BUILD_GUI)
     endif()
 
     # Use these paths to find osgEarth and OpenSceneGraph
-    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
+    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow)
 
     find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")
