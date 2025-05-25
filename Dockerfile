@@ -256,61 +256,108 @@ RUN mkdir -p build && cd build && \
 # Create a user for running applications
 RUN useradd -m -s /bin/bash shipnetsim
 
-# # Runtime stage
-# FROM ubuntu:22.04
+# Runtime stage
+FROM ubuntu:22.04 AS release_stage
 
-# ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
-# # Install runtime dependencies
-# RUN apt-get update && apt-get install -y \
-#     # OpenGL and X11
-#     libgl1-mesa-glx \
-#     libglu1-mesa \
-#     libx11-6 \
-#     libxext6 \
-#     libxrender1 \
-#     libxcb1 \
-#     libxkbcommon-x11-0 \
-#     libxcb-icccm4 \
-#     libxcb-image0 \
-#     libxcb-keysyms1 \
-#     libxcb-randr0 \
-#     libxcb-render-util0 \
-#     # OpenSceneGraph runtime
-#     libopenscenegraph161 \
-#     # Other runtime dependencies
-#     libgdal30 \
-#     libgeographic19 \
-#     librabbitmq4 \
-#     libfontconfig1 \
-#     libfreetype6 \
-#     && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    # OpenGL and X11
+    libgl1-mesa-glx \
+    libglu1-mesa \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libxcb1 \
+    libxkbcommon-x11-0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xfixes0 \
+    # Qt6 runtime dependencies
+    libdbus-1-3 \
+    libxcb-xkb1 \
+    libxkbcommon0 \
+    libxcb-render0 \
+    libxcb-shape0 \
+    libxcb-shm0 \
+    libxcb-sync1 \
+    libxcb-cursor0 \
+    libxcb-glx0 \
+    libegl1-mesa \
+    libicu70 \
+    libnss3 \
+    libnspr4 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libgtk-3-0 \
+    # OpenSceneGraph runtime
+    libopenscenegraph161 \
+    # GDAL and GeographicLib dependencies
+    libproj22 \
+    libgeos-c1v5 \
+    libsqlite3-0 \
+    libexpat1 \
+    libxml2 \
+    libxerces-c3.2 \
+    libnetcdf19 \
+    libhdf5-103 \
+    libspatialite7 \
+    liblzma5 \
+    libzstd1 \
+    libblosc1 \
+    libcfitsio9 \
+    libcurl4 \
+    libprotobuf23 \
+    libpoco-dev \
+    libssl3 \
+    zlib1g \
+    # Other runtime dependencies
+    libfontconfig1 \
+    libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
 
-# # Copy built binaries and libraries from builder
-# COPY --from=builder /app/build/src/ShipNetSim/ShipNetSim /app/
-# COPY --from=builder /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app/
-# COPY --from=builder /app/build/src/ShipNetSimServer/ShipNetSimServer /app/
-# COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/local/lib/
-# COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
-# COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
+# Copy built binaries and libraries from builder
+COPY --from=builder /app/build/src/ShipNetSim/ShipNetSim /app/
+COPY --from=builder /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app/
+COPY --from=builder /app/build/src/ShipNetSimServer/ShipNetSimServer /app/
+COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/local/lib/
 
-# # Copy Qt6 libraries from builder
-# COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libQt6*.so* /usr/local/lib/
-# COPY --from=builder /opt/Qt/6.8.0/gcc_64/plugins /usr/local/lib/qt6/plugins
+# Copy all custom-built libraries
+COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libgdal*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libgeographic*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libosgQt*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libcontainer*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/librabbitmq*.so* /usr/local/lib/
 
-# # Copy data directory
-# COPY --from=builder /app/src/data /app/data
+# Copy Qt6 libraries and dependencies from builder
+COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libQt6*.so* /usr/local/lib/
 
-# # Set library paths
-# ENV LD_LIBRARY_PATH=/usr/local/lib:/opt/Qt/6.8.0/gcc_64/lib:/usr/lib/x86_64-linux-gnu
-# ENV QT_PLUGIN_PATH=/usr/local/lib/qt6/plugins
+# Create Qt6 directory structure and copy plugins
+RUN mkdir -p /usr/local/lib/qt6
+COPY --from=builder /opt/Qt/6.8.0/gcc_64/plugins /usr/local/lib/qt6/plugins
 
-# # Update library cache
-# RUN ldconfig
+# Copy data directory
+COPY --from=builder /app/src/data /app/data
 
-# # Create non-root user
-# RUN useradd -m -s /bin/bash shipnetsim
-# USER shipnetsim
+# Set comprehensive library paths and Qt environment variables
+ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu
+ENV QT_PLUGIN_PATH=/usr/local/lib/qt6/plugins
+ENV QT_QPA_PLATFORM_PLUGIN_PATH=/usr/local/lib/qt6/plugins/platforms
+ENV QT_QPA_PLATFORM=xcb
 
-# WORKDIR /app
-# CMD ["./ShipNetSimServer"]
+# Update library cache
+RUN ldconfig
+
+# Create non-root user
+RUN useradd -m -s /bin/bash shipnetsim
+USER shipnetsim
+
+WORKDIR /app
+CMD ["./ShipNetSimServer"]
