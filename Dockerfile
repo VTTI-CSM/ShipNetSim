@@ -327,7 +327,9 @@ COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/loc
 
 # Copy all custom-built libraries with broader patterns to catch all versions
 COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libkdreports*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libkd*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libgdal*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libgeographic*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/*GeographicLib*.so* /usr/local/lib/
