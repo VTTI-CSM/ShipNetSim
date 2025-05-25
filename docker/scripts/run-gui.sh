@@ -60,28 +60,41 @@ setup_macos_x11() {
         exit 1
     fi
     
-    # Check if XQuartz is running
-    if ! pgrep -x "XQuartz" > /dev/null; then
-        echo "❌ XQuartz is not running. Starting XQuartz..."
-        open -a XQuartz
-        echo "⏳ Waiting for XQuartz to start..."
-        sleep 3
-        
-        # Wait for XQuartz to be ready
-        timeout=30
-        while [ $timeout -gt 0 ] && ! pgrep -x "XQuartz" > /dev/null; do
-            sleep 1
-            timeout=$((timeout - 1))
-        done
-        
-        if ! pgrep -x "XQuartz" > /dev/null; then
-            echo "❌ Failed to start XQuartz. Please start it manually:"
-            echo "   1. Open XQuartz application"
-            echo "   2. Go to Preferences → Security"
-            echo "   3. Check 'Allow connections from network clients'"
-            exit 1
-        fi
+    # Check if XQuartz is running using multiple methods
+    XQUARTZ_RUNNING=false
+    
+    # Method 1: Check for XQuartz process
+    if pgrep -x "XQuartz" > /dev/null; then
+        XQUARTZ_RUNNING=true
     fi
+    
+    # Method 2: Check for X11 server listening on port 6000
+    if ! $XQUARTZ_RUNNING && netstat -an 2>/dev/null | grep -q "\.6000.*LISTEN"; then
+        XQUARTZ_RUNNING=true
+    fi
+    
+    # Method 3: Check if DISPLAY is set and X11 socket exists
+    if ! $XQUARTZ_RUNNING && [ -n "$DISPLAY" ] && [ -S "/tmp/.X11-unix/X0" ]; then
+        XQUARTZ_RUNNING=true
+    fi
+    
+    if ! $XQUARTZ_RUNNING; then
+        echo "❌ XQuartz is not running. Please start it manually:"
+        echo "   1. Open XQuartz application (search for 'XQuartz' in Spotlight)"
+        echo "   2. Wait for XQuartz to fully start (you should see xterm window)"
+        echo "   3. Go to XQuartz menu → Preferences → Security"
+        echo "   4. Check 'Allow connections from network clients'"
+        echo "   5. Restart XQuartz if you changed the setting"
+        echo "   6. Run this script again"
+        echo ""
+        echo "🔧 Current status check:"
+        echo "   - XQuartz process: $(pgrep -x "XQuartz" > /dev/null && echo "✅ Running" || echo "❌ Not found")"
+        echo "   - X11 socket: $([ -S "/tmp/.X11-unix/X0" ] && echo "✅ Available" || echo "❌ Not found")"
+        echo "   - Port 6000: $(netstat -an 2>/dev/null | grep -q "\.6000.*LISTEN" && echo "✅ Listening" || echo "❌ Not listening")"
+        exit 1
+    fi
+    
+    echo "✅ XQuartz is running"
     
     # Get IP address for Docker to connect to
     IP=$(ifconfig en0 2>/dev/null | grep 'inet ' | awk '{print $2}')
@@ -89,19 +102,35 @@ setup_macos_x11() {
         IP=$(ifconfig en1 2>/dev/null | grep 'inet ' | awk '{print $2}')
     fi
     if [ -z "$IP" ]; then
+        # Fallback: try to get any active IP
+        IP=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}')
+    fi
+    if [ -z "$IP" ]; then
         IP="host.docker.internal"
     fi
     
     echo "🔗 Using IP address: $IP"
     
-    # Allow X11 forwarding
-    /opt/X11/bin/xhost + $IP > /dev/null 2>&1
+    # Test X11 connection before proceeding
+    if [ "$IP" != "host.docker.internal" ]; then
+        # Allow X11 forwarding
+        /opt/X11/bin/xhost + $IP > /dev/null 2>&1
+        
+        # Test if X11 is accessible
+        if ! timeout 2 bash -c "</dev/tcp/$IP/6000" 2>/dev/null; then
+            echo "⚠️ Cannot connect to X11 server at $IP:6000"
+            echo "   Trying with host.docker.internal instead..."
+            IP="host.docker.internal"
+        fi
+    fi
     
     # Set environment variables for macOS
     DISPLAY_VAR="$IP:0"
     DOCKER_ARGS="--add-host=host.docker.internal:host-gateway"
     XHOST_CMD="/opt/X11/bin/xhost"
     LIBGL_SETTING="1"
+    
+    echo "🎯 Final configuration: DISPLAY=$DISPLAY_VAR"
 }
 
 # Function to setup X11 for Linux
