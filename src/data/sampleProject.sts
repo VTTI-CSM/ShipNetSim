@@ -1,0 +1,9 @@
+<Data>
+    <ProjectName>Not Defined</ProjectName>
+    <NetworkName>Not Defined</NetworkName>
+    <AuthorName>Not Defined</AuthorName>
+    <ShipsFileName>$${DATADIR}/sampleShip.dat</ShipsFileName>
+    <simEndTime>0</simEndTime>
+    <simTimestep>1</simTimestep>
+    <simPlotTime>1000</simPlotTime>
+</Data>
