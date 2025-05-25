@@ -257,7 +257,7 @@ RUN mkdir -p build && cd build && \
 RUN useradd -m -s /bin/bash shipnetsim
 
 # Runtime stage
-FROM ubuntu:22.04 AS release_stage
+FROM ubuntu:20.04 AS release_stage
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -289,32 +289,30 @@ RUN apt-get update && apt-get install -y \
     libxcb-cursor0 \
     libxcb-glx0 \
     libegl1-mesa \
-    libicu70 \
     libnss3 \
     libnspr4 \
     libatk-bridge2.0-0 \
     libdrm2 \
     libgtk-3-0 \
-    # OpenSceneGraph runtime
-    libopenscenegraph161 \
-    # GDAL and GeographicLib dependencies
-    libproj22 \
+    # OpenSceneGraph runtime (Ubuntu 20.04 versions)
+    libopenscenegraph-dev \
+    # GDAL and GeographicLib dependencies (Ubuntu 20.04 versions)
+    libproj15 \
     libgeos-c1v5 \
     libsqlite3-0 \
     libexpat1 \
     libxml2 \
     libxerces-c3.2 \
-    libnetcdf19 \
+    libnetcdf15 \
     libhdf5-103 \
     libspatialite7 \
     liblzma5 \
     libzstd1 \
     libblosc1 \
-    libcfitsio9 \
+    libcfitsio8 \
     libcurl4 \
-    libprotobuf23 \
+    libprotobuf17 \
     libpoco-dev \
-    libssl3 \
     zlib1g \
     # Other runtime dependencies
     libfontconfig1 \
@@ -327,17 +325,29 @@ COPY --from=builder /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app/
 COPY --from=builder /app/build/src/ShipNetSimServer/ShipNetSimServer /app/
 COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/local/lib/
 
-# Copy all custom-built libraries
+# Copy all custom-built libraries with broader patterns to catch all versions
 COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libgdal*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libgeographic*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/*GeographicLib*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/*geographic*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/libosgQt*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libcontainer*.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/librabbitmq*.so* /usr/local/lib/
+
+# Copy Container library with all possible variations
+COPY --from=builder /usr/local/lib/libcontainer*.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/libContainer*.so* /usr/local/lib/
 
 # Copy Qt6 libraries and dependencies from builder
 COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libQt6*.so* /usr/local/lib/
+
+# Copy ICU libraries from builder (to match Qt6's ICU version)
+COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libicu*.so* /usr/local/lib/
+
+# Copy newer libstdc++ and libgcc from builder to fix GLIBCXX version issues
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libstdc++.so.6* /usr/local/lib/
+COPY --from=builder /usr/lib/x86_64-linux-gnu/libgcc_s.so.1* /usr/local/lib/
 
 # Create Qt6 directory structure and copy plugins
 RUN mkdir -p /usr/local/lib/qt6
