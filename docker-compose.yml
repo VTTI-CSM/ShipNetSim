@@ -22,7 +22,7 @@ services:
     working_dir: /app
     command: ./ShipNetSim
 
-  # Server version with RabbitMQ
+  # Server versions
   shipnetsim-server:
     image: shipnetsim:latest
     container_name: shipnetsim-server
@@ -34,12 +34,25 @@ services:
     volumes:
       - ./data:/app/data
     working_dir: /app
-    command: ./ShipNetSimServer
+    command: ./ShipNetSimServer --hostname rabbitmq --port 5672
     networks:
       - shipnetsim-network
 
-  # GUI version
-  shipnetsim-gui:
+  shipnetsim-server-host:
+    image: shipnetsim:latest
+    container_name: shipnetsim-server-host
+    environment:
+      - RABBITMQ_HOST=host.docker.internal
+      - RABBITMQ_PORT=5672
+    volumes:
+      - ./data:/app/data
+    working_dir: /app
+    command: ./ShipNetSimServer --hostname host.docker.internal --port 5672
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # GUI version (Linux)
+  shipnetsim-gui-linux:
     image: shipnetsim:latest
     container_name: shipnetsim-gui
     environment:
@@ -56,6 +69,66 @@ services:
     command: ./ShipNetSimGUI
     network_mode: host
     user: root
+    profiles:
+      - linux
+
+  # GUI version (macOS)
+  shipnetsim-gui-macos:
+    image: shipnetsim:latest
+    container_name: shipnetsim-gui
+    environment:
+      - DISPLAY=host.docker.internal:0
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=1
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    command: ./ShipNetSimGUI
+    user: root
+    profiles:
+      - macos
+
+  # GUI version (Windows/WSL)
+  shipnetsim-gui-windows:
+    image: shipnetsim:latest
+    container_name: shipnetsim-gui
+    environment:
+      - DISPLAY=host.docker.internal:0
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=1
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    command: ./ShipNetSimGUI
+    user: root
+    profiles:
+      - windows
+
+  # GUI version (WSLg - Windows 11)
+  shipnetsim-gui-wslg:
+    image: shipnetsim:latest
+    container_name: shipnetsim-gui
+    environment:
+      - DISPLAY=${DISPLAY}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /mnt/wslg:/mnt/wslg:rw
+      - ./data:/app/data
+      - ./output:/app/output
+    working_dir: /app
+    command: ./ShipNetSimGUI
+    user: root
+    profiles:
+      - wslg
 
   # Development environment
   shipnetsim-dev:
