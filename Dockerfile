@@ -1,5 +1,4 @@
 # Use pre-built Qt6 image as base
-# FROM stateoftheartio/qt6:6.7-gcc-aqt AS builder
 FROM stateoftheartio/qt6:6.8-gcc-aqt AS builder
 
 # Switch to root for package installation
@@ -15,13 +14,14 @@ RUN apt-get update && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 40 --slave /usr/bin/g++ g++ /usr/bin/g++-9 && \
     gcc --version && g++ --version
 
-# Install dependencies
+# Install dependencies (removing libgeographic-dev, adding GeographicLib build dependencies)
 RUN apt-get update && apt-get install -y \
     # Build tools
     build-essential \
     cmake \
     git \
     pkg-config \
+    wget \
     # X11 and OpenGL for GUI support
     libx11-dev \
     libxext-dev \
@@ -52,18 +52,27 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     # CUPS for Qt6PrintSupport
     libcups2-dev \
-    # GDAL
+    # PostgreSQL for GDAL
     libpq-dev \
-    gdal-bin \
-    libgdal-dev \
-    # GeographicLib
-    libgeographic-dev \
+    # GDAL build dependencies
+    libproj-dev \
+    libgeos-dev \
+    libsqlite3-dev \
+    libexpat1-dev \
+    libxml2-dev \
+    libxerces-c-dev \
+    libnetcdf-dev \
+    libhdf5-dev \
+    libkml-dev \
+    libspatialite-dev \
+    liblzma-dev \
+    libzstd-dev \
+    libblosc-dev \
+    libcfitsio-dev \
     # RabbitMQ-C
     librabbitmq-dev \
     # Dependencies for osgEarth
     libcurl4-openssl-dev \
-    libgeos-dev \
-    libsqlite3-dev \
     libprotobuf-dev \
     protobuf-compiler \
     libpoco-dev \
@@ -75,7 +84,56 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /build
 
-# Build and install osgEarth from source
+# Build and install GeographicLib 2.3 from source (GitHub)
+RUN git clone https://github.com/geographiclib/geographiclib.git /tmp/geographiclib && \
+    cd /tmp/geographiclib && \
+    git checkout v2.3 && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=ON \
+        -DGEOGRAPHICLIB_TOOLS=ON \
+        -DGEOGRAPHICLIB_DOCUMENTATION=OFF \
+        -DGEOGRAPHICLIB_EXAMPLES=OFF \
+        -DGEOGRAPHICLIB_TESTS=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/geographiclib
+
+# Update library cache after GeographicLib installation
+RUN ldconfig
+
+# Build and install GDAL 3.8.0 from source (GitHub)
+RUN git clone https://github.com/OSGeo/gdal.git /tmp/gdal && \
+    cd /tmp/gdal && \
+    git checkout v3.8.0 && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_SHARED_LIBS=ON \
+        -DGDAL_BUILD_OPTIONAL_DRIVERS=ON \
+        -DGDAL_ENABLE_DRIVER_GIF=ON \
+        -DGDAL_ENABLE_DRIVER_JPEG=ON \
+        -DGDAL_ENABLE_DRIVER_PNG=ON \
+        -DGDAL_ENABLE_DRIVER_GTiff=ON \
+        -DGDAL_USE_GEOS=ON \
+        -DGDAL_USE_PROJ=ON \
+        -DGDAL_USE_CURL=ON \
+        -DGDAL_USE_EXPAT=ON \
+        -DGDAL_USE_SQLITE3=ON \
+        -DGDAL_USE_POSTGRESQL=ON \
+        -DGDAL_USE_NETCDF=ON \
+        -DGDAL_USE_HDF5=ON \
+        -DGDAL_USE_SPATIALITE=ON && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/gdal
+
+# Update library cache after GDAL installation
+RUN ldconfig
+
 # Build and install osgEarth from source (Release and Debug)
 RUN git clone --branch osgearth-3.5 https://github.com/gwaldron/osgearth.git /tmp/osgearth && \
     cd /tmp/osgearth && \
@@ -105,7 +163,7 @@ RUN mv /usr/local/lib64/* /usr/local/lib/ && \
     ldconfig
 
 # Build and install osgQt
-RUN git clone --branch topic/Qt6 https://github.com/AhmedAredah/osgQt.git /tmp/osgQt && \
+RUN git clone --branch topic/Qt6 https://github.com/AhmedAredah/osgQt.git /tmp/osgQt  && \
     cd /tmp/osgQt && \
     mkdir build && cd build && \
     cmake .. \
@@ -170,7 +228,7 @@ ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linu
 
 # Clone the ShipNetSim repository
 ARG GITHUB_BRANCH=main
-RUN git  clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
+RUN git clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
 
 # Build the project
 WORKDIR /app
@@ -178,8 +236,6 @@ WORKDIR /app
 # Fix C++ standard, GDAL CONFIG mode calls, GeographicLib target, OSG targets, bit_cast, and add GeographicLib CMake module path
 RUN sed -i 's/set(CMAKE_CXX_STANDARD 23)/set(CMAKE_CXX_STANDARD 23)/' /app/CMakeLists.txt && \
     find /app -name "CMakeLists.txt" -exec sed -i 's/find_package(GDAL.*)/find_package(GDAL REQUIRED MODULE)/g' {} \; && \
-    find /app -name "CMakeLists.txt" -exec sed -i 's/find_package(GeographicLib.*)/find_package(GeographicLib REQUIRED MODULE)/g' {} \; && \
-    find /app -name "CMakeLists.txt" -exec sed -i 's/GeographicLib::GeographicLib/${GeographicLib_LIBRARIES}/g' {} \; && \
     find /app -name "CMakeLists.txt" -exec sed -i 's/osg3::[^ ]*/\${OPENSCENEGRAPH_LIBRARIES}/g' {} \; && \
     sed -i '/^project(/a list(APPEND CMAKE_MODULE_PATH /usr/share/cmake/geographiclib)' /app/CMakeLists.txt
 
@@ -197,8 +253,8 @@ RUN mkdir -p build && cd build && \
     cat CMakeCache.txt && \
     make -j$(nproc)
 
-# # Create a user for running applications
-# RUN useradd -m -s /bin/bash shipnetsim
+# Create a user for running applications
+RUN useradd -m -s /bin/bash shipnetsim
 
 # # Runtime stage
 # FROM ubuntu:22.04
