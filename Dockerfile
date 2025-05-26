@@ -228,7 +228,7 @@ ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linu
 
 # Clone the ShipNetSim repository
 ARG GITHUB_BRANCH=main
-RUN git clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
+RUN git clone --branch  ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
 
 # Build the project
 WORKDIR /app
