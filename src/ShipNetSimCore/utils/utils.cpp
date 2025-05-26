@@ -26,8 +26,18 @@ QString getRootDirectory()
 }
 
 QString getDataDirectory()
-{
+{   
+    // First, check for 'data' directory in the same directory as executable
+    QString execDir = getExecutableDirectory();
+    QDir execDataDir(QDir(execDir).filePath("data"));
+    if (execDataDir.exists())
+    {
+        return execDataDir.absolutePath();
+    }
+
+    // Then check the parent/data location
     QString parentDir = getRootDirectory();
+    
     // Navigate to the 'data' directory within the parent
     QDir dataDir(QDir(parentDir).filePath("data"));
 
