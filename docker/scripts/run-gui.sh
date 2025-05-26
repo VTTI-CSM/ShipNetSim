@@ -84,8 +84,9 @@ setup_macos_x11() {
         echo "   2. Wait for XQuartz to fully start (you should see xterm window)"
         echo "   3. Go to XQuartz menu → Preferences → Security"
         echo "   4. Check 'Allow connections from network clients'"
-        echo "   5. Restart XQuartz if you changed the setting"
-        echo "   6. Run this script again"
+        echo "   5. Check 'Authenticate connections'"
+        echo "   6. Restart XQuartz if you changed the setting"
+        echo "   7. Run this script again"
         echo ""
         echo "🔧 Current status check:"
         echo "   - XQuartz process: $(pgrep -x "XQuartz" > /dev/null && echo "✅ Running" || echo "❌ Not found")"
@@ -96,7 +97,18 @@ setup_macos_x11() {
     
     echo "✅ XQuartz is running"
     
-    # Get IP address for Docker to connect to
+    # Configure X11 permissions for Docker - be more permissive for troubleshooting
+    echo "🔐 Setting up X11 permissions..."
+    /opt/X11/bin/xhost +local: > /dev/null 2>&1
+    /opt/X11/bin/xhost +localhost > /dev/null 2>&1
+    /opt/X11/bin/xhost +127.0.0.1 > /dev/null 2>&1
+    /opt/X11/bin/xhost +host.docker.internal > /dev/null 2>&1
+    /opt/X11/bin/xhost +SI:localuser:$(whoami) > /dev/null 2>&1
+    
+    # For debugging, temporarily allow all connections (you can restrict this later)
+    /opt/X11/bin/xhost + > /dev/null 2>&1
+    
+    # Get the local IP address for network connection
     IP=$(ifconfig en0 2>/dev/null | grep 'inet ' | awk '{print $2}')
     if [ -z "$IP" ]; then
         IP=$(ifconfig en1 2>/dev/null | grep 'inet ' | awk '{print $2}')
@@ -109,28 +121,52 @@ setup_macos_x11() {
         IP="host.docker.internal"
     fi
     
-    echo "🔗 Using IP address: $IP"
-    
-    # Test X11 connection before proceeding
-    if [ "$IP" != "host.docker.internal" ]; then
-        # Allow X11 forwarding
-        /opt/X11/bin/xhost + $IP > /dev/null 2>&1
-        
-        # Test if X11 is accessible
-        if ! timeout 2 bash -c "</dev/tcp/$IP/6000" 2>/dev/null; then
-            echo "⚠️ Cannot connect to X11 server at $IP:6000"
-            echo "   Trying with host.docker.internal instead..."
-            IP="host.docker.internal"
-        fi
-    fi
-    
-    # Set environment variables for macOS
+    # On macOS, socket mounting often doesn't work well with Docker Desktop
+    # Use network connection instead
+    echo "🔗 Using network connection method"
     DISPLAY_VAR="$IP:0"
     DOCKER_ARGS="--add-host=host.docker.internal:host-gateway"
+    CONNECTION_METHOD="network"
+    
+    # Add the IP to xhost permissions
+    if [ "$IP" != "host.docker.internal" ]; then
+        /opt/X11/bin/xhost +$IP > /dev/null 2>&1
+    fi
+    
+    # Set other environment variables
     XHOST_CMD="/opt/X11/bin/xhost"
     LIBGL_SETTING="1"
     
-    echo "🎯 Final configuration: DISPLAY=$DISPLAY_VAR"
+    echo "🎯 Final configuration:"
+    echo "   - Method: $CONNECTION_METHOD"
+    echo "   - DISPLAY: $DISPLAY_VAR"
+    echo "   - Docker args: $DOCKER_ARGS"
+    echo "   - IP Address: $IP"
+    
+    # Debug information
+    echo "🔍 Debug information:"
+    echo "   - XQuartz socket: $([ -S "/tmp/.X11-unix/X0" ] && echo "✅ Available at /tmp/.X11-unix/X0" || echo "❌ Missing")"
+    echo "   - Port 6000: $(netstat -an 2>/dev/null | grep -q "\.6000.*LISTEN" && echo "✅ Listening" || echo "❌ Not listening")"
+    echo "   - Current DISPLAY: ${DISPLAY:-"(not set)"}"
+    echo "   - xhost status: $(/opt/X11/bin/xhost 2>/dev/null | head -1 || echo "Unable to get xhost status")"
+    
+    # Test X11 connection if possible (use gtimeout on macOS if available, otherwise skip)
+    if command -v gtimeout >/dev/null 2>&1 && command -v xeyes >/dev/null 2>&1; then
+        echo "   - X11 test: $(gtimeout 2 xeyes 2>&1 >/dev/null && echo "✅ Working" || echo "❌ Failed or timeout")"
+    elif command -v xeyes >/dev/null 2>&1; then
+        echo "   - X11 test: $(xeyes 2>&1 >/dev/null & sleep 2; kill $! 2>/dev/null && echo "✅ Working" || echo "❌ Failed")"
+    fi
+    
+    # Additional verification - test network connection to X11
+    if command -v nc >/dev/null 2>&1; then
+        if nc -z $IP 6000 2>/dev/null; then
+            echo "   - X11 network: ✅ Port 6000 accessible at $IP"
+        else
+            echo "   - X11 network: ⚠️  Port 6000 not accessible at $IP"
+        fi
+    fi
+    
+    echo "🚀 Ready to start Docker container with X11 support"
 }
 
 # Function to setup X11 for Linux
@@ -366,11 +402,21 @@ main() {
     docker_cmd="$docker_cmd -e QT_X11_NO_MITSHM=1"
     docker_cmd="$docker_cmd -e LIBGL_ALWAYS_INDIRECT=\"$LIBGL_SETTING\""
     
+    # Add additional Qt/X11 environment variables for better compatibility
+    docker_cmd="$docker_cmd -e QT_QPA_PLATFORM=xcb"
+    docker_cmd="$docker_cmd -e QT_QPA_PLATFORM_PLUGIN_PATH=/usr/local/lib/qt6/plugins/platforms"
+    docker_cmd="$docker_cmd -e XDG_RUNTIME_DIR=/tmp"
+    docker_cmd="$docker_cmd -e QT_LOGGING_RULES=\"*.debug=false;qt.qpa.xcb.debug=false\""
+    
+    # Set locale for Qt
+    docker_cmd="$docker_cmd -e LANG=C.UTF-8"
+    docker_cmd="$docker_cmd -e LC_ALL=C.UTF-8"
+    
     # Add volumes
     if [ "$OS" != "windows" ] || check_wslg; then
         docker_cmd="$docker_cmd -v /tmp/.X11-unix:/tmp/.X11-unix:rw"
     fi
-    docker_cmd="$docker_cmd -v \"$(pwd)/data:/app/data\""
+    # docker_cmd="$docker_cmd -v \"$(pwd)/data:/app/data\""
     docker_cmd="$docker_cmd -v \"$(pwd)/output:/app/output\""
     
     # Add platform-specific arguments
