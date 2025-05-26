@@ -226,9 +226,14 @@ ENV Qt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6
 ENV PATH=/opt/Qt/6.8.0/gcc_64/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu
 
+# Install Git LFS
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+    apt-get install -y git-lfs && \
+    git lfs install
+
 # Clone the ShipNetSim repository
 ARG GITHUB_BRANCH=main
-RUN git clone --branch  ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
+RUN  git clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git  /app
 
 # Build the project
 WORKDIR /app
@@ -294,6 +299,8 @@ RUN apt-get update && apt-get install -y \
     libatk-bridge2.0-0 \
     libdrm2 \
     libgtk-3-0 \
+    libxcb-cursor0 \
+    libxcb-cursor-dev \
     # OpenSceneGraph runtime (Ubuntu 20.04 versions)
     libopenscenegraph-dev \
     # GDAL and GeographicLib dependencies (Ubuntu 20.04 versions)
@@ -317,7 +324,19 @@ RUN apt-get update && apt-get install -y \
     # Other runtime dependencies
     libfontconfig1 \
     libfreetype6 \
+    # Software rendering support
+    libosmesa6 \
+    mesa-utils \
+    software-properties-common \
+    # Locale support
+    locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure locale to fix std::locale errors
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 # Copy built binaries and libraries from builder
 COPY --from=builder /app/build/src/ShipNetSim/ShipNetSim /app/
