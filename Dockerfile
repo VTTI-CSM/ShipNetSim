@@ -1,5 +1,5 @@
-# Use pre-built Qt6 image as base
-FROM stateoftheartio/qt6:6.8-gcc-aqt AS builder
+# Use pre-built Qt6 image as base for both building and runtime
+FROM stateoftheartio/qt6:6.8-gcc-aqt AS release
 
 # Switch to root for package installation
 USER root
@@ -14,7 +14,7 @@ RUN apt-get update && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 40 --slave /usr/bin/g++ g++ /usr/bin/g++-9 && \
     gcc --version && g++ --version
 
-# Install dependencies (removing libgeographic-dev, adding GeographicLib build dependencies)
+# Install all dependencies (build + runtime)
 RUN apt-get update && apt-get install -y \
     # Build tools
     build-essential \
@@ -22,9 +22,14 @@ RUN apt-get update && apt-get install -y \
     git \
     pkg-config \
     wget \
+    curl \
+    xvfb \
+    x11-utils \
     # X11 and OpenGL for GUI support
     libx11-dev \
+    libx11-6 \
     libxext-dev \
+    libxext6 \
     libxrandr-dev \
     libxcursor-dev \
     libxi-dev \
@@ -32,7 +37,9 @@ RUN apt-get update && apt-get install -y \
     libxxf86vm-dev \
     libxss-dev \
     libgl1-mesa-dev \
+    libgl1-mesa-glx \
     libglu1-mesa-dev \
+    libglu1-mesa \
     libxkbcommon-x11-0 \
     libxcb-icccm4 \
     libxcb-image0 \
@@ -41,11 +48,33 @@ RUN apt-get update && apt-get install -y \
     libxcb-render-util0 \
     libxcb-xinerama0 \
     libxcb-xfixes0 \
+    libxcb-cursor0 \
+    libxcb-cursor-dev \
+    libxcb-glx0 \
+    libxcb-render0 \
+    libxcb-shape0 \
+    libxcb-shm0 \
+    libxcb-sync1 \
+    libxcb1 \
+    libxrender1 \
     x11-apps \
+    mesa-utils \
+    # Qt6 runtime dependencies
+    libdbus-1-3 \
+    libxcb-xkb1 \
+    libxkbcommon0 \
+    libegl1-mesa \
+    libnss3 \
+    libnspr4 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libgtk-3-0 \
     # System libraries
     libssl-dev \
     libfontconfig1-dev \
+    libfontconfig1 \
     libfreetype6-dev \
+    libfreetype6 \
     libpng-dev \
     libjpeg-dev \
     libtiff-dev \
@@ -56,30 +85,56 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     # GDAL build dependencies
     libproj-dev \
+    libproj15 \
     libgeos-dev \
+    libgeos-c1v5 \
     libsqlite3-dev \
+    libsqlite3-0 \
     libexpat1-dev \
+    libexpat1 \
     libxml2-dev \
+    libxml2 \
     libxerces-c-dev \
+    libxerces-c3.2 \
     libnetcdf-dev \
+    libnetcdf15 \
     libhdf5-dev \
+    libhdf5-103 \
     libkml-dev \
     libspatialite-dev \
+    libspatialite7 \
     liblzma-dev \
+    liblzma5 \
     libzstd-dev \
+    libzstd1 \
     libblosc-dev \
+    libblosc1 \
     libcfitsio-dev \
+    libcfitsio8 \
     # RabbitMQ-C
     librabbitmq-dev \
     # Dependencies for osgEarth
     libcurl4-openssl-dev \
+    libcurl4 \
     libprotobuf-dev \
+    libprotobuf17 \
     protobuf-compiler \
     libpoco-dev \
     # OpenSceneGraph
     libopenscenegraph-dev \
     zlib1g-dev \
+    zlib1g \
+    # Software rendering support
+    libosmesa6 \
+    # Locale support
+    locales \
     && rm -rf /var/lib/apt/lists/*
+
+# Configure locale to fix std::locale errors
+RUN locale-gen en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 # Set working directory
 WORKDIR /build
@@ -158,8 +213,7 @@ RUN git clone --branch osgearth-3.5 https://github.com/gwaldron/osgearth.git /tm
     rm -rf /tmp/osgearth
 
 # Move everything from lib64 to lib directory
-RUN mv /usr/local/lib64/* /usr/local/lib/ && \
-    rmdir /usr/local/lib64 && \
+RUN if [ -d /usr/local/lib64 ]; then mv /usr/local/lib64/* /usr/local/lib/ && rmdir /usr/local/lib64; fi && \
     ldconfig
 
 # Build and install osgQt
@@ -195,16 +249,16 @@ RUN git clone https://github.com/KDAB/KDReports.git /tmp/kdreports && \
 
 # Build and install Container library
 RUN git clone https://github.com/AhmedAredah/container.git /tmp/container && \
-cd /tmp/container && \
-mkdir build && cd build && \
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr/local \
-    -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 \
-    -DBUILD_PYTHON_BINDINGS=OFF && \
-make -j$(nproc) && \
-make install && \
-rm -rf /tmp/container
+    cd /tmp/container && \
+    mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DQt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6 \
+        -DBUILD_PYTHON_BINDINGS=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/container
 
 # Build and install rabbitmq-c from source with CMake support
 RUN git clone https://github.com/alanxz/rabbitmq-c.git /tmp/rabbitmq-c && \
@@ -221,11 +275,6 @@ RUN git clone https://github.com/alanxz/rabbitmq-c.git /tmp/rabbitmq-c && \
     make install && \
     rm -rf /tmp/rabbitmq-c
 
-# Set Qt6 environment variables
-ENV Qt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6
-ENV PATH=/opt/Qt/6.8.0/gcc_64/bin:$PATH
-ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu
-
 # Install Git LFS
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     apt-get install -y git-lfs && \
@@ -233,7 +282,7 @@ RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.d
 
 # Clone the ShipNetSim repository
 ARG GITHUB_BRANCH=main
-RUN  git clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git  /app
+RUN git clone --branch ${GITHUB_BRANCH} https://github.com/VTTI-CSM/ShipNetSim.git /app
 
 # Build the project
 WORKDIR /app
@@ -258,129 +307,37 @@ RUN mkdir -p build && cd build && \
     cat CMakeCache.txt && \
     make -j$(nproc)
 
-# Create a user for running applications
-RUN useradd -m -s /bin/bash shipnetsim
+# Create a clean app directory with only executables, libraries and data
+RUN mkdir -p /app_clean && \
+    # Copy executables to app root
+    cp /app/build/src/ShipNetSim/ShipNetSim /app_clean/ && \
+    cp /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app_clean/ && \
+    cp /app/build/src/ShipNetSimServer/ShipNetSimServer /app_clean/ && \
+    # Copy all shared libraries to /usr/local/lib (they'll be found via LD_LIBRARY_PATH)
+    find /app/build -name "*.so*" -exec cp {} /usr/local/lib/ \; && \
+    # Move data directory
+    if [ -d /app/src/data ]; then mv /app/src/data /app_clean/data; fi && \
+    # Replace old app directory with clean one
+    rm -rf /app && \
+    mv /app_clean /app
 
-# Runtime stage
-FROM ubuntu:20.04 AS release_stage
+# Clean up build dependencies and temporary files to reduce image size
+RUN apt-get autoremove -y \
+        build-essential \
+        cmake \
+        git \
+        pkg-config \
+        wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /build /tmp/*
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    # OpenGL and X11
-    libgl1-mesa-glx \
-    libglu1-mesa \
-    libx11-6 \
-    libxext6 \
-    libxrender1 \
-    libxcb1 \
-    libxkbcommon-x11-0 \
-    libxcb-icccm4 \
-    libxcb-image0 \
-    libxcb-keysyms1 \
-    libxcb-randr0 \
-    libxcb-render-util0 \
-    libxcb-xinerama0 \
-    libxcb-xfixes0 \
-    # Qt6 runtime dependencies
-    libdbus-1-3 \
-    libxcb-xkb1 \
-    libxkbcommon0 \
-    libxcb-render0 \
-    libxcb-shape0 \
-    libxcb-shm0 \
-    libxcb-sync1 \
-    libxcb-cursor0 \
-    libxcb-glx0 \
-    libegl1-mesa \
-    libnss3 \
-    libnspr4 \
-    libatk-bridge2.0-0 \
-    libdrm2 \
-    libgtk-3-0 \
-    libxcb-cursor0 \
-    libxcb-cursor-dev \
-    # OpenSceneGraph runtime (Ubuntu 20.04 versions)
-    libopenscenegraph-dev \
-    # GDAL and GeographicLib dependencies (Ubuntu 20.04 versions)
-    libproj15 \
-    libgeos-c1v5 \
-    libsqlite3-0 \
-    libexpat1 \
-    libxml2 \
-    libxerces-c3.2 \
-    libnetcdf15 \
-    libhdf5-103 \
-    libspatialite7 \
-    liblzma5 \
-    libzstd1 \
-    libblosc1 \
-    libcfitsio8 \
-    libcurl4 \
-    libprotobuf17 \
-    libpoco-dev \
-    zlib1g \
-    # Other runtime dependencies
-    libfontconfig1 \
-    libfreetype6 \
-    # Software rendering support
-    libosmesa6 \
-    mesa-utils \
-    software-properties-common \
-    # Locale support
-    locales \
-    && rm -rf /var/lib/apt/lists/*
-
-# Configure locale to fix std::locale errors
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
-
-# Copy built binaries and libraries from builder
-COPY --from=builder /app/build/src/ShipNetSim/ShipNetSim /app/
-COPY --from=builder /app/build/src/ShipNetSimGUI/ShipNetSimGUI /app/
-COPY --from=builder /app/build/src/ShipNetSimServer/ShipNetSimServer /app/
-COPY --from=builder /app/build/src/ShipNetSimCore/libShipNetSimCore.so* /usr/local/lib/
-
-# Copy all custom-built libraries with broader patterns to catch all versions
-COPY --from=builder /usr/local/lib/libosgEarth*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libkdreports*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libKDReports*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libkd*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libgdal*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libgeographic*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/*GeographicLib*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/*geographic*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libosgQt*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/librabbitmq*.so* /usr/local/lib/
-
-# Copy Container library with all possible variations
-COPY --from=builder /usr/local/lib/libcontainer*.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/libContainer*.so* /usr/local/lib/
-
-# Copy Qt6 libraries and dependencies from builder
-COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libQt6*.so* /usr/local/lib/
-
-# Copy ICU libraries from builder (to match Qt6's ICU version)
-COPY --from=builder /opt/Qt/6.8.0/gcc_64/lib/libicu*.so* /usr/local/lib/
-
-# Copy newer libstdc++ and libgcc from builder to fix GLIBCXX version issues
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libstdc++.so.6* /usr/local/lib/
-COPY --from=builder /usr/lib/x86_64-linux-gnu/libgcc_s.so.1* /usr/local/lib/
-
-# Create Qt6 directory structure and copy plugins
-RUN mkdir -p /usr/local/lib/qt6
-COPY --from=builder /opt/Qt/6.8.0/gcc_64/plugins /usr/local/lib/qt6/plugins
-
-# Copy data directory
-COPY --from=builder /app/src/data /app/data
-
-# Set comprehensive library paths and Qt environment variables
-ENV LD_LIBRARY_PATH=/usr/local/lib:/usr/lib/x86_64-linux-gnu
-ENV QT_PLUGIN_PATH=/usr/local/lib/qt6/plugins
-ENV QT_QPA_PLATFORM_PLUGIN_PATH=/usr/local/lib/qt6/plugins/platforms
+# Set Qt6 environment variables
+ENV Qt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6
+ENV PATH=/opt/Qt/6.8.0/gcc_64/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu
+ENV QT_PLUGIN_PATH=/opt/Qt/6.8.0/gcc_64/plugins
+ENV QT_QPA_PLATFORM_PLUGIN_PATH=/opt/Qt/6.8.0/gcc_64/plugins/platforms
 ENV QT_QPA_PLATFORM=xcb
 
 # Update library cache
@@ -388,7 +345,47 @@ RUN ldconfig
 
 # Create non-root user
 RUN useradd -m -s /bin/bash shipnetsim
+
+# Change ownership of the app directory to the shipnetsim user
+RUN chown -R shipnetsim:shipnetsim /app
+
+# Create startup script for GUI applications
+RUN echo '#!/bin/bash' > /usr/local/bin/start-gui.sh && \
+    echo '# Start Xvfb virtual display' >> /usr/local/bin/start-gui.sh && \
+    echo 'Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &' >> /usr/local/bin/start-gui.sh && \
+    echo 'sleep 2' >> /usr/local/bin/start-gui.sh && \
+    echo '' >> /usr/local/bin/start-gui.sh && \
+    echo '# Set environment for GUI applications' >> /usr/local/bin/start-gui.sh && \
+    echo 'export DISPLAY=:99' >> /usr/local/bin/start-gui.sh && \
+    echo 'export LIBGL_ALWAYS_SOFTWARE=1' >> /usr/local/bin/start-gui.sh && \
+    echo 'export OSMESA_LIBRARY=/usr/lib/x86_64-linux-gnu/libOSMesa.so.8' >> /usr/local/bin/start-gui.sh && \
+    echo 'export GALLIUM_DRIVER=llvmpipe' >> /usr/local/bin/start-gui.sh && \
+    echo 'export QT_QPA_PLATFORM=xcb' >> /usr/local/bin/start-gui.sh && \
+    echo 'export QT_X11_NO_MITSHM=1' >> /usr/local/bin/start-gui.sh && \
+    echo 'export LC_ALL=C.UTF-8' >> /usr/local/bin/start-gui.sh && \
+    echo 'export LANG=C.UTF-8' >> /usr/local/bin/start-gui.sh && \
+    echo '' >> /usr/local/bin/start-gui.sh && \
+    echo '# Execute the GUI application' >> /usr/local/bin/start-gui.sh && \
+    echo 'exec "$@"' >> /usr/local/bin/start-gui.sh
+
+RUN chmod +x /usr/local/bin/start-gui.sh
+
+# Set Qt6 environment variables for shipnetsim user
 USER shipnetsim
+ENV Qt6_DIR=/opt/Qt/6.8.0/gcc_64/lib/cmake/Qt6
+ENV PATH=/opt/Qt/6.8.0/gcc_64/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/Qt/6.8.0/gcc_64/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu
+ENV QT_PLUGIN_PATH=/opt/Qt/6.8.0/gcc_64/plugins
+ENV QT_QPA_PLATFORM_PLUGIN_PATH=/opt/Qt/6.8.0/gcc_64/plugins/platforms
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+# Set default environment variables for headless rendering
+ENV LIBGL_ALWAYS_SOFTWARE=1
+ENV OSMESA_LIBRARY=/usr/lib/x86_64-linux-gnu/libOSMesa.so.8
+ENV GALLIUM_DRIVER=llvmpipe
+ENV QT_QPA_PLATFORM=xcb
+ENV QT_X11_NO_MITSHM=1
 
 WORKDIR /app
 CMD ["./ShipNetSimServer"]
