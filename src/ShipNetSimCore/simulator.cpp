@@ -375,6 +375,10 @@ void Simulator::setEndTime(units::time::second_t newEndTime)
 {
     qDebug() << "Setting simulation time to " << newEndTime.value();
 
+    if (newEndTime.value() <=0) {
+        throw std::runtime_error("Simulation End time cannot be zero or less");
+    }
+
     // Lock the mutex to protect the mShips list
     QMutexLocker locker(&mutex);
 
@@ -790,7 +794,7 @@ void Simulator::generateSummaryData()
     time_t fin_time = std::chrono::system_clock::to_time_t(
         std::chrono::system_clock::now());
     double      difTime = difftime(fin_time, mInitTime);
-    QString     mSummaryTextData;
+    // QString     mSummaryTextData;
     QTextStream stream(&mSummaryTextData);
 
     stream
