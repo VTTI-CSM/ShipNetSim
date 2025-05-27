@@ -63,8 +63,8 @@ public:
             trajectoryFileData
                 .clear(); // Handle invalid file path case
             trajectoryFileName.clear();
-            qWarning("Invalid trajectory file path or file does not "
-                     "exist.");
+            // qWarning("Invalid trajectory file path or file does not "
+            //          "exist.");
         }
     }
 
