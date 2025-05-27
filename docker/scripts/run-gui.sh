@@ -398,13 +398,17 @@ main() {
     
     # Build docker run command
     docker_cmd="docker run --rm -it"
-    docker_cmd="$docker_cmd -e DISPLAY=\"$DISPLAY_VAR\""
-    docker_cmd="$docker_cmd -e QT_X11_NO_MITSHM=1"
-    docker_cmd="$docker_cmd -e LIBGL_ALWAYS_INDIRECT=\"$LIBGL_SETTING\""
+    
+    # Add platform-specific display settings (but Docker will use its own headless setup)
+    # These are mainly for informational purposes and potential fallback
+    if [ "$OS" = "macos" ] || [ "$OS" = "linux" ]; then
+        echo "🔧 Host X11 setup detected, but Docker will use headless rendering"
+        echo "   - Host DISPLAY: $DISPLAY_VAR"
+        echo "   - Using Docker's internal virtual display instead"
+    fi
     
     # Add additional Qt/X11 environment variables for better compatibility
-    docker_cmd="$docker_cmd -e QT_QPA_PLATFORM=xcb"
-    docker_cmd="$docker_cmd -e QT_QPA_PLATFORM_PLUGIN_PATH=/usr/local/lib/qt6/plugins/platforms"
+    docker_cmd="$docker_cmd -e QT_QPA_PLATFORM_PLUGIN_PATH=/opt/Qt/6.8.0/gcc_64/plugins/platforms"
     docker_cmd="$docker_cmd -e XDG_RUNTIME_DIR=/tmp"
     docker_cmd="$docker_cmd -e QT_LOGGING_RULES=\"*.debug=false;qt.qpa.xcb.debug=false\""
     
@@ -413,13 +417,9 @@ main() {
     docker_cmd="$docker_cmd -e LC_ALL=C.UTF-8"
     
     # Add volumes
-    if [ "$OS" != "windows" ] || check_wslg; then
-        docker_cmd="$docker_cmd -v /tmp/.X11-unix:/tmp/.X11-unix:rw"
-    fi
-    # docker_cmd="$docker_cmd -v \"$(pwd)/data:/app/data\""
     docker_cmd="$docker_cmd -v \"$(pwd)/output:/app/output\""
     
-    # Add platform-specific arguments
+    # Add platform-specific arguments if needed
     if [ ! -z "$DOCKER_ARGS" ]; then
         docker_cmd="$docker_cmd $DOCKER_ARGS"
     fi
@@ -427,7 +427,13 @@ main() {
     docker_cmd="$docker_cmd --network host"
     docker_cmd="$docker_cmd --name shipnetsim-gui"
     docker_cmd="$docker_cmd shipnetsim:latest"
-    docker_cmd="$docker_cmd ./ShipNetSimGUI"
+    
+    # Use the startup script for GUI applications (this handles Xvfb internally)
+    docker_cmd="$docker_cmd start-gui.sh ./ShipNetSimGUI"
+    
+    echo "🎯 Docker command preview:"
+    echo "   Using headless rendering with virtual X server"
+    echo "   Output directory: $(pwd)/output"
     
     # Execute the command
     eval $docker_cmd
