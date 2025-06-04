@@ -129,6 +129,12 @@ public:
     // Getters for latitude and longitude.
 
     /**
+     * @brief Gets the user ID of the point.
+     * @return The user ID of the point as a QString.
+     */
+    [[nodiscard]] QString getUserID() const;
+
+    /**
      * @brief Gets the latitude of the point.
      * @return The latitude of the point in degrees.
      */

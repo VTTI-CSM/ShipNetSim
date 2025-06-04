@@ -190,6 +190,11 @@ Point GPoint::projectTo(OGRSpatialReference *targetSR) const
                  mUserID, *targetSR);
 }
 
+QString GPoint::getUserID() const
+{
+    return mUserID;
+}
+
 GPoint GPoint::pointAtDistanceAndHeading(
     units::length::meter_t distance,
     units::angle::degree_t heading) const
@@ -367,7 +372,7 @@ GPoint::backwardAzimuth(const GPoint &other) const
     geod.GenInverse(
         other.getLatitude().value(), other.getLongitude().value(),
         this->getLatitude().value(), this->getLongitude().value(),
-        GeographicLib::Geodesic::mask::AZIMUTH, t, azimuth, t, t, t,
+        GeographicLib::Geodesic::mask::AZIMUTH, t, t, azimuth, t, t,
         t, t);
 
     return units::angle::degree_t(azimuth);
@@ -451,15 +456,53 @@ void GPoint::MarkAsPort(units::time::second_t dwellTime)
 // Implementation of getMiddlePoint
 GPoint GPoint::getMiddlePoint(const GPoint &endPoint) const
 {
-    auto midLat = units::angle::degree_t(
-        (this->getLatitude().value() + endPoint.getLatitude().value())
-        / 2.0);
-    auto midLon =
-        units::angle::degree_t((this->getLongitude().value()
-                                + endPoint.getLongitude().value())
-                               / 2.0);
-    return GPoint(midLat, midLon, "Midpoint",
-                  *mOGRPoint.getSpatialReference());
+    // Ensure the spatial reference is set for both points
+    const OGRSpatialReference *thisSR =
+        mOGRPoint.getSpatialReference();
+    const OGRSpatialReference *otherSR =
+        endPoint.mOGRPoint.getSpatialReference();
+
+    if (thisSR == nullptr || otherSR == nullptr)
+    {
+        throw std::runtime_error(
+            "Spatial reference not set for one or both points.");
+    }
+
+    if (!thisSR->IsSame(otherSR))
+    {
+        throw std::runtime_error("Mismatch geodetic datums!");
+    }
+
+    // Get ellipsoid parameters from the spatial reference
+    double semiMajorAxis = thisSR->GetSemiMajor();
+    double flattening    = 1.0 / thisSR->GetInvFlattening();
+
+    // Create a GeographicLib::Geodesic object with the ellipsoid
+    // parameters
+    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
+
+    // Compute the geodesic distance and initial azimuth from this to
+    // endPoint
+    double distance = 0.0, azi1 = 0.0, t = 0.0;
+    geod.GenInverse(this->getLatitude().value(),
+                    this->getLongitude().value(),
+                    endPoint.getLatitude().value(),
+                    endPoint.getLongitude().value(),
+                    GeographicLib::Geodesic::mask::DISTANCE
+                        | GeographicLib::Geodesic::mask::AZIMUTH,
+                    distance, azi1, t, t, t, t, t);
+
+    // Compute the midpoint by traveling half the distance along the
+    // geodesic
+    double midLat = 0.0, midLon = 0.0;
+    geod.Direct(this->getLatitude().value(),
+                this->getLongitude().value(), azi1, distance / 2.0,
+                midLat, midLon);
+
+    // Create a new GPoint with the calculated midpoint coordinates
+    OGRSpatialReference *newSR = thisSR->Clone();
+    return GPoint(units::angle::degree_t(midLon),
+                  units::angle::degree_t(midLat), "Midpoint", *newSR);
 }
 
 // Function to convert the point to a string representation.
