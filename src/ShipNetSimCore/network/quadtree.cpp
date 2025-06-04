@@ -1738,6 +1738,11 @@ void Quadtree::deserializeNode(std::istream &in, Node *parentNode)
     }
 }
 
+Quadtree::Quadtree()
+    : root(this)
+{
+}
+
 units::angle::degree_t Quadtree::getMapWidth() const
 {
     return (root.max_point->getLongitude()
