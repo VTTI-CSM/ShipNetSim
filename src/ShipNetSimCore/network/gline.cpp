@@ -235,6 +235,57 @@ units::angle::radian_t GLine::smallestAngleWith(GLine &other) const
         .convert<units::angle::radian>();
 }
 
+GPoint GLine::getPointByDistance(units::length::meter_t distance,
+                                 Line::LineEnd          from) const
+{
+    // Check if the distance is valid
+    if (distance.value() < 0 || distance > mLength)
+    {
+        throw std::out_of_range(
+            "Distance is out of range of the line length.");
+    }
+
+    // Calculate the point based on the specified end
+    if (from == Line::LineEnd::Start)
+    {
+        return start->pointAtDistanceAndHeading(distance,
+                                                mForwardAzimuth);
+    }
+    else // from == Line::LineEnd::End
+    {
+        return end->pointAtDistanceAndHeading(distance,
+                                              mBackwardAzimuth);
+    }
+}
+
+GPoint GLine::getPointByDistance(units::length::meter_t  distance,
+                                 std::shared_ptr<GPoint> from) const
+{
+    // Check if the distance is valid
+    if (distance.value() < 0 || distance > mLength)
+    {
+        throw std::out_of_range(
+            "Distance is out of range of the line length.");
+    }
+
+    // Determine which point to use as the reference
+    if (*from == *start)
+    {
+        return start->pointAtDistanceAndHeading(distance,
+                                                mForwardAzimuth);
+    }
+    else if (*from == *end)
+    {
+        return end->pointAtDistanceAndHeading(distance,
+                                              mBackwardAzimuth);
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "The specified point is not on the line.");
+    }
+}
+
 // Function to calculate the perpendicular distance from a point to
 // the line.
 units::length::meter_t
