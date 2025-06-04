@@ -232,7 +232,7 @@ public:
      */
     void clear();
 
-private:
+    // private:
     mutable QReadWriteLock quadtreeLock;
 
     bool enableWrapAround;
@@ -314,7 +314,7 @@ private:
         const std::shared_ptr<Polygon> &polygon);
 
     std::shared_ptr<Polygon>
-    findContainingPolygon(const std::shared_ptr<GPoint> &point);
+    findContainingPolygon(const std::shared_ptr<GPoint> &point) const;
 
     /// Connect left-right points of the map for a wrap-around
     /// technique

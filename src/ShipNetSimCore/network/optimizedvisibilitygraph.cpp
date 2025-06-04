@@ -106,7 +106,7 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
     // Prepare candidate points using efficient iteration
     for (const auto &polygon : allPolygons)
     {
-        if (polygon->contains(node))
+        if (polygon->ringsContain(node))
             continue;
 
         // Add outer boundary points
@@ -288,6 +288,37 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
         return true;
     }
 
+    // 2. Water polygon validation
+    if (mBoundaryType == BoundariesType::Water)
+    {
+        // Check if segment is valid within any containing polygon
+        auto startPolygon =
+            findContainingPolygon(segment->startPoint());
+        auto endPolygon = findContainingPolygon(segment->endPoint());
+
+        // If both points are in the same water polygon, validate the
+        // segment
+        if (startPolygon && endPolygon && startPolygon == endPolygon)
+        {
+            if (!startPolygon->isValidWaterSegment(segment))
+            {
+                return false;
+            }
+        }
+        // If points are in different polygons or one is outside,
+        // check if segment crosses any polygon holes
+        else
+        {
+            for (const auto &polygon : polygons)
+            {
+                if (polygon->segmentCrossesHoles(segment))
+                {
+                    return false;
+                }
+            }
+        }
+    }
+
     // 2. Get intersecting nodes
     auto intersectingNodes =
         quadtree->findNodesIntersectingLineSegmentParallel(segment);
@@ -306,13 +337,17 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
 
     // 4. Check edges in intersecting nodes
     auto checkEdge = [&](const std::shared_ptr<GLine> &edge) {
-        // Skip adjacent edges
-        if ((*(edge->startPoint()) == *segmentStart)
-            || (*(edge->startPoint()) == *segmentEnd)
-            || (*(edge->endPoint()) == *segmentStart)
-            || (*(edge->endPoint()) == *segmentEnd))
+        // ONLY skip edges that share BOTH endpoints (i.e., the exact
+        // same line)
+        bool sharesBothEndpoints =
+            ((*(edge->startPoint()) == *segmentStart)
+             && (*(edge->endPoint()) == *segmentEnd))
+            || ((*(edge->startPoint()) == *segmentEnd)
+                && (*(edge->endPoint()) == *segmentStart));
+
+        if (sharesBothEndpoints)
         {
-            return false;
+            return false; // Skip identical edge
         }
 
         // Manual bounds check
@@ -379,11 +414,11 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
 
 std::shared_ptr<Polygon>
 OptimizedVisibilityGraph::findContainingPolygon(
-    const std::shared_ptr<GPoint> &point)
+    const std::shared_ptr<GPoint> &point) const
 {
     for (const auto &polygon : polygons)
     {
-        if (polygon->contains(point))
+        if (polygon->ringsContain(point))
         {
             return polygon;
         }
@@ -395,7 +430,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
     const std::shared_ptr<GPoint> &start,
     const std::shared_ptr<GPoint> &end)
 {
-    // Validate input points
     if (!start || !end)
     {
         qWarning() << "Invalid start or end point provided to "
@@ -403,7 +437,48 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         return ShortestPathResult();
     }
 
-    // Initialize data structures for tracking the shortest path
+    if (*start == *end)
+    {
+        ShortestPathResult result;
+        result.points.append(start);
+        return result;
+    }
+
+    // For ship navigation, always find closest navigable points on
+    // polygon vertices
+    std::shared_ptr<GPoint> startNavPoint;
+    std::shared_ptr<GPoint> endNavPoint;
+
+    // Ships navigate between polygon vertices (ports, waypoints
+    // on coastlines)
+    startNavPoint = quadtree->findNearestNeighborPoint(start);
+    endNavPoint   = quadtree->findNearestNeighborPoint(end);
+
+    if (!startNavPoint || !endNavPoint)
+    {
+        qWarning() << "Could not find navigable points for ship path";
+        return ShortestPathResult();
+    }
+
+    qDebug() << "Ship navigation:";
+    qDebug() << "  Start position:" << start->toString();
+    qDebug() << "  Nearest nav point:" << startNavPoint->toString();
+    qDebug() << "  End position:" << end->toString();
+    qDebug() << "  Nearest nav point:" << endNavPoint->toString();
+
+    // If start/end are already very close to nav points, use them
+    // directly
+    const double PROXIMITY_THRESHOLD = 100.0; // meters
+    if (start->distance(*startNavPoint).value() < PROXIMITY_THRESHOLD)
+    {
+        startNavPoint = start;
+    }
+    if (end->distance(*endNavPoint).value() < PROXIMITY_THRESHOLD)
+    {
+        endNavPoint = end;
+    }
+
+    // Initialize data structures
     std::unordered_map<std::shared_ptr<GPoint>,
                        std::shared_ptr<GPoint>, GPoint::Hash,
                        GPoint::Equal>
@@ -413,23 +488,16 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
                                                          dist;
     std::set<std::pair<double, std::shared_ptr<GPoint>>> queue;
 
-    // Find valid start point
-    std::shared_ptr<GPoint>  startPoint = start;
-    std::shared_ptr<Polygon> currentPolygon =
-        findContainingPolygon(startPoint);
-    if (currentPolygon == nullptr)
-    {
-        startPoint     = quadtree->findNearestNeighborPoint(start);
-        currentPolygon = findContainingPolygon(startPoint);
-        if (!currentPolygon)
-        {
-            qWarning() << "Start point is not within any polygon and "
-                          "has no valid nearest point.";
-            return ShortestPathResult();
-        }
-    }
+    // Lambda for safe distance initialization
+    auto initializeDistance =
+        [&](const std::shared_ptr<GPoint> &point) {
+            if (dist.find(point) == dist.end())
+            {
+                dist[point] = std::numeric_limits<double>::infinity();
+            }
+        };
 
-    // Lambda for finding and removing point from queue
+    // Lambda for removing point from queue
     auto removeFromQueue = [&queue](
                                const std::shared_ptr<GPoint> &point) {
         auto it = std::find_if(
@@ -444,80 +512,133 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         }
     };
 
-    // Initialize distances with manual points and infinity
-    for (const auto &point : manualPoints)
-    {
-        dist[point] = std::numeric_limits<double>::infinity();
-    }
+    // Initialize start point
+    initializeDistance(startNavPoint);
+    dist[startNavPoint] = 0.0;
+    queue.insert({0.0, startNavPoint});
 
-    // Initialize the start point
-    dist[startPoint] = 0.0;
-    queue.insert({0.0, startPoint});
+    // Add end point to ensure it's tracked
+    initializeDistance(endNavPoint);
+
+    // CRITICAL: Add manual connections for start/end if they're not
+    // polygon vertices
+    if (startNavPoint != start)
+    {
+        initializeDistance(start);
+    }
+    if (endNavPoint != end)
+    {
+        initializeDistance(end);
+    }
 
     while (!queue.empty())
     {
-        // Extract the node with the smallest distance
-        std::shared_ptr<GPoint> current = queue.begin()->second;
+        auto currentPair = *queue.begin();
         queue.erase(queue.begin());
 
-        // If the node is the end node, break from the loop
-        if (*(current) == *(end))
+        std::shared_ptr<GPoint> current     = currentPair.second;
+        double                  currentDist = currentPair.first;
+
+        // Skip if we've already found a better path
+        if (currentDist > dist[current])
         {
+            continue;
+        }
+
+        // Check if we reached the navigation end point
+        if (*current == *endNavPoint)
+        {
+            qDebug() << "Dijkstra: Reached navigation end point";
+
+            // If end nav point is different from actual end, add
+            // final connection
+            if (*endNavPoint != *end)
+            {
+                initializeDistance(end);
+                double finalDist =
+                    dist[endNavPoint]
+                    + endNavPoint->distance(*end).value();
+                if (finalDist < dist[end])
+                {
+                    dist[end] = finalDist;
+                    prev[end] = endNavPoint;
+                }
+            }
             break;
         }
 
+        // Get visible neighbors
         QVector<std::shared_ptr<GPoint>> visibleNodes;
         {
-            QReadLocker locker(
-                &quadtreeLock); // Lock for quadtree operations
+            QReadLocker locker(&quadtreeLock);
 
             if (mBoundaryType == BoundariesType::Water)
             {
-                // Get the visible points within this polygon
-                if (!currentPolygon
-                    || !currentPolygon->contains(current))
+                // For water navigation, find containing polygon
+                auto currentPolygon = findContainingPolygon(current);
+                if (!currentPolygon)
                 {
-                    currentPolygon = findContainingPolygon(current);
-                    if (!currentPolygon)
+                    // If current point is not in a polygon, it might
+                    // be a vertex Find all polygons and get visible
+                    // nodes between them
+                    visibleNodes = getVisibleNodesBetweenPolygons(
+                        current, polygons);
+                }
+                else
+                {
+                    visibleNodes = getVisibleNodesWithinPolygon(
+                        current, currentPolygon);
+                }
+
+                // CRITICAL: Ensure end navigation point is considered
+                // if visible
+                if (*current != *endNavPoint
+                    && isVisible(current, endNavPoint))
+                {
+                    if (!visibleNodes.contains(endNavPoint))
                     {
-                        continue; // Skip this point if not in any
-                                  // polygon
+                        visibleNodes.append(endNavPoint);
                     }
                 }
-                visibleNodes = getVisibleNodesWithinPolygon(
-                    current, currentPolygon);
+
+                // If this is the start nav point and different from
+                // actual start, connect to actual start
+                if (*current == *startNavPoint
+                    && *startNavPoint != *start)
+                {
+                    if (isVisible(current, start))
+                    {
+                        visibleNodes.append(start);
+                    }
+                }
             }
             else
             {
-                // Get the visible points between the nodes (not
-                // within the polygon)
                 visibleNodes =
                     getVisibleNodesBetweenPolygons(current, polygons);
             }
 
+            // Add wrap-around connections if enabled
             if (enableWrapAround)
             {
                 auto wrapPoints = connectWrapAroundPoints(current);
                 visibleNodes.append(wrapPoints);
             }
-        } // Release lock after getting visible nodes
+        }
 
+        qDebug() << "Dijkstra: Point" << current->toString() << "has"
+                 << visibleNodes.size() << "visible neighbors";
+
+        // Process all neighbors
         for (const auto &neighbor : visibleNodes)
         {
-            // Initialize distance for unvisited neighbors
-            if (dist.find(neighbor) == dist.end())
-            {
-                dist[neighbor] =
-                    std::numeric_limits<double>::infinity();
-            }
+            initializeDistance(neighbor);
 
-            double alt =
-                dist[current] + current->distance(*neighbor).value();
+            double edgeWeight = current->distance(*neighbor).value();
+            double alt        = dist[current] + edgeWeight;
 
-            // Check if a new shorter path is found
             if (alt < dist[neighbor])
             {
-                // Safely update queue (remove then insert)
                 removeFromQueue(neighbor);
                 dist[neighbor] = alt;
                 prev[neighbor] = current;
@@ -526,15 +647,46 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         }
     }
 
-    // Reconstruct the path from the end node
-    return reconstructPath(prev, end);
+    // Determine which end point to use for reconstruction
+    std::shared_ptr<GPoint> pathEndPoint = endNavPoint;
+    if (*endNavPoint != *end && prev.find(end) != prev.end())
+    {
+        pathEndPoint = end; // Use actual end if we found a path to it
+    }
+
+    // Check if we found a path
+    if (prev.find(pathEndPoint) == prev.end()
+        && *startNavPoint != *pathEndPoint)
+    {
+        qDebug() << "Dijkstra: No path found from"
+                 << startNavPoint->toString() << "to"
+                 << pathEndPoint->toString();
+        return ShortestPathResult();
+    }
+
+    qDebug() << "Dijkstra: Reconstructing path to"
+             << pathEndPoint->toString();
+    auto result = reconstructPath(prev, pathEndPoint);
+
+    // If we used navigation points, prepend/append the actual
+    // start/end
+    if (*startNavPoint != *start && !result.points.isEmpty())
+    {
+        result.points.prepend(start);
+        if (!result.lines.isEmpty())
+        {
+            result.lines.prepend(
+                std::make_shared<GLine>(start, result.points[1]));
+        }
+    }
+
+    return result;
 }
 
 ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     const std::shared_ptr<GPoint> &start,
     const std::shared_ptr<GPoint> &end)
 {
-    // Validate input points
     if (!start || !end)
     {
         qWarning()
@@ -542,48 +694,73 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         return ShortestPathResult();
     }
 
-    // Data structures for tracking the shortest path
+    if (*start == *end)
+    {
+        ShortestPathResult result;
+        result.points.append(start);
+        return result;
+    }
+
+    // For ship navigation, always find closest navigable points on
+    // polygon vertices
+    std::shared_ptr<GPoint> startNavPoint;
+    std::shared_ptr<GPoint> endNavPoint;
+
+    // Ships navigate between polygon vertices (ports, waypoints
+    // on coastlines)
+    startNavPoint = quadtree->findNearestNeighborPoint(start);
+    endNavPoint   = quadtree->findNearestNeighborPoint(end);
+
+    if (!startNavPoint || !endNavPoint)
+    {
+        qWarning() << "Could not find navigable points for ship path";
+        return ShortestPathResult();
+    }
+
+    qDebug() << "A* Ship navigation:";
+    qDebug() << "  Start position:" << start->toString();
+    qDebug() << "  Nearest nav point:" << startNavPoint->toString();
+    qDebug() << "  End position:" << end->toString();
+    qDebug() << "  Nearest nav point:" << endNavPoint->toString();
+
+    // If start/end are already very close to nav points, use them
+    // directly
+    const double PROXIMITY_THRESHOLD = 100.0; // meters
+    if (start->distance(*startNavPoint).value() < PROXIMITY_THRESHOLD)
+    {
+        startNavPoint = start;
+    }
+    if (end->distance(*endNavPoint).value() < PROXIMITY_THRESHOLD)
+    {
+        endNavPoint = end;
+    }
+
+    // Data structures for A* tracking
     std::unordered_map<std::shared_ptr<GPoint>,
                        std::shared_ptr<GPoint>, GPoint::Hash,
                        GPoint::Equal>
-                                                         cameFrom;
-    std::unordered_map<std::shared_ptr<GPoint>, double>  gScore;
-    std::unordered_map<std::shared_ptr<GPoint>, double>  fScore;
+        cameFrom;
+    std::unordered_map<std::shared_ptr<GPoint>, double, GPoint::Hash,
+                       GPoint::Equal>
+        gScore;
+    std::unordered_map<std::shared_ptr<GPoint>, double, GPoint::Hash,
+                       GPoint::Equal>
+                                                         fScore;
     std::set<std::pair<double, std::shared_ptr<GPoint>>> openSet;
 
-    // Find valid start point
-    std::shared_ptr<GPoint>  startPoint = start;
-    std::shared_ptr<Polygon> startPolygon =
-        findContainingPolygon(startPoint);
-    if (startPolygon == nullptr)
-    {
-        startPoint   = quadtree->findNearestNeighborPoint(start);
-        startPolygon = findContainingPolygon(startPoint);
-        if (!startPolygon)
-        {
-            qWarning() << "Start point is not within any polygon and "
-                          "has no valid nearest point.";
-            return ShortestPathResult();
-        }
-    }
+    // Lambda for safe score initialization
+    auto initializeScores =
+        [&](const std::shared_ptr<GPoint> &point) {
+            if (gScore.find(point) == gScore.end())
+            {
+                gScore[point] =
+                    std::numeric_limits<double>::infinity();
+                fScore[point] =
+                    std::numeric_limits<double>::infinity();
+            }
+        };
 
-    // Find valid end point
-    std::shared_ptr<GPoint>  endPoint = end;
-    std::shared_ptr<Polygon> endPolygon =
-        findContainingPolygon(endPoint);
-    if (endPolygon == nullptr)
-    {
-        endPoint   = quadtree->findNearestNeighborPoint(end);
-        endPolygon = findContainingPolygon(endPoint);
-        if (!endPolygon)
-        {
-            qWarning() << "End point is not within any polygon and "
-                          "has no valid nearest point.";
-            return ShortestPathResult();
-        }
-    }
-
-    // Lambda for finding and removing point from openSet
+    // Lambda for removing point from openSet
     auto removeFromOpenSet =
         [&openSet](const std::shared_ptr<GPoint> &point) {
             auto it = std::find_if(
@@ -599,57 +776,109 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             }
         };
 
-    // Initialize all points with infinity
-    for (const auto &point : manualPoints)
+    // Initialize start point
+    initializeScores(startNavPoint);
+    gScore[startNavPoint] = 0.0;
+    fScore[startNavPoint] =
+        startNavPoint->distance(*endNavPoint).value();
+    openSet.insert({fScore[startNavPoint], startNavPoint});
+
+    // Initialize end point
+    initializeScores(endNavPoint);
+
+    // CRITICAL: Add manual connections for start/end if they're not
+    // polygon vertices
+    if (startNavPoint != start)
     {
-        gScore[point] = std::numeric_limits<double>::infinity();
-        fScore[point] = std::numeric_limits<double>::infinity();
+        initializeScores(start);
     }
-
-    // Initialize the start point
-    gScore[startPoint] = 0.0;
-    fScore[startPoint] = startPoint->distance(*endPoint).value();
-    openSet.insert({fScore[startPoint], startPoint});
-
-    std::shared_ptr<Polygon> currentPolygon = startPolygon;
+    if (endNavPoint != end)
+    {
+        initializeScores(end);
+    }
 
     while (!openSet.empty())
     {
-        // Get the node in open set having the lowest fScore[] value
-        std::shared_ptr<GPoint> current = openSet.begin()->second;
+        // Get the node in openSet having the lowest fScore value
+        auto currentPair = *openSet.begin();
         openSet.erase(openSet.begin());
 
-        if (*current == *endPoint)
+        std::shared_ptr<GPoint> current = currentPair.second;
+
+        // Check if we reached the navigation end point
+        if (*current == *endNavPoint)
         {
-            return reconstructPath(cameFrom, endPoint);
+            qDebug() << "A*: Reached navigation end point";
+
+            // If end nav point is different from actual end, add
+            // final connection
+            if (*endNavPoint != *end)
+            {
+                initializeScores(end);
+                double finalGScore =
+                    gScore[endNavPoint]
+                    + endNavPoint->distance(*end).value();
+                if (finalGScore < gScore[end])
+                {
+                    gScore[end]   = finalGScore;
+                    cameFrom[end] = endNavPoint;
+                }
+            }
+            break;
         }
 
+        // Get neighbors
         QVector<std::shared_ptr<GPoint>> neighbors;
         {
-            QReadLocker locker(
-                &quadtreeLock); // Lock for quadtree operations
+            QReadLocker locker(&quadtreeLock);
 
             if (mBoundaryType == BoundariesType::Water)
             {
-                if (!currentPolygon
-                    || !currentPolygon->contains(current))
+                // For water navigation, find containing polygon
+                auto currentPolygon = findContainingPolygon(current);
+                if (!currentPolygon)
                 {
-                    currentPolygon = findContainingPolygon(current);
-                    if (!currentPolygon)
+                    // If current point is not in a polygon, it might
+                    // be a vertex Find all polygons and get visible
+                    // nodes between them
+                    neighbors = getVisibleNodesBetweenPolygons(
+                        current, polygons);
+                }
+                else
+                {
+                    neighbors = getVisibleNodesWithinPolygon(
+                        current, currentPolygon);
+                }
+
+                // CRITICAL: Ensure end navigation point is considered
+                // if visible
+                if (*current != *endNavPoint
+                    && isVisible(current, endNavPoint))
+                {
+                    if (!neighbors.contains(endNavPoint))
                     {
-                        continue; // Skip this iteration if no polygon
-                                  // contains current
+                        neighbors.append(endNavPoint);
                     }
                 }
-                neighbors = getVisibleNodesWithinPolygon(
-                    current, currentPolygon);
+
+                // If this is the start nav point and different from
+                // actual start, connect to actual start
+                if (*current == *startNavPoint
+                    && *startNavPoint != *start)
+                {
+                    if (isVisible(current, start))
+                    {
+                        neighbors.append(start);
+                    }
+                }
             }
             else
             {
                 neighbors =
                     getVisibleNodesBetweenPolygons(current, polygons);
 
-                // NEW: Filter manual points for visibility
+                // Add manual points for visibility (same as in
+                // Dijkstra)
                 for (const auto &manualPoint : manualPoints)
                 {
                     if (isVisible(current, manualPoint))
@@ -664,20 +893,18 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             {
                 neighbors.append(connectWrapAroundPoints(current));
             }
-        } // Release lock after getting neighbors
+        }
 
+        qDebug() << "A*: Point" << current->toString() << "has"
+                 << neighbors.size() << "neighbors";
+
+        // Process all neighbors
         for (const auto &neighbor : neighbors)
         {
-            // Initialize if not present
-            if (gScore.find(neighbor) == gScore.end())
-            {
-                gScore[neighbor] =
-                    std::numeric_limits<double>::infinity();
-                fScore[neighbor] =
-                    std::numeric_limits<double>::infinity();
-            }
+            // Initialize neighbor scores if needed
+            initializeScores(neighbor);
 
-            // The distance from start to a neighbor
+            // Calculate tentative gScore
             double tentative_gScore =
                 gScore[current]
                 + current->distance(*neighbor).value();
@@ -689,17 +916,54 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
                 gScore[neighbor]   = tentative_gScore;
                 fScore[neighbor] =
                     gScore[neighbor]
-                    + neighbor->distance(*endPoint).value();
+                    + neighbor->distance(*endNavPoint).value();
 
-                // Safely update openSet (remove then insert)
+                // Update openSet (remove old entry, add new one)
                 removeFromOpenSet(neighbor);
                 openSet.insert({fScore[neighbor], neighbor});
+
+                qDebug()
+                    << "A*: Updated neighbor" << neighbor->toString()
+                    << "gScore=" << gScore[neighbor]
+                    << "fScore=" << fScore[neighbor];
             }
         }
     }
 
-    return ShortestPathResult(); // Return empty path if no path is
-                                 // found
+    // Determine which end point to use for reconstruction
+    std::shared_ptr<GPoint> pathEndPoint = endNavPoint;
+    if (*endNavPoint != *end && cameFrom.find(end) != cameFrom.end())
+    {
+        pathEndPoint = end; // Use actual end if we found a path to it
+    }
+
+    // Check if we found a path
+    if (cameFrom.find(pathEndPoint) == cameFrom.end()
+        && *startNavPoint != *pathEndPoint)
+    {
+        qDebug() << "A*: No path found from"
+                 << startNavPoint->toString() << "to"
+                 << pathEndPoint->toString();
+        return ShortestPathResult();
+    }
+
+    qDebug() << "A*: Reconstructing path to"
+             << pathEndPoint->toString();
+    auto result = reconstructPath(cameFrom, pathEndPoint);
+
+    // If we used navigation points, prepend/append the actual
+    // start/end
+    if (*startNavPoint != *start && !result.points.isEmpty())
+    {
+        result.points.prepend(start);
+        if (!result.lines.isEmpty())
+        {
+            result.lines.prepend(
+                std::make_shared<GLine>(start, result.points[1]));
+        }
+    }
+
+    return result;
 }
 
 ShortestPathResult OptimizedVisibilityGraph::reconstructPath(
@@ -805,8 +1069,8 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathHelper(
             std::shared_ptr<GLine> l =
                 std::make_shared<GLine>(startPoint, endPoint);
 
-            if (true) // isSegmentVisible(l))   // TODO: Fix the
-                      // isVisible function
+            if (isSegmentVisible(l)) // TODO: Fix the
+                                     // isVisible function
             {
                 // Check if startPoint is not already in result.points
                 if (std::find(result.points.begin(),
