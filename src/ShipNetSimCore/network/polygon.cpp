@@ -257,7 +257,7 @@ units::area::square_meter_t Polygon::area() const
 
     // Compute the area and perimeter of the outer boundary
     double area, perimeter;
-    poly.Compute(false, true, area, perimeter);
+    poly.Compute(false, true, perimeter, area);
 
     // Handle the interior rings (holes)
     int numInteriorRings = mPolygon.getNumInteriorRings();
@@ -277,7 +277,7 @@ units::area::square_meter_t Polygon::area() const
         // Compute the area and perimeter of the hole and
         // subtract from the total area
         double holeArea, holePerimeter;
-        holePoly.Compute(false, true, holeArea, holePerimeter);
+        holePoly.Compute(false, true, holePerimeter, holeArea);
         area -=
             holeArea; // Subtract the hole area from the outer area
     }
@@ -314,7 +314,7 @@ units::length::meter_t Polygon::perimeter() const
 
     // Compute the area and perimeter of the outer boundary
     double area, perimeter;
-    poly.Compute(false, true, area, perimeter);
+    poly.Compute(false, true, perimeter, area);
 
     return units::length::meter_t(perimeter);
 }
@@ -543,7 +543,7 @@ QString Polygon::toString(const QString &format,
     return result; // Return the formatted string
 }
 
-bool Polygon::contains(std::shared_ptr<GPoint> point) const
+bool Polygon::ringsContain(std::shared_ptr<GPoint> point) const
 {
     auto           r = mPolygon.getExteriorRing();
     const OGRPoint p = point->getGDALPoint();
@@ -563,4 +563,269 @@ bool Polygon::contains(std::shared_ptr<GPoint> point) const
     }
     return false;
 }
+
+bool Polygon::isValidWaterSegment(
+    const std::shared_ptr<GLine> &segment) const
+{
+    // For water polygons, ensure the segment doesn't create invalid
+    // diagonals through holes
+    return !isSegmentDiagonalThroughHole(segment);
+}
+
+bool Polygon::segmentCrossesHoles(
+    const std::shared_ptr<GLine> &segment) const
+{
+    // Check if the segment crosses through any holes in this polygon
+    return isSegmentDiagonalThroughHole(segment);
+}
+
+bool Polygon::isSegmentDiagonalThroughHole(
+    const std::shared_ptr<GLine> &segment) const
+{
+    // Check if the segment passes through the interior of any holes
+    int numHoles = mPolygon.getNumInteriorRings();
+
+    for (int holeIndex = 0; holeIndex < numHoles; ++holeIndex)
+    {
+        // Check if segment passes through the interior of this hole
+        if (isSegmentPassingThroughHole(segment, holeIndex))
+        {
+            return true;
+        }
+
+        // Additional check: if segment crosses hole boundary at
+        // non-vertex points
+        if (isSegmentCrossingHoleBoundary(segment, holeIndex))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Polygon::isSegmentPassingThroughHole(
+    const std::shared_ptr<GLine> &segment, int holeIndex) const
+{
+    if (holeIndex >= mPolygon.getNumInteriorRings())
+        return false;
+
+    // First, quick check: if both endpoints are on the hole boundary,
+    // and the segment is short, it's likely just an edge traversal
+    const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
+    if (!hole)
+        return false;
+
+    const OGRPoint startOGR = segment->startPoint()->getGDALPoint();
+    const OGRPoint endOGR   = segment->endPoint()->getGDALPoint();
+
+    bool startOnBoundary =
+        hole->isPointOnRingBoundary(&startOGR, TRUE);
+    bool endOnBoundary = hole->isPointOnRingBoundary(&endOGR, TRUE);
+
+    // If both points are on the boundary, check if this is just edge
+    // traversal
+    if (startOnBoundary && endOnBoundary)
+    {
+        // Allow short segments (likely edge traversals)
+        if (segment->startPoint()
+                ->distance(*segment->endPoint())
+                .value()
+            < 1000.0) // 1km threshold
+        {
+            return false;
+        }
+    }
+
+    // Sample points along the segment and check if any are inside the
+    // hole
+    const int NUM_SAMPLES = 10; // Increased for better accuracy
+    auto      startPoint  = segment->startPoint();
+    auto      endPoint    = segment->endPoint();
+
+    for (int i = 1; i < NUM_SAMPLES; ++i)
+    {
+        double t = static_cast<double>(i) / NUM_SAMPLES;
+
+        // Interpolate point along the segment
+        double lat = startPoint->getLatitude().value() * (1.0 - t)
+                     + endPoint->getLatitude().value() * t;
+        double lon = startPoint->getLongitude().value() * (1.0 - t)
+                     + endPoint->getLongitude().value() * t;
+
+        auto testPoint = std::make_shared<GPoint>(
+            units::angle::degree_t(lon), units::angle::degree_t(lat));
+
+        // Check if this point is inside the hole
+        if (isPointInHole(testPoint, holeIndex))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool Polygon::isSegmentCrossingHoleBoundary(
+    const std::shared_ptr<GLine> &segment, int holeIndex) const
+{
+    if (holeIndex >= mPolygon.getNumInteriorRings())
+        return false;
+
+    const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
+    if (!hole)
+        return false;
+
+    int numPoints = hole->getNumPoints();
+    for (int i = 0; i < numPoints - 1;
+         ++i) // -1 because last point duplicates first
+    {
+        // Get hole edge points
+        auto holeEdgeStart = std::make_shared<GPoint>(
+            units::angle::degree_t(hole->getX(i)),
+            units::angle::degree_t(hole->getY(i)),
+            *hole->getSpatialReference());
+        auto holeEdgeEnd = std::make_shared<GPoint>(
+            units::angle::degree_t(hole->getX(i + 1)),
+            units::angle::degree_t(hole->getY(i + 1)),
+            *hole->getSpatialReference());
+
+        auto holeEdge =
+            std::make_shared<GLine>(holeEdgeStart, holeEdgeEnd);
+
+        // Check if segments intersect
+        if (segment->intersects(*holeEdge, false))
+        {
+            // This is valid only if:
+            // 1. The segments share exactly one endpoint
+            // (vertex-to-vertex connection), OR
+            // 2. One segment is entirely contained within the other
+            // (edge traversal)
+
+            bool startPointOnHoleEdge =
+                (*segment->startPoint() == *holeEdgeStart)
+                || (*segment->startPoint() == *holeEdgeEnd);
+            bool endPointOnHoleEdge =
+                (*segment->endPoint() == *holeEdgeStart)
+                || (*segment->endPoint() == *holeEdgeEnd);
+
+            // If both endpoints are on the same hole edge, this is
+            // edge traversal (valid)
+            if (startPointOnHoleEdge && endPointOnHoleEdge)
+            {
+                continue; // This is valid edge traversal
+            }
+
+            // If exactly one endpoint is on the hole edge, this might
+            // be valid vertex connection
+            if (startPointOnHoleEdge || endPointOnHoleEdge)
+            {
+                // Check if the intersection point is at the shared
+                // vertex If the intersection is in the middle of the
+                // hole edge, it's invalid
+                if (!isIntersectionAtVertex(segment, holeEdge))
+                {
+                    return true; // Invalid crossing through hole
+                                 // boundary
+                }
+            }
+            else
+            {
+                // Neither endpoint is on the hole edge, but they
+                // intersect This is definitely an invalid crossing
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool Polygon::isIntersectionAtVertex(
+    const std::shared_ptr<GLine> &segment1,
+    const std::shared_ptr<GLine> &segment2) const
+{
+    // Check if the intersection point is at one of the vertices
+    const double VERTEX_TOLERANCE =
+        1e-10; // Very small tolerance for floating point comparison
+
+    // Check all four possible vertex combinations
+    auto s1_start = segment1->startPoint();
+    auto s1_end   = segment1->endPoint();
+    auto s2_start = segment2->startPoint();
+    auto s2_end   = segment2->endPoint();
+
+    // The intersection is at a vertex if any of these pairs are the
+    // same point
+    if (s1_start->distance(*s2_start).value() < VERTEX_TOLERANCE
+        || s1_start->distance(*s2_end).value() < VERTEX_TOLERANCE
+        || s1_end->distance(*s2_start).value() < VERTEX_TOLERANCE
+        || s1_end->distance(*s2_end).value() < VERTEX_TOLERANCE)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool Polygon::isPointInHole(const std::shared_ptr<GPoint> &point,
+                            int holeIndex) const
+{
+    if (holeIndex >= mPolygon.getNumInteriorRings())
+        return false;
+
+    const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
+    if (!hole)
+        return false;
+
+    // Convert OGR ring to our point format for easier processing
+    QVector<std::shared_ptr<GPoint>> holeVertices;
+    int                              numPoints = hole->getNumPoints();
+
+    for (int i = 0; i < numPoints - 1;
+         ++i) // -1 because last point duplicates first
+    {
+        holeVertices.append(std::make_shared<GPoint>(
+            units::angle::degree_t(hole->getX(i)),
+            units::angle::degree_t(hole->getY(i)),
+            *hole->getSpatialReference()));
+    }
+
+    return isPointInHoleVertices(point, holeVertices);
+}
+
+bool Polygon::isPointInHoleVertices(
+    const std::shared_ptr<GPoint>          &point,
+    const QVector<std::shared_ptr<GPoint>> &hole) const
+{
+    if (hole.size() < 3)
+        return false;
+
+    // Use ray casting algorithm for point-in-polygon test
+    int    intersections = 0;
+    double px            = point->getLongitude().value();
+    double py            = point->getLatitude().value();
+
+    for (int i = 0; i < hole.size(); ++i)
+    {
+        auto p1 = hole[i];
+        auto p2 = hole[(i + 1) % hole.size()];
+
+        double x1 = p1->getLongitude().value();
+        double y1 = p1->getLatitude().value();
+        double x2 = p2->getLongitude().value();
+        double y2 = p2->getLatitude().value();
+
+        // Check if ray from point crosses this edge
+        if (((y1 > py) != (y2 > py))
+            && (px < (x2 - x1) * (py - y1) / (y2 - y1) + x1))
+        {
+            intersections++;
+        }
+    }
+
+    return (intersections % 2)
+           == 1; // Inside if odd number of intersections
+}
+
 }; // namespace ShipNetSimCore

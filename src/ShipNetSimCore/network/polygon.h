@@ -63,6 +63,58 @@ private:
     static void validateRing(const OGRLinearRing &ring,
                              const QString       &description);
 
+    /**
+     * @brief Checks if a segment passes through the interior of a
+     * specific hole
+     * @param segment The line segment to check
+     * @param holeIndex The index of the hole to check against
+     * @return true if segment passes through the hole interior
+     */
+    bool
+    isSegmentPassingThroughHole(const std::shared_ptr<GLine> &segment,
+                                int holeIndex) const;
+
+    /**
+     * @brief Checks if a segment crosses hole boundary at non-vertex
+     * points
+     * @param segment The line segment to check
+     * @param holeIndex The index of the hole to check against
+     * @return true if segment crosses hole boundary invalidly
+     */
+    bool isSegmentCrossingHoleBoundary(
+        const std::shared_ptr<GLine> &segment, int holeIndex) const;
+
+    /**
+     * @brief Checks if intersection between two segments occurs at a
+     * vertex
+     * @param segment1 First line segment
+     * @param segment2 Second line segment
+     * @return true if intersection is at a shared vertex
+     */
+    bool isIntersectionAtVertex(
+        const std::shared_ptr<GLine> &segment1,
+        const std::shared_ptr<GLine> &segment2) const;
+
+    /**
+     * @brief Point-in-polygon test for a specific hole
+     * @param point The point to test
+     * @param holeIndex The index of the hole to test against
+     * @return true if point is inside the hole
+     */
+    bool isPointInHole(const std::shared_ptr<GPoint> &point,
+                       int holeIndex) const;
+
+    /**
+     * @brief Helper function for point-in-polygon test using hole
+     * vertices
+     * @param point The point to test
+     * @param hole The hole vertices
+     * @return true if point is inside the hole
+     */
+    bool isPointInHoleVertices(
+        const std::shared_ptr<GPoint>          &point,
+        const QVector<std::shared_ptr<GPoint>> &hole) const;
+
 public:
     /**
      * @brief Default constructor.
@@ -243,12 +295,41 @@ public:
                      int decimalPercision = 5) const override;
 
     /**
-     * @brief Check if the polygon contains the point either in their
-     *          boundary or inner holes structure.
+     * @brief Check if the polygon ringsContain the point either in
+     * their boundary or inner holes structure.
      * @param point The point to check
      * @return True if the point is found, false otherwise.
      */
-    bool contains(std::shared_ptr<GPoint> point) const;
+    bool ringsContain(std::shared_ptr<GPoint> point) const;
+
+    /**
+     * @brief Checks if a line segment is valid within this water
+     * polygon
+     * @param segment The line segment to validate
+     * @return true if the segment doesn't create invalid diagonals
+     * through holes
+     */
+    bool
+    isValidWaterSegment(const std::shared_ptr<GLine> &segment) const;
+
+    /**
+     * @brief Checks if a segment crosses through any holes in this
+     * polygon
+     * @param segment The line segment to check
+     * @return true if the segment crosses polygon holes
+     */
+    bool
+    segmentCrossesHoles(const std::shared_ptr<GLine> &segment) const;
+
+    /**
+     * @brief Checks if a segment creates an invalid diagonal through
+     * polygon holes
+     * @param segment The line segment to check
+     * @return true if the segment is an invalid diagonal through a
+     * hole
+     */
+    bool isSegmentDiagonalThroughHole(
+        const std::shared_ptr<GLine> &segment) const;
 };
 }; // namespace ShipNetSimCore
 #endif // POLYGON_H
