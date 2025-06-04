@@ -273,5 +273,14 @@ endif()
 # include src directory
 add_subdirectory(src)
 
+# Enable testing
+enable_testing()
+
+# Add test directory only in Debug mode or when explicitly requested
+option(BUILD_TESTING "Build the testing tree." OFF)
+if(BUILD_TESTING OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_subdirectory(tests)
+endif()
+
 # Installation rules
 install(TARGETS ShipNetSim RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
