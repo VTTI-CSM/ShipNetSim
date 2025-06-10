@@ -64,15 +64,15 @@ if(BUILD_SERVER)
             # Copy container.dll only in Release mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/container.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/container.dll"
+                    "${CONTAINER_BIN_DIR}/Container.dll"
+                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/Container.dll"
             )
         elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
             # Copy containerd.dll only in Debug mode
             add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/containerd.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/containerd.dll"
+                    "${CONTAINER_BIN_DIR}/Containerd.dll"
+                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/Containerd.dll"
             )
         endif()
     elseif(UNIX AND NOT APPLE) # Linux-specific logic
