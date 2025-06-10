@@ -49,7 +49,9 @@
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
+    // QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
+    // QApplication::setAttribute(Qt::AA_UseOpenGLES);
+
 
     // Create application first
     QApplication app(argc, argv);
@@ -78,8 +80,8 @@ int main(int argc, char *argv[])
     osgEarth::initialize();
 
 // #ifdef _DEBUG
-    osg::setNotifyLevel(osg::FATAL);
-    osgEarth::setNotifyLevel(osg::FATAL);
+    // osg::setNotifyLevel(osg::FATAL);
+    // osgEarth::setNotifyLevel(osg::FATAL);
 // #endif
 
     // Set up OpenGL format
