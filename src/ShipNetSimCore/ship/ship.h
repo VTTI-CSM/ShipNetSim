@@ -28,6 +28,8 @@
 #include <QObject>
 #include <any>
 #include <iostream>
+#include <QMutex>
+
 
 #ifdef BUILD_SERVER_ENABLED
 #include <containerLib/container.h>
@@ -2262,15 +2264,14 @@ public slots:
     QPair<QString, QVector<ContainerCore::Container *>>
     getContainersLeavingAtPort(const QVector<QString> &portNames);
 
-    QPair<QString, qsizetype>
-    countContainersLeavingAtPort(const QVector<QString> &portNames);
-
     void
     requestUnloadContainersAtPort(const QVector<QString> &portNames);
 
     void requestShipToLeavePort();
 #endif
 
+    QPair<QString, qsizetype>
+         countContainersLeavingAtPort(const QVector<QString> &portNames);
     void requestCurrentStateAsJson();
 };
 }; // namespace ShipNetSimCore
