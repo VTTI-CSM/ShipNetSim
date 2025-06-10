@@ -268,8 +268,7 @@ public:
     {
         // Check if the file exists using QFile
         if (!QFile::exists(filename)) {
-            qFatal() << "Error: File does not exist - "
-                      << filename.toStdString();
+            qFatal("Error: File does not exist - %s", qPrintable(filename));
             return;
         }
 
