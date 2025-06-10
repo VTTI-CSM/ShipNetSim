@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
-set(ShipNetSim_VERSION "0.0.1" CACHE STRING "Project version" FORCE)
+set(ShipNetSim_VERSION "0.0.3" CACHE STRING "Project version" FORCE)
 set(SHIPNETSIM_NAME "ShipNetSim" CACHE STRING "Project name" FORCE)
 set(SHIPNETSIM_VENDOR "Virginia Tech Transportation Institute - Center for Sustainable Mobility." CACHE STRING "Project vendor" FORCE)
 # Get the current date and time
@@ -71,7 +71,7 @@ endif()
 # -------------------------------------------------------
 
 # Option to build GUI components
-option(BUILD_GUI "Build the GUI components" OFF)
+option(BUILD_GUI "Build the GUI components" ON)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
@@ -126,7 +126,7 @@ if(BUILD_GUI)
     endif()
 
     if(WIN32)
-        set(KDREPORTS_DIR "C:/Program Files/KDAB/KDReports/cmake" CACHE PATH "Path to KDReports CMake directory")
+        set(KDREPORTS_DIR "C:/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
     elseif(APPLE)
         set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
     elseif(UNIX)
@@ -134,7 +134,11 @@ if(BUILD_GUI)
     endif()
 
     # Use these paths to find osgEarth and OpenSceneGraph
-    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow)
+    if(WIN32)
+        find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
+    else()
+        find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow)
+    endif()
 
     find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")
@@ -178,6 +182,10 @@ if(BUILD_GUI)
         message(FATAL_ERROR "osgQt library not found. Please specify the correct path using OSGQOPENGL_LIB.")
     endif()
 
+    if(NOT KDReports-qt6_FOUND)
+        message(FATAL_ERROR "KDReports-qt6 not found. Please specify the correct path using KDREPORTS_DIR.")
+    endif()
+
     # Include osgQt directories
     include_directories(${OSGQT_INCLUDE_DIR})
 
@@ -192,7 +200,7 @@ endif()
 if(BUILD_SERVER)
     if(WIN32)
         # Windows-specific paths
-        set(CONTAINER_SEARCH_PATHS "C:/Program Files/Container/cmake" CACHE PATH "Default path to container's library")
+        set(CONTAINER_SEARCH_PATHS "C:/Program Files/ContainerLib/lib/cmake/Container" CACHE PATH "Default path to container's library")
         set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c" CACHE PATH "Default path to RabbitMQ-C library on Windows")
     elseif(APPLE)
         # macOS-specific paths
@@ -213,8 +221,8 @@ if(BUILD_SERVER)
     find_package(Container REQUIRED PATHS ${CONTAINER_CMAKE_DIR} NO_DEFAULT_PATH)
 
     # Check if the directory exists
-    if(NOT EXISTS "${CONTAINER_LIB_DIR}")
-        message(FATAL_ERROR "The specified CONTAINER_LIB_DIR does not exist: ${CONTAINER_LIB_DIR}")
+    if (NOT Container_FOUND)
+        message(FATAL_ERROR "Container library not found. Please specify the correct path to the Container cmake installation.")
     endif()
 
     find_package(RabbitMQ-C REQUIRED CONFIG PATHS ${RABBITMQ_CMAKE_DIR})
@@ -226,13 +234,13 @@ if(BUILD_SERVER)
     # Set and cache the path to the RabbitMQ bin directory using RABBITMQ_CMAKE_DIR
     if(WIN32)
         # For Windows, use /bin
-        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
     elseif(UNIX AND NOT APPLE)
         # For Linux, use /lib or /lib64 (adjust based on your setup)
-        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
     elseif(APPLE)
         # For macOS, use /lib or /lib64 (adjust based on your setup)
-        set(RABBITMQ_SHRD_LIB_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
     endif()
 endif()
 
@@ -278,7 +286,7 @@ enable_testing()
 
 # Add test directory only in Debug mode or when explicitly requested
 option(BUILD_TESTING "Build the testing tree." OFF)
-if(BUILD_TESTING OR CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_subdirectory(tests)
 endif()
 
