@@ -1,0 +1,9 @@
+<!-- 
+osgEarth File - Retrieved from https://www.naturalearthdata.com/downloads/10m-raster-data/10m-natural-earth-1/
+-->
+
+<Map>    
+    <GDALImage name="world-tiff">
+        <url>./NE1_HR_LC_SR_W_DR.tif</url>
+    </GDALImage>
+</Map>

@@ -564,6 +564,7 @@ protected:
     void requestAvailablePorts(QVector<QString> networkNames,
                                bool getOnlyPortsOnShipsPaths);
 
+#ifdef BUILD_SERVER_ENABLED
     /**
      * @brief Request a ship to unload containers at a specific port
      * @param networkName name of network to query
@@ -575,8 +576,6 @@ protected:
     void requestUnloadContainersAtPort(QString          networkName,
                                        QString          shipID,
                                        QVector<QString> portNames);
-
-#ifdef BUILD_SERVER_ENABLED
 
     /**
      * @brief Add containers to a ship
@@ -1145,6 +1144,7 @@ public:
          */
         static bool isNetworkLoaded(QString networkName);
 
+#ifdef BUILD_SERVER_ENABLED
         /**
          * @brief Request a ship to unload containers at a specific
          * port
@@ -1158,6 +1158,7 @@ public:
         requestUnloadContainersAtPort(QString          networkName,
                                       QString          shipID,
                                       QVector<QString> portNames);
+#endif
 
         /**
          * @brief Reset the API to initial state
