@@ -483,7 +483,8 @@ SimulatorAPI::loadNetwork(QString filePath, QString networkName)
         return nullptr;
     }
 
-    qInfo() << "Network " << networkName.toStdString()
+    qInfo() << "Network "
+            << networkName.toUtf8().constData()
             << " loaded successfully!\n";
 
     // Emit signal when the network is fully loaded
@@ -568,6 +569,7 @@ void SimulatorAPI::setupShipsConnection(
             },
             mConnectionType);
 
+#ifdef BUILD_SERVER_ENABLED
         connect(ship.get(), &ShipNetSimCore::Ship::containersAdded,
                 this, [this, ship, networkName]() {
                     emit SimulatorAPI::containersAddedToShip(
@@ -592,6 +594,7 @@ void SimulatorAPI::setupShipsConnection(
                     emit SimulatorAPI::ContainersUnloaded(
                         networkName, shipID, seaPortCode, containers);
                 });
+#endif
 
         connect(ship.get(), &ShipNetSimCore::Ship::shipStateAvailable,
                 this, [this, ship, networkName](QJsonObject state) {
@@ -1720,6 +1723,7 @@ SimulatorAPI::requestSimulatorCurrentState(QString networkName)
     return out;
 }
 
+#ifdef BUILD_SERVER_ENABLED
 void SimulatorAPI::addContainersToShip(QString     networkName,
                                        QString     shipID,
                                        QJsonObject json)
@@ -1735,6 +1739,7 @@ void SimulatorAPI::addContainersToShip(QString     networkName,
                            + " does not exist");
     }
 }
+#endif
 
 bool SimulatorAPI::isNetworkLoaded(QString networkName)
 {
@@ -1992,6 +1997,8 @@ void SimulatorAPI::requestAvailablePorts(
     }
 }
 
+#ifdef BUILD_SERVER_ENABLED
+
 void SimulatorAPI::requestUnloadContainersAtPort(
     QString networkName, QString shipID, QVector<QString> portNames)
 {
@@ -2020,6 +2027,7 @@ void SimulatorAPI::requestUnloadContainersAtPort(
                        + " does not exist!");
 }
 
+#endif
 // ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 //                              HELPERS & UTILS
@@ -2241,11 +2249,13 @@ bool SimulatorAPI::InteractiveMode::isWorkerBusy(QString networkName)
     return getInstance().isWorkerBusy(networkName);
 }
 
+#ifdef BUILD_SERVER_ENABLED
 void SimulatorAPI::InteractiveMode::addContainersToShip(
     QString networkName, QString shipID, QJsonObject json)
 {
     getInstance().addContainersToShip(networkName, shipID, json);
 }
+#endif
 
 bool SimulatorAPI::InteractiveMode::isNetworkLoaded(
     QString networkName)
@@ -2253,12 +2263,14 @@ bool SimulatorAPI::InteractiveMode::isNetworkLoaded(
     return getInstance().isNetworkLoaded(networkName);
 }
 
+#ifdef BUILD_SERVER_ENABLED
 void SimulatorAPI::InteractiveMode::requestUnloadContainersAtPort(
     QString networkName, QString shipID, QVector<QString> portNames)
 {
     getInstance().requestUnloadContainersAtPort(networkName, shipID,
                                                 portNames);
 }
+#endif
 
 void SimulatorAPI::InteractiveMode::resetAPI()
 {
@@ -2367,11 +2379,13 @@ bool SimulatorAPI::ContinuousMode::isWorkerBusy(QString networkName)
     return getInstance().isWorkerBusy(networkName);
 }
 
+#ifdef BUILD_SERVER_ENABLED
 void SimulatorAPI::ContinuousMode::addContainersToShip(
     QString networkName, QString shipID, QJsonObject json)
 {
     getInstance().addContainersToShip(networkName, shipID, json);
 }
+#endif
 
 bool SimulatorAPI::ContinuousMode::isNetworkLoaded(
     QString networkName)
@@ -2379,12 +2393,14 @@ bool SimulatorAPI::ContinuousMode::isNetworkLoaded(
     return getInstance().isNetworkLoaded(networkName);
 }
 
+#ifdef BUILD_SERVER_ENABLED
 void SimulatorAPI::ContinuousMode::requestUnloadContainersAtPort(
     QString networkName, QString shipID, QVector<QString> portNames)
 {
     getInstance().requestUnloadContainersAtPort(networkName, shipID,
                                                 portNames);
 }
+#endif
 
 void SimulatorAPI::ContinuousMode::resetAPI()
 {
