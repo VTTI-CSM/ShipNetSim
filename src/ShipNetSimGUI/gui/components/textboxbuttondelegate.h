@@ -217,8 +217,7 @@ public:
                                 if (comboIndecies.contains(col)) {
                                     auto index =
                                         mFormDetails.data[col].
-                                        indexOf(item->text(), 0,
-                                                Qt::CaseInsensitive) - 1;
+                                        indexOf(item->text(), 0) - 1;
                                     rowData += QString::number(index);
                                 }
                                 else {
