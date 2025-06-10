@@ -15,6 +15,8 @@
 #include "shippropeller.h"
 #include <QDebug>
 #include <cmath>
+#include <QMutexLocker>
+
 
 namespace ShipNetSimCore
 {
@@ -2873,6 +2875,32 @@ void Ship::requestCurrentStateAsJson()
     emit shipStateAvailable(out);
 }
 
+QPair<QString, qsizetype>
+Ship::countContainersLeavingAtPort(const QVector<QString> &portNames)
+{
+#ifdef BUILD_SERVER_ENABLED
+    if (portNames.isEmpty())
+    {
+        return {"", 0};
+    }
+
+    qsizetype count = 0;
+    // Check each port until we find containers
+    for (const QString &portName : portNames)
+    {
+        count = mLoadedContainers.countContainersByNextDestination(
+            portName);
+        if (count != 0)
+        {
+            return {portName, count};
+        }
+    }
+    return {"", count};
+#else
+    return {"", 0.0};
+#endif
+}
+
 #ifdef BUILD_SERVER_ENABLED
 QVector<ContainerCore::Container *> Ship::getLoadedContainers()
 {
@@ -2930,28 +2958,6 @@ Ship::getContainersLeavingAtPort(const QVector<QString> &portNames)
     }
 
     return {"", QVector<ContainerCore::Container *>()};
-}
-
-QPair<QString, qsizetype>
-Ship::countContainersLeavingAtPort(const QVector<QString> &portNames)
-{
-    if (portNames.isEmpty())
-    {
-        return {"", 0};
-    }
-
-    qsizetype count = 0;
-    // Check each port until we find containers
-    for (const QString &portName : portNames)
-    {
-        count = mLoadedContainers.countContainersByNextDestination(
-            portName);
-        if (count != 0)
-        {
-            return {portName, count};
-        }
-    }
-    return {"", count};
 }
 
 void Ship::requestUnloadContainersAtPort(
