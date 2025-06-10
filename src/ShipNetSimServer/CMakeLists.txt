@@ -77,26 +77,26 @@ if(WIN32) # Windows-specific logic
         # Copy container.dll only in Release mode
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/container.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/container.dll"
+                "${CONTAINER_BIN_DIR}/Container.dll"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/Container.dll"
         )
 
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/rabbitmq.4.dll"
+                "${RABBITMQ_BIN_DIR}/rabbitmq.4.dll"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/rabbitmq.4.dll"
         )
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
         # Copy containerd.dll only in Debug mode
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_SHRD_LIB_DIR}/containerd.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/containerd.dll"
+                "${CONTAINER_BIN_DIR}/Containerd.dll"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/Containerd.dll"
         )
 
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/rabbitmq.4.dll"
+                "${RABBITMQ_BIN_DIR}/rabbitmq.4.dll"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/rabbitmq.4.dll"
         )
     endif()
@@ -110,7 +110,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
         )
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.so"
+                "${RABBITMQ_BIN_DIR}/librabbitmq.so"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.so"
         )
     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -122,7 +122,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
         )
         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.so"
+                "${RABBITMQ_BIN_DIR}/librabbitmq.so"
                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.so"
         )
     endif()
@@ -136,7 +136,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
 #         )
 #         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
 #             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
+#                 "${RABBITMQ_BIN_DIR}/librabbitmq.dylib"
 #                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
 #         )
 #     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -148,7 +148,7 @@ elseif(UNIX AND NOT APPLE) # Linux-specific logic
 #         )
 #         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
 #             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${RABBITMQ_SHRD_LIB_DIR}/librabbitmq.dylib"
+#                 "${RABBITMQ_BIN_DIR}/librabbitmq.dylib"
 #                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
 #         )
 #     endif()

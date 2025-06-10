@@ -995,7 +995,7 @@ QVector<QMap<QString, QString>> ShipNetSim::getShipsDataFromTables()
                                      trimmed() : "NoData");
         QString sternTypeIndex =
             QString::number(ShipNetSimCore::Ship::getAllSternTypes().indexOf(
-            sternTypeStr, 0, Qt::CaseInsensitive));
+            sternTypeStr, 0));
 
         QMap<QString, QString> shipdetails;
 
