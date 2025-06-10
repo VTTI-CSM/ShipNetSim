@@ -7,6 +7,10 @@
 #include "utils/shipscommon.h"
 #include "utils/utils.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 namespace ShipNetSimCore
 {
 
