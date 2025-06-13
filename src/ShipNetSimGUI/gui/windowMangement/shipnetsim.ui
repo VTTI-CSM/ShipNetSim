@@ -24,7 +24,7 @@
       <item row="0" column="0">
        <widget class="QTabWidget" name="tabWidget_project">
         <property name="tabPosition">
-         <enum>QTabWidget::TabPosition::West</enum>
+         <enum>QTabWidget::West</enum>
         </property>
         <property name="currentIndex">
          <number>0</number>
@@ -42,10 +42,10 @@
             <item row="4" column="0">
              <spacer name="verticalSpacer_2">
               <property name="orientation">
-               <enum>Qt::Orientation::Vertical</enum>
+               <enum>Qt::Vertical</enum>
               </property>
               <property name="sizeType">
-               <enum>QSizePolicy::Policy::Expanding</enum>
+               <enum>QSizePolicy::Expanding</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -98,7 +98,7 @@
               <item>
                <spacer name="horizontalSpacer_2">
                 <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
+                 <enum>Qt::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -153,7 +153,7 @@
               <item>
                <spacer name="horizontalSpacer">
                 <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
+                 <enum>Qt::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -196,7 +196,7 @@
               <item>
                <spacer name="horizontalSpacer_10">
                 <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
+                 <enum>Qt::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -292,7 +292,7 @@
                    <item row="0" column="3">
                     <spacer name="horizontalSpacer_11">
                      <property name="orientation">
-                      <enum>Qt::Orientation::Horizontal</enum>
+                      <enum>Qt::Horizontal</enum>
                      </property>
                      <property name="sizeHint" stdset="0">
                       <size>
@@ -339,7 +339,7 @@
                      <item>
                       <spacer name="horizontalSpacer_5">
                        <property name="orientation">
-                        <enum>Qt::Orientation::Horizontal</enum>
+                        <enum>Qt::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -603,7 +603,7 @@
                      <item>
                       <spacer name="horizontalSpacer_6">
                        <property name="orientation">
-                        <enum>Qt::Orientation::Horizontal</enum>
+                        <enum>Qt::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -630,7 +630,7 @@
                    <item row="2" column="0">
                     <layout class="QHBoxLayout" name="horizontalLayout_3">
                      <property name="sizeConstraint">
-                      <enum>QLayout::SizeConstraint::SetMaximumSize</enum>
+                      <enum>QLayout::SetMaximumSize</enum>
                      </property>
                      <item>
                       <widget class="QLabel" name="label_21">
@@ -648,7 +648,7 @@
                      <item>
                       <spacer name="horizontalSpacer_15">
                        <property name="orientation">
-                        <enum>Qt::Orientation::Horizontal</enum>
+                        <enum>Qt::Horizontal</enum>
                        </property>
                        <property name="sizeHint" stdset="0">
                         <size>
@@ -679,7 +679,7 @@
           <item row="0" column="0">
            <widget class="QSplitter" name="splitter_simulator">
             <property name="orientation">
-             <enum>Qt::Orientation::Vertical</enum>
+             <enum>Qt::Vertical</enum>
             </property>
             <widget class="QWidget" name="layoutWidget_2">
              <layout class="QHBoxLayout" name="horizontalLayout_18">
@@ -701,11 +701,11 @@
                  <string>Simulation options</string>
                 </property>
                 <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                 <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
                 </property>
                 <layout class="QGridLayout" name="gridLayout_20">
                  <property name="sizeConstraint">
-                  <enum>QLayout::SizeConstraint::SetFixedSize</enum>
+                  <enum>QLayout::SetFixedSize</enum>
                  </property>
                  <item row="0" column="3">
                   <widget class="QGroupBox" name="verticalGroupBox_6">
@@ -1048,7 +1048,7 @@
                         <item>
                          <spacer name="horizontalSpacer_4">
                           <property name="orientation">
-                           <enum>Qt::Orientation::Horizontal</enum>
+                           <enum>Qt::Horizontal</enum>
                           </property>
                           <property name="sizeHint" stdset="0">
                            <size>
@@ -1071,7 +1071,7 @@
               <item>
                <spacer name="horizontalSpacer_12">
                 <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
+                 <enum>Qt::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -1134,7 +1134,7 @@
               <item row="2" column="0">
                <widget class="QTabWidget" name="tabWidget">
                 <property name="tabPosition">
-                 <enum>QTabWidget::TabPosition::West</enum>
+                 <enum>QTabWidget::West</enum>
                 </property>
                 <property name="currentIndex">
                  <number>0</number>
@@ -1202,7 +1202,7 @@
                 <item>
                  <spacer name="horizontalSpacer_20">
                   <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
+                   <enum>Qt::Horizontal</enum>
                   </property>
                   <property name="sizeHint" stdset="0">
                    <size>
@@ -1278,7 +1278,7 @@
       <item>
        <spacer name="horizontalSpacer_3">
         <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
+         <enum>Qt::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
@@ -1313,7 +1313,7 @@
       <item>
        <spacer name="horizontalSpacer_13">
         <property name="orientation">
-         <enum>Qt::Orientation::Horizontal</enum>
+         <enum>Qt::Horizontal</enum>
         </property>
         <property name="sizeHint" stdset="0">
          <size>
@@ -1360,7 +1360,7 @@
      <x>0</x>
      <y>0</y>
      <width>1286</width>
-     <height>22</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShipNetSim">
