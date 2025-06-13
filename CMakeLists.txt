@@ -1,6 +1,12 @@
 # min required cmake version
 cmake_minimum_required(VERSION 3.24)
 
+include(InstallRequiredSystemLibraries)
+
+# Enable automatic runtime dependency detection
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
 set(ShipNetSim_VERSION "0.0.3" CACHE STRING "Project version" FORCE)

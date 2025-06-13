@@ -15,7 +15,7 @@ REM Build the project with CMake
 cmake --build . --config Release --parallel %NUMBER_OF_PROCESSORS%
 
 REM Package the project with CPack and the IFW generator
-cpack -G IFW
+cpack -G IFW -j %NUMBER_OF_PROCESSORS%
 
 cd ..
 
