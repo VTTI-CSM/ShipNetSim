@@ -96,6 +96,15 @@ Type ShipNetSim -h to view command options.
 ShipNetSim.exe -s "path\to\ships\file"
 ```
 
+## Building from Source
+
+To build ShipNetSim from source code, please see our comprehensive [HOW_TO_BUILD.md](HOW_TO_BUILD.md) guide, which includes:
+
+- Complete dependency installation instructions
+- Platform-specific build steps for Windows, Linux, and macOS  
+- CMake configuration options and customization
+- Troubleshooting common build issues
+
 ## Collaborators
 
 - **Ahmed Aredah, M.Sc.**: 
