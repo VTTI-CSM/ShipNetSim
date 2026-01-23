@@ -369,7 +369,8 @@ void OptimizedNetwork::loadPolygonShapeFile(const QString &filepath)
     OGRLayer *poLayer = poDS->GetLayer(0);
 
     // Check the reference system is geodetic
-    OGRSpatialReference *poSRS = poLayer->GetSpatialRef();
+    // Note: GetSpatialRef() returns const OGRSpatialReference* since GDAL 3.12
+    const OGRSpatialReference *poSRS = poLayer->GetSpatialRef();
     if (poSRS != NULL)
     {
         char *pszSRS_WKT = NULL;

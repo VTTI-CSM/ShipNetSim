@@ -49,109 +49,74 @@ target_compile_definitions(${SHIPNETSIM_SERVER_NAME} PRIVATE BUILD_SERVER_ENABLE
 
 
 # Set compiler options for different build types using generator expressions
+# Supports all build types: Debug, Release, RelWithDebInfo, MinSizeRel
 target_compile_options(${SHIPNETSIM_SERVER_NAME} PRIVATE
     # MSVC-specific flags
     $<$<CXX_COMPILER_ID:MSVC>:
         /W4
-        $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-        $<$<CONFIG:Release>:/Ox>   # Release flags
+        $<$<CONFIG:Debug>:/Od>
+        $<$<CONFIG:Debug>:/Zi>
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/Zi>
+        $<$<CONFIG:MinSizeRel>:/O1>
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
         -Wall
-        $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
-        $<$<CONFIG:Release>:-O3>   # Release flags
+        $<$<CONFIG:Debug>:-O0>
+        $<$<CONFIG:Debug>:-g>
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:MinSizeRel>:-Os>
     >
 )
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
+# Note: DEPENDS is not supported with add_custom_command(TARGET) - use add_dependencies instead
 add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:ShipNetSimCore> $<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>
-    DEPENDS $<TARGET_FILE:ShipNetSimCore>
 )
 
-# Ensure the ShipNetSimCore library is copied to the output directory
+# Copy Container and RabbitMQ libraries to output directory
+# Using generator expressions for proper multi-config generator support
+# Container library uses different suffixes for each build type:
+#   Debug: d suffix, Release: no suffix, RelWithDebInfo: rd suffix, MinSizeRel: s suffix
 if(WIN32) # Windows-specific logic
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Copy container.dll only in Release mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_BIN_DIR}/Container.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/Container.dll"
-        )
-
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_BIN_DIR}/rabbitmq.4.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/rabbitmq.4.dll"
-        )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Copy containerd.dll only in Debug mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_BIN_DIR}/Containerd.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/Containerd.dll"
-        )
-
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_BIN_DIR}/rabbitmq.4.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/rabbitmq.4.dll"
-        )
-    endif()
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CONTAINER_BIN_DIR}/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
+    )
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${RABBITMQ_BIN_DIR}/rabbitmq.4.dll"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/rabbitmq.4.dll"
+    )
 elseif(UNIX AND NOT APPLE) # Linux-specific logic
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        # Copy libcontainer.so and librabbitmq.so only in Release mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_LIB_DIR}/libContainer.so"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainer.so"
-        )
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_BIN_DIR}/librabbitmq.so"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.so"
-        )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Copy libcontainerd.so and librabbitmq.so only in Debug mode
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_LIB_DIR}/libContainerd.so"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainerd.so"
-        )
-        add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${RABBITMQ_BIN_DIR}/librabbitmq.so"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.so"
-        )
-    endif()
-# elseif(APPLE) # macOS-specific logic
-#     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-#         # Copy libcontainer.dylib and librabbitmq.dylib only in Release mode
-#         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${CONTAINER_SHRD_LIB_DIR}/libcontainer.dylib"
-#                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainer.dylib"
-#         )
-#         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${RABBITMQ_BIN_DIR}/librabbitmq.dylib"
-#                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
-#         )
-#     elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-#         # Copy libcontainerd.dylib and librabbitmq.dylib only in Debug mode
-#         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${CONTAINER_SHRD_LIB_DIR}/libcontainerd.dylib"
-#                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/libcontainerd.dylib"
-#         )
-#         add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
-#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#                 "${RABBITMQ_BIN_DIR}/librabbitmq.dylib"
-#                 "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
-#         )
-#     endif()
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+    )
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${RABBITMQ_BIN_DIR}/librabbitmq.so"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.so"
+    )
+elseif(APPLE) # macOS-specific logic
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+    )
+    add_custom_command(TARGET ${SHIPNETSIM_SERVER_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${RABBITMQ_BIN_DIR}/librabbitmq.dylib"
+            "$<TARGET_FILE_DIR:${SHIPNETSIM_SERVER_NAME}>/librabbitmq.dylib"
+    )
 endif()
 
 
@@ -164,7 +129,7 @@ include(GNUInstallDirs)
 
 # Install the compiled target (the executable)
 # to the specified directories
-install(TARGETS ${SHIPNETSIM_NAME}
+install(TARGETS ${SHIPNETSIM_SERVER_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/static

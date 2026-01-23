@@ -93,18 +93,27 @@ if(BUILD_SERVER)
 endif()
 
 # Set compiler options for different build types using generator expressions
+# Supports all build types: Debug, Release, RelWithDebInfo, MinSizeRel
 target_compile_options(${SHIPNETSIM_CORE_DLL_NAME} PRIVATE
     # MSVC-specific flags
     $<$<CXX_COMPILER_ID:MSVC>:
         /W4
-        $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-        $<$<CONFIG:Release>:/Ox>   # Release flags
+        $<$<CONFIG:Debug>:/Od>
+        $<$<CONFIG:Debug>:/Zi>
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/Zi>
+        $<$<CONFIG:MinSizeRel>:/O1>
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
         -Wall
-        $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
-        $<$<CONFIG:Release>:-O3>   # Release flags
+        $<$<CONFIG:Debug>:-O0>
+        $<$<CONFIG:Debug>:-g>
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:MinSizeRel>:-Os>
     >
 )
 

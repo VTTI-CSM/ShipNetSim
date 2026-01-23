@@ -1,6 +1,9 @@
 # min required cmake version
 cmake_minimum_required(VERSION 3.24)
 
+# Add cmake directory to module path for custom modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 include(InstallRequiredSystemLibraries)
 
 # Enable automatic runtime dependency detection
@@ -49,35 +52,58 @@ set(CMAKE_AUTORCC ON)
 
 
 # Platform-specific compiler flags
+# Using generator expressions for proper multi-config generator support (Visual Studio, Xcode, Ninja Multi-Config)
+# See: https://cmake.org/cmake/help/latest/manual/cmake-generator-expressions.7.html
 if(MSVC)
     # MSVC-specific flags
     add_compile_options(/W4 /MP)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(/Od /Zi)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(/O2)
-    endif()
+    # Configuration-specific flags using generator expressions (each flag must be separate)
+    add_compile_options(
+        $<$<CONFIG:Debug>:/Od>
+        $<$<CONFIG:Debug>:/Zi>
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/Zi>
+        $<$<CONFIG:MinSizeRel>:/O1>
+    )
 else()
     # GCC/Clang-specific flags
-    add_compile_options(-Wall)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_options(-O0 -g)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_compile_options(-O3)
-    endif()
+    add_compile_options(-Wall -Wextra -Wpedantic)
+    # Configuration-specific flags using generator expressions (each flag must be separate)
+    add_compile_options(
+        $<$<CONFIG:Debug>:-O0>
+        $<$<CONFIG:Debug>:-g>
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:MinSizeRel>:-Os>
+    )
 endif()
 
-# Add definitions based on build type
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    add_definitions(-DQT_NO_DEBUG_OUTPUT)
-endif()
+# Add definitions based on build type using generator expressions
+# Disable Qt debug output for Release and MinSizeRel builds
+add_compile_definitions(
+    $<$<CONFIG:Release>:QT_NO_DEBUG_OUTPUT>
+    $<$<CONFIG:MinSizeRel>:QT_NO_DEBUG_OUTPUT>
+)
+
+# -------------------------------------------------------
+# --------------------- Library Search Paths ------------
+# -------------------------------------------------------
+# Include and setup library search paths based on build type and platform.
+# This module configures CMAKE_PREFIX_PATH and individual library paths to support:
+#   - Build-type-specific installations (/usr/local/Debug/, /usr/local/Release/, etc.)
+#   - Default system installations (/usr/local/, /usr/, Homebrew on macOS)
+#   - Custom Windows installation paths
+include(LibrarySearchPaths)
+setup_library_search_paths()
 
 # -------------------------------------------------------
 # --------------------- OPTIONS -------------------------
 # -------------------------------------------------------
 
 # Option to build GUI components
-option(BUILD_GUI "Build the GUI components" ON)
+option(BUILD_GUI "Build the GUI components" OFF)
 # Cache the option so it's stored between runs
 set(BUILD_GUI ${BUILD_GUI} CACHE BOOL "Build the GUI components" FORCE)
 
@@ -98,45 +124,70 @@ set(BUILD_INSTALLER ${BUILD_INSTALLER} CACHE BOOL "Build the INSTALLER component
 set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary directory")
 
 if(BUILD_GUI)
-    # Manually specify paths for osgEarth, OpenSceneGraph, and osgQt
+    # -------------------------------------------------------------------------
+    # osgEarth paths (not managed by LibrarySearchPaths - GUI-specific)
+    # -------------------------------------------------------------------------
     if(WIN32)
-        set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
+        set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Path to osgEarth's cmake directory")
     elseif(APPLE)
-        set(osgEarth_DIR "/usr/local/lib/cmake/osgEarth" CACHE PATH "Default path to osgEarth's cmake directory")
+        # Check for build-type-specific installation first
+        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth")
+            set(osgEarth_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
+        else()
+            set(osgEarth_DIR "/usr/local/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
+        endif()
     elseif(UNIX)
-        set(osgEarth_DIR "/usr/local/cmake" CACHE PATH "Default path to osgEarth's cmake directory")
+        # Check for build-type-specific installation first
+        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth")
+            set(osgEarth_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
+        else()
+            set(osgEarth_DIR "/usr/local/cmake" CACHE PATH "Path to osgEarth's cmake directory")
+        endif()
     endif()
 
+    # -------------------------------------------------------------------------
+    # OpenSceneGraph paths
+    # -------------------------------------------------------------------------
     if(WIN32)
-        set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+        set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
     elseif(APPLE)
-        set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph")
+            set(OpenSceneGraph_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
+        else()
+            set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
+        endif()
     elseif(UNIX)
-        set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Default path to OpenSceneGraph's directory")
+        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph")
+            set(OpenSceneGraph_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
+        else()
+            set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
+        endif()
     endif()
 
-    if(WIN32)
-        set(OSGQT_INCLUDE_DIR "C:/Program Files/osgQt/include" CACHE PATH "Path to osgQt include directory")
-    elseif(APPLE)
-        set(OSGQT_INCLUDE_DIR "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt include directory")
-    elseif(UNIX)
-        set(OSGQT_INCLUDE_DIR "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt include directory")
+    # -------------------------------------------------------------------------
+    # osgQt - Uses CMake package config (installed by osgQt build)
+    # Automatically handles build-type-specific library suffixes (d, rd, s)
+    # -------------------------------------------------------------------------
+    # osgQt_DIR is set by LibrarySearchPaths module based on build type
+    if(osgQt_DIR)
+        message(STATUS "Using osgQt_DIR: ${osgQt_DIR}")
+        find_package(osgQt CONFIG REQUIRED PATHS ${osgQt_DIR} NO_DEFAULT_PATH)
+    else()
+        find_package(osgQt CONFIG REQUIRED)
     endif()
 
-    if(WIN32)
-        set(OSGQOPENGL_LIB "C:/Program Files/osgQt/lib/osg145-osgQOpenGL.lib" CACHE PATH "Path to osgQt library")
-    elseif(APPLE)
-        set(OSGQOPENGL_LIB "/usr/local/include/osgQOpenGL" CACHE PATH "Path to osgQt library")
-    elseif(UNIX)
-        set(OSGQOPENGL_LIB "/usr/local/lib/libosgQOpenGLd.a" CACHE PATH "Path to osgQt library")
-    endif()
-
-    if(WIN32)
-        set(KDREPORTS_DIR "C:/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
-    elseif(APPLE)
-        set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
-    elseif(UNIX)
-        set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+    # -------------------------------------------------------------------------
+    # KDReports paths (KDREPORTS_DIR is set by LibrarySearchPaths module)
+    # Only set default if not already configured
+    # -------------------------------------------------------------------------
+    if(NOT KDREPORTS_DIR)
+        if(WIN32)
+            set(KDREPORTS_DIR "C:/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+        elseif(APPLE)
+            set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+        elseif(UNIX)
+            set(KDREPORTS_DIR "/usr/local/KDAB/KDReports-2.3.95/lib/cmake/KDReports-qt6" CACHE PATH "Path to KDReports CMake directory")
+        endif()
     endif()
 
     # Use these paths to find osgEarth and OpenSceneGraph
@@ -179,24 +230,18 @@ if(BUILD_GUI)
         message(FATAL_ERROR "OpenSceneGraph not found. Please specify the correct path to the OpenSceneGraph installation.")
     endif()
 
-    # Manually specify osgQt include and library paths if needed
-    if(NOT EXISTS ${OSGQT_INCLUDE_DIR})
-        message(FATAL_ERROR "osgQt include directory not found. Please specify the correct path using OSGQT_INCLUDE_DIR.")
-    endif()
-
-    if(NOT EXISTS ${OSGQOPENGL_LIB})
-        message(FATAL_ERROR "osgQt library not found. Please specify the correct path using OSGQOPENGL_LIB.")
+    # Verify osgQt was found
+    if(NOT osgQt_FOUND)
+        message(FATAL_ERROR "osgQt not found. Please specify the correct path using -DosgQt_DIR=<path>. "
+            "For build-type-specific installation, ensure osgQt is installed at /usr/local/${CMAKE_BUILD_TYPE}/")
     endif()
 
     if(NOT KDReports-qt6_FOUND)
         message(FATAL_ERROR "KDReports-qt6 not found. Please specify the correct path using KDREPORTS_DIR.")
     endif()
 
-    # Include osgQt directories
-    include_directories(${OSGQT_INCLUDE_DIR})
-
-    # Link osgQt library
-    set(OSGQT_LIBRARIES ${OSGQOPENGL_LIB})
+    # osgQt provides the osgQt::osgQOpenGL target - no need for manual include/library paths
+    message(STATUS "osgQt found - using osgQt::osgQOpenGL target")
 
     message(STATUS "OpenSceneGraph_INCLUDE_DIRS: ${OpenSceneGraph_INCLUDE_DIRS}")
     message(STATUS "OpenSceneGraph_LIBRARIES: ${OpenSceneGraph_LIBRARIES}")
@@ -204,78 +249,113 @@ if(BUILD_GUI)
 endif()
 
 if(BUILD_SERVER)
-    if(WIN32)
-        # Windows-specific paths
-        set(CONTAINER_SEARCH_PATHS "C:/Program Files/ContainerLib/lib/cmake/Container" CACHE PATH "Default path to container's library")
-        set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c" CACHE PATH "Default path to RabbitMQ-C library on Windows")
-    elseif(APPLE)
-        # macOS-specific paths
-        set(CONTAINER_SEARCH_PATHS "/usr/local/lib/cmake/Container" CACHE PATH "Default path to container's library on macOS")
-        set(RABBITMQ_CMAKE_DIR "/usr/local/lib/rabbitmq-c/cmake" CACHE PATH "Default path to RabbitMQ-C library on macOS")
-    elseif(UNIX)
-        # Linux-specific paths
-        set(CONTAINER_SEARCH_PATHS "/usr/local/lib/cmake/Container" CACHE PATH "Default path to container's library on Linux")
-        set(RABBITMQ_CMAKE_DIR "/usr/local/lib/cmake/rabbitmq-c" CACHE PATH "Default path to RabbitMQ-C library on Linux")
-    else()
-        message(FATAL_ERROR "Unsupported platform. Please set paths for CONTAINER_CMAKE_DIR and RABBITMQ_CMAKE_DIR manually.")
+    # -------------------------------------------------------------------------
+    # Container library paths (CONTAINER_CMAKE_DIR is set by LibrarySearchPaths)
+    # -------------------------------------------------------------------------
+    if(NOT CONTAINER_CMAKE_DIR)
+        if(WIN32)
+            set(CONTAINER_CMAKE_DIR "C:/Program Files/ContainerLib/lib/cmake/Container" CACHE PATH "Path to Container library's CMake files")
+        elseif(APPLE)
+            set(CONTAINER_CMAKE_DIR "/usr/local/lib/cmake/Container" CACHE PATH "Path to Container library's CMake files")
+        elseif(UNIX)
+            set(CONTAINER_CMAKE_DIR "/usr/local/lib/cmake/Container" CACHE PATH "Path to Container library's CMake files")
+        else()
+            message(FATAL_ERROR "Unsupported platform. Please set CONTAINER_CMAKE_DIR manually.")
+        endif()
     endif()
 
+    # -------------------------------------------------------------------------
+    # RabbitMQ-C paths (RABBITMQ_CMAKE_DIR is set by LibrarySearchPaths)
+    # -------------------------------------------------------------------------
+    if(NOT RABBITMQ_CMAKE_DIR)
+        if(WIN32)
+            set(RABBITMQ_CMAKE_DIR "C:/Program Files/rabbitmq-c/lib/cmake/rabbitmq-c" CACHE PATH "Path to RabbitMQ-C CMake directory")
+        elseif(APPLE)
+            set(RABBITMQ_CMAKE_DIR "/usr/local/lib/rabbitmq-c/cmake" CACHE PATH "Path to RabbitMQ-C CMake directory")
+        elseif(UNIX)
+            set(RABBITMQ_CMAKE_DIR "/usr/local/lib/cmake/rabbitmq-c" CACHE PATH "Path to RabbitMQ-C CMake directory")
+        else()
+            message(FATAL_ERROR "Unsupported platform. Please set RABBITMQ_CMAKE_DIR manually.")
+        endif()
+    endif()
 
     # Find the installed Container library
-    set(CONTAINER_CMAKE_DIR "${CONTAINER_SEARCH_PATHS}" CACHE PATH "Path to Container library's CMake files")
-
     find_package(Container REQUIRED PATHS ${CONTAINER_CMAKE_DIR} NO_DEFAULT_PATH)
 
-    # Check if the directory exists
-    if (NOT Container_FOUND)
-        message(FATAL_ERROR "Container library not found. Please specify the correct path to the Container cmake installation.")
+    if(NOT Container_FOUND)
+        message(FATAL_ERROR "Container library not found at ${CONTAINER_CMAKE_DIR}. "
+            "Please specify the correct path using -DCONTAINER_CMAKE_DIR=<path>")
     endif()
 
+    # Find RabbitMQ-C
     find_package(RabbitMQ-C REQUIRED CONFIG PATHS ${RABBITMQ_CMAKE_DIR})
 
-    if (NOT RabbitMQ-C_FOUND)
-        message(FATAL_ERROR "RabbitMQ-C not found. Please specify the correct path to the RabbitMQ-C cmake installation.")
+    if(NOT RabbitMQ-C_FOUND)
+        message(FATAL_ERROR "RabbitMQ-C not found at ${RABBITMQ_CMAKE_DIR}. "
+            "Please specify the correct path using -DRABBITMQ_CMAKE_DIR=<path>")
     endif()
 
-    # Set and cache the path to the RabbitMQ bin directory using RABBITMQ_CMAKE_DIR
-    if(WIN32)
-        # For Windows, use /bin
-        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../../bin" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
-    elseif(UNIX AND NOT APPLE)
-        # For Linux, use /lib or /lib64 (adjust based on your setup)
-        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
-    elseif(APPLE)
-        # For macOS, use /lib or /lib64 (adjust based on your setup)
-        set(RABBITMQ_BIN_DIR "${RABBITMQ_CMAKE_DIR}/../../" CACHE PATH "Path to the RabbitMQ-C library's bin directory")
+    # -------------------------------------------------------------------------
+    # Set Container library bin/lib directories for DLL/SO copying
+    # -------------------------------------------------------------------------
+    get_container_library_paths(CONTAINER_BIN_DIR CONTAINER_LIB_DIR)
+    set(CONTAINER_BIN_DIR "${CONTAINER_BIN_DIR}" CACHE PATH "Path to Container library binaries")
+    set(CONTAINER_LIB_DIR "${CONTAINER_LIB_DIR}" CACHE PATH "Path to Container library files")
+    message(STATUS "Container BIN_DIR: ${CONTAINER_BIN_DIR}")
+    message(STATUS "Container LIB_DIR: ${CONTAINER_LIB_DIR}")
+
+    # -------------------------------------------------------------------------
+    # Set RabbitMQ bin directory for DLL/SO copying
+    # -------------------------------------------------------------------------
+    get_rabbitmq_library_path(RABBITMQ_BIN_DIR)
+    set(RABBITMQ_BIN_DIR "${RABBITMQ_BIN_DIR}" CACHE PATH "Path to RabbitMQ-C library binaries")
+    message(STATUS "RabbitMQ BIN_DIR: ${RABBITMQ_BIN_DIR}")
+endif()
+
+# -------------------------------------------------------------------------
+# GDAL and GeographicLib - Core dependencies
+# Paths are configured by LibrarySearchPaths module based on build type
+# -------------------------------------------------------------------------
+
+# GDAL - Allow user override, otherwise use paths from LibrarySearchPaths
+if(GDAL_DIR)
+    message(STATUS "Using user-specified GDAL_DIR: ${GDAL_DIR}")
+    find_package(GDAL REQUIRED CONFIG PATHS ${GDAL_DIR} NO_DEFAULT_PATH)
+else()
+    # Search in build-type-specific location first, then fall back to system
+    find_package(GDAL REQUIRED CONFIG)
+endif()
+
+# GeographicLib - Allow user override, otherwise use paths from LibrarySearchPaths
+if(GeographicLib_DIR)
+    message(STATUS "Using user-specified GeographicLib_DIR: ${GeographicLib_DIR}")
+    find_package(GeographicLib REQUIRED CONFIG PATHS ${GeographicLib_DIR} NO_DEFAULT_PATH)
+else()
+    # Search in build-type-specific location first, then fall back to system
+    find_package(GeographicLib REQUIRED CONFIG)
+endif()
+
+
+
+# Print found library locations for verification
+if(GDAL_FOUND)
+    message(STATUS "GDAL found: ${GDAL_VERSION}")
+    if(GDAL_INCLUDE_DIRS)
+        message(STATUS "  Include: ${GDAL_INCLUDE_DIRS}")
     endif()
+else()
+    message(FATAL_ERROR "GDAL not found. Please specify the path using -DGDAL_DIR=<path>. "
+        "For build-type-specific installation, ensure GDAL is installed at /usr/local/${CMAKE_BUILD_TYPE}/")
 endif()
 
-# Library directories - Prompt users to set paths if libraries aren't found
-set(GDAL_ROOT_HINTS "" CACHE STRING "Path to GDAL root directory")
-set(GeographicLib_ROOT_HINTS "" CACHE STRING "Path to GeographicLib root directory")
-
-
-# Allow users to override default paths
-if (NOT "${GDAL_DIR}" STREQUAL "")
-    list(APPEND GDAL_ROOT_HINTS "${GDAL_DIR}")
-endif()
-if (NOT "${GeographicLib_DIR}" STREQUAL "")
-    list(APPEND GeographicLib_ROOT_HINTS "${GeographicLib_DIR}")
-endif()
-
-
-# Find packages with specified or default paths
-find_package(GDAL REQUIRED HINTS ${GDAL_ROOT_HINTS})
-find_package(GeographicLib REQUIRED HINTS ${GeographicLib_ROOT_HINTS})
-
-
-
-# Error messages if libraries not found
-if(NOT GDAL_FOUND)
-    message(FATAL_ERROR "GDAL not found. Please specify the path using GDAL_DIR.")
-endif()
-if(NOT GeographicLib_FOUND)
-    message(FATAL_ERROR "GeographicLib not found. Please specify the path using GeographicLib_DIR.")
+if(GeographicLib_FOUND)
+    message(STATUS "GeographicLib found: ${GeographicLib_VERSION}")
+    if(GeographicLib_INCLUDE_DIRS)
+        message(STATUS "  Include: ${GeographicLib_INCLUDE_DIRS}")
+    endif()
+else()
+    message(FATAL_ERROR "GeographicLib not found. Please specify the path using -DGeographicLib_DIR=<path>. "
+        "For build-type-specific installation, ensure GeographicLib is installed at /usr/local/${CMAKE_BUILD_TYPE}/")
 endif()
 
 
@@ -290,9 +370,11 @@ add_subdirectory(src)
 # Enable testing
 enable_testing()
 
-# Add test directory only in Debug mode or when explicitly requested
+# Add test directory when BUILD_TESTING is enabled
+# Note: For multi-config generators (Visual Studio, Xcode), the build type is selected at build time,
+# so we add the test targets unconditionally when BUILD_TESTING is ON
 option(BUILD_TESTING "Build the testing tree." OFF)
-if(BUILD_TESTING AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 

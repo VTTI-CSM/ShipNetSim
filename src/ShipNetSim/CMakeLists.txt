@@ -44,6 +44,7 @@ endif()
 
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
+# Note: DEPENDS is not supported with add_custom_command(TARGET) - use add_dependencies instead
 add_custom_command(TARGET ShipNetSim POST_BUILD
     # Command to copy core library
     COMMAND ${CMAKE_COMMAND} -E copy
@@ -52,61 +53,31 @@ add_custom_command(TARGET ShipNetSim POST_BUILD
     # Command to copy the data directory
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/src/data $<TARGET_FILE_DIR:ShipNetSim>/../data
-
-    DEPENDS $<TARGET_FILE:ShipNetSimCore>
 )
 
 # Conditionally include Container library only if BUILD_SERVER is ON
+# Using generator expressions for proper multi-config generator support
+# Container library uses different suffixes for each build type:
+#   Debug: d suffix, Release: no suffix, RelWithDebInfo: rd suffix, MinSizeRel: s suffix
 if(BUILD_SERVER)
     if(WIN32) # Windows-specific logic
-        # Ensure the ShipNetSimCore DLL is copied to the output directory
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            # Copy container.dll only in Release mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_BIN_DIR}/Container.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/Container.dll"
-            )
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy containerd.dll only in Debug mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_BIN_DIR}/Containerd.dll"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/Containerd.dll"
-            )
-        endif()
+        add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_BIN_DIR}/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
+        )
     elseif(UNIX AND NOT APPLE) # Linux-specific logic
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            # Copy libcontainer.so only in Release mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/libContainer.so"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libContainer.so"
-            )
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy libcontainerd.so only in Debug mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/libContainerd.so"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libContainerd.so"
-            )
-        endif()
+        add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+        )
     elseif(APPLE) # macOS-specific logic
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            # Copy libcontainer.dylib only in Release mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/libcontainer.dylib"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libcontainer.dylib"
-            )
-        elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy libcontainerd.dylib only in Debug mode
-            add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CONTAINER_LIB_DIR}/libcontainerd.dylib"
-                    "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/libcontainerd.dylib"
-            )
-        endif()
+        add_custom_command(TARGET ${SHIPNETSIM_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+        )
     endif()
 endif()
 

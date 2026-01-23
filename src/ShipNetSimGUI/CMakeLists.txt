@@ -1,5 +1,5 @@
 set(SHIPNETSIM_GUI_NAME "ShipNetSimGUI" CACHE STRING "Project GUI name" FORCE)
-project(${SHIPNETSIM_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
+project(${SHIPNETSIM_GUI_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Sql PrintSupport)
 
@@ -139,11 +139,10 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     Qt${QT_VERSION_MAJOR}::PrintSupport
     Qt${QT_VERSION_MAJOR}::Sql
     OpenGL::GL
-    # ${OPENGL_gl_LIBRARY}
     GeographicLib::GeographicLib
     GDAL::GDAL
     osgEarth
-    ${OSGQT_LIBRARIES}
+    osgQt::osgQOpenGL  # Modern CMake target - automatically provides includes and handles build-type suffixes
     osg3::osg
     osg3::osgDB
     osg3::osgGA
@@ -151,7 +150,6 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     osg3::osgUtil
     osg3::osgViewer
     osg3::osgSim
-    # osg3::osgText
     osg3::osgShadow
     osg3::OpenThreads
     KDReports::kdreports
@@ -164,12 +162,12 @@ endif()
 
 # Apply additional linker flags, if necessary
 if(osgEarth_LDFLAGS)
-    target_link_options(${PROJECT_NAME} PRIVATE ${osgEarth_LDFLAGS})
+    target_link_options(${SHIPNETSIM_GUI_NAME} PRIVATE ${osgEarth_LDFLAGS})
 endif()
 
 # Apply additional compiler definitions, if necessary
 if(osgEarth_DEFINITIONS)
-    target_compile_definitions(${PROJECT_NAME} PRIVATE ${osgEarth_DEFINITIONS})
+    target_compile_definitions(${SHIPNETSIM_GUI_NAME} PRIVATE ${osgEarth_DEFINITIONS})
 endif()
 
 # Conditionally include Container library only if BUILD_SERVER is ON
@@ -193,42 +191,55 @@ install(TARGETS ${SHIPNETSIM_GUI_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-target_compile_options(${SHIPNETSIM_NAME} PRIVATE
+# Set compiler options for different build types using generator expressions
+# Supports all build types: Debug, Release, RelWithDebInfo, MinSizeRel
+target_compile_options(${SHIPNETSIM_GUI_NAME} PRIVATE
     # MSVC-specific flags
     $<$<CXX_COMPILER_ID:MSVC>:
-    /W4
-    $<$<CONFIG:Debug>:/Od /Zi> # Debug flags
-    $<$<CONFIG:Release>:/Ox>   # Release flags
+        /W4
+        $<$<CONFIG:Debug>:/Od>
+        $<$<CONFIG:Debug>:/Zi>
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/O2>
+        $<$<CONFIG:RelWithDebInfo>:/Zi>
+        $<$<CONFIG:MinSizeRel>:/O1>
     >
     # GCC and Clang-specific flags
     $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>>:
-    -Wall
-    $<$<CONFIG:Debug>:-O0 -g>  # Debug flags
-    $<$<CONFIG:Release>:-O3>   # Release flags
+        -Wall
+        $<$<CONFIG:Debug>:-O0>
+        $<$<CONFIG:Debug>:-g>
+        $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:MinSizeRel>:-Os>
     >
 )
 
-# Conditionally include Container library only if BUILD_SERVER is ON
+# Conditionally copy Container library only if BUILD_SERVER is ON
+# Using generator expressions for proper multi-config generator support
+# Container library uses different suffixes for each build type:
+#   Debug: d suffix, Release: no suffix, RelWithDebInfo: rd suffix, MinSizeRel: s suffix
 if(BUILD_SERVER)
     if(WIN32) # Windows-specific logic
-        # Ensure the ShipNetSimCore DLL is copied to the output directory
-        if(CMAKE_BUILD_TYPE STREQUAL "Release")
-            # Copy container.dll only in Release mode
-            add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CONTAINER_BIN_DIR}/container.dll"
-                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/container.dll"
-            )
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Copy containerd.dll only in Debug mode
         add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CONTAINER_BIN_DIR}/containerd.dll"
-            "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/containerd.dll"
+                "${CONTAINER_BIN_DIR}/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/$<IF:$<CONFIG:Debug>,Containerd.dll,$<IF:$<CONFIG:RelWithDebInfo>,Containerrd.dll,$<IF:$<CONFIG:MinSizeRel>,Containers.dll,Container.dll>>>"
         )
-endif()
-endif()
-
+    elseif(UNIX AND NOT APPLE) # Linux-specific logic
+        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.so,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.so,$<IF:$<CONFIG:MinSizeRel>,libContainers.so,libContainer.so>>>"
+        )
+    elseif(APPLE) # macOS-specific logic
+        add_custom_command(TARGET ${SHIPNETSIM_GUI_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CONTAINER_LIB_DIR}/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+                "$<TARGET_FILE_DIR:${SHIPNETSIM_GUI_NAME}>/$<IF:$<CONFIG:Debug>,libContainerd.dylib,$<IF:$<CONFIG:RelWithDebInfo>,libContainerrd.dylib,$<IF:$<CONFIG:MinSizeRel>,libContainers.dylib,libContainer.dylib>>>"
+        )
+    endif()
 endif()
 
 # Ensure the ShipNetSimCore DLL is copied to the output directory
