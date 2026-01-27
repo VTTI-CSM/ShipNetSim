@@ -18,6 +18,7 @@
 // #include <sstream>  // Include for string stream operations.
 #include <GeographicLib/Geocentric.hpp>
 #include <QtEndian> // Include Qt's endianness conversion functions
+#include "../utils/gdal_compat.h" // GDAL backward compatibility utilities
 
 namespace ShipNetSimCore
 {
@@ -173,7 +174,7 @@ void Point::transformDatumTo(OGRSpatialReference *targetSR)
                     // Update point's spatial reference to the target
                     mOGRPoint.assignSpatialReference(targetSR);
                 }
-                OCTDestroyCoordinateTransformation(coordTransform);
+                DESTROY_COORD_TRANSFORM(coordTransform);
             }
         }
     }
@@ -220,12 +221,12 @@ GPoint Point::reprojectTo(OGRSpatialReference *targetSR)
     // CRS
     if (!coordTransform->Transform(1, &x, &y))
     {
-        OCTDestroyCoordinateTransformation(coordTransform);
+        DESTROY_COORD_TRANSFORM(coordTransform);
         throw std::runtime_error(
             "Failed to transform point coordinates.");
     }
 
-    OCTDestroyCoordinateTransformation(coordTransform);
+    DESTROY_COORD_TRANSFORM(coordTransform);
 
     // Create and return the transformed point.
     return GPoint(units::angle::degree_t(x),
