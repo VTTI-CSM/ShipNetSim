@@ -635,6 +635,9 @@ void Simulator::runSimulation(units::time::second_t runFor,
         initializeSimulation(false);
     }
 
+    // Reset running flag (may have been set to false by previous termination)
+    mIsSimulatorRunning = true;
+
     while ((this->mSimulationTime <= this->mSimulationTime + runFor)
            && (this->mSimulationTime <= this->mSimulationEndTime))
     {
@@ -714,7 +717,8 @@ void Simulator::runSimulation(units::time::second_t runFor,
                                             mProgressPercentage);
     }
 
-    if (endSimulationAfterRun)
+    // Only finalize if simulation completed normally (not terminated)
+    if (endSimulationAfterRun && mIsSimulatorRunning)
     {
         endSimulation();
     }

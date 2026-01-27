@@ -221,8 +221,9 @@ public:
      * @date	2/28/2023
      *
      * @param newEndTime    the new end time of the simulator in
-     * seconds. Zero means do not stop untill all ships reach
-     * destination.
+     * seconds. Must be positive. Use infinity() for no time limit
+     * (run until all ships reach destination).
+     * @throws std::runtime_error if newEndTime is zero or negative
      */
     void setEndTime(units::time::second_t newEndTime);
 
