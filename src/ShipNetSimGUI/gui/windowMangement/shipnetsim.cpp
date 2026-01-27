@@ -50,6 +50,14 @@ ShipNetSim::ShipNetSim(QWidget *parent)
 
 ShipNetSim::~ShipNetSim()
 {
+    // Terminate any running simulation before destroying the GUI
+    // to prevent signals being sent to destroyed objects
+    try {
+        SimulatorAPI::ContinuousMode::terminateSimulation({"*"});
+    } catch (...) {
+        // Ignore errors during shutdown
+    }
+
     if (processingWindow) {
         delete processingWindow;
     }
@@ -806,6 +814,10 @@ void ShipNetSim::handleViewTrajectoryFile(QString trajectoryFile)
 {
     QFileInfo fileInfo(trajectoryFile);
 
+    // Create processing window if it doesn't exist
+    if (!processingWindow) {
+        processingWindow = new ProcessingWindow(this);
+    }
     processingWindow->show();
 
     if (fileInfo.exists()) {
@@ -1091,6 +1103,11 @@ void ShipNetSim::loadShipsDataToTables(QVector<QMap<QString, QString>> data)
 
 void ShipNetSim::simulate() {
     try {
+        // Disconnect any existing signal connections from previous simulate() calls
+        // to prevent duplicate handlers from accumulating
+        disconnect(&SimulatorAPI::ContinuousMode::getInstance(),
+                   nullptr, this, nullptr);
+
         if (SimulatorAPI::ContinuousMode::
             isWorkerBusy(MAIN_SIMULATION_NAME)) {
             ShipNetSimUI::showWarning(this, "Worker is busy, "
@@ -1197,9 +1214,16 @@ void ShipNetSim::simulate() {
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
             setExportInstantaneousTrajectory(exportInta, instaFilename);
 
+        // Reset the simulator state (time, progress, ships) before starting new simulation
+        // This is necessary after a previous termination
+        SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
+            restartSimulation();
 
         QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships =
             SimulatorAPI::loadShips(shipsRecords, MAIN_SIMULATION_NAME);
+
+        // Clear any existing ships from previous simulation runs
+        GlobalMapManager::getInstance()->clearAllShips();
 
         for (auto &ship : ships) {
             GlobalMapManager::getInstance()->createShipNode(
@@ -1252,15 +1276,14 @@ void ShipNetSim::simulate() {
                     ui->pushButton_pauseResume->setVisible(false);
                     ui->pushButton_terminate->setVisible(false);
 
-                    // view the trajectory
-
-                    QString trajectoryFile =
-                        GUIUtils::constructFullPath(exportDir,
-                                                    instaFilename,
-                                                    "csv");
-
-
-                    ui->lineEdit_trajectoryViewBrowse->setText(trajectoryFile);
+                    // view the trajectory only if trajectory export was enabled
+                    if (!instaFilename.isEmpty()) {
+                        QString trajectoryFile =
+                            GUIUtils::constructFullPath(exportDir,
+                                                        instaFilename,
+                                                        "csv");
+                        ui->lineEdit_trajectoryViewBrowse->setText(trajectoryFile);
+                    }
                 }, Qt::QueuedConnection);
 
         // Handle simulation termination (user clicked terminate)
