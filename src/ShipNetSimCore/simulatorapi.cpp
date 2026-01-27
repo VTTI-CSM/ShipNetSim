@@ -1204,6 +1204,9 @@ void SimulatorAPI::setupConnections(const QString &networkName,
         simulator, &ShipNetSimCore::Simulator::simulationTerminated,
         this,
         [this, networkName, mode]() {
+            // Reset busy flag so simulation can be restarted
+            apiDataMap.setBusy(networkName, false);
+
             mTerminateTracker.incrementCompletedRequests();
             checkAndEmitSignal(
                 mTerminateTracker.getCompletedRequests(),
