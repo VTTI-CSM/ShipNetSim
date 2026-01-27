@@ -14,11 +14,7 @@
 #include <osgDB/WriteFile>
 #include <osgViewer/ViewerEventHandlers>
 
-#ifdef _WIN32
 #include <osgQOpenGL/osgQOpenGLWidget.h>
-#else
-#include <osgQOpenGLWidget.h>
-#endif
 
 // #include <OSGWidget.h>
 
