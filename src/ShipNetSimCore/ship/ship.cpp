@@ -2372,7 +2372,7 @@ Ship::getRemainingDwellTime(units::time::second_t currentTime) const
                                        : units::time::second_t(0);
 }
 
-// When the train starts moving again, reset the dwell state
+// When the ship starts moving again, reset the dwell state
 void Ship::resetDwellState()
 {
     QMutexLocker locker(&mDwellStateMutex);
