@@ -125,50 +125,41 @@ set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary d
 
 if(BUILD_GUI)
     # -------------------------------------------------------------------------
-    # osgEarth paths (not managed by LibrarySearchPaths - GUI-specific)
+    # OpenSceneGraph - MUST be found first before osgEarth (osgEarth depends on it)
+    # Paths configured by LibrarySearchPaths module
+    # Use MODULE mode (FindOpenSceneGraph) with hint variables for build-type-specific paths
     # -------------------------------------------------------------------------
-    if(WIN32)
-        set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "Path to osgEarth's cmake directory")
-    elseif(APPLE)
-        # Check for build-type-specific installation first
-        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth")
-            set(osgEarth_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
-        else()
-            set(osgEarth_DIR "/usr/local/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
-        endif()
-    elseif(UNIX)
-        # Check for build-type-specific installation first
-        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth")
-            set(osgEarth_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/osgEarth" CACHE PATH "Path to osgEarth's cmake directory")
-        else()
-            set(osgEarth_DIR "/usr/local/cmake" CACHE PATH "Path to osgEarth's cmake directory")
-        endif()
+    if(OpenSceneGraph_DIR)
+        message(STATUS "Using OpenSceneGraph_DIR: ${OpenSceneGraph_DIR}")
+        # Get the installation prefix from the cmake directory (go up 3 levels: lib/cmake/OpenSceneGraph -> prefix)
+        get_filename_component(OSG_PREFIX "${OpenSceneGraph_DIR}/../../.." ABSOLUTE)
+        # Set hint variables for CMake's FindOpenSceneGraph module
+        set(OSG_DIR "${OSG_PREFIX}" CACHE PATH "OpenSceneGraph directory")
+        set(OSGDIR "${OSG_PREFIX}" CACHE PATH "OpenSceneGraph directory")
+        set(OSG_ROOT "${OSG_PREFIX}" CACHE PATH "OpenSceneGraph root")
+        set(OpenSceneGraph_ROOT "${OSG_PREFIX}" CACHE PATH "OpenSceneGraph root")
+        set(ENV{OSG_DIR} "${OSG_PREFIX}")
+        set(ENV{OSGDIR} "${OSG_PREFIX}")
+        set(ENV{OSG_ROOT} "${OSG_PREFIX}")
+        list(PREPEND CMAKE_PREFIX_PATH "${OSG_PREFIX}")
+    endif()
+    find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow osgText)
+
+    # -------------------------------------------------------------------------
+    # osgEarth - Paths configured by LibrarySearchPaths module
+    # Note: OpenSceneGraph must be found first as osgEarth depends on it
+    # -------------------------------------------------------------------------
+    if(osgEarth_DIR)
+        message(STATUS "Using osgEarth_DIR: ${osgEarth_DIR}")
+        find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR} NO_DEFAULT_PATH)
+    else()
+        find_package(osgEarth CONFIG REQUIRED)
     endif()
 
     # -------------------------------------------------------------------------
-    # OpenSceneGraph paths
-    # -------------------------------------------------------------------------
-    if(WIN32)
-        set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
-    elseif(APPLE)
-        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph")
-            set(OpenSceneGraph_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
-        else()
-            set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
-        endif()
-    elseif(UNIX)
-        if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph")
-            set(OpenSceneGraph_DIR "/usr/local/${CMAKE_BUILD_TYPE}/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
-        else()
-            set(OpenSceneGraph_DIR "/usr/local/lib/cmake/OpenSceneGraph" CACHE PATH "Path to OpenSceneGraph's directory")
-        endif()
-    endif()
-
-    # -------------------------------------------------------------------------
-    # osgQt - Uses CMake package config (installed by osgQt build)
+    # osgQt - Paths configured by LibrarySearchPaths module
     # Automatically handles build-type-specific library suffixes (d, rd, s)
     # -------------------------------------------------------------------------
-    # osgQt_DIR is set by LibrarySearchPaths module based on build type
     if(osgQt_DIR)
         message(STATUS "Using osgQt_DIR: ${osgQt_DIR}")
         find_package(osgQt CONFIG REQUIRED PATHS ${osgQt_DIR} NO_DEFAULT_PATH)
@@ -190,44 +181,21 @@ if(BUILD_GUI)
         endif()
     endif()
 
-    # Use these paths to find osgEarth and OpenSceneGraph
-    if(WIN32)
-        find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow CONFIG PATHS ${OpenSceneGraph_DIR})
-    else()
-        find_package(OpenSceneGraph REQUIRED COMPONENTS osg osgDB osgManipulator osgGA osgUtil osgViewer osgSim osgShadow)
-    endif()
-
-    find_package(osgEarth CONFIG REQUIRED PATHS ${osgEarth_DIR})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so" ".dylib")
 
     # Use the KDReports CMake package
     find_package(KDReports-qt6 REQUIRED CONFIG PATHS ${KDREPORTS_DIR})
 
-    # If osgEarth is not found, manually specify the include and library paths
+    # Check if osgEarth was found
     if(NOT osgEarth_FOUND)
-        set(osgEarth_INCLUDE_DIR "C:/Program Files/OSGEarth/include" CACHE PATH "Path to osgEarth include directory")
-        set(osgEarth_LIBRARY "C:/Program Files/OSGEarth/lib/osgEarth.lib" CACHE PATH "Path to osgEarth library")
-        
-        if(NOT EXISTS ${osgEarth_INCLUDE_DIR})
-            message(FATAL_ERROR "osgEarth include directory not found. Please specify the correct path using osgEarth_INCLUDE_DIR.")
-        endif()
-
-        if(NOT EXISTS ${osgEarth_LIBRARY})
-            message(FATAL_ERROR "osgEarth library not found. Please specify the correct path using osgEarth_LIBRARY.")
-        endif()
-
-        # Set the variables manually for CMake to use
-        set(osgEarth_INCLUDE_DIRS ${osgEarth_INCLUDE_DIR})
-        set(osgEarth_LIBRARIES ${osgEarth_LIBRARY})
+        message(FATAL_ERROR "osgEarth not found. Please specify the correct path using -DosgEarth_DIR=<path>. "
+            "For build-type-specific installation, ensure osgEarth is installed at /usr/local/${CMAKE_BUILD_TYPE}/")
     endif()
 
-    # Check if both osgEarth and OpenSceneGraph libraries were found
-    if(NOT osgEarth_FOUND AND (NOT EXISTS ${osgEarth_INCLUDE_DIR} OR NOT EXISTS ${osgEarth_LIBRARY}))
-        message(FATAL_ERROR "osgEarth not found and manual paths do not exist. Please specify the correct paths to the osgEarth installation.")
-    endif()
-
+    # Check if OpenSceneGraph was found
     if(NOT OpenSceneGraph_FOUND)
-        message(FATAL_ERROR "OpenSceneGraph not found. Please specify the correct path to the OpenSceneGraph installation.")
+        message(FATAL_ERROR "OpenSceneGraph not found. Please specify the correct path using -DOpenSceneGraph_DIR=<path>. "
+            "For build-type-specific installation, ensure OpenSceneGraph is installed at /usr/local/${CMAKE_BUILD_TYPE}/")
     endif()
 
     # Verify osgQt was found

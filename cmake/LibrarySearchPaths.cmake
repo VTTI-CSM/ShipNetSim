@@ -17,6 +17,9 @@
 #   - rabbitmq-c
 #   - Qt6Keychain (qtkeychain)
 #   - Container
+#   - osgEarth
+#   - OpenSceneGraph
+#   - Qt6
 #
 # Usage:
 #   include(cmake/LibrarySearchPaths.cmake)
@@ -72,6 +75,10 @@ function(setup_library_search_paths)
 
     message(STATUS "=== Library Search Paths Configured ===")
     message(STATUS "")
+
+    # Propagate CMAKE_PREFIX_PATH to the calling scope (main CMakeLists.txt)
+    # This is critical for find_dependency() calls in dependent packages (e.g., KDReports finding Qt6PrintSupport)
+    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
 endfunction()
 
 # -----------------------------------------------------------------------------
@@ -175,6 +182,37 @@ function(_setup_windows_paths BUILD_TYPE)
         message(STATUS "  osgQt: ${OSGQT_DIR_FOUND}")
     else()
         set(osgQt_DIR "C:/Program Files/osgQt/lib/cmake/osgQt" CACHE PATH "osgQt CMake directory")
+    endif()
+
+    # osgEarth library paths
+    set(OSGEARTH_SEARCH_PATHS
+        "${WIN_BUILD_TYPE_PREFIX}/lib/cmake/osgearth"
+        "${WIN_DEFAULT_PREFIX}/lib/cmake/osgearth"
+        "C:/Program Files/osgEarth/lib/cmake/osgearth"
+        "C:/Program Files/OSGEarth/cmake"
+        "$ENV{osgEarth_DIR}"
+    )
+    _find_first_existing_path(OSGEARTH_DIR_FOUND "${OSGEARTH_SEARCH_PATHS}")
+    if(OSGEARTH_DIR_FOUND)
+        set(osgEarth_DIR "${OSGEARTH_DIR_FOUND}" CACHE PATH "osgEarth CMake directory" FORCE)
+        message(STATUS "  osgEarth: ${OSGEARTH_DIR_FOUND}")
+    else()
+        set(osgEarth_DIR "C:/Program Files/OSGEarth/cmake" CACHE PATH "osgEarth CMake directory")
+    endif()
+
+    # OpenSceneGraph library paths
+    set(OSG_SEARCH_PATHS
+        "${WIN_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph"
+        "${WIN_DEFAULT_PREFIX}/lib/cmake/OpenSceneGraph"
+        "C:/Program Files/OpenSceneGraph/lib/cmake/OpenSceneGraph"
+        "$ENV{OpenSceneGraph_DIR}"
+    )
+    _find_first_existing_path(OSG_DIR_FOUND "${OSG_SEARCH_PATHS}")
+    if(OSG_DIR_FOUND)
+        set(OpenSceneGraph_DIR "${OSG_DIR_FOUND}" CACHE PATH "OpenSceneGraph CMake directory" FORCE)
+        message(STATUS "  OpenSceneGraph: ${OSG_DIR_FOUND}")
+    else()
+        set(OpenSceneGraph_DIR "C:/Program Files/OpenSceneGraph" CACHE PATH "OpenSceneGraph CMake directory")
     endif()
 
     # Set CMAKE_PREFIX_PATH to include build-type-specific paths
@@ -301,6 +339,36 @@ function(_setup_macos_paths BUILD_TYPE)
         message(STATUS "  osgQt: ${OSGQT_DIR_FOUND}")
     else()
         set(osgQt_DIR "${MACOS_BUILD_TYPE_PREFIX}/lib/cmake/osgQt" CACHE PATH "osgQt CMake directory")
+    endif()
+
+    # osgEarth library paths
+    set(OSGEARTH_SEARCH_PATHS
+        "${MACOS_BUILD_TYPE_PREFIX}/lib/cmake/osgearth"
+        "${MACOS_DEFAULT_PREFIX}/lib/cmake/osgearth"
+        "${HOMEBREW_PREFIX}/lib/cmake/osgearth"
+        "$ENV{osgEarth_DIR}"
+    )
+    _find_first_existing_path(OSGEARTH_DIR_FOUND "${OSGEARTH_SEARCH_PATHS}")
+    if(OSGEARTH_DIR_FOUND)
+        set(osgEarth_DIR "${OSGEARTH_DIR_FOUND}" CACHE PATH "osgEarth CMake directory" FORCE)
+        message(STATUS "  osgEarth: ${OSGEARTH_DIR_FOUND}")
+    else()
+        set(osgEarth_DIR "${MACOS_BUILD_TYPE_PREFIX}/lib/cmake/osgearth" CACHE PATH "osgEarth CMake directory")
+    endif()
+
+    # OpenSceneGraph library paths
+    set(OSG_SEARCH_PATHS
+        "${MACOS_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph"
+        "${MACOS_DEFAULT_PREFIX}/lib/cmake/OpenSceneGraph"
+        "${HOMEBREW_PREFIX}/lib/cmake/OpenSceneGraph"
+        "$ENV{OpenSceneGraph_DIR}"
+    )
+    _find_first_existing_path(OSG_DIR_FOUND "${OSG_SEARCH_PATHS}")
+    if(OSG_DIR_FOUND)
+        set(OpenSceneGraph_DIR "${OSG_DIR_FOUND}" CACHE PATH "OpenSceneGraph CMake directory" FORCE)
+        message(STATUS "  OpenSceneGraph: ${OSG_DIR_FOUND}")
+    else()
+        set(OpenSceneGraph_DIR "${MACOS_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph" CACHE PATH "OpenSceneGraph CMake directory")
     endif()
 
     # Set CMAKE_PREFIX_PATH
@@ -444,7 +512,64 @@ function(_setup_linux_paths BUILD_TYPE)
         message(STATUS "  osgQt: Using default path (${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/osgQt)")
     endif()
 
-    # Set CMAKE_PREFIX_PATH with build-type-specific path first
+    # osgEarth library paths
+    set(OSGEARTH_SEARCH_PATHS
+        "${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/osgearth"
+        "${LINUX_DEFAULT_PREFIX}/lib/cmake/osgearth"
+        "${LINUX_SYSTEM_PREFIX}/lib/cmake/osgearth"
+        "$ENV{osgEarth_DIR}"
+    )
+    _find_first_existing_path(OSGEARTH_DIR_FOUND "${OSGEARTH_SEARCH_PATHS}")
+    if(OSGEARTH_DIR_FOUND)
+        set(osgEarth_DIR "${OSGEARTH_DIR_FOUND}" CACHE PATH "osgEarth CMake directory" FORCE)
+        message(STATUS "  osgEarth: ${OSGEARTH_DIR_FOUND}")
+    else()
+        set(osgEarth_DIR "${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/osgearth" CACHE PATH "osgEarth CMake directory")
+        message(STATUS "  osgEarth: Using default path (${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/osgearth)")
+    endif()
+
+    # OpenSceneGraph library paths
+    set(OSG_SEARCH_PATHS
+        "${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph"
+        "${LINUX_DEFAULT_PREFIX}/lib/cmake/OpenSceneGraph"
+        "${LINUX_SYSTEM_PREFIX}/lib/cmake/OpenSceneGraph"
+        "$ENV{OpenSceneGraph_DIR}"
+    )
+    _find_first_existing_path(OSG_DIR_FOUND "${OSG_SEARCH_PATHS}")
+    if(OSG_DIR_FOUND)
+        set(OpenSceneGraph_DIR "${OSG_DIR_FOUND}" CACHE PATH "OpenSceneGraph CMake directory" FORCE)
+        message(STATUS "  OpenSceneGraph: ${OSG_DIR_FOUND}")
+    else()
+        set(OpenSceneGraph_DIR "${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph" CACHE PATH "OpenSceneGraph CMake directory")
+        message(STATUS "  OpenSceneGraph: Using default path (${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/OpenSceneGraph)")
+    endif()
+
+    # Qt6 library paths
+    set(QT6_SEARCH_PATHS
+        "$ENV{HOME}/Qt/6.10.1/gcc_64/lib/cmake/Qt6"
+        "$ENV{HOME}/Qt/6.8.0/gcc_64/lib/cmake/Qt6"
+        "$ENV{HOME}/Qt/6.7.0/gcc_64/lib/cmake/Qt6"
+        "${LINUX_BUILD_TYPE_PREFIX}/lib/cmake/Qt6"
+        "${LINUX_DEFAULT_PREFIX}/lib/cmake/Qt6"
+        "${LINUX_SYSTEM_PREFIX}/lib/cmake/Qt6"
+        "$ENV{Qt6_DIR}"
+    )
+    _find_first_existing_path(QT6_DIR_FOUND "${QT6_SEARCH_PATHS}")
+    if(QT6_DIR_FOUND)
+        set(Qt6_DIR "${QT6_DIR_FOUND}" CACHE PATH "Qt6 CMake directory" FORCE)
+        # Get Qt6 prefix for CMAKE_PREFIX_PATH
+        get_filename_component(QT6_PREFIX "${QT6_DIR_FOUND}/../../.." ABSOLUTE)
+        message(STATUS "  Qt6: ${QT6_DIR_FOUND}")
+    else()
+        set(QT6_PREFIX "")
+        message(STATUS "  Qt6: Not found in standard paths")
+    endif()
+
+    # Set CMAKE_PREFIX_PATH with Qt6 and build-type-specific paths first
+    # Qt6 prefix must be first so all Qt6 modules are found
+    if(QT6_PREFIX)
+        list(PREPEND CMAKE_PREFIX_PATH "${QT6_PREFIX}")
+    endif()
     list(PREPEND CMAKE_PREFIX_PATH
         "${LINUX_BUILD_TYPE_PREFIX}"
     )
@@ -462,6 +587,9 @@ function(_setup_linux_paths BUILD_TYPE)
     set(Qt6Keychain_DIR "${Qt6Keychain_DIR}" PARENT_SCOPE)
     set(CONTAINER_CMAKE_DIR "${CONTAINER_CMAKE_DIR}" PARENT_SCOPE)
     set(osgQt_DIR "${osgQt_DIR}" PARENT_SCOPE)
+    set(osgEarth_DIR "${osgEarth_DIR}" PARENT_SCOPE)
+    set(OpenSceneGraph_DIR "${OpenSceneGraph_DIR}" PARENT_SCOPE)
+    set(Qt6_DIR "${Qt6_DIR}" PARENT_SCOPE)
 endfunction()
 
 # -----------------------------------------------------------------------------

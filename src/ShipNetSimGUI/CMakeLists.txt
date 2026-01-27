@@ -131,6 +131,8 @@ target_include_directories(${SHIPNETSIM_GUI_NAME} PRIVATE
 )
 
 # Link necessary libraries
+# Note: OpenSceneGraph uses FindOpenSceneGraph module which provides library variables,
+# not namespaced targets. The libraries are found via find_package(OpenSceneGraph COMPONENTS ...)
 target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     ShipNetSimCore
     Qt${QT_VERSION_MAJOR}::Widgets
@@ -141,17 +143,9 @@ target_link_libraries(${SHIPNETSIM_GUI_NAME} PRIVATE
     OpenGL::GL
     GeographicLib::GeographicLib
     GDAL::GDAL
-    osgEarth
+    osgEarth::osgEarth
     osgQt::osgQOpenGL  # Modern CMake target - automatically provides includes and handles build-type suffixes
-    osg3::osg
-    osg3::osgDB
-    osg3::osgGA
-    osg3::osgManipulator
-    osg3::osgUtil
-    osg3::osgViewer
-    osg3::osgSim
-    osg3::osgShadow
-    osg3::OpenThreads
+    ${OPENSCENEGRAPH_LIBRARIES}  # OpenSceneGraph libraries from FindOpenSceneGraph module
     KDReports::kdreports
 )
 
