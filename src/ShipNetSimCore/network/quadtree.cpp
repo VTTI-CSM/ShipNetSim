@@ -512,6 +512,13 @@ Quadtree::splitSegmentAtAntimeridian(
 {
     std::vector<std::shared_ptr<GLine>> adjustedSegments;
 
+    // Null safety check
+    if (!segment || !segment->startPoint() || !segment->endPoint())
+    {
+        qWarning() << "splitSegmentAtAntimeridian: Invalid segment";
+        return adjustedSegments;  // Return empty vector
+    }
+
     // Extract coordinates
     double startLon = segment->startPoint()->getLongitude().value();
     double endLon   = segment->endPoint()->getLongitude().value();
@@ -660,7 +667,6 @@ bool Quadtree::isSegmentCrossingAntimeridian(
 
     try
     {
-
         // Get coordinates and handle poles
         double startLon =
             segment->startPoint()->getLongitude().value();
@@ -678,9 +684,19 @@ bool Quadtree::isSegmentCrossingAntimeridian(
             return false;
         }
 
-        // Normalize longitudes to [-180, 180] range first
+        // If either endpoint is at exactly ±180°, the segment is already
+        // at the antimeridian boundary and doesn't need splitting
+        // This prevents infinite recursion when splitSegmentAtAntimeridian
+        // creates segments ending at ±180°
+        const double BOUNDARY_TOLERANCE = 1e-9;
+        if (std::abs(std::abs(startLon) - 180.0) < BOUNDARY_TOLERANCE ||
+            std::abs(std::abs(endLon) - 180.0) < BOUNDARY_TOLERANCE)
+        {
+            return false;
+        }
+
+        // Normalize longitudes to [-180, 180] range
         auto normalizeLongitude = [](double lon) -> double {
-            // First bring into [-180, 180] range
             lon = std::fmod(lon + 180.0, 360.0);
             if (lon < 0)
                 lon += 360.0;
