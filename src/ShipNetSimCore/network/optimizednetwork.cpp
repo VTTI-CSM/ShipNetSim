@@ -368,33 +368,30 @@ void OptimizedNetwork::loadPolygonShapeFile(const QString &filepath)
 
     OGRLayer *poLayer = poDS->GetLayer(0);
 
-    // Check the reference system is geodetic
-    // Note: GetSpatialRef() returns const OGRSpatialReference* since GDAL 3.12
+    // Validate that the spatial reference is WGS84 (EPSG:4326)
+    // All geodetic calculations in this application assume WGS84 ellipsoid
     const OGRSpatialReference *poSRS = poLayer->GetSpatialRef();
-    if (poSRS != NULL)
-    {
-        char *pszSRS_WKT = NULL;
-        // Get the WKT representation of the SRS
-        poSRS->exportToWkt(&pszSRS_WKT);
-
-        // Check if the SRS is geographic (not projected)
-        if (!poSRS->IsGeographic())
-        {
-            CPLFree(pszSRS_WKT);
-            GDALClose(poDS);
-            emit errorOccurred(
-                "The spatial reference system is not geographic. "
-                "Exiting...");
-            return;
-        }
-
-        CPLFree(pszSRS_WKT);
-    }
-    else
+    if (poSRS == NULL)
     {
         GDALClose(poDS);
         emit errorOccurred(
-            "Spatial reference system is unknown. Exiting...");
+            "Spatial reference system is unknown. "
+            "Only WGS84 (EPSG:4326) is supported.");
+        return;
+    }
+
+    // Create WGS84 reference for comparison
+    OGRSpatialReference wgs84SRS;
+    wgs84SRS.SetWellKnownGeogCS("WGS84");
+
+    // Check if the shapefile's CRS matches WGS84
+    if (!poSRS->IsSameGeogCS(&wgs84SRS))
+    {
+        GDALClose(poDS);
+        emit errorOccurred(
+            "Only WGS84 (EPSG:4326) coordinate reference system is supported. "
+            "Please convert your shapefile using: "
+            "ogr2ogr -t_srs EPSG:4326 output.shp input.shp");
         return;
     }
 
