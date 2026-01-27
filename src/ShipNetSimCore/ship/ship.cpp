@@ -3759,8 +3759,10 @@ void Ship::processTravelledDistance(
         mCurrentState.moveByDistance(stepTravelledDistance, timeStep);
     }
 
+    QVector<std::shared_ptr<GLine>> pathLines;
+    updatePathLines(pathLines);
     emit positionUpdated(mCurrentState.getCurrentPosition(),
-                         mCurrentState.getVectorAzimuth(), {});
+                         mCurrentState.getVectorAzimuth(), pathLines);
 }
 
 // // this has a problem here. if the ship needs to turn in
