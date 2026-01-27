@@ -90,17 +90,13 @@ int main(int argc, char *argv[])
     app.processEvents();
 
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
-    #ifdef OSG_GL3_AVAILABLE
-        format.setVersion(3, 2);
-        format.setProfile(QSurfaceFormat::CoreProfile);
-        format.setRenderableType(QSurfaceFormat::OpenGL);
-        format.setOption(QSurfaceFormat::DebugContext);
-    #else
-        format.setVersion(2, 0);
-        format.setProfile(QSurfaceFormat::CompatibilityProfile);
-        format.setRenderableType(QSurfaceFormat::OpenGL);
-        format.setOption(QSurfaceFormat::DebugContext);
-    #endif
+    // Request OpenGL 3.2+ with Compatibility Profile.
+    // osgEarth 3.x needs modern GLSL, but OSG may use legacy GL calls
+    // (like glEnable(GL_TEXTURE_2D)) that require compatibility mode.
+    format.setVersion(3, 2);
+    format.setProfile(QSurfaceFormat::CompatibilityProfile);
+    format.setRenderableType(QSurfaceFormat::OpenGL);
+    // format.setOption(QSurfaceFormat::DebugContext);
     format.setDepthBufferSize(24);
     format.setSamples(8);
     format.setStencilBufferSize(8);
