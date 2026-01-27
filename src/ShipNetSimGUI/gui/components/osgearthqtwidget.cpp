@@ -27,6 +27,14 @@
 #include <osgEarth/ObjectIDPicker>
 #include <osgEarth/Feature>
 #include <osgEarth/FeatureIndex>
+#include <osgEarth/EarthManipulator>
+#include <osgEarth/CachePolicy>
+#include <osgEarth/MapNode>
+#include <osgEarth/GLUtils>
+#include <osgEarth/ObjectIndex>
+
+// For convenience, use osgEarth::Util namespace for EarthManipulator
+using osgEarth::Util::EarthManipulator;
 #include <QToolTip>
 #include <qcombobox.h>
 #include <qstackedwidget.h>
@@ -70,6 +78,21 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
         osgDB::Registry::instance()->getObjectWrapperManager()->
             findWrapper("osg::Image");
 
+        // Apply GL3 settings required by osgEarth 3.x.
+        // This enables vertex attribute aliasing and matrix uniforms
+        // which are needed for modern GLSL shaders.
+        osg::GraphicsContext* gc = getOsgViewer()->getCamera()->getGraphicsContext();
+        if (gc)
+        {
+            osg::State* state = gc->getState();
+            if (state)
+            {
+                state->resetVertexAttributeAlias(false);
+                state->setUseModelViewAndProjectionUniforms(true);
+                state->setUseVertexAttributeAliasing(true);
+            }
+        }
+
         auto m = new EarthManipulator();
         auto de = m->getSettings();
         de->bindScroll(osgEarth::Util::EarthManipulator::ACTION_ZOOM_IN,
@@ -83,7 +106,7 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
         getOsgViewer()->getCamera()->setSmallFeatureCullingPixelSize(-1.0f);
 
         // no caching
-        Registry::instance()->setOverrideCachePolicy(CachePolicy::NO_CACHE);
+        osgEarth::Registry::instance()->setOverrideCachePolicy(osgEarth::CachePolicy::NO_CACHE);
 
         // collect the views
         osgViewer::Viewer::Views views;
@@ -132,7 +155,7 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
             return;
         }
 
-        osgEarth::ObjectIDPicker* picker = new ObjectIDPicker();
+        osgEarth::ObjectIDPicker* picker = new osgEarth::ObjectIDPicker();
         if (!picker) {
             qFatal("Failed to create ObjectIDPicker.");
             return;
@@ -144,14 +167,14 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
         manager->getMapNode()->addChild(picker);
         qDebug() << "Picker added to scene graph.";
 
-        picker->onClick([&](const ObjectID& id)
+        picker->onClick([&](const osgEarth::ObjectID& id)
         {
             if (id == (osgEarth::ObjectID)0)
             {
                 return;
             }
 
-            auto place = Registry::objectIndex()->get<AnnotationNode>(id);
+            auto place = osgEarth::Registry::objectIndex()->get<osgEarth::AnnotationNode>(id);
             if (!place)
             {
                 return;
@@ -272,10 +295,10 @@ OSGEarthQtWidget::OSGEarthQtWidget(QWidget *parent)
         });
 
 
-        picker->onHover([&](const ObjectID& id) {
-            if (id != OSGEARTH_OBJECTID_EMPTY)
+        picker->onHover([&](const osgEarth::ObjectID& id) {
+            if (id != (osgEarth::ObjectID)0)
             {
-                auto place = Registry::objectIndex()->get<AnnotationNode>(id);
+                auto place = osgEarth::Registry::objectIndex()->get<osgEarth::AnnotationNode>(id);
                 if (place)
                 {
                     // Retrieve custom data
@@ -345,7 +368,7 @@ void OSGEarthQtWidget::setMapNode(osg::ref_ptr<osg::Group> root)
 {
     if (root.valid())
     {
-        if (MapNode::get(root))
+        if (osgEarth::MapNode::get(root))
         {
             getOsgViewer()->setSceneData(root);
 
@@ -393,7 +416,7 @@ void
 OSGEarthQtWidget::configureView( osgViewer::View* view ) const
 {
     // default uniform values:
-    GLUtils::setGlobalDefaults(view->getCamera()->getOrCreateStateSet());
+    osgEarth::GLUtils::setGlobalDefaults(view->getCamera()->getOrCreateStateSet());
 
     // disable small feature culling (otherwise Text annotations won't render)
     view->getCamera()->setSmallFeatureCullingPixelSize(-1.0f);
