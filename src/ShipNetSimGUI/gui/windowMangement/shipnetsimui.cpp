@@ -399,10 +399,14 @@ void ShipNetSimUI::openAboutPage(ShipNetSim *parent) {
 }
 
 void ShipNetSimUI::handleSampleProject(ShipNetSim *parent) {
-    QString executablePath = QCoreApplication::applicationDirPath();
-
-    QString filePath = ShipNetSimCore::Utils::getDataFile("sampleProject.sns");
-    parent->loadProjectFiles(filePath);
+    try {
+        QString filePath =
+            ShipNetSimCore::Utils::getDataFile("sampleProject.sns");
+        parent->loadProjectFiles(filePath);
+    } catch (const std::exception& e) {
+        showWarning(parent, QString("Could not load sample project: %1")
+                                .arg(e.what()));
+    }
 }
 
 void ShipNetSimUI::closeApplication(ShipNetSim *parent) {
