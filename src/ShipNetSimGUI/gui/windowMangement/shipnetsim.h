@@ -99,7 +99,7 @@ private:
 
     /**
     * Initiates the simulation process.
-    * This function starts the simulation based on the selected trains
+    * This function starts the simulation based on the selected ships
     * data and updates the UI accordingly.
     */
     void simulate();
@@ -138,7 +138,7 @@ private slots:
     void clearForm();
 
     /**
-     * Slot for updating the 'visualize trains' combo box.
+     * Slot for updating the 'visualize ships' combo box.
      *
      * @author	Ahmed Aredah
      * @date	6/7/2024
@@ -206,7 +206,7 @@ private:
     // String to store the filename of the project file.
     QString projectFileName;
 
-    // String to store the filename of the trains data.
+    // String to store the filename of the ships data.
     QString shipsFilename;
 
     // Pointer to the AboutWindow object used to display information

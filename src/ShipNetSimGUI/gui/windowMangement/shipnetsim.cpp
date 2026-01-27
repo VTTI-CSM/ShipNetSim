@@ -3,6 +3,7 @@
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <any>
+#include <limits>
 
 #include "shipnetsim.h"
 #include "../components/nonemptydelegate.h"
@@ -197,7 +198,7 @@ void ShipNetSim::setupPage1() {
     // ------------------------- Ships Table ----------------------------------
     // ------------------------------------------------------------------------
 
-    // get the trains file
+    // get the ships file
     connect(ui->pushButton_trains, &QPushButton::clicked, [this]() {
 
         shipsFilename = ShipNetSimUI::browseFiles(this, ui->lineEdit_trains,
@@ -233,7 +234,7 @@ void ShipNetSim::setupPage1() {
                 }
             });
 
-    // write the trains file
+    // write the ships file
     connect(ui->pushButton_saveNewShips, &QPushButton::clicked, [this]() {
 
         QVector<QMap<QString, QString>> out;
@@ -367,6 +368,9 @@ void ShipNetSim::setupPage2() {
 
     // make the trajectory lineedit not visible
     ui->horizontalWidget_TrajFile->setVisible(false);
+
+    // Set default output location (consistent with CLI)
+    ui->lineEdit_outputPath->setText(ShipNetSimCore::Utils::getHomeDirectory());
 
     // select the output location
     connect(ui->pushButton_selectoutputPath, &QPushButton::clicked, [this]() {
@@ -1179,8 +1183,11 @@ void ShipNetSim::simulate() {
         // setting simulator definitions
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
             setTimeStep(units::time::second_t(timeStep));
+        // Zero means run until all ships reach destination (no time limit)
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
-            setEndTime(units::time::second_t(endTime));
+            setEndTime(units::time::second_t(
+                endTime == 0 ? std::numeric_limits<double>::infinity()
+                             : endTime));
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
             setOutputFolderLocation(exportDir);
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
@@ -1202,9 +1209,19 @@ void ShipNetSim::simulate() {
         // handle any error that arise from the simulator
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
                 &SimulatorAPI::errorOccurred, this,
-                [this]( QString errorMessage)
+                [this](QString errorMessage)
                 {
                     ShipNetSimUI::handleError(this, errorMessage);
+
+                    // Reset UI state on error
+                    ui->pushButton_pauseResume->setVisible(false);
+                    ui->pushButton_terminate->setVisible(false);
+                    ui->progressBar->setVisible(false);
+                    ui->pushButton_projectNext->setEnabled(true);
+
+                    // Terminate the simulation
+                    SimulatorAPI::ContinuousMode::terminateSimulation(
+                        {MAIN_SIMULATION_NAME});
                 }, Qt::QueuedConnection);
 
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
@@ -1244,6 +1261,24 @@ void ShipNetSim::simulate() {
 
 
                     ui->lineEdit_trajectoryViewBrowse->setText(trajectoryFile);
+                }, Qt::QueuedConnection);
+
+        // Handle simulation termination (user clicked terminate)
+        connect(&SimulatorAPI::ContinuousMode::getInstance(),
+                &SimulatorAPI::simulationsTerminated, this,
+                [this](QVector<QString> networkNames)
+                {
+                    if (!networkNames.contains(MAIN_SIMULATION_NAME)) {
+                        return;
+                    }
+                    // Reset UI state
+                    ui->pushButton_pauseResume->setVisible(false);
+                    ui->pushButton_terminate->setVisible(false);
+                    ui->progressBar->setVisible(false);
+                    ui->pushButton_projectNext->setEnabled(true);
+
+                    ShipNetSimUI::showNotification(
+                        this, "Simulation was terminated by user.");
                 }, Qt::QueuedConnection);
 
         connect(&SimulatorAPI::ContinuousMode::getInstance(),
@@ -1315,11 +1350,11 @@ void ShipNetSim::simulate() {
     } catch (const std::exception& e) {
         ShipNetSimUI::showErrorBox(e.what());
 
-        ui->pushButton_pauseResume->setVisible(false); // Hide pause
-        ui->pushButton_terminate->setVisible(true);   // Keep terminate visible
-
-        // Enable the simulate button
-        this->ui->pushButton_projectNext->setEnabled(true);
+        // Reset UI state on error
+        ui->pushButton_pauseResume->setVisible(false);
+        ui->pushButton_terminate->setVisible(false);
+        ui->progressBar->setVisible(false);
+        ui->pushButton_projectNext->setEnabled(true);
     }
 }
 
