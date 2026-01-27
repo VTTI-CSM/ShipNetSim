@@ -189,7 +189,7 @@
               <item>
                <widget class="QLineEdit" name="lineEdit_networkName">
                 <property name="toolTip">
-                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the name of the train network or railway system associated with your simulation. This field allows you to provide a distinctive name to identify and differentiate various train networks within your simulator. Consider using a meaningful and recognizable name that reflects the actual railway system you are simulating.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the name of the ship network or railway system associated with your simulation. This field allows you to provide a distinctive name to identify and differentiate various ship networks within your simulator. Consider using a meaningful and recognizable name that reflects the actual railway system you are simulating.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                 </property>
                </widget>
               </item>
@@ -282,7 +282,7 @@
                    <item row="0" column="2">
                     <widget class="QPushButton" name="pushButton_trains">
                      <property name="toolTip">
-                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the file location or path where the trains file is stored for your train simulation. The trains file contains the information about the trains in your simulation, such as their characteristics, schedules, and assigned routes. Browse to select the appropriate file that contains the relevant train data for your simulation. This file is crucial for defining the properties and behavior of the trains within the simulated train network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Specify the file location or path where the ships file is stored for your ship simulation. The ships file contains the information about the ships in your simulation, such as their characteristics, schedules, and assigned routes. Browse to select the appropriate file that contains the relevant ship data for your simulation. This file is crucial for defining the properties and behavior of the ships within the simulated ship network.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                      </property>
                      <property name="text">
                       <string>Browse</string>
@@ -793,7 +793,7 @@
                       <item>
                        <widget class="QCheckBox" name="checkBox_detailedTrainsSummay">
                         <property name="toolTip">
-                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to display a detailed summary of trains during the simulation. By selecting this option, you indicate your preference for additional information and metrics about each individual train's performance and status.&lt;/p&gt;&lt;p&gt;When checked, the simulation output will include a detailed trains summary, providing insights such as train energy consumptions, arrival times, and any relevant performance metrics. This detailed summary can be helpful for in-depth analysis and monitoring of each train's behavior throughout the simulation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to display a detailed summary of ships during the simulation. By selecting this option, you indicate your preference for additional information and metrics about each individual ship's performance and status.&lt;/p&gt;&lt;p&gt;When checked, the simulation output will include a detailed ships summary, providing insights such as ship energy consumptions, arrival times, and any relevant performance metrics. This detailed summary can be helpful for in-depth analysis and monitoring of each ship's behavior throughout the simulation.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="text">
                          <string>Show detailed vessels summary?</string>
@@ -807,7 +807,7 @@
                       <item>
                        <widget class="QCheckBox" name="checkBox_exportTrajectory">
                         <property name="toolTip">
-                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to export the trajectory data of trains during the simulation. By selecting this option, you indicate your intention to save the detailed trajectory information of each train's movement throughout the simulation.&lt;/p&gt;&lt;p&gt;When checked, the simulation will generate trajectory data files, capturing the precise positions and timestamps of trains at various points in time. Exporting trajectory data allows for further analysis, visualization, or integration with external tools or systems. This option is particularly useful when conducting post-simulation analysis or when you need to examine train movements in detail.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this box if you want to export the trajectory data of ships during the simulation. By selecting this option, you indicate your intention to save the detailed trajectory information of each ship's movement throughout the simulation.&lt;/p&gt;&lt;p&gt;When checked, the simulation will generate trajectory data files, capturing the precise positions and timestamps of ships at various points in time. Exporting trajectory data allows for further analysis, visualization, or integration with external tools or systems. This option is particularly useful when conducting post-simulation analysis or when you need to examine ship movements in detail.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="text">
                          <string>Export trajectory?</string>
@@ -833,7 +833,7 @@
                          <item>
                           <widget class="QLineEdit" name="lineEdit_trajectoryFilename">
                            <property name="toolTip">
-                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired name for the trajectory file that will be generated during the simulation. The &amp;quot;Trajectory File Name&amp;quot; setting determines the name of the file that will store the trajectory data of trains' movements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired name for the trajectory file that will be generated during the simulation. The &amp;quot;Trajectory File Name&amp;quot; setting determines the name of the file that will store the trajectory data of ships' movements.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                            </property>
                           </widget>
                          </item>
@@ -890,7 +890,7 @@
                          </size>
                         </property>
                         <property name="toolTip">
-                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired end time for your simulation in this textbox. The simulation end time represents the point at which the simulation will conclude or stop running in seconds.&lt;/p&gt;&lt;p&gt;If you set the value to 0, the simulation will stop only when all trains have reached their respective destinations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter the desired end time for your simulation in this textbox. The simulation end time represents the point at which the simulation will conclude or stop running in seconds.&lt;/p&gt;&lt;p&gt;If you set the value to 0, the simulation will stop only when all ships have reached their respective destinations.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="minimum">
                          <double>0.000000000000000</double>
