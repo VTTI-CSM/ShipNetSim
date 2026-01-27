@@ -1,335 +1,453 @@
 /**
  * @file polygon.h
+ * @brief Geodetic Polygon Implementation for WGS84 Ellipsoid.
  *
- * @brief Definition of the Polygon class.
+ * This file contains the Polygon class which represents a two-dimensional
+ * polygon on the WGS84 ellipsoid. The polygon supports both an outer boundary
+ * and multiple inner holes, enabling accurate representation of complex
+ * geographic regions like water bodies with islands.
  *
- * This file contains the definition of the Polygon class,
- * which is used to represent a two-dimensional polygon.
+ * Key features:
+ * - Accurate geodetic area and perimeter calculations using GeographicLib
+ * - Support for outer boundary and multiple inner holes (rings)
+ * - Point-in-polygon testing with hole awareness
+ * - Line intersection detection
+ * - Segment validation for pathfinding through water regions
+ * - Antimeridian crossing support for global-scale polygons
+ * - Boundary transformation (offset/buffer operations)
+ * - GDAL/OGR integration for spatial operations
  *
  * @author Ahmed Aredah
  * @date 10.12.2023
  */
+
 #ifndef POLYGON_H
 #define POLYGON_H
 
 #include "../../third_party/units/units.h"
+#include "../export.h"
 #include "basegeometry.h"
 #include "gdal_priv.h"
 #include "gline.h"
 #include "gpoint.h"
 #include "ogr_spatialref.h"
 #include <QVector>
-#include <memory> // for std::shared_ptr
+#include <memory>
 
 namespace ShipNetSimCore
 {
+
 /**
  * @class Polygon
+ * @brief Represents a geodetic polygon with outer boundary and inner holes.
  *
- * @brief Represents a two-dimensional polygon.
+ * The Polygon class models a geographic region defined by an outer boundary
+ * and zero or more inner holes. All geometric calculations use geodesic
+ * mathematics via GeographicLib, ensuring accuracy for global-scale
+ * applications including shipping simulation.
  *
- * The Polygon class represents a polygon defined by a series of
- * points. The polygon can have a single outer boundary and multiple
- * inner holes. Each boundary or hole is represented as a QVector of
- * std::shared_ptr to GPoint objects. It provides methods to calculate
- * area, perimeter, and check if a point is inside the polygon.
+ * The polygon is stored both as QVector of GPoint shared pointers (for
+ * convenient access) and as an OGRPolygon (for GDAL spatial operations).
  *
  * @extends BaseGeometry
  */
-class Polygon : public BaseGeometry
+class SHIPNETSIM_EXPORT Polygon : public BaseGeometry
 {
+    // =========================================================================
+    // Member Variables
+    // =========================================================================
 private:
-    QVector<std::shared_ptr<GPoint>>          mOutterBoundary;
+    /// Points defining the outer boundary (exterior ring)
+    QVector<std::shared_ptr<GPoint>> mOutterBoundary;
+
+    /// Points defining inner holes (interior rings)
     QVector<QVector<std::shared_ptr<GPoint>>> mInnerHoles;
 
+    /// GDAL/OGR polygon representation for spatial operations
     OGRPolygon mPolygon;
 
+    /// User-defined identifier for the polygon
     QString mUserID;
 
+    /// Cache for antimeridian crossing status (-1=unchecked, 0=no, 1=yes)
+    mutable int mCrossesAntimeridianCache = -1;
+
+    // =========================================================================
+    // Private Helper Methods
+    // =========================================================================
+
     /**
-     * @brief Offset the boundary by a given distance.
+     * @brief Offset a ring boundary by a given distance.
      *
-     * @param boundary The boundary to offset.
-     * @param inward True to offset inward, false for outward.
-     * @param offset The distance to offset.
-     * @return The offset boundary.
+     * Uses GDAL buffer operations to create an offset version of the ring.
+     * The operation projects to a planar CRS, applies buffer, and re-projects
+     * back to WGS84.
+     *
+     * @param ring The ring to offset
+     * @param inward True to offset inward (shrink), false for outward (expand)
+     * @param offset The distance to offset in meters
+     * @return Unique pointer to the new offset ring
+     * @throws std::runtime_error if transformation fails
      */
     std::unique_ptr<OGRLinearRing>
     offsetBoundary(const OGRLinearRing &ring, bool inward,
                    units::length::meter_t offset) const;
 
-    // check if the polygon has correct points (degenerate/colocated
-    // points)
+    /**
+     * @brief Validate that a ring has sufficient valid points.
+     *
+     * Checks that the ring has at least 3 points and is not degenerate
+     * (i.e., points are not collinear for triangles).
+     *
+     * @param ring The ring to validate
+     * @param description Description for error messages
+     * @throws std::runtime_error if ring is degenerate
+     */
     static void validateRing(const OGRLinearRing &ring,
                              const QString       &description);
 
     /**
-     * @brief Checks if a segment passes through the interior of a
-     * specific hole
+     * @brief Check if a segment passes through the interior of a hole.
+     *
+     * Samples points along the segment and tests if any fall inside the hole.
+     *
      * @param segment The line segment to check
-     * @param holeIndex The index of the hole to check against
+     * @param holeIndex Index of the hole to test against
      * @return true if segment passes through the hole interior
      */
-    bool
-    isSegmentPassingThroughHole(const std::shared_ptr<GLine> &segment,
-                                int holeIndex) const;
+    bool isSegmentPassingThroughHole(const std::shared_ptr<GLine> &segment,
+                                     int holeIndex) const;
 
     /**
-     * @brief Checks if a segment crosses hole boundary at non-vertex
-     * points
+     * @brief Check if a segment crosses a hole boundary at non-vertex points.
+     *
+     * Detects invalid crossings where a segment intersects hole edges
+     * at points that are not shared vertices.
+     *
      * @param segment The line segment to check
-     * @param holeIndex The index of the hole to check against
+     * @param holeIndex Index of the hole to test against
      * @return true if segment crosses hole boundary invalidly
      */
-    bool isSegmentCrossingHoleBoundary(
-        const std::shared_ptr<GLine> &segment, int holeIndex) const;
+    bool isSegmentCrossingHoleBoundary(const std::shared_ptr<GLine> &segment,
+                                       int holeIndex) const;
 
     /**
-     * @brief Checks if intersection between two segments occurs at a
-     * vertex
+     * @brief Check if intersection between two segments is at a vertex.
+     *
+     * Determines if two segments meet at a shared endpoint rather than
+     * crossing through each other.
+     *
      * @param segment1 First line segment
      * @param segment2 Second line segment
      * @return true if intersection is at a shared vertex
      */
-    bool isIntersectionAtVertex(
-        const std::shared_ptr<GLine> &segment1,
-        const std::shared_ptr<GLine> &segment2) const;
+    bool isIntersectionAtVertex(const std::shared_ptr<GLine> &segment1,
+                                const std::shared_ptr<GLine> &segment2) const;
 
     /**
-     * @brief Point-in-polygon test for a specific hole
+     * @brief Point-in-polygon test for a specific hole using raw coordinates.
+     *
+     * Optimized version that performs ray casting directly on OGR ring
+     * coordinates without creating intermediate GPoint objects. This is
+     * the core implementation used by all point-in-hole tests.
+     *
+     * @param lon Longitude of the point to test
+     * @param lat Latitude of the point to test
+     * @param holeIndex Index of the hole to test against
+     * @return true if point is inside the hole
+     */
+    bool isPointInHoleByCoords(double lon, double lat, int holeIndex) const;
+
+    /**
+     * @brief Point-in-polygon test for a specific hole.
+     *
+     * Convenience overload that extracts coordinates from GPoint.
+     * Delegates to isPointInHoleByCoords for the actual test.
+     *
      * @param point The point to test
-     * @param holeIndex The index of the hole to test against
+     * @param holeIndex Index of the hole to test against
      * @return true if point is inside the hole
      */
     bool isPointInHole(const std::shared_ptr<GPoint> &point,
-                       int holeIndex) const;
+                       int                            holeIndex) const;
 
     /**
-     * @brief Helper function for point-in-polygon test using hole
-     * vertices
-     * @param point The point to test
-     * @param hole The hole vertices
-     * @return true if point is inside the hole
+     * @brief Check if this polygon crosses the antimeridian (+-180 degrees).
+     *
+     * Analyzes edge directions to determine if the polygon wraps around
+     * the antimeridian. Uses vertex ordering convention to distinguish
+     * between antimeridian-crossing and prime-meridian-spanning polygons.
+     *
+     * @return true if the polygon crosses the antimeridian
      */
-    bool isPointInHoleVertices(
-        const std::shared_ptr<GPoint>          &point,
-        const QVector<std::shared_ptr<GPoint>> &hole) const;
+    bool crossesAntimeridian() const;
 
+    /**
+     * @brief Normalize longitude to [0, 360) range.
+     *
+     * Used internally for antimeridian crossing calculations.
+     *
+     * @param lon Longitude in degrees
+     * @return Normalized longitude in [0, 360) range
+     */
+    static double normalizeLongitude360(double lon);
+
+    // =========================================================================
+    // Constructors
+    // =========================================================================
 public:
     /**
-     * @brief Default constructor.
-     *
-     * Initializes an empty polygon.
+     * @brief Default constructor creating an empty polygon.
      */
     Polygon();
 
     /**
-     * @brief Parameterized constructor.
+     * @brief Construct a polygon with boundary and optional holes.
      *
-     * Initializes the polygon with the given outer boundary and inner
-     * holes.
-     *
-     * @param boundary The outer boundary of the polygon.
-     * @param holes The inner holes of the polygon.
+     * @param boundary Points defining the outer boundary (will be closed)
+     * @param holes Optional vector of inner hole boundaries
+     * @param ID Optional user-defined identifier
      */
-    Polygon(
-        const QVector<std::shared_ptr<GPoint>>          &boundary,
-        const QVector<QVector<std::shared_ptr<GPoint>>> &holes = {},
-        const QString                                    ID    = "");
+    Polygon(const QVector<std::shared_ptr<GPoint>>          &boundary,
+            const QVector<QVector<std::shared_ptr<GPoint>>> &holes = {},
+            const QString                                    ID    = "");
+
+    // =========================================================================
+    // Boundary Accessors and Mutators
+    // =========================================================================
 
     /**
-     * @brief set a new vector that defines the outer points of the
-     * polygon
-     * @param newOuter a vector of the points that defines the polygon
-     */
-    void
-    setOuterPoints(const QVector<std::shared_ptr<GPoint>> &newOuter);
-    /**
-     * @brief Get the outer boundary of the polygon.
+     * @brief Set the outer boundary points.
      *
-     * @return A QVector of std::shared_ptr to GPoint objects
-     * representing the outer boundary.
+     * Updates the exterior ring while preserving any existing interior rings.
+     *
+     * @param newOuter Vector of points defining the new outer boundary
+     */
+    void setOuterPoints(const QVector<std::shared_ptr<GPoint>> &newOuter);
+
+    /**
+     * @brief Get the outer boundary points.
+     * @return QVector of shared pointers to the outer boundary points
      */
     QVector<std::shared_ptr<GPoint>> outer() const;
 
     /**
-     * @brief set a new vector that defines the outer points of the
-     * polygon
-     * @param holes a vector of vectors of the points that defines
-     * the holes in the polygons.
+     * @brief Set the inner hole boundaries.
+     *
+     * Replaces all existing holes with the new set while preserving
+     * the exterior ring.
+     *
+     * @param holes Vector of vectors, each defining a hole boundary
      */
     void setInnerHolesPoints(
         const QVector<QVector<std::shared_ptr<GPoint>>> holes);
+
     /**
-     * @brief Get the inner holes of the polygon.
-     *
-     * @return A QVector of QVector of std::shared_ptr to GPoint
-     * objects representing the inner holes.
+     * @brief Get the inner hole boundaries.
+     * @return QVector of QVectors, each containing points of one hole
      */
     QVector<QVector<std::shared_ptr<GPoint>>> inners() const;
 
+    // =========================================================================
+    // Point Containment Tests
+    // =========================================================================
+
     /**
-     * @brief Check if a point is within the polygon's exterior ring.
+     * @brief Check if a point is within the exterior ring.
      *
-     * @param pointToCheck The point to check.
-     * @return True if the point is within the polygon's exterior
-     * ring, false otherwise.
+     * Returns true if the point is on the boundary or inside the
+     * exterior ring, ignoring any holes.
+     *
+     * @param pointToCheck The point to test
+     * @return true if point is within or on the exterior ring
      */
     bool isPointWithinExteriorRing(const GPoint &pointToCheck) const;
 
     /**
-     * @brief Check if a point is within the polygon's interior rings.
+     * @brief Check if a point is within any interior ring (hole).
      *
-     * @param pointToCheck The point to check.
-     * @return True if the point is within the polygon's interior
-     * rings, false otherwise.
+     * Returns true if the point is on the boundary or inside any
+     * of the holes.
+     *
+     * @param pointToCheck The point to test
+     * @return true if point is within or on any hole
      */
     bool isPointWithinInteriorRings(const GPoint &pointToCheck) const;
 
     /**
-     * @brief check if a point is within the polygon but not its
-     * holes.
+     * @brief Check if a point is within the polygon (excluding holes).
      *
-     * @details The function checks if the point is within the
-     * polygon. If the point is within the holes, it returns false. If
-     * the point is outside the holes but inside the polygon, it
-     * returns true.
+     * Returns true if the point is inside the exterior ring but not
+     * inside any holes. This is the main point-in-polygon test for
+     * determining if a point is in the valid polygon area.
      *
-     * @param pointToCheck The point to check.
-     * @return True if the point is within the polygon's interior
-     * rings, false otherwise.
+     * Handles antimeridian-crossing polygons automatically.
+     *
+     * @param pointToCheck The point to test
+     * @return true if point is in the valid polygon area
      */
     bool isPointWithinPolygon(const GPoint &pointToCheck) const;
 
     /**
-     * @brief Check if a line intersects the polygon.
+     * @brief Check if a point lies on any ring boundary.
      *
-     * @param line The line to check.
-     * @return True if the line intersects the polygon, false
-     * otherwise.
+     * Returns true if the point is on the exterior ring boundary
+     * or any hole boundary.
+     *
+     * @param point The point to check
+     * @return true if point is on any ring boundary
+     */
+    bool ringsContain(std::shared_ptr<GPoint> point) const;
+
+    // =========================================================================
+    // Line and Segment Operations
+    // =========================================================================
+
+    /**
+     * @brief Check if a line intersects the polygon boundary.
+     *
+     * Returns true if the line crosses the polygon boundary at a
+     * non-endpoint location. Touching at line endpoints only does
+     * not count as intersection.
+     *
+     * @param line The line to test
+     * @return true if line intersects (crosses) the polygon
      */
     bool intersects(const std::shared_ptr<GLine> line);
 
     /**
-     * @brief Offset the outer polygon boundary by a given distance.
+     * @brief Check if a segment is valid for water navigation.
      *
-     * @param inward True to offset inward, false for outward.
-     * @param offset The distance to offset.
+     * For water polygons (where holes represent land/islands), this
+     * checks that a segment doesn't create invalid paths through holes.
+     *
+     * @param segment The segment to validate
+     * @return true if segment doesn't pass through holes
      */
-    void transformOuterBoundary(bool                   inward,
-                                units::length::meter_t offset);
+    bool isValidWaterSegment(const std::shared_ptr<GLine> &segment) const;
 
     /**
-     * @brief Offset all the inner holes polygon boundaries by a given
-     * distance.
+     * @brief Check if a segment crosses through any holes.
      *
-     * @param inward True to offset inward, false for outward.
-     * @param offset The distance to offset.
+     * @param segment The segment to check
+     * @return true if segment crosses any hole
      */
-    void transformInnerHolesBoundaries(bool                   inward,
-                                       units::length::meter_t offset);
+    bool segmentCrossesHoles(const std::shared_ptr<GLine> &segment) const;
 
     /**
-     * @brief Get the maximum clear width of a line inside the
-     * polygon.
+     * @brief Check if a segment creates an invalid diagonal through a hole.
      *
-     * @param line The line to check.
-     * @return The maximum clear width of the line inside the polygon.
+     * @param segment The segment to check
+     * @return true if segment is an invalid diagonal through any hole
      */
-    units::length::meter_t getMaxClearWidth(const GLine &line) const;
+    bool
+    isSegmentDiagonalThroughHole(const std::shared_ptr<GLine> &segment) const;
+
+    // =========================================================================
+    // Geometric Calculations
+    // =========================================================================
 
     /**
-     * @brief Get the area of the polygon.
+     * @brief Calculate the geodetic area of the polygon.
      *
-     * @return The area of the polygon.
+     * Uses GeographicLib for accurate area calculation on the WGS84
+     * ellipsoid. The area of holes is subtracted from the total.
+     *
+     * @return Area in square meters
      */
     units::area::square_meter_t area() const;
 
     /**
-     * @brief Get the perimeter of the polygon.
+     * @brief Calculate the geodetic perimeter of the exterior ring.
      *
-     * @return The perimeter of the polygon.
+     * Uses GeographicLib for accurate perimeter calculation on the
+     * WGS84 ellipsoid. Only calculates the exterior ring perimeter.
+     *
+     * @return Perimeter in meters
      */
     units::length::meter_t perimeter() const;
 
     /**
-     * @brief Converts the Polygon object to a formatted string
-     * representation.
+     * @brief Get the maximum clear width for a line inside the polygon.
      *
-     * This function dynamically formats the output string based on
-     * the user-provided format string. Placeholders in the format
-     * string are replaced as follows:
-     * - `%perimeter`: Replaced with the perimeter value of the
-     * polygon.
-     * - `%area`: Replaced with the area value of the polygon.
+     * Calculates the sum of the minimum distances from the line to
+     * the polygon boundaries on both sides.
      *
-     * The replacement is case-insensitive, allowing placeholders such
-     * as `%Perimeter` or `%AREA`.
-     * If no format is provided, the default format `"Polygon
-     * Perimeter: %perimeter || Area: %area"` is used.
+     * @param line The reference line
+     * @return Total clear width (left + right) in meters
+     */
+    units::length::meter_t getMaxClearWidth(const GLine &line) const;
+
+    // =========================================================================
+    // Bounding Box Operations
+    // =========================================================================
+
+    /**
+     * @brief Get the bounding box (envelope) of the polygon.
      *
-     * @param format A QString specifying the desired format of the
-     * output. It must include placeholders (`%perimeter`, `%area`)
-     *               for the perimeter and area values, respectively.
-     *               If not provided, the default format
-     *               `"Polygon Perimeter: %perimeter || Area: %area"`
-     * is used.
+     * @param[out] minLon Minimum longitude
+     * @param[out] maxLon Maximum longitude
+     * @param[out] minLat Minimum latitude
+     * @param[out] maxLat Maximum latitude
+     */
+    void getEnvelope(double &minLon, double &maxLon, double &minLat,
+                     double &maxLat) const;
+
+    /**
+     * @brief Check if a segment's bounding box intersects the polygon's.
      *
-     * @return A QString containing the formatted output with
-     * placeholders replaced. If a placeholder is missing, it will not
-     * be replaced.
+     * Fast preliminary check before detailed intersection testing.
      *
-     * @example
-     * Polygon polygon;
-     * polygon.setPerimeter(units::length::meter_t(123.456));
-     * polygon.setArea(units::area::square_meter_t(789.123));
+     * @param segment The segment to check
+     * @return true if bounding boxes overlap
+     */
+    bool segmentBoundsIntersect(const std::shared_ptr<GLine> &segment) const;
+
+    // =========================================================================
+    // Boundary Transformations
+    // =========================================================================
+
+    /**
+     * @brief Offset the outer boundary by a given distance.
      *
-     * qDebug() << polygon.toString();                  // Default:
-     * "Polygon Perimeter: 123.456 || Area: 789.123" qDebug() <<
-     * polygon.toString("P: %perimeter, A: %area"); // Custom: "P:
-     * 123.456, A: 789.123"
+     * Expands (outward) or shrinks (inward) the exterior ring.
+     *
+     * @param inward True to shrink, false to expand
+     * @param offset Distance to offset in meters
+     */
+    void transformOuterBoundary(bool inward, units::length::meter_t offset);
+
+    /**
+     * @brief Offset all inner hole boundaries by a given distance.
+     *
+     * Expands or shrinks all holes simultaneously.
+     *
+     * @param inward True to shrink holes, false to expand them
+     * @param offset Distance to offset in meters
+     */
+    void transformInnerHolesBoundaries(bool                   inward,
+                                       units::length::meter_t offset);
+
+    // =========================================================================
+    // String Representation
+    // =========================================================================
+
+    /**
+     * @brief Convert the polygon to a formatted string.
+     *
+     * Supported placeholders (case-insensitive):
+     * - %perimeter: Perimeter of exterior ring in meters
+     * - %area: Area of polygon (excluding holes) in square meters
+     *
+     * @param format Format string with placeholders
+     * @param decimalPercision Number of decimal places for values
+     * @return Formatted string representation
      */
     QString toString(const QString &format =
-                         "Polygon Perimeter: %perimeter || "
-                         "Area: %area",
+                         "Polygon Perimeter: %perimeter || Area: %area",
                      int decimalPercision = 5) const override;
-
-    /**
-     * @brief Check if the polygon ringsContain the point either in
-     * their boundary or inner holes structure.
-     * @param point The point to check
-     * @return True if the point is found, false otherwise.
-     */
-    bool ringsContain(std::shared_ptr<GPoint> point) const;
-
-    /**
-     * @brief Checks if a line segment is valid within this water
-     * polygon
-     * @param segment The line segment to validate
-     * @return true if the segment doesn't create invalid diagonals
-     * through holes
-     */
-    bool
-    isValidWaterSegment(const std::shared_ptr<GLine> &segment) const;
-
-    /**
-     * @brief Checks if a segment crosses through any holes in this
-     * polygon
-     * @param segment The line segment to check
-     * @return true if the segment crosses polygon holes
-     */
-    bool
-    segmentCrossesHoles(const std::shared_ptr<GLine> &segment) const;
-
-    /**
-     * @brief Checks if a segment creates an invalid diagonal through
-     * polygon holes
-     * @param segment The line segment to check
-     * @return true if the segment is an invalid diagonal through a
-     * hole
-     */
-    bool isSegmentDiagonalThroughHole(
-        const std::shared_ptr<GLine> &segment) const;
 };
-}; // namespace ShipNetSimCore
-#endif // POLYGON_H
+
+}  // namespace ShipNetSimCore
+
+#endif  // POLYGON_H

@@ -1,40 +1,117 @@
 /**
  * @file polygon.cpp
- * @brief Implementation of the polygon class and its utilities.
+ * @brief Implementation of the Polygon class.
  *
- * This file contains the implementation for the Polygon class, which
- * defines a polygon with an outer boundary and an optional set of
- * inner holes. The class provides methods for calculating the
- * perimeter, area, and for checking if a point is inside the polygon
- * or is part of its structure (either on the boundary or in the
- * holes).
+ * This file contains the implementation for the Polygon class, providing
+ * geodetic polygon operations including area/perimeter calculations,
+ * point-in-polygon testing, line intersection detection, and boundary
+ * transformations. All geodetic operations use the WGS84 ellipsoid
+ * exclusively, which is the international standard for maritime navigation.
  *
- * Author: Ahmed Aredah
- * Date: 10.12.2023
+ * @note This implementation enforces WGS84 for all geodetic operations.
+ *
+ * @author Ahmed Aredah
+ * @date 10.12.2023
  */
 
-#include "polygon.h" // Include the definition of the Polygon class.
-#include "qdebug.h"  // Include for qCritical().
+#include "polygon.h"
+#include "../utils/gdal_compat.h"
+#include "qdebug.h"
 #include <GeographicLib/Geodesic.hpp>
 #include <GeographicLib/PolygonArea.hpp>
-#include <QVector> // Include the QVector class from the Qt framework.
-#include <cmath>   // Include for mathematical operations.
-#include <limits>  // Include for numeric limits.
-#include <sstream> // Include for string stream operations.
+#include <QVector>
+#include <cmath>
+#include <limits>
+#include <sstream>
 
 namespace ShipNetSimCore
 {
-// Default constructor
+
+// =============================================================================
+// Anonymous Namespace - Internal Helper Functions
+// =============================================================================
+
+namespace
+{
+
+/**
+ * @brief Get the WGS84 Geodesic calculator (cached static instance).
+ *
+ * WGS84 is the international standard for maritime navigation.
+ * Using the cached static instance avoids object construction overhead.
+ *
+ * @return Reference to the cached WGS84 Geodesic calculator
+ */
+inline const GeographicLib::Geodesic& wgs84Geodesic()
+{
+    return GeographicLib::Geodesic::WGS84();
+}
+
+/**
+ * @brief Create a GPoint from OGR ring coordinates at given index.
+ *
+ * @param ring The OGR ring to extract coordinates from
+ * @param index Point index in the ring
+ * @return Shared pointer to new GPoint (using default WGS84)
+ */
+std::shared_ptr<GPoint> pointFromRing(const OGRLinearRing *ring, int index)
+{
+    return std::make_shared<GPoint>(units::angle::degree_t(ring->getX(index)),
+                                    units::angle::degree_t(ring->getY(index)));
+}
+
+/**
+ * @brief Check if two line endpoints match within tolerance.
+ *
+ * @param lon1 First longitude
+ * @param lat1 First latitude
+ * @param lon2 Second longitude
+ * @param lat2 Second latitude
+ * @param epsilon Tolerance for comparison
+ * @return true if points are within epsilon of each other
+ */
+bool pointsMatch(double lon1, double lat1, double lon2, double lat2,
+                 double epsilon = 1e-9)
+{
+    return std::abs(lon1 - lon2) < epsilon && std::abs(lat1 - lat2) < epsilon;
+}
+
+/**
+ * @brief Tolerance for vertex proximity comparisons in meters.
+ */
+constexpr double VERTEX_TOLERANCE_METERS = 0.1;
+
+/**
+ * @brief Number of sample points for segment-through-hole testing.
+ */
+constexpr int HOLE_SAMPLING_COUNT = 10;
+
+/**
+ * @brief Threshold for short segment detection in meters.
+ */
+constexpr double SHORT_SEGMENT_THRESHOLD_METERS = 1000.0;
+
+/**
+ * @brief Threshold for detecting large longitude jumps (antimeridian crossing).
+ */
+constexpr double LONGITUDE_JUMP_THRESHOLD = 180.0;
+
+/**
+ * @brief Tolerance for full-span polygon detection in degrees.
+ */
+constexpr double FULL_SPAN_TOLERANCE = 2.0;
+
+}  // anonymous namespace
+
+// =============================================================================
+// Constructors
+// =============================================================================
+
 Polygon::Polygon() {}
 
-// Parameterized constructor to initialize the outer boundary and
-// inner holes
-Polygon::Polygon(
-    const QVector<std::shared_ptr<GPoint>>
-        &boundary, // points defining outer boundary
-    const QVector<QVector<std::shared_ptr<GPoint>>>
-                 &holes, // vector of vectors of points defining holes
-    const QString ID)    // ID of the polygon (land of water body)
+Polygon::Polygon(const QVector<std::shared_ptr<GPoint>>          &boundary,
+                 const QVector<QVector<std::shared_ptr<GPoint>>> &holes,
+                 const QString                                    ID)
     : mOutterBoundary(boundary)
     , mInnerHoles(holes)
     , mUserID(ID)
@@ -43,31 +120,19 @@ Polygon::Polygon(
     setInnerHolesPoints(holes);
 }
 
-void Polygon::validateRing(const OGRLinearRing &ring,
-                           const QString       &description)
+// =============================================================================
+// Static Helper Methods
+// =============================================================================
+
+void Polygon::validateRing(const OGRLinearRing &ring, const QString &description)
 {
     // Check for sufficient number of points
     if (ring.getNumPoints() < 3)
     {
-        throw std::runtime_error(description.toStdString()
-                                 + "is degenerate: requires at "
-                                   "least 3 unique points.");
+        throw std::runtime_error(description.toStdString() +
+                                 " is degenerate: requires at "
+                                 "least 3 unique points.");
     }
-
-    // Check for unique points to avoid co-location
-    // QSet<QPair<double, double>> uniquePoints;
-    // for (int i = 0; i < ring.getNumPoints(); ++i)
-    // {
-    //     QPair<double, double> pointPair(ring.getX(i),
-    //                                     ring.getY(i));
-    //     if (uniquePoints.contains(pointPair))
-    //     {
-    //         continue;
-    //         //qFatal("% has co-located points.",
-    //         qPrintable(description));
-    //     }
-    //     uniquePoints.insert(pointPair);
-    // }
 
     // If only 3 points are provided, check for collinearity
     if (ring.getNumPoints() == 3)
@@ -81,22 +146,34 @@ void Polygon::validateRing(const OGRLinearRing &ring,
         GPoint p2 = GPoint(units::angle::degree_t(ring.getX(2)),
                            units::angle::degree_t(ring.getY(2)), *SR);
 
-        SR = nullptr;
-
         if (GLine::orientation(std::make_shared<GPoint>(p0),
                                std::make_shared<GPoint>(p1),
                                std::make_shared<GPoint>(p2)))
-        // if (arePointsCollinear(points[0], points[1], points[2]))
         {
-            throw std::runtime_error(description.toStdString()
-                                     + "is degenerate: points "
-                                       "are collinear.");
+            throw std::runtime_error(description.toStdString() +
+                                     " is degenerate: points are collinear.");
         }
     }
 }
 
-void Polygon::setOuterPoints(
-    const QVector<std::shared_ptr<GPoint>> &newOuter)
+double Polygon::normalizeLongitude360(double lon)
+{
+    while (lon < 0.0)
+    {
+        lon += 360.0;
+    }
+    while (lon >= 360.0)
+    {
+        lon -= 360.0;
+    }
+    return lon;
+}
+
+// =============================================================================
+// Boundary Accessors and Mutators
+// =============================================================================
+
+void Polygon::setOuterPoints(const QVector<std::shared_ptr<GPoint>> &newOuter)
 {
     mOutterBoundary = newOuter;
 
@@ -114,6 +191,7 @@ void Polygon::setOuterPoints(
 
     // Clear the polygon and update the exterior ring
     mPolygon.empty();
+
     for (auto &p : newOuter)
     {
         auto pp = p->getGDALPoint();
@@ -122,15 +200,15 @@ void Polygon::setOuterPoints(
     outerRing.closeRings();
     outerRing.assignSpatialReference(
         newOuter[0]->getGDALPoint().getSpatialReference());
-    mPolygon.addRing(&outerRing); // Add the new exterior ring
+
+    mPolygon.addRing(&outerRing);
     mPolygon.assignSpatialReference(
         newOuter[0]->getGDALPoint().getSpatialReference());
 
     // Restore interior rings
     for (auto *interiorRing : tempInteriorRings)
     {
-        mPolygon.addRingDirectly(
-            interiorRing); // Takes ownership of the pointer
+        mPolygon.addRingDirectly(interiorRing);  // Takes ownership
     }
 
     validateRing(outerRing, "Outer boundary");
@@ -146,17 +224,19 @@ void Polygon::setInnerHolesPoints(
 {
     mInnerHoles = newInners;
 
-    // Temporarily store exterior rings
-    OGRLinearRing *tempExteriorRing = static_cast<OGRLinearRing *>(
-        mPolygon.getExteriorRing()->clone());
+    // Temporarily store exterior ring
+    OGRLinearRing *tempExteriorRing =
+        static_cast<OGRLinearRing *>(mPolygon.getExteriorRing()->clone());
 
-    // Clear the polygon and update the exterior ring
+    // Clear the polygon and restore exterior ring
     mPolygon.empty();
-    mPolygon.addRingDirectly(
-        tempExteriorRing); // Takes ownership of the pointer
+    mPolygon.addRingDirectly(tempExteriorRing);  // Takes ownership
+
+    // Add new interior rings
     for (const auto &hole : newInners)
     {
         OGRLinearRing holeRing;
+
         for (auto &p : hole)
         {
             auto pp = p->getGDALPoint();
@@ -165,6 +245,7 @@ void Polygon::setInnerHolesPoints(
         holeRing.closeRings();
         holeRing.assignSpatialReference(
             hole[0]->getGDALPoint().getSpatialReference());
+
         mPolygon.addRing(&holeRing);
         mPolygon.assignSpatialReference(
             hole[0]->getGDALPoint().getSpatialReference());
@@ -178,51 +259,184 @@ QVector<QVector<std::shared_ptr<GPoint>>> Polygon::inners() const
     return mInnerHoles;
 }
 
-bool Polygon::isPointWithinExteriorRing(
-    const GPoint &pointToCheck) const
+// =============================================================================
+// Antimeridian Handling
+// =============================================================================
+
+bool Polygon::crossesAntimeridian() const
+{
+    // Use cached value if available
+    if (mCrossesAntimeridianCache >= 0)
+    {
+        return mCrossesAntimeridianCache == 1;
+    }
+
+    auto *ring = mPolygon.getExteriorRing();
+    if (!ring || ring->getNumPoints() < 2)
+    {
+        mCrossesAntimeridianCache = 0;
+        return false;
+    }
+
+    // Calculate longitude bounds
+    double minLon = ring->getX(0);
+    double maxLon = ring->getX(0);
+    for (int i = 1; i < ring->getNumPoints(); ++i)
+    {
+        double lon = ring->getX(i);
+        minLon     = std::min(minLon, lon);
+        maxLon     = std::max(maxLon, lon);
+    }
+
+    // CASE 1: Full-span polygons (approximately -180 to +180)
+    // These cover the entire globe and do NOT cross the antimeridian
+    bool isFullSpan = (minLon <= -180.0 + FULL_SPAN_TOLERANCE) &&
+                      (maxLon >= 180.0 - FULL_SPAN_TOLERANCE);
+    if (isFullSpan)
+    {
+        mCrossesAntimeridianCache = 0;
+        return false;
+    }
+
+    // CASE 2: Detect antimeridian crossing via edge direction analysis
+    // Look at the first edge that has a large longitude jump (> 180 degrees)
+    // The direction determines if the polygon wraps around the antimeridian
+    int numPoints = ring->getNumPoints();
+    for (int i = 0; i < numPoints - 1; ++i)
+    {
+        double lon1    = ring->getX(i);
+        double lon2    = ring->getX(i + 1);
+        double lonDiff = std::abs(lon2 - lon1);
+
+        if (lonDiff > LONGITUDE_JUMP_THRESHOLD)
+        {
+            // Positive -> Negative = crosses antimeridian
+            // Negative -> Positive = goes around prime meridian
+            if (lon1 > 0.0 && lon2 < 0.0)
+            {
+                mCrossesAntimeridianCache = 1;
+                return true;
+            }
+            else
+            {
+                mCrossesAntimeridianCache = 0;
+                return false;
+            }
+        }
+    }
+
+    mCrossesAntimeridianCache = 0;
+    return false;
+}
+
+// =============================================================================
+// Point Containment Tests
+// =============================================================================
+
+bool Polygon::isPointWithinExteriorRing(const GPoint &pointToCheck) const
 {
     auto           r = mPolygon.getExteriorRing();
     const OGRPoint p = pointToCheck.getGDALPoint();
-    // Check if the point is on the boundary of the ring
+
+    // Check boundary first, then interior
     if (r->isPointOnRingBoundary(&p, TRUE))
     {
         return true;
     }
-    // Check if the point is inside the ring (including boundaries)
     if (r->isPointInRing(&p, TRUE))
     {
         return true;
     }
-    // If neither on the boundary nor inside, the point is outside the
-    // polygon
+
     return false;
 }
 
-bool Polygon::isPointWithinInteriorRings(
-    const GPoint &pointToCheck) const
+bool Polygon::isPointWithinInteriorRings(const GPoint &pointToCheck) const
 {
     const OGRPoint p = pointToCheck.getGDALPoint();
 
     for (int i = 0; i < mPolygon.getNumInteriorRings(); ++i)
     {
         auto r = mPolygon.getInteriorRing(i);
-        // Check if the point is on the boundary of the ring
+
         if (r->isPointOnRingBoundary(&p, TRUE))
         {
             return true;
         }
-        // Check if the point is inside the ring (including
-        // boundaries)
         if (r->isPointInRing(&p, TRUE))
         {
             return true;
         }
     }
+
     return false;
 }
 
 bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
 {
+    // Handle antimeridian-crossing polygons specially
+    if (crossesAntimeridian())
+    {
+        double pointLon     = pointToCheck.getLongitude().value();
+        double pointLat     = pointToCheck.getLatitude().value();
+        double normPointLon = normalizeLongitude360(pointLon);
+
+        auto *ring = mPolygon.getExteriorRing();
+        if (!ring)
+        {
+            return false;
+        }
+
+        // Create normalized ring for testing
+        OGRLinearRing normRing;
+        for (int i = 0; i < ring->getNumPoints(); ++i)
+        {
+            double normLon = normalizeLongitude360(ring->getX(i));
+            normRing.addPoint(normLon, ring->getY(i));
+        }
+
+        OGRPoint normPoint(normPointLon, pointLat);
+
+        // Lambda to check if point is in any normalized hole
+        auto isInNormalizedHole = [this, normPointLon, pointLat]() -> bool {
+            OGRPoint np(normPointLon, pointLat);
+
+            for (int h = 0; h < mPolygon.getNumInteriorRings(); ++h)
+            {
+                auto         *hole = mPolygon.getInteriorRing(h);
+                OGRLinearRing normHole;
+
+                for (int i = 0; i < hole->getNumPoints(); ++i)
+                {
+                    double normLon = normalizeLongitude360(hole->getX(i));
+                    normHole.addPoint(normLon, hole->getY(i));
+                }
+
+                if (normHole.isPointOnRingBoundary(&np, TRUE) ||
+                    normHole.isPointInRing(&np, TRUE))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Check boundary
+        if (normRing.isPointOnRingBoundary(&normPoint, TRUE))
+        {
+            return !isInNormalizedHole();
+        }
+
+        // Check interior
+        if (normRing.isPointInRing(&normPoint, TRUE))
+        {
+            return !isInNormalizedHole();
+        }
+
+        return false;
+    }
+
+    // Standard case: polygon doesn't cross antimeridian
     if (isPointWithinInteriorRings(pointToCheck))
     {
         return false;
@@ -230,224 +444,88 @@ bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
     return isPointWithinExteriorRing(pointToCheck);
 }
 
-units::area::square_meter_t Polygon::area() const
+bool Polygon::ringsContain(std::shared_ptr<GPoint> point) const
 {
-    // Get the spatial reference of the polygon
-    const OGRSpatialReference *thisSR =
-        mPolygon.getSpatialReference();
+    auto           r = mPolygon.getExteriorRing();
+    const OGRPoint p = point->getGDALPoint();
 
-    double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening    = 1.0 / thisSR->GetInvFlattening();
-
-    // Create a GeographicLib::Geodesic object with the ellipsoid
-    // parameters
-    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
-
-    // Initialize a PolygonArea object for the WGS84 ellipsoid
-    GeographicLib::PolygonArea poly(geod);
-
-    // Handle the exterior ring
-    auto *exteriorRing = mPolygon.getExteriorRing();
-    for (int i = 0; i < exteriorRing->getNumPoints(); ++i)
+    // Check exterior ring boundary
+    if (r->isPointOnRingBoundary(&p, TRUE))
     {
-        double lon = exteriorRing->getX(i);
-        double lat = exteriorRing->getY(i);
-        poly.AddPoint(lat, lon);
+        return true;
     }
 
-    // Compute the area and perimeter of the outer boundary
+    // Check interior ring boundaries
+    for (int i = 0; i < mPolygon.getNumInteriorRings(); ++i)
+    {
+        if (mPolygon.getInteriorRing(i)->isPointOnRingBoundary(&p, TRUE))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// =============================================================================
+// Geometric Calculations
+// =============================================================================
+
+units::area::square_meter_t Polygon::area() const
+{
+    const auto& geod = wgs84Geodesic();
+
+    // Calculate exterior ring area
+    GeographicLib::PolygonArea poly(geod);
+
+    const auto *exteriorRing = mPolygon.getExteriorRing();
+    for (int i = 0; i < exteriorRing->getNumPoints(); ++i)
+    {
+        poly.AddPoint(exteriorRing->getY(i), exteriorRing->getX(i));
+    }
+
     double area, perimeter;
     poly.Compute(false, true, perimeter, area);
 
-    // Handle the interior rings (holes)
-    int numInteriorRings = mPolygon.getNumInteriorRings();
+    // Subtract hole areas
+    const int numInteriorRings = mPolygon.getNumInteriorRings();
     for (int j = 0; j < numInteriorRings; ++j)
     {
-        auto *interiorRing = mPolygon.getInteriorRing(j);
-        // Each hole treated separately
+        const auto *interiorRing = mPolygon.getInteriorRing(j);
         GeographicLib::PolygonArea holePoly(geod);
 
         for (int k = 0; k < interiorRing->getNumPoints(); ++k)
         {
-            double lon = interiorRing->getX(k);
-            double lat = interiorRing->getY(k);
-            holePoly.AddPoint(lat, lon);
+            holePoly.AddPoint(interiorRing->getY(k), interiorRing->getX(k));
         }
 
-        // Compute the area and perimeter of the hole and
-        // subtract from the total area
         double holeArea, holePerimeter;
         holePoly.Compute(false, true, holePerimeter, holeArea);
-        area -=
-            holeArea; // Subtract the hole area from the outer area
+        area -= holeArea;
     }
 
-    // Return the net area of the polygon with holes subtracted,
-    // in square meters
     return units::area::square_meter_t(area);
 }
 
 units::length::meter_t Polygon::perimeter() const
 {
-    // Get the spatial reference of the polygon
-    const OGRSpatialReference *thisSR =
-        mPolygon.getSpatialReference();
+    const auto& geod = wgs84Geodesic();
 
-    double semiMajorAxis = thisSR->GetSemiMajor();
-    double flattening    = 1.0 / thisSR->GetInvFlattening();
-
-    // Create a GeographicLib::Geodesic object with the ellipsoid
-    // parameters
-    const GeographicLib::Geodesic geod(semiMajorAxis, flattening);
-
-    // Initialize a PolygonArea object for the WGS84 ellipsoid
     GeographicLib::PolygonArea poly(geod);
 
-    // Handle the exterior ring
-    auto *exteriorRing = mPolygon.getExteriorRing();
+    const auto *exteriorRing = mPolygon.getExteriorRing();
     for (int i = 0; i < exteriorRing->getNumPoints(); ++i)
     {
-        double lon = exteriorRing->getX(i);
-        double lat = exteriorRing->getY(i);
-        poly.AddPoint(lat, lon);
+        poly.AddPoint(exteriorRing->getY(i), exteriorRing->getX(i));
     }
 
-    // Compute the area and perimeter of the outer boundary
     double area, perimeter;
     poly.Compute(false, true, perimeter, area);
 
     return units::length::meter_t(perimeter);
 }
 
-bool Polygon::intersects(const std::shared_ptr<GLine> line)
-{
-    return line->getGDALLine().Intersects(&mPolygon);
-}
-
-std::unique_ptr<OGRLinearRing>
-Polygon::offsetBoundary(const OGRLinearRing &ring, bool inward,
-                        units::length::meter_t offset) const
-{
-    const OGRSpatialReference *currentSR =
-        mPolygon.getSpatialReference();
-    std::shared_ptr<OGRSpatialReference> targetSR =
-        Point::getDefaultProjectionReference();
-
-    // Create a coordinate transformation from the current
-    // geographic CRS to the target projected CRS
-    OGRCoordinateTransformation *coordProjTransform =
-        OGRCreateCoordinateTransformation(currentSR, targetSR.get());
-    if (!coordProjTransform)
-    {
-        OCTDestroyCoordinateTransformation(coordProjTransform);
-        throw std::runtime_error(
-            "Failed to create coordinate transformation.");
-    }
-
-    OGRCoordinateTransformation *coordReprojTransform =
-        OGRCreateCoordinateTransformation(targetSR.get(), currentSR);
-    if (!coordReprojTransform)
-    {
-        OCTDestroyCoordinateTransformation(coordReprojTransform);
-        throw std::runtime_error(
-            "Failed to create coordinate transformation.");
-    }
-
-    OGRLinearRing *transformedRing =
-        static_cast<OGRLinearRing *>(ring.clone());
-    transformedRing->transform(coordProjTransform);
-    // Apply the buffer operation
-    double actualOffset = inward ? -offset.value() : offset.value();
-    OGRGeometry *bufferedGeometry =
-        transformedRing->Buffer(actualOffset);
-    delete transformedRing;
-
-    // Transform the buffered geometry back to WGS84
-    bufferedGeometry->transform(coordReprojTransform);
-
-    // Extract the linear ring from the buffered geometry
-    OGRPolygon *bufferedPolygon =
-        dynamic_cast<OGRPolygon *>(bufferedGeometry);
-    std::unique_ptr<OGRLinearRing> newRing(nullptr);
-
-    if (bufferedPolygon)
-    {
-        newRing.reset(static_cast<OGRLinearRing *>(
-            bufferedPolygon->getExteriorRing()->clone()));
-    }
-    else
-    {
-        throw std::runtime_error(
-            "Buffered geometry is not a polygon.");
-    }
-
-    // Clean up
-    OCTDestroyCoordinateTransformation(coordProjTransform);
-    OCTDestroyCoordinateTransformation(coordReprojTransform);
-    delete bufferedGeometry;
-
-    return newRing;
-}
-
-void Polygon::transformOuterBoundary(bool                   inward,
-                                     units::length::meter_t offset)
-{
-    // Retrieve the current outer boundary (exterior ring) of the
-    // polygon
-    const OGRLinearRing *currentOuterRing =
-        static_cast<OGRLinearRing *>(mPolygon.getExteriorRing());
-
-    // Offset the current outer boundary to create a new ring
-    std::unique_ptr<OGRLinearRing> newOuterRing =
-        offsetBoundary(*currentOuterRing, inward, offset);
-
-    // Create a new polygon to hold the transformed geometry
-    OGRPolygon newPolygon;
-
-    // Add the new outer ring to the new polygon
-    newPolygon.addRing(newOuterRing.get());
-
-    // Copy interior rings (holes)
-    // from the original polygon to the new polygon
-    int numInteriorRings = mPolygon.getNumInteriorRings();
-    for (int i = 0; i < numInteriorRings; ++i)
-    {
-        newPolygon.addRing(mPolygon.getInteriorRing(i));
-    }
-
-    // Replace the existing polygon geometry with the new polygon
-    mPolygon = newPolygon;
-}
-
-void Polygon::transformInnerHolesBoundaries(
-    bool inward, units::length::meter_t offset)
-{
-    // Create a new polygon to hold the transformed geometry,
-    // starting with the original outer boundary
-    OGRPolygon newPolygon;
-    newPolygon.addRing(mPolygon.getExteriorRing());
-
-    // Offset each interior ring (hole) and add to the new polygon
-    int numInteriorRings = mPolygon.getNumInteriorRings();
-    for (int i = 0; i < numInteriorRings; ++i)
-    {
-        const OGRLinearRing *currentInnerRing =
-            mPolygon.getInteriorRing(i);
-        std::unique_ptr<OGRLinearRing> newInnerRing =
-            offsetBoundary(*currentInnerRing, inward, offset);
-
-        // Add the new inner ring to the new polygon.
-        // Use get() to access the raw pointer without releasing
-        // ownership.
-        newPolygon.addRing(newInnerRing.get());
-    }
-
-    // Replace the existing polygon geometry with the new polygon
-    mPolygon = newPolygon;
-}
-
-units::length::meter_t
-Polygon::getMaxClearWidth(const GLine &line) const
+units::length::meter_t Polygon::getMaxClearWidth(const GLine &line) const
 {
     units::length::meter_t leftClearWidth =
         std::numeric_limits<units::length::meter_t>::max();
@@ -456,16 +534,14 @@ Polygon::getMaxClearWidth(const GLine &line) const
 
     auto calculateClearWidths = [&leftClearWidth, &rightClearWidth,
                                  &line](const OGRLinearRing *ring) {
-        int numPoints = ring->getNumPoints();
+        int                        numPoints = ring->getNumPoints();
+        const OGRSpatialReference *SR        = ring->getSpatialReference();
+
         for (int i = 0; i < numPoints; ++i)
         {
             OGRPoint vertexA, vertexB;
             ring->getPoint(i, &vertexA);
-            ring->getPoint((i + 1) % numPoints,
-                           &vertexB); // loop closed
-
-            const OGRSpatialReference *SR =
-                ring->getSpatialReference();
+            ring->getPoint((i + 1) % numPoints, &vertexB);
 
             auto pointA = std::make_shared<GPoint>(
                 units::angle::degree_t(vertexA.getX()),
@@ -475,8 +551,6 @@ Polygon::getMaxClearWidth(const GLine &line) const
                 units::angle::degree_t(vertexB.getX()),
                 units::angle::degree_t(vertexB.getY()), *SR);
 
-            SR = nullptr;
-
             GLine edge(pointA, pointB);
 
             units::length::meter_t dist1 =
@@ -484,10 +558,8 @@ Polygon::getMaxClearWidth(const GLine &line) const
             units::length::meter_t dist2 =
                 edge.getPerpendicularDistance(*(line.endPoint()));
 
-            Line::LocationToLine isLeft1 =
-                line.getlocationToLine(pointA);
-            Line::LocationToLine isLeft2 =
-                line.getlocationToLine(pointB);
+            Line::LocationToLine isLeft1 = line.getlocationToLine(pointA);
+            Line::LocationToLine isLeft2 = line.getlocationToLine(pointB);
 
             if (isLeft1 == Line::LocationToLine::left)
             {
@@ -509,13 +581,12 @@ Polygon::getMaxClearWidth(const GLine &line) const
         }
     };
 
-    // Calculate clear widths for the outer boundary
+    // Calculate for outer boundary
     const OGRLinearRing *outerRing =
-        static_cast<const OGRLinearRing *>(
-            mPolygon.getExteriorRing());
+        static_cast<const OGRLinearRing *>(mPolygon.getExteriorRing());
     calculateClearWidths(outerRing);
 
-    // Calculate clear widths for each inner hole
+    // Calculate for each hole
     int numInteriorRings = mPolygon.getNumInteriorRings();
     for (int i = 0; i < numInteriorRings; ++i)
     {
@@ -526,75 +597,123 @@ Polygon::getMaxClearWidth(const GLine &line) const
     return rightClearWidth + leftClearWidth;
 }
 
-QString Polygon::toString(const QString &format,
-                          int            decimalPercision) const
+// =============================================================================
+// Line and Segment Operations
+// =============================================================================
+
+bool Polygon::intersects(const std::shared_ptr<GLine> line)
 {
-    QString perimeterStr =
-        QString::number(perimeter().value(), 'f', decimalPercision);
-    QString areaStr =
-        QString::number(area().value(), 'f', decimalPercision);
+    const OGRLineString &gdalLine = line->getGDALLine();
 
-    QString result = format;
-
-    // Replace placeholders (case-insensitive)
-    result.replace("%perimeter", perimeterStr, Qt::CaseInsensitive);
-    result.replace("%area", areaStr, Qt::CaseInsensitive);
-
-    return result; // Return the formatted string
-}
-
-bool Polygon::ringsContain(std::shared_ptr<GPoint> point) const
-{
-    auto           r = mPolygon.getExteriorRing();
-    const OGRPoint p = point->getGDALPoint();
-    // Check if the point is on the boundary of the ring
-    if (r->isPointOnRingBoundary(&p, TRUE))
+    // Quick check: if no intersection at all, return false
+    if (!gdalLine.Intersects(&mPolygon))
     {
-        return true;
+        return false;
     }
 
-    for (int i = 0; i < mPolygon.getNumInteriorRings(); ++i)
+    // Compute actual intersection geometry
+    OGRGeometry *intersection = gdalLine.Intersection(&mPolygon);
+    if (!intersection)
     {
-        if (mPolygon.getInteriorRing(i)->isPointOnRingBoundary(&p,
-                                                               TRUE))
+        return false;
+    }
+
+    bool               result   = false;
+    OGRwkbGeometryType geomType = wkbFlatten(intersection->getGeometryType());
+
+    if (geomType == wkbPoint || geomType == wkbMultiPoint)
+    {
+        // Intersection is just point(s) - check if any are NOT line endpoints
+        const double eps      = 1e-9;
+        double       startLon = line->startPoint()->getLongitude().value();
+        double       startLat = line->startPoint()->getLatitude().value();
+        double       endLon   = line->endPoint()->getLongitude().value();
+        double       endLat   = line->endPoint()->getLatitude().value();
+
+        auto checkIfEndpoint = [&](double x, double y) -> bool {
+            return pointsMatch(x, y, startLon, startLat, eps) ||
+                   pointsMatch(x, y, endLon, endLat, eps);
+        };
+
+        if (geomType == wkbPoint)
         {
-            return true;
+            OGRPoint *pt = static_cast<OGRPoint *>(intersection);
+            result       = !checkIfEndpoint(pt->getX(), pt->getY());
+        }
+        else
+        {
+            OGRMultiPoint *mpt = static_cast<OGRMultiPoint *>(intersection);
+            for (int i = 0; i < mpt->getNumGeometries(); ++i)
+            {
+                OGRPoint *pt =
+                    static_cast<OGRPoint *>(mpt->getGeometryRef(i));
+                if (!checkIfEndpoint(pt->getX(), pt->getY()))
+                {
+                    result = true;
+                    break;
+                }
+            }
         }
     }
-    return false;
+    else
+    {
+        // Intersection is a line, polygon, or geometry collection
+        result = true;
+    }
+
+    delete intersection;
+    return result;
 }
 
-bool Polygon::isValidWaterSegment(
-    const std::shared_ptr<GLine> &segment) const
+bool Polygon::isValidWaterSegment(const std::shared_ptr<GLine> &segment) const
 {
-    // For water polygons, ensure the segment doesn't create invalid
-    // diagonals through holes
     return !isSegmentDiagonalThroughHole(segment);
 }
 
-bool Polygon::segmentCrossesHoles(
-    const std::shared_ptr<GLine> &segment) const
+bool Polygon::segmentCrossesHoles(const std::shared_ptr<GLine> &segment) const
 {
-    // Check if the segment crosses through any holes in this polygon
     return isSegmentDiagonalThroughHole(segment);
 }
 
 bool Polygon::isSegmentDiagonalThroughHole(
     const std::shared_ptr<GLine> &segment) const
 {
-    // Check if the segment passes through the interior of any holes
     int numHoles = mPolygon.getNumInteriorRings();
+
+    // Pre-compute segment bounding box
+    double segStartLon = segment->startPoint()->getLongitude().value();
+    double segEndLon   = segment->endPoint()->getLongitude().value();
+    double segStartLat = segment->startPoint()->getLatitude().value();
+    double segEndLat   = segment->endPoint()->getLatitude().value();
+    double segMinLon   = std::min(segStartLon, segEndLon);
+    double segMaxLon   = std::max(segStartLon, segEndLon);
+    double segMinLat   = std::min(segStartLat, segEndLat);
+    double segMaxLat   = std::max(segStartLat, segEndLat);
 
     for (int holeIndex = 0; holeIndex < numHoles; ++holeIndex)
     {
-        // Check if segment passes through the interior of this hole
+        const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
+        if (!hole)
+        {
+            continue;
+        }
+
+        // Quick bounding box check
+        OGREnvelope holeEnv;
+        hole->getEnvelope(&holeEnv);
+
+        if (segMaxLon < holeEnv.MinX || segMinLon > holeEnv.MaxX ||
+            segMaxLat < holeEnv.MinY || segMinLat > holeEnv.MaxY)
+        {
+            continue;  // No possible intersection
+        }
+
+        // Detailed checks
         if (isSegmentPassingThroughHole(segment, holeIndex))
         {
             return true;
         }
 
-        // Additional check: if segment crosses hole boundary at
-        // non-vertex points
         if (isSegmentCrossingHoleBoundary(segment, holeIndex))
         {
             return true;
@@ -608,56 +727,76 @@ bool Polygon::isSegmentPassingThroughHole(
     const std::shared_ptr<GLine> &segment, int holeIndex) const
 {
     if (holeIndex >= mPolygon.getNumInteriorRings())
+    {
         return false;
+    }
 
-    // First, quick check: if both endpoints are on the hole boundary,
-    // and the segment is short, it's likely just an edge traversal
     const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
     if (!hole)
+    {
         return false;
+    }
 
     const OGRPoint startOGR = segment->startPoint()->getGDALPoint();
     const OGRPoint endOGR   = segment->endPoint()->getGDALPoint();
 
-    bool startOnBoundary =
-        hole->isPointOnRingBoundary(&startOGR, TRUE);
-    bool endOnBoundary = hole->isPointOnRingBoundary(&endOGR, TRUE);
+    bool startOnBoundary = hole->isPointOnRingBoundary(&startOGR, TRUE);
+    bool endOnBoundary   = hole->isPointOnRingBoundary(&endOGR, TRUE);
 
-    // If both points are on the boundary, check if this is just edge
-    // traversal
+    // If both points are on boundary and segment is short, allow it
     if (startOnBoundary && endOnBoundary)
     {
-        // Allow short segments (likely edge traversals)
-        if (segment->startPoint()
-                ->distance(*segment->endPoint())
-                .value()
-            < 1000.0) // 1km threshold
+        if (segment->startPoint()->distance(*segment->endPoint()).value() <
+            SHORT_SEGMENT_THRESHOLD_METERS)
         {
             return false;
         }
     }
 
-    // Sample points along the segment and check if any are inside the
-    // hole
-    const int NUM_SAMPLES = 10; // Increased for better accuracy
-    auto      startPoint  = segment->startPoint();
-    auto      endPoint    = segment->endPoint();
+    // Sample points along the segment
+    auto   startPoint = segment->startPoint();
+    auto   endPoint   = segment->endPoint();
+    double startLon   = startPoint->getLongitude().value();
+    double endLon     = endPoint->getLongitude().value();
+    double startLat   = startPoint->getLatitude().value();
+    double endLat     = endPoint->getLatitude().value();
 
-    for (int i = 1; i < NUM_SAMPLES; ++i)
+    // Handle antimeridian crossing
+    double lonDiff              = endLon - startLon;
+    bool   crossesAntimeridian  = std::abs(lonDiff) > 180.0;
+    double adjustedEndLon       = endLon;
+
+    if (crossesAntimeridian)
     {
-        double t = static_cast<double>(i) / NUM_SAMPLES;
+        if (lonDiff > 180.0)
+        {
+            adjustedEndLon = endLon - 360.0;
+        }
+        else if (lonDiff < -180.0)
+        {
+            adjustedEndLon = endLon + 360.0;
+        }
+    }
 
-        // Interpolate point along the segment
-        double lat = startPoint->getLatitude().value() * (1.0 - t)
-                     + endPoint->getLatitude().value() * t;
-        double lon = startPoint->getLongitude().value() * (1.0 - t)
-                     + endPoint->getLongitude().value() * t;
+    for (int i = 1; i < HOLE_SAMPLING_COUNT; ++i)
+    {
+        double t = static_cast<double>(i) / HOLE_SAMPLING_COUNT;
 
-        auto testPoint = std::make_shared<GPoint>(
-            units::angle::degree_t(lon), units::angle::degree_t(lat));
+        double lat = startLat * (1.0 - t) + endLat * t;
+        double lon = startLon * (1.0 - t) + adjustedEndLon * t;
 
-        // Check if this point is inside the hole
-        if (isPointInHole(testPoint, holeIndex))
+        // Normalize longitude
+        while (lon > 180.0)
+        {
+            lon -= 360.0;
+        }
+        while (lon < -180.0)
+        {
+            lon += 360.0;
+        }
+
+        // Optimized: pass coordinates directly instead of creating GPoint
+        if (isPointInHoleByCoords(lon, lat, holeIndex))
         {
             return true;
         }
@@ -670,69 +809,50 @@ bool Polygon::isSegmentCrossingHoleBoundary(
     const std::shared_ptr<GLine> &segment, int holeIndex) const
 {
     if (holeIndex >= mPolygon.getNumInteriorRings())
+    {
         return false;
+    }
 
     const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
     if (!hole)
+    {
         return false;
+    }
 
     int numPoints = hole->getNumPoints();
-    for (int i = 0; i < numPoints - 1;
-         ++i) // -1 because last point duplicates first
+
+    for (int i = 0; i < numPoints - 1; ++i)
     {
-        // Get hole edge points
-        auto holeEdgeStart = std::make_shared<GPoint>(
-            units::angle::degree_t(hole->getX(i)),
-            units::angle::degree_t(hole->getY(i)),
-            *hole->getSpatialReference());
-        auto holeEdgeEnd = std::make_shared<GPoint>(
-            units::angle::degree_t(hole->getX(i + 1)),
-            units::angle::degree_t(hole->getY(i + 1)),
-            *hole->getSpatialReference());
+        auto holeEdgeStart = pointFromRing(hole, i);
+        auto holeEdgeEnd   = pointFromRing(hole, i + 1);
+        auto holeEdge = std::make_shared<GLine>(holeEdgeStart, holeEdgeEnd);
 
-        auto holeEdge =
-            std::make_shared<GLine>(holeEdgeStart, holeEdgeEnd);
-
-        // Check if segments intersect
         if (segment->intersects(*holeEdge, false))
         {
-            // This is valid only if:
-            // 1. The segments share exactly one endpoint
-            // (vertex-to-vertex connection), OR
-            // 2. One segment is entirely contained within the other
-            // (edge traversal)
-
             bool startPointOnHoleEdge =
-                (*segment->startPoint() == *holeEdgeStart)
-                || (*segment->startPoint() == *holeEdgeEnd);
+                (*segment->startPoint() == *holeEdgeStart) ||
+                (*segment->startPoint() == *holeEdgeEnd);
             bool endPointOnHoleEdge =
-                (*segment->endPoint() == *holeEdgeStart)
-                || (*segment->endPoint() == *holeEdgeEnd);
+                (*segment->endPoint() == *holeEdgeStart) ||
+                (*segment->endPoint() == *holeEdgeEnd);
 
-            // If both endpoints are on the same hole edge, this is
-            // edge traversal (valid)
+            // Both endpoints on same hole edge = valid edge traversal
             if (startPointOnHoleEdge && endPointOnHoleEdge)
             {
-                continue; // This is valid edge traversal
+                continue;
             }
 
-            // If exactly one endpoint is on the hole edge, this might
-            // be valid vertex connection
+            // One endpoint on hole edge - check if intersection is at vertex
             if (startPointOnHoleEdge || endPointOnHoleEdge)
             {
-                // Check if the intersection point is at the shared
-                // vertex If the intersection is in the middle of the
-                // hole edge, it's invalid
                 if (!isIntersectionAtVertex(segment, holeEdge))
                 {
-                    return true; // Invalid crossing through hole
-                                 // boundary
+                    return true;
                 }
             }
             else
             {
-                // Neither endpoint is on the hole edge, but they
-                // intersect This is definitely an invalid crossing
+                // Neither endpoint on hole edge = invalid crossing
                 return true;
             }
         }
@@ -745,22 +865,16 @@ bool Polygon::isIntersectionAtVertex(
     const std::shared_ptr<GLine> &segment1,
     const std::shared_ptr<GLine> &segment2) const
 {
-    // Check if the intersection point is at one of the vertices
-    const double VERTEX_TOLERANCE =
-        1e-10; // Very small tolerance for floating point comparison
-
-    // Check all four possible vertex combinations
     auto s1_start = segment1->startPoint();
     auto s1_end   = segment1->endPoint();
     auto s2_start = segment2->startPoint();
     auto s2_end   = segment2->endPoint();
 
-    // The intersection is at a vertex if any of these pairs are the
-    // same point
-    if (s1_start->distance(*s2_start).value() < VERTEX_TOLERANCE
-        || s1_start->distance(*s2_end).value() < VERTEX_TOLERANCE
-        || s1_end->distance(*s2_start).value() < VERTEX_TOLERANCE
-        || s1_end->distance(*s2_end).value() < VERTEX_TOLERANCE)
+    // Check all four vertex combinations
+    if (s1_start->distance(*s2_start).value() < VERTEX_TOLERANCE_METERS ||
+        s1_start->distance(*s2_end).value() < VERTEX_TOLERANCE_METERS ||
+        s1_end->distance(*s2_start).value() < VERTEX_TOLERANCE_METERS ||
+        s1_end->distance(*s2_end).value() < VERTEX_TOLERANCE_METERS)
     {
         return true;
     }
@@ -768,64 +882,235 @@ bool Polygon::isIntersectionAtVertex(
     return false;
 }
 
-bool Polygon::isPointInHole(const std::shared_ptr<GPoint> &point,
-                            int holeIndex) const
+bool Polygon::isPointInHoleByCoords(double lon, double lat,
+                                    int    holeIndex) const
 {
     if (holeIndex >= mPolygon.getNumInteriorRings())
+    {
         return false;
+    }
 
     const OGRLinearRing *hole = mPolygon.getInteriorRing(holeIndex);
     if (!hole)
-        return false;
-
-    // Convert OGR ring to our point format for easier processing
-    QVector<std::shared_ptr<GPoint>> holeVertices;
-    int                              numPoints = hole->getNumPoints();
-
-    for (int i = 0; i < numPoints - 1;
-         ++i) // -1 because last point duplicates first
     {
-        holeVertices.append(std::make_shared<GPoint>(
-            units::angle::degree_t(hole->getX(i)),
-            units::angle::degree_t(hole->getY(i)),
-            *hole->getSpatialReference()));
+        return false;
     }
 
-    return isPointInHoleVertices(point, holeVertices);
-}
-
-bool Polygon::isPointInHoleVertices(
-    const std::shared_ptr<GPoint>          &point,
-    const QVector<std::shared_ptr<GPoint>> &hole) const
-{
-    if (hole.size() < 3)
-        return false;
-
-    // Use ray casting algorithm for point-in-polygon test
-    int    intersections = 0;
-    double px            = point->getLongitude().value();
-    double py            = point->getLatitude().value();
-
-    for (int i = 0; i < hole.size(); ++i)
+    int numPoints = hole->getNumPoints();
+    if (numPoints < 4)  // Need at least 3 unique points + closing point
     {
-        auto p1 = hole[i];
-        auto p2 = hole[(i + 1) % hole.size()];
+        return false;
+    }
 
-        double x1 = p1->getLongitude().value();
-        double y1 = p1->getLatitude().value();
-        double x2 = p2->getLongitude().value();
-        double y2 = p2->getLatitude().value();
+    // Ray casting algorithm - directly on OGR ring coordinates
+    // No GPoint allocation needed!
+    int    intersections = 0;
+    double px            = lon;
+    double py            = lat;
+
+    // Iterate through edges (numPoints - 1 because last point duplicates first)
+    for (int i = 0; i < numPoints - 1; ++i)
+    {
+        double x1 = hole->getX(i);
+        double y1 = hole->getY(i);
+        double x2 = hole->getX(i + 1);
+        double y2 = hole->getY(i + 1);
 
         // Check if ray from point crosses this edge
-        if (((y1 > py) != (y2 > py))
-            && (px < (x2 - x1) * (py - y1) / (y2 - y1) + x1))
+        if (((y1 > py) != (y2 > py)) &&
+            (px < (x2 - x1) * (py - y1) / (y2 - y1) + x1))
         {
             intersections++;
         }
     }
 
-    return (intersections % 2)
-           == 1; // Inside if odd number of intersections
+    return (intersections % 2) == 1;
 }
 
-}; // namespace ShipNetSimCore
+bool Polygon::isPointInHole(const std::shared_ptr<GPoint> &point,
+                            int                            holeIndex) const
+{
+    // Delegate to optimized coordinate-based implementation
+    return isPointInHoleByCoords(point->getLongitude().value(),
+                                 point->getLatitude().value(),
+                                 holeIndex);
+}
+
+// =============================================================================
+// Bounding Box Operations
+// =============================================================================
+
+void Polygon::getEnvelope(double &minLon, double &maxLon, double &minLat,
+                          double &maxLat) const
+{
+    OGREnvelope envelope;
+    mPolygon.getEnvelope(&envelope);
+
+    minLon = envelope.MinX;
+    maxLon = envelope.MaxX;
+    minLat = envelope.MinY;
+    maxLat = envelope.MaxY;
+}
+
+bool Polygon::segmentBoundsIntersect(
+    const std::shared_ptr<GLine> &segment) const
+{
+    double polyMinLon, polyMaxLon, polyMinLat, polyMaxLat;
+    getEnvelope(polyMinLon, polyMaxLon, polyMinLat, polyMaxLat);
+
+    double segStartLon = segment->startPoint()->getLongitude().value();
+    double segEndLon   = segment->endPoint()->getLongitude().value();
+    double segStartLat = segment->startPoint()->getLatitude().value();
+    double segEndLat   = segment->endPoint()->getLatitude().value();
+
+    double segMinLon = std::min(segStartLon, segEndLon);
+    double segMaxLon = std::max(segStartLon, segEndLon);
+    double segMinLat = std::min(segStartLat, segEndLat);
+    double segMaxLat = std::max(segStartLat, segEndLat);
+
+    // Check for non-overlap
+    if (segMaxLon < polyMinLon || segMinLon > polyMaxLon ||
+        segMaxLat < polyMinLat || segMinLat > polyMaxLat)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+// =============================================================================
+// Boundary Transformations
+// =============================================================================
+
+std::unique_ptr<OGRLinearRing>
+Polygon::offsetBoundary(const OGRLinearRing &ring, bool inward,
+                        units::length::meter_t offset) const
+{
+    const OGRSpatialReference           *currentSR = mPolygon.getSpatialReference();
+    std::shared_ptr<OGRSpatialReference> targetSR =
+        Point::getDefaultProjectionReference();
+
+    // Create coordinate transformations
+    OGRCoordinateTransformation *coordProjTransform =
+        OGRCreateCoordinateTransformation(currentSR, targetSR.get());
+    if (!coordProjTransform)
+    {
+        DESTROY_COORD_TRANSFORM(coordProjTransform);
+        throw std::runtime_error(
+            "Failed to create coordinate transformation.");
+    }
+
+    OGRCoordinateTransformation *coordReprojTransform =
+        OGRCreateCoordinateTransformation(targetSR.get(), currentSR);
+    if (!coordReprojTransform)
+    {
+        DESTROY_COORD_TRANSFORM(coordProjTransform);
+        DESTROY_COORD_TRANSFORM(coordReprojTransform);
+        throw std::runtime_error(
+            "Failed to create coordinate transformation.");
+    }
+
+    // Transform ring to projected CRS
+    OGRLinearRing *transformedRing =
+        static_cast<OGRLinearRing *>(ring.clone());
+    transformedRing->transform(coordProjTransform);
+
+    // Apply buffer operation
+    double       actualOffset     = inward ? -offset.value() : offset.value();
+    OGRGeometry *bufferedGeometry = transformedRing->Buffer(actualOffset);
+    delete transformedRing;
+
+    // Transform back to WGS84
+    bufferedGeometry->transform(coordReprojTransform);
+
+    // Extract the linear ring
+    OGRPolygon                    *bufferedPolygon =
+        dynamic_cast<OGRPolygon *>(bufferedGeometry);
+    std::unique_ptr<OGRLinearRing> newRing(nullptr);
+
+    if (bufferedPolygon)
+    {
+        newRing.reset(static_cast<OGRLinearRing *>(
+            bufferedPolygon->getExteriorRing()->clone()));
+    }
+    else
+    {
+        DESTROY_COORD_TRANSFORM(coordProjTransform);
+        DESTROY_COORD_TRANSFORM(coordReprojTransform);
+        delete bufferedGeometry;
+        throw std::runtime_error("Buffered geometry is not a polygon.");
+    }
+
+    // Clean up
+    DESTROY_COORD_TRANSFORM(coordProjTransform);
+    DESTROY_COORD_TRANSFORM(coordReprojTransform);
+    delete bufferedGeometry;
+
+    return newRing;
+}
+
+void Polygon::transformOuterBoundary(bool                   inward,
+                                     units::length::meter_t offset)
+{
+    const OGRLinearRing *currentOuterRing =
+        static_cast<OGRLinearRing *>(mPolygon.getExteriorRing());
+
+    std::unique_ptr<OGRLinearRing> newOuterRing =
+        offsetBoundary(*currentOuterRing, inward, offset);
+
+    // Create new polygon with transformed outer ring
+    OGRPolygon newPolygon;
+    newPolygon.addRing(newOuterRing.get());
+
+    // Copy interior rings
+    int numInteriorRings = mPolygon.getNumInteriorRings();
+    for (int i = 0; i < numInteriorRings; ++i)
+    {
+        newPolygon.addRing(mPolygon.getInteriorRing(i));
+    }
+
+    mPolygon = newPolygon;
+}
+
+void Polygon::transformInnerHolesBoundaries(bool                   inward,
+                                            units::length::meter_t offset)
+{
+    // Start with original outer boundary
+    OGRPolygon newPolygon;
+    newPolygon.addRing(mPolygon.getExteriorRing());
+
+    // Offset each interior ring
+    int numInteriorRings = mPolygon.getNumInteriorRings();
+    for (int i = 0; i < numInteriorRings; ++i)
+    {
+        const OGRLinearRing *currentInnerRing = mPolygon.getInteriorRing(i);
+
+        std::unique_ptr<OGRLinearRing> newInnerRing =
+            offsetBoundary(*currentInnerRing, inward, offset);
+
+        newPolygon.addRing(newInnerRing.get());
+    }
+
+    mPolygon = newPolygon;
+}
+
+// =============================================================================
+// String Representation
+// =============================================================================
+
+QString Polygon::toString(const QString &format, int decimalPercision) const
+{
+    QString perimeterStr =
+        QString::number(perimeter().value(), 'f', decimalPercision);
+    QString areaStr = QString::number(area().value(), 'f', decimalPercision);
+
+    QString result = format;
+
+    // Replace placeholders (case-insensitive)
+    result.replace("%perimeter", perimeterStr, Qt::CaseInsensitive);
+    result.replace("%area", areaStr, Qt::CaseInsensitive);
+
+    return result;
+}
+
+}  // namespace ShipNetSimCore
