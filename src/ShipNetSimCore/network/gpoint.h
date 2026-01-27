@@ -1,24 +1,21 @@
 /**
- * Class GPoint - Represents a geographical point with latitude and
- * longitude, and optional spatial reference for geodetic
- * calculations.
+ * @file gpoint.h
+ * @brief Geodetic Point Implementation for WGS84 Ellipsoid.
  *
- * The class encapsulates operations such as distance calculation,
- * coordinate transformation, and serialization. It utilizes GDAL for
- * spatial operations and adheres to units library for type-safe
- * computations.
+ * This file contains the GPoint class which represents a geographic point
+ * with latitude and longitude coordinates on the WGS84 ellipsoid. The class
+ * provides accurate geodesic calculations using GeographicLib and supports
+ * GDAL/OGR integration for spatial operations.
  *
+ * Key features:
+ * - Accurate geodesic distance and azimuth calculations
+ * - Coordinate normalization (longitude wrap, latitude flip)
+ * - Datum transformation and projection support
+ * - Binary serialization for network transmission and storage
+ * - Port/waypoint functionality for shipping simulation
  *
- * Usage:
- * - To create a GPoint, use one of the constructors with the desired
- *   latitude, longitude, and optionally, a spatial reference and a
- *   unique ID.
- * - To transform the point's datum, provide a target spatial
- * reference to transformDatumTo. Ensure the target spatial reference
- * is managed externally.
- * - Serialization and deserialization methods allow for persistent
- *   storage or network transmission of GPoint instances in a binary
- * format.
+ * @author Ahmed Aredah
+ * @date 10.12.2023
  */
 
 #ifndef GPOINT_H
@@ -34,345 +31,377 @@
 
 namespace ShipNetSimCore
 {
-class Point; // Forward declaration
 
+class Point;  // Forward declaration for projected point type
+
+/**
+ * @class GPoint
+ * @brief Represents a geographic point on the WGS84 ellipsoid.
+ *
+ * GPoint encapsulates a geographic location with latitude and longitude,
+ * providing type-safe coordinate handling and geodesic calculations.
+ * All geodetic operations use GeographicLib for accurate results on the
+ * WGS84 ellipsoid.
+ */
 class SHIPNETSIM_EXPORT GPoint : public BaseGeometry
 {
+    // =========================================================================
+    // Member Variables
+    // =========================================================================
+private:
+    OGRPoint mOGRPoint;  ///< GDAL/OGR point representation
+    QString  mUserID;    ///< Optional user-defined identifier
+    bool     mIsPort;    ///< Flag indicating if this point is a port
+    units::time::second_t mDwellTime;  ///< Dwell time at port (if applicable)
+
+    /// Default coordinate reference system (WGS84)
+    static std::shared_ptr<OGRSpatialReference> spatialRef;
+
+    // =========================================================================
+    // Constructors
+    // =========================================================================
 public:
-    // Default constructor: initializes a point at the origin
-    // (0, 0) with default spatial reference.
+    /**
+     * @brief Default constructor creating a point at origin (0, 0).
+     *
+     * Creates a point at the intersection of the Prime Meridian and Equator
+     * with WGS84 spatial reference.
+     */
     GPoint();
 
     /**
-     * Constructs a GPoint with specified longitude and latitude.
-     * Optionally, a custom spatial reference can be provided; if
-     * omitted, a default (WGS84) is used.
-     * @param lon Longitude in degrees.
-     * @param lat Latitude in degrees.
-     * @param crc Optional spatial reference (defaults to WGS84 if
-     *            not provided).
+     * @brief Construct a GPoint with specified coordinates.
+     *
+     * @param lon Longitude in degrees [-180, 180]
+     * @param lat Latitude in degrees [-90, 90]
+     * @param crc Optional spatial reference (defaults to WGS84)
+     * @throws std::runtime_error if spatial reference is not geographic
      */
     GPoint(units::angle::degree_t lon, units::angle::degree_t lat,
            OGRSpatialReference crc = OGRSpatialReference());
 
     /**
-     * Constructs a GPoint with specified longitude, latitude, and
-     *  a unique ID.
-     * Optionally, a custom spatial reference can be provided; if
-     * omitted, a default (WGS84) is used.
-     * @param lon Longitude in degrees.
-     * @param lat Latitude in degrees.
-     * @param ID A unique identifier for the point.
-     * @param crc Optional spatial reference (defaults to WGS84
-     *            if not provided).
+     * @brief Construct a GPoint with coordinates and an identifier.
+     *
+     * @param lon Longitude in degrees [-180, 180]
+     * @param lat Latitude in degrees [-90, 90]
+     * @param ID User-defined identifier for the point
+     * @param crc Optional spatial reference (defaults to WGS84)
+     * @throws std::runtime_error if spatial reference is not geographic
      */
     GPoint(units::angle::degree_t lon, units::angle::degree_t lat,
-           QString             ID,
-           OGRSpatialReference crc = OGRSpatialReference());
+           QString ID, OGRSpatialReference crc = OGRSpatialReference());
+
+    // =========================================================================
+    // Static Methods - Spatial Reference Management
+    // =========================================================================
 
     /**
-     * Calculates the geodesic distance to another GPoint.
-     * Both points must have spatial references set and they must be
-     * the same.
-     * @param other The other GPoint to calculate the distance to.
-     * @return Distance in meters as units::length::meter_t.
-     */
-    [[nodiscard]] units::length::meter_t
-    distance(const GPoint &other) const;
-
-    /**
-     * Calculates the geodesic azimuth from this point to another
-     * GPoint. Both points must have spatial references set and they
-     * must be the same.
-     * @param other The other GPoint to calculate the azimuth to.
-     * @return Azimuth in degrees as units::angle::degree_t.
-     */
-    [[nodiscard]] units::angle::degree_t
-    forwardAzimuth(const GPoint &other) const;
-
-    /**
-     * Calculates the geodesic azimuth from the another GPoint to this
-     * point. Both points must have spatial references set and they
-     * must be the same.
-     * @param other The other GPoint to calculate the azimuth from.
-     * @return Azimuth in degrees as units::angle::degree_t.
-     */
-    [[nodiscard]] units::angle::degree_t
-    backwardAzimuth(const GPoint &other) const;
-
-    // Returns the GDAL OGRPoint representation of this GPoint.
-    OGRPoint getGDALPoint() const;
-
-    /**
-     * Transforms the datum (spatial reference) of this point to the
-     * target spatial reference.
-     * The target spatial reference must be geographic (not
-     * projected).
-     * @param targetSR Pointer to the target OGRSpatialReference.
-     *                 The caller is responsible for managing the
-     *                 lifecycle of the spatial reference.
-     */
-    void transformDatumTo(OGRSpatialReference *targetSR);
-
-    /**
-     * Projects this geographic point to a new spatial reference,
-     * typically a projected coordinate system.
-     * @param targetSR Pointer to the target OGRSpatialReference for
-     *                 projection.
-     *                 The caller is responsible for managing the
-     *                 lifecycle of the spatial reference.
-     * @return A new Point instance in the projected coordinate
-     * system.
-     */
-    Point projectTo(OGRSpatialReference *targetSR) const;
-
-    // Getters for latitude and longitude.
-
-    /**
-     * @brief Gets the user ID of the point.
-     * @return The user ID of the point as a QString.
-     */
-    [[nodiscard]] QString getUserID() const;
-
-    /**
-     * @brief Gets the latitude of the point.
-     * @return The latitude of the point in degrees.
-     */
-    [[nodiscard]] units::angle::degree_t getLatitude() const;
-
-    /**
-     * @brief Gets the longitude of the point.
-     * @return The longitude of the point in degrees.
-     */
-    [[nodiscard]] units::angle::degree_t getLongitude() const;
-
-    /**
-     * @brief Sets the latitude of the point.
-     * @param lat new latitude value.
-     */
-    void setLatitude(units::angle::degree_t lat);
-
-    /**
-     * @brief Sets the longitude of the point.
-     * @param lon new longitude value.
-     */
-    void setLongitude(units::angle::degree_t lon);
-
-    /**
-     * @brief A static function to get the default reprojection
-     * reference.
-     * @details GPoint takes ownership of the pointer.
-     *          The class manages the lifecycle
-     *          of these objects, ensuring they remain valid as long
-     * as the GPoint instances use them.
-     * @return A shared pointer for the default reprojection
-     * reference.
+     * @brief Get the default spatial reference (WGS84).
+     *
+     * Returns the shared default spatial reference used for new GPoint
+     * instances when no explicit reference is provided.
+     *
+     * @return Shared pointer to the default WGS84 spatial reference
      */
     static std::shared_ptr<OGRSpatialReference>
     getDefaultReprojectionReference();
 
     /**
-     * @brief A static function to set the default reprojection
-     * reference.
-     * @param wellknownCS the well known geodetic coordinate system
-     *                    as a CS reference of the point.
+     * @brief Set a custom default spatial reference.
+     *
+     * @param wellknownCS Well-known coordinate system name (e.g., "WGS84")
+     * @throws std::runtime_error if the CS is invalid or not geographic
      */
-    static void
-    setDefaultReprojectionReference(std::string wellknownCS);
+    static void setDefaultReprojectionReference(std::string wellknownCS);
+
+    // =========================================================================
+    // Accessors - Coordinate Getters
+    // =========================================================================
 
     /**
-     * Calculate a new point given a distance and heading from this
-     * point.
-     *
-     * @param distance Distance from the current point in meters.
-     * @param heading Heading in degrees, measured clockwise from
-     * north.
-     * @return A new GPoint representing the location after moving the
-     * given distance along the given heading.
+     * @brief Get the latitude of the point.
+     * @return Latitude in degrees [-90, 90]
      */
-    GPoint
-    pointAtDistanceAndHeading(units::length::meter_t distance,
-                              units::angle::degree_t heading) const;
+    [[nodiscard]] units::angle::degree_t getLatitude() const;
 
     /**
-     * @brief Check if the point is a port.
+     * @brief Get the longitude of the point.
+     * @return Longitude in degrees [-180, 180]
+     */
+    [[nodiscard]] units::angle::degree_t getLongitude() const;
+
+    /**
+     * @brief Get the user-defined identifier.
+     * @return The user ID, or empty string if not set
+     */
+    [[nodiscard]] QString getUserID() const;
+
+    /**
+     * @brief Get the GDAL/OGR point representation.
+     * @return Copy of the internal OGRPoint
+     */
+    OGRPoint getGDALPoint() const;
+
+    // =========================================================================
+    // Mutators - Coordinate Setters
+    // =========================================================================
+
+    /**
+     * @brief Set the latitude with automatic normalization.
      *
-     * @return True if the point is a port, false otherwise.
+     * Values outside [-90, 90] are normalized by "flipping" the latitude.
+     * For example, 100 degrees becomes 80 degrees.
+     *
+     * @param lat New latitude value in degrees
+     */
+    void setLatitude(units::angle::degree_t lat);
+
+    /**
+     * @brief Set the longitude with automatic normalization.
+     *
+     * Values outside [-180, 180] are wrapped to the valid range.
+     * For example, 270 degrees becomes -90 degrees.
+     *
+     * @param lon New longitude value in degrees
+     */
+    void setLongitude(units::angle::degree_t lon);
+
+    // =========================================================================
+    // Geodetic Calculations
+    // =========================================================================
+
+    /**
+     * @brief Calculate geodesic distance to another point.
+     *
+     * Uses GeographicLib for accurate geodesic distance on the WGS84
+     * ellipsoid. Both points must have the same spatial reference.
+     *
+     * @param other The target point
+     * @return Geodesic distance in meters
+     * @throws std::runtime_error if spatial references are missing or mismatched
+     */
+    [[nodiscard]] units::length::meter_t distance(const GPoint &other) const;
+
+    /**
+     * @brief Calculate forward azimuth to another point.
+     *
+     * Returns the initial bearing (azimuth) from this point toward the
+     * target point, measured clockwise from true north.
+     *
+     * @param other The target point
+     * @return Forward azimuth in degrees [0, 360) or [-180, 180]
+     * @throws std::runtime_error if spatial references are missing or mismatched
+     */
+    [[nodiscard]] units::angle::degree_t
+    forwardAzimuth(const GPoint &other) const;
+
+    /**
+     * @brief Calculate backward azimuth from another point to this one.
+     *
+     * Returns the final bearing at the target point when traveling from
+     * the other point to this point.
+     *
+     * @param other The source point
+     * @return Backward azimuth in degrees
+     * @throws std::runtime_error if spatial references are missing or mismatched
+     */
+    [[nodiscard]] units::angle::degree_t
+    backwardAzimuth(const GPoint &other) const;
+
+    /**
+     * @brief Calculate a point at given distance and heading from this point.
+     *
+     * Uses geodesic forward calculation to find a destination point.
+     *
+     * @param distance Distance to travel in meters
+     * @param heading Initial heading in degrees (clockwise from north)
+     * @return New GPoint at the calculated location
+     */
+    GPoint pointAtDistanceAndHeading(units::length::meter_t  distance,
+                                     units::angle::degree_t heading) const;
+
+    /**
+     * @brief Get the geodesic midpoint between this point and another.
+     *
+     * Calculates the point exactly halfway along the geodesic path
+     * between the two points.
+     *
+     * @param endPoint The other endpoint
+     * @return GPoint at the geodesic midpoint
+     * @throws std::runtime_error if spatial references are missing or mismatched
+     */
+    GPoint getMiddlePoint(const GPoint &endPoint) const;
+
+    // =========================================================================
+    // Coordinate Transformations
+    // =========================================================================
+
+    /**
+     * @brief Transform the datum (spatial reference) of this point.
+     *
+     * Converts the point's coordinates to a different geodetic datum.
+     * The target must be a geographic (not projected) coordinate system.
+     *
+     * @param targetSR Target spatial reference (must be geographic)
+     * @throws std::runtime_error if targetSR is null or not geographic
+     */
+    void transformDatumTo(OGRSpatialReference *targetSR);
+
+    /**
+     * @brief Project this point to a projected coordinate system.
+     *
+     * Creates a new Point object in a projected coordinate system
+     * (e.g., UTM, State Plane).
+     *
+     * @param targetSR Target projected spatial reference
+     * @return Projected Point in the target coordinate system
+     * @throws std::runtime_error if targetSR is invalid or not projected
+     */
+    Point projectTo(OGRSpatialReference *targetSR) const;
+
+    // =========================================================================
+    // Port/Waypoint Operations
+    // =========================================================================
+
+    /**
+     * @brief Check if this point represents a port.
+     * @return true if the point is marked as a port
      */
     [[nodiscard]] bool isPort() const;
 
     /**
-     * @brief Get the dwell time of the port.
-     *
-     * @return The dwell time if the point is a port.
+     * @brief Get the dwell time at this port.
+     * @return Dwell time in seconds (0 if not a port)
      */
     [[nodiscard]] units::time::second_t getDwellTime() const;
 
     /**
-     * @brief Mark the point as not a port
-     */
-    void MarkAsNonPort();
-
-    /**
-     * @brief Mark the point as a port with the given dwell time.
-     *
-     * @param dwellTime The dwell time of the port.
+     * @brief Mark this point as a port with specified dwell time.
+     * @param dwellTime Time to dwell at the port
      */
     void MarkAsPort(units::time::second_t dwellTime);
 
     /**
-     * @brief get the middle point between the current point and an
-     * end point.
-     * @param endPoint The end point of the segment.
-     * @return the middle point between the current point and the end
-     * point.
+     * @brief Clear the port status of this point.
      */
-    GPoint getMiddlePoint(const GPoint &endPoint) const;
+    void MarkAsNonPort();
+
+    // =========================================================================
+    // Serialization
+    // =========================================================================
 
     /**
-     * @brief Converts the GPoint object to a formatted string
-     * representation.
+     * @brief Serialize this point to a binary stream.
      *
-     * This function dynamically formats the output string based on
-     * the user-provided format string. Placeholders in the format
-     * string are replaced as follows:
-     * - `%x`: Replaced with the longitude value.
-     * - `%y`: Replaced with the latitude value.
-     * - `%id`: Replaced with the user ID (or "N/A" if no ID is set).
+     * Writes all point data in portable binary format using big-endian
+     * byte order. The serialized data includes coordinates, user ID,
+     * port status, and dwell time.
      *
-     * The replacement is case-insensitive, allowing placeholders such
-     * as `%X`, `%Y`, or `%ID`.
+     * @param out Output stream (must be opened in binary mode)
+     * @throws std::runtime_error if stream is not ready for writing
+     */
+    void serialize(std::ostream &out) const;
+
+    /**
+     * @brief Deserialize a point from a binary stream.
      *
-     * @param format A QString specifying the desired format of the
-     * output. It must include placeholders (`%x`, `%y`, `%id`) for
-     *               the longitude, latitude, and user ID,
-     * respectively.
+     * Reads binary data and reconstructs the point. The stream must
+     * contain data written by serialize().
      *
-     * @return A QString containing the formatted output with
-     *          placeholders replaced.
-     *         If a placeholder is missing, it will not be replaced.
+     * @param in Input stream (must be opened in binary mode)
+     * @throws std::runtime_error if stream is not ready or data is corrupted
+     */
+    void deserialize(std::istream &in);
+
+    // =========================================================================
+    // String Representation
+    // =========================================================================
+
+    /**
+     * @brief Convert the point to a formatted string.
      *
-     * @example
-     * GPoint point;
-     * point.setLongitude(units::angle::degree_t(10.123));
-     * point.setLatitude(units::angle::degree_t(20.456));
-     * point.setUserID("Ship123");
+     * Supported placeholders (case-insensitive):
+     * - %x: Longitude value
+     * - %y: Latitude value
+     * - %id: User identifier (or "N/A" if not set)
      *
-     * QString format = "ID: %id at (%x, %y)";
-     * qDebug() << point.toString(format);
-     * // Output: "ID: Ship123 at (10.123, 20.456)"
+     * @param format Format string with placeholders
+     * @param decimalPercision Number of decimal places for coordinates
+     * @return Formatted string representation
      */
     [[nodiscard]] QString
-    toString(const QString &format           = "(%x, %y)",
-             int            decimalPercision = 5) const override;
+    toString(const QString &format = "(%x, %y)",
+             int decimalPercision  = 5) const override;
+
+    // =========================================================================
+    // Operators
+    // =========================================================================
 
     /**
-     * @brief Equality operator.
-     *
-     * Checks if this point is equal to another point.
-     *
-     * @param other The other point.
-     * @return True if equal, false otherwise.
+     * @brief Equality comparison based on coordinates.
+     * @param other Point to compare with
+     * @return true if coordinates are exactly equal
      */
     [[nodiscard]] bool operator==(const GPoint &other) const;
 
+    /**
+     * @brief Component-wise addition of coordinates.
+     * @param other Point to add
+     * @return New point with summed coordinates
+     */
     GPoint operator+(const GPoint &other) const;
 
+    /**
+     * @brief Component-wise subtraction of coordinates.
+     * @param other Point to subtract
+     * @return New point with differenced coordinates
+     */
     GPoint operator-(const GPoint &other) const;
 
-    // Custom hash function for GPoint
+    /**
+     * @brief Stream output operator for debugging.
+     */
+    friend std::ostream &operator<<(std::ostream &os, const GPoint &point);
+
+    // =========================================================================
+    // Hash and Equality Functors
+    // =========================================================================
+
+    /**
+     * @brief Hash functor for use in hash-based containers.
+     *
+     * Computes a hash based on latitude and longitude values.
+     */
     struct Hash
     {
-        std::size_t
-        operator()(const std::shared_ptr<GPoint> &p) const;
+        std::size_t operator()(const std::shared_ptr<GPoint> &p) const;
     };
 
-    // Custom equality function for GPoint
+    /**
+     * @brief Equality functor for use in hash-based containers.
+     *
+     * Compares points for coordinate equality through shared_ptr.
+     */
     struct Equal
     {
         bool operator()(const std::shared_ptr<GPoint> &lhs,
                         const std::shared_ptr<GPoint> &rhs) const;
     };
-
-    /**
-     * @brief Serialize the point to a binary format and write it
-     *          to an output stream.
-     *
-     * This function serializes the point class data to a binary
-     * format. The serialized data is written to the provided outptut
-     * stream. The serialization format is designed for efficient
-     * storage and is not hyman-readable. This function is typically
-     * used to save the state of the point to a file or transmit it
-     * over a network.
-     *
-     * @param out The output stream to which the point is serialized.
-     *              This stream should be opened in binary mode to
-     *              correctly handle the binary data.
-     *
-     * Usage Example:
-     *      std::ofstream outFile("point.bin", std::ios::binary);
-     *      if (outFile.is_open()) {
-     *          point.serialize(outFile);
-     *          outFile.close();
-     *      }
-     */
-    void serialize(std::ostream &out) const;
-
-    /**
-     * @brief Deserialize the point from a binary formate read from
-     *          an input stream.
-     *
-     * This function reads binary data from the provided input stream
-     * and reconstructs the point. The binary format should match the
-     * format produced by the serialize function.
-     * This function is typically used to load a point from a file
-     * or received it from a network transmission. The existing
-     * content of the Point is clearned before deserialization. If the
-     * binary data is corrupted or improperly formatted, The behavior
-     * of this function is undefined, and the resulting Point may be
-     * incomplete or invalid.
-     *
-     * @param in The input stream from which the Point is
-     * deserialized. This stream should be opened in binary mode to
-     *              coorectly handle the binary data.
-     *
-     * Usage Example:
-     *     std::ifstream inFile("point.bin", std::ios::binary);
-     *     if (inFile.is_open()) {
-     *         point.deserialize(inFile);
-     *         inFile.close();
-     *     }
-     */
-    void deserialize(std::istream &in);
-
-    // Friend declaration for stream insertion operator
-    friend std::ostream &operator<<(std::ostream &os,
-                                    const GPoint &point);
-
-private:
-    OGRPoint mOGRPoint; ///< GDAL Point definition
-    QString  mUserID;   ///< The unique ID of the point.
-    bool     mIsPort;   ///< Flag indicating if the point is a port.
-    units::time::second_t
-        mDwellTime; ///< The dwell time if the point is a port.
-
-    /// The default Coordinate system
-    static std::shared_ptr<OGRSpatialReference> spatialRef;
 };
 
-}; // namespace ShipNetSimCore
+}  // namespace ShipNetSimCore
 
 /**
- * @struct std::hash<Point>
+ * @brief std::hash specialization for GPoint.
  *
- * @brief Specialization of std::hash for Point class.
- *
- * This struct defines a hash function for objects of type Point,
- * enabling them to be used as keys in std::unordered_map or other
- * hash-based containers.
+ * Enables GPoint to be used directly as key in std::unordered_map
+ * and std::unordered_set.
  */
-template <> struct std::hash<ShipNetSimCore::GPoint>
+template <>
+struct std::hash<ShipNetSimCore::GPoint>
 {
     std::size_t operator()(const ShipNetSimCore::GPoint &p) const;
 };
-#endif // GPOINT_H
+
+#endif  // GPOINT_H
