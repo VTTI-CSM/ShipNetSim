@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://github.com/VTTI-CSM/ShipNetSim">
-    <img src="https://github.com/user-attachments/assets/60d3ed30-01fa-4f21-832e-93d72749031b" alt="NeTrainSim"/>
+    <img src="https://github.com/user-attachments/assets/60d3ed30-01fa-4f21-832e-93d72749031b" alt="ShipNetSim"/>
 
   </a>
   <br/>
