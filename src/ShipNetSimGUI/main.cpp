@@ -79,10 +79,11 @@ int main(int argc, char *argv[])
 
     osgEarth::initialize();
 
-// #ifdef _DEBUG
-    // osg::setNotifyLevel(osg::FATAL);
-    // osgEarth::setNotifyLevel(osg::FATAL);
-// #endif
+#ifdef NDEBUG
+    // In release mode, suppress OSG/osgEarth debug output
+    osg::setNotifyLevel(osg::FATAL);
+    osgEarth::setNotifyLevel(osg::FATAL);
+#endif
 
     // Set up OpenGL format
     splash.showMessage("Setting up OpenGL...",
