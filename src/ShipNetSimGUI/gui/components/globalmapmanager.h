@@ -23,6 +23,7 @@
 #include <osgEarth/Metrics>
 #include <osgEarth/ExampleResources>
 #include <osgEarth/PlaceNode>
+#include <osgEarth/EarthManipulator>
 #include <osgEarth/Style>
 #include <osgEarth/Feature>
 #include <osgEarth/Registry>
