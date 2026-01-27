@@ -125,6 +125,22 @@ SeaPortLoader::readSeaPorts(const char *filename)
         return seaPorts;
     }
 
+    // Validate that the spatial reference is WGS84 (EPSG:4326)
+    const OGRSpatialReference *poSRS = layer->GetSpatialRef();
+    if (poSRS != nullptr)
+    {
+        OGRSpatialReference wgs84SRS;
+        wgs84SRS.SetWellKnownGeogCS("WGS84");
+        if (!poSRS->IsSameGeogCS(&wgs84SRS))
+        {
+            qWarning("Sea ports file is not in WGS84 CRS: %s",
+                     qPrintable(filename));
+            GDALClose(dataset);
+            return seaPorts;
+        }
+    }
+    // Note: If SRS is null (common for GeoJSON), we assume WGS84
+
     OGRFeature *feature;
     layer->ResetReading();
 
