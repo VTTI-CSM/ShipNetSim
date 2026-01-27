@@ -1,3 +1,22 @@
+/**
+ * @file gline.h
+ * @brief Geodetic Line Segment Implementation.
+ *
+ * This file contains the GLine class which represents a geodetic line segment
+ * on the WGS84 ellipsoid. Unlike planar geometry, geodetic lines follow the
+ * curvature of the Earth and use geodesic calculations for accurate distance
+ * and orientation computations.
+ *
+ * Key features:
+ * - Accurate geodesic distance calculations using GeographicLib
+ * - Spherical geometry for orientation and point-to-line operations
+ * - Works correctly everywhere on Earth, including polar regions
+ * - GDAL/OGR integration for spatial operations
+ *
+ * @author Ahmed Aredah
+ * @date 10.12.2023
+ */
+
 #ifndef GLINE_H
 #define GLINE_H
 
@@ -8,249 +27,335 @@
 
 namespace ShipNetSimCore
 {
-class GAlgebraicVector; // forward declaration
 
+class GAlgebraicVector;  // Forward declaration
+
+/**
+ * @class GLine
+ * @brief Represents a geodetic line segment between two geographic points.
+ *
+ * GLine models a shortest-path (geodesic) line segment on the Earth's surface.
+ * All geometric calculations use geodesic mathematics rather than planar
+ * approximations, ensuring accuracy for global-scale applications.
+ */
 class SHIPNETSIM_EXPORT GLine : public BaseGeometry
 {
-
+    // =========================================================================
+    // Member Variables
+    // =========================================================================
 private:
-    std::shared_ptr<GPoint> start; // Start point of the line.
-    std::shared_ptr<GPoint> end;   // End point of the line.
-    OGRLineString           line;  // gdal internal line
-    units::length::meter_t
-        mLength; // geodetic length between the two points
-    units::angle::degree_t
-        mForwardAzimuth; // azimuth from start to end
-    units::angle::degree_t
-        mBackwardAzimuth;          // azimuth from end to start
-    units::length::meter_t mWidth; // Width of the line.
+    std::shared_ptr<GPoint> start;   ///< Start point of the line segment
+    std::shared_ptr<GPoint> end;     ///< End point of the line segment
+    OGRLineString line;              ///< GDAL internal line representation
 
+    units::length::meter_t mLength;           ///< Geodesic length (meters)
+    units::angle::degree_t mForwardAzimuth;   ///< Azimuth from start to end
+    units::angle::degree_t mBackwardAzimuth;  ///< Azimuth from end to start
+    units::length::meter_t mWidth;            ///< Theoretical width (meters)
+
+    /// Tolerance for point proximity comparisons (meters)
     static constexpr double TOLERANCE = 0.1;
 
+    // =========================================================================
+    // Constructors and Destructor
+    // =========================================================================
 public:
     /**
-     * @brief Default constructor
+     * @brief Default constructor creating a zero-length line at origin.
      */
     GLine();
 
     /**
-     * @brief Constructor to create a geodetic line with start
-     * and end geodetic points.
+     * @brief Construct a geodetic line between two points.
      *
-     * @param start A shared pointer to the start point of the line.
-     * @param end A shared pointer to the end point of the line.
+     * @param start Shared pointer to the start point
+     * @param end Shared pointer to the end point
+     * @throws std::runtime_error if spatial references don't match
      */
     GLine(std::shared_ptr<GPoint> start, std::shared_ptr<GPoint> end);
 
     /**
-     * @brief Destructor to clean up resources.
+     * @brief Destructor.
      */
     ~GLine();
 
-    // Accessor methods
+    // =========================================================================
+    // Accessors - Basic Properties
+    // =========================================================================
 
     /**
-     * @brief gets the internal OGRLineString of the gdal library
-     * @return The OGRLineString
+     * @brief Get the GDAL OGRLineString representation.
+     * @return Copy of the internal OGRLineString
      */
     OGRLineString getGDALLine() const;
 
     /**
-     * @return A shared pointer to the start point of the line.
+     * @brief Get the start point.
+     * @return Shared pointer to the start point
      */
     std::shared_ptr<GPoint> startPoint() const;
 
     /**
-     * @return A shared pointer to the end point of the line.
+     * @brief Get the end point.
+     * @return Shared pointer to the end point
      */
     std::shared_ptr<GPoint> endPoint() const;
 
-    void setStartPoint(std::shared_ptr<GPoint> sPoint);
-
-    void setEndPoint(std::shared_ptr<GPoint> ePoint);
-
     /**
-     * @return The length of the line.
+     * @brief Get the geodesic length of the line segment.
+     * @return Length in meters
      */
     units::length::meter_t length() const;
 
     /**
-     * @return the forward azimuth from the start to end points.
+     * @brief Get the forward azimuth (bearing from start to end).
+     * @return Azimuth in degrees (0-360, clockwise from north)
      */
     units::angle::degree_t forwardAzimuth() const;
 
     /**
-     * @return the forward azimuth from the end to start points.
+     * @brief Get the backward azimuth (bearing from end to start).
+     * @return Azimuth in degrees (0-360, clockwise from north)
      */
     units::angle::degree_t backwardAzimuth() const;
 
-    Line projectTo(OGRSpatialReference *targetSR) const;
+    /**
+     * @brief Get the theoretical width of the line.
+     * @return Width in meters
+     */
+    units::length::meter_t getTheoriticalWidth() const;
+
+    // =========================================================================
+    // Mutators
+    // =========================================================================
 
     /**
-     * @brief check orientation and collinearity of 3 points.
-     * @param p The first point p
-     * @param q The second point q
-     * @param r The thrid point r
-     * @return Orientation::Collinear if the three points are
-     *          collinear with each other.
-     *          Orientation::Clockwise if the point is clockwise
-     *          to the line.
-     *          Orientation::CounterClockwise if the point is
-     *          counterclockwise with the line.
+     * @brief Set the start point and recalculate line properties.
+     * @param sPoint New start point
+     */
+    void setStartPoint(std::shared_ptr<GPoint> sPoint);
+
+    /**
+     * @brief Set the end point and recalculate line properties.
+     * @param ePoint New end point
+     */
+    void setEndPoint(std::shared_ptr<GPoint> ePoint);
+
+    /**
+     * @brief Set the theoretical width of the line.
+     * @param newWidth New width in meters
+     */
+    void setTheoriticalWidth(const units::length::meter_t newWidth);
+
+    // =========================================================================
+    // Geometric Operations - Points on Line
+    // =========================================================================
+
+    /**
+     * @brief Get a point on the line at a specified distance from an endpoint.
+     *
+     * @param distance Distance from the specified endpoint (meters)
+     * @param from Which endpoint to measure from (Start or End)
+     * @return Point at the specified distance along the geodesic
+     * @throws std::out_of_range if distance exceeds line length
+     */
+    GPoint getPointByDistance(units::length::meter_t distance,
+                              Line::LineEnd from) const;
+
+    /**
+     * @brief Get a point on the line at a specified distance from a reference point.
+     *
+     * @param distance Distance from the reference point (meters)
+     * @param from Reference point (must be start or end of line)
+     * @return Point at the specified distance along the geodesic
+     * @throws std::out_of_range if distance exceeds line length
+     * @throws std::invalid_argument if reference point is not an endpoint
+     */
+    GPoint getPointByDistance(units::length::meter_t distance,
+                              std::shared_ptr<GPoint> from) const;
+
+    /**
+     * @brief Get the midpoint of the line segment.
+     * @return Point at the geodesic midpoint
+     */
+    GPoint midpoint() const;
+
+    // =========================================================================
+    // Geometric Operations - Distance Calculations
+    // =========================================================================
+
+    /**
+     * @brief Calculate the minimum distance from a point to this line segment.
+     *
+     * Uses pure geodesic calculations via golden section search along the
+     * geodesic arc. Works correctly everywhere on Earth, including polar
+     * regions.
+     *
+     * @param point The point to measure distance from
+     * @return Minimum geodesic distance in meters
+     */
+    units::length::meter_t
+    distanceToPoint(const std::shared_ptr<GPoint> &point) const;
+
+    /**
+     * @brief Calculate the perpendicular distance from a point to this line.
+     *
+     * Equivalent to distanceToPoint() - finds the minimum distance from
+     * the point to any point on the geodesic segment.
+     *
+     * @param point The point to measure distance from
+     * @return Minimum geodesic distance in meters
+     */
+    units::length::meter_t getPerpendicularDistance(const GPoint &point) const;
+
+    // =========================================================================
+    // Geometric Operations - Orientation and Position
+    // =========================================================================
+
+    /**
+     * @brief Determine orientation of three points using spherical geometry.
+     *
+     * Uses 3D spherical cross product for accurate results everywhere on
+     * Earth, including polar regions. No projection is used.
+     *
+     * @param p First point
+     * @param q Second point
+     * @param r Third point
+     * @return Collinear, Clockwise, or CounterClockwise
      */
     static Line::Orientation orientation(std::shared_ptr<GPoint> p,
                                          std::shared_ptr<GPoint> q,
                                          std::shared_ptr<GPoint> r);
 
     /**
-     * @brief Check if two lines intersect.
+     * @brief Determine which side of the line a point lies on.
      *
-     * @param other The other line to check intersection with.
-     * @return True if lines intersect, false otherwise.
-     */
-    bool intersects(GLine &other, bool ignoreEdgePoints = true) const;
-
-    /**
-     * @brief Calculate the angle with another line.
+     * Uses spherical geometry for accurate global results.
      *
-     * @param other The other line to calculate angle with.
-     * @return The angle between the two lines.
-     */
-    units::angle::radian_t smallestAngleWith(GLine &other) const;
-
-    /**
-     * @brief Get a point on the line by distance from one end.
-     *
-     * @param distance The distance from the specified end.
-     * @param from The specified end to measure the distance from.
-     * @return The point on the line at the specified distance from
-     * the end.
-     */
-    GPoint getPointByDistance(units::length::meter_t distance,
-                              Line::LineEnd          from) const;
-
-    /**
-     * @brief Get a point on the line by distance from another point.
-     *
-     * @param distance The distance from the specified point.
-     * @param from The specified point to measure the distance from.
-     * @return The point on the line at the specified distance from
-     * the point.
-     */
-    GPoint getPointByDistance(units::length::meter_t  distance,
-                              std::shared_ptr<GPoint> from) const;
-
-    /**
-     * @brief Calculate the perpendicular distance from a point to the
-     * line.
-     *
-     * @param point The point to calculate the distance from.
-     * @return The perpendicular distance from the point to the line.
-     */
-    units::length::meter_t
-    getPerpendicularDistance(const GPoint &point) const;
-
-    units::length::meter_t
-    distanceToPoint(const std::shared_ptr<GPoint> &point) const;
-
-    /**
-     * @return The theoretical width of the line.
-     */
-    units::length::meter_t getTheoriticalWidth() const;
-
-    // Mutator methods
-    /**
-     * @brief Set the theoretical width of the line.
-     *
-     * @param newWidth The new theoretical width of the line.
-     */
-    void setTheoriticalWidth(const units::length::meter_t newWidth);
-
-    // Algebraic vector representation
-    /**
-     * @brief Convert the line to an algebraic vector.
-     *
-     * @param startPoint The point from which to create the vector.
-     * @return The algebraic vector representation of the line.
-     */
-    GAlgebraicVector
-    toAlgebraicVector(const std::shared_ptr<GPoint> startPoint) const;
-
-    // Location of a point relative to a line
-    /**
-     * @brief Get the location of a point relative to the line.
-     *
-     * @param point The point to determine the location of.
-     * @return The location of the point relative to the line.
+     * @param point Point to test
+     * @return left, right, or onLine
      */
     Line::LocationToLine
     getlocationToLine(const std::shared_ptr<GPoint> &point) const;
 
-    /**
-     * @brief Get the mid point on the line
-     * @return the mid geodetic point
-     */
-    GPoint midpoint() const;
+    // =========================================================================
+    // Geometric Operations - Line Relationships
+    // =========================================================================
 
     /**
-     * @brief Create a reversed copy of this line (start and end
-     * points swapped)
-     * @return A new GLine instance with reversed endpoints
+     * @brief Check if this line intersects with another line.
+     *
+     * Uses GDAL's OGRGeometry intersection test.
+     *
+     * @param other The other line to test intersection with
+     * @param ignoreEdgePoints If true, shared endpoints don't count as intersection
+     * @return true if lines intersect
+     */
+    bool intersects(GLine &other, bool ignoreEdgePoints = true) const;
+
+    /**
+     * @brief Calculate the smallest angle between this line and another.
+     *
+     * Lines must share a common endpoint.
+     *
+     * @param other The other line segment
+     * @return Angle in radians [0, PI]
+     * @throws std::invalid_argument if lines don't share a common point
+     */
+    units::angle::radian_t smallestAngleWith(GLine &other) const;
+
+    // =========================================================================
+    // Transformations
+    // =========================================================================
+
+    /**
+     * @brief Create a reversed copy of this line (endpoints swapped).
+     * @return New GLine with start and end points swapped
      */
     GLine reverse() const;
 
-    // Operator overloads
     /**
-     * @brief Equality operator to compare two lines.
+     * @brief Project this geodetic line to a projected coordinate system.
      *
-     * @param other The other line to compare with.
-     * @return True if lines are equal, false otherwise.
+     * @param targetSR Target projected spatial reference
+     * @return Projected Line object
+     * @throws std::runtime_error if targetSR is invalid or not projected
+     */
+    Line projectTo(OGRSpatialReference *targetSR) const;
+
+    /**
+     * @brief Convert to an algebraic vector representation.
+     *
+     * @param startPoint Point to use as vector origin
+     * @return GAlgebraicVector from startPoint toward the other endpoint
+     */
+    GAlgebraicVector
+    toAlgebraicVector(const std::shared_ptr<GPoint> startPoint) const;
+
+    // =========================================================================
+    // Operators
+    // =========================================================================
+
+    /**
+     * @brief Equality comparison (direction-sensitive).
+     *
+     * Two lines are equal if they have the same start and end points
+     * in the same order.
+     *
+     * @param other Line to compare with
+     * @return true if lines are identical
      */
     bool operator==(const GLine &other) const;
 
-    // BaseGeometry method override
+    // =========================================================================
+    // String Representation
+    // =========================================================================
+
     /**
-     * @brief Converts the GLine object to a formatted string
-     * representation.
+     * @brief Convert the line to a formatted string.
      *
-     * This function dynamically formats the output string based on
-     * the user-provided format string. Placeholders in the format
-     * string are replaced as follows:
-     * - `%start`: Replaced with the string representation of the
-     * start point.
-     * - `%end`: Replaced with the string representation of the end
-     * point.
+     * Supported placeholders:
+     * - %start: Replaced with start point coordinates
+     * - %end: Replaced with end point coordinates
      *
-     * The replacement is case-insensitive, allowing placeholders such
-     * as
-     * `%START` or `%End`.
-     * If no format is provided, the default format `"Start Point:
-     * %start
-     * || End Point: %end"` is used.
-     *
-     * @param format A QString specifying the desired format of the
-     * output. It must include placeholders (`%start`, `%end`) for the
-     * start and end points, respectively. If not provided, the
-     * default format `"Start Point: %start || End Point: %end"` is
-     * used.
-     *
-     * @return A QString containing the formatted output with
-     * placeholders replaced. If a placeholder is missing, it will not
-     * be replaced.
-     *
-     * @example
-     * GLine line;
-     * line.setStart(new GPoint(10.123, 20.456, "StartID"));
-     * line.setEnd(new GPoint(30.789, 40.987, "EndID"));
-     *
-     * qDebug() << line.toString();                         //
-     * Default: "Start Point: (10.123, 20.456) || End Point:
-     * (30.789, 40.987)" qDebug() << line.toString("%start -> %end");
-     * // Custom: "(10.123, 20.456) -> (30.789, 40.987)"
+     * @param format Format string with placeholders (case-insensitive)
+     * @param decimalPercision Number of decimal places for coordinates
+     * @return Formatted string representation
      */
-    QString toString(const QString &format =
-                         "Start Point: %start || End Point: %end",
-                     int decimalPercision = 5) const override;
+    QString toString(
+        const QString &format = "Start Point: %start || End Point: %end",
+        int decimalPercision = 5) const override;
+
+    // =========================================================================
+    // Hash and Equality Functors (for use in containers)
+    // =========================================================================
+
+    /**
+     * @brief Direction-independent hash functor for GLine.
+     *
+     * Produces the same hash value regardless of line direction
+     * (line a→b has the same hash as line b→a). Useful for containers
+     * where line direction is irrelevant.
+     */
+    struct Hash
+    {
+        std::size_t
+        operator()(const std::shared_ptr<GLine> &line) const;
+    };
+
+    /**
+     * @brief Direction-independent equality functor for GLine.
+     *
+     * Two lines are equal if they connect the same points, regardless
+     * of direction. Use with Hash for direction-independent containers.
+     */
+    struct Equal
+    {
+        bool operator()(const std::shared_ptr<GLine> &lhs,
+                        const std::shared_ptr<GLine> &rhs) const;
+    };
 };
-}; // namespace ShipNetSimCore
-#endif // GLINE_H
+
+}  // namespace ShipNetSimCore
+
+#endif  // GLINE_H
