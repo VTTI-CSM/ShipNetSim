@@ -1,7 +1,10 @@
 #include "utils.h"
 #include "../../third_party/units/units.h"
 #include "../ship/ship.h"
+#include <QMutex>
+#include <QMutexLocker>
 #include <QStandardPaths>
+#include <QThread>
 namespace ShipNetSimCore
 {
 namespace Utils
@@ -280,4 +283,99 @@ int accumulateShipValuesInt(
         });
 }
 } // namespace Utils
+
+namespace ThreadConfig
+{
+
+namespace
+{
+// Static thread pool instance for parallel operations
+static QThreadPool* s_sharedThreadPool = nullptr;
+static int s_maxThreads = -1; // -1 means not initialized
+static QMutex s_mutex;
+} // anonymous namespace
+
+void setMaxThreads(int maxThreads)
+{
+    QMutexLocker locker(&s_mutex);
+
+    int availableCores = QThread::idealThreadCount();
+
+    if (maxThreads <= 0)
+    {
+        // Use half of available cores (minimum 1)
+        s_maxThreads = std::max(1, availableCores / 2);
+    }
+    else if (maxThreads > availableCores)
+    {
+        // Cap at available cores
+        s_maxThreads = availableCores;
+    }
+    else
+    {
+        s_maxThreads = maxThreads;
+    }
+
+    // Update the shared thread pool if it exists
+    if (s_sharedThreadPool != nullptr)
+    {
+        s_sharedThreadPool->setMaxThreadCount(s_maxThreads);
+    }
+}
+
+int getMaxThreads()
+{
+    QMutexLocker locker(&s_mutex);
+
+    // Initialize if not set
+    if (s_maxThreads < 0)
+    {
+        int availableCores = QThread::idealThreadCount();
+        s_maxThreads = std::max(1, availableCores / 2);
+    }
+
+    return s_maxThreads;
+}
+
+int getAvailableCores()
+{
+    return QThread::idealThreadCount();
+}
+
+QThreadPool* getSharedThreadPool()
+{
+    QMutexLocker locker(&s_mutex);
+
+    if (s_sharedThreadPool == nullptr)
+    {
+        s_sharedThreadPool = new QThreadPool();
+
+        // Initialize max threads if not set
+        if (s_maxThreads < 0)
+        {
+            int availableCores = QThread::idealThreadCount();
+            s_maxThreads = std::max(1, availableCores / 2);
+        }
+
+        s_sharedThreadPool->setMaxThreadCount(s_maxThreads);
+    }
+
+    return s_sharedThreadPool;
+}
+
+void resetToDefault()
+{
+    QMutexLocker locker(&s_mutex);
+
+    int availableCores = QThread::idealThreadCount();
+    s_maxThreads = std::max(1, availableCores / 2);
+
+    if (s_sharedThreadPool != nullptr)
+    {
+        s_sharedThreadPool->setMaxThreadCount(s_maxThreads);
+    }
+}
+
+} // namespace ThreadConfig
+
 } // namespace ShipNetSimCore

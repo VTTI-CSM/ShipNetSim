@@ -1,4 +1,5 @@
 #include "optimizedvisibilitygraph.h"
+#include "../utils/utils.h"
 #include <QQueue>
 #include <QSet>
 #include <functional>
@@ -157,8 +158,9 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
         }
     }
 
-    // Parallel filter using QtConcurrent
+    // Parallel filter using QtConcurrent with limited thread pool
     QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
+        ThreadConfig::getSharedThreadPool(),
         tasks, [this, node](const std::shared_ptr<GPoint> &point) {
             return isVisible(node, point);
         });
@@ -211,8 +213,9 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
                      [&node](const auto &p) { return *p != *node; });
     }
 
-    // Parallel visibility check
+    // Parallel visibility check with limited thread pool
     QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
+        ThreadConfig::getSharedThreadPool(),
         candidates,
         [this, node](const std::shared_ptr<GPoint> &point) {
             return isVisible(node, point);
@@ -546,7 +549,8 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
             }
         };
 
-        QtConcurrent::blockingMap(intersectingNodes, processNode);
+        QtConcurrent::blockingMap(ThreadConfig::getSharedThreadPool(),
+                                   intersectingNodes, processNode);
         return !hasIntersection.loadAcquire();
     }
 
@@ -672,6 +676,7 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
     std::shared_ptr<Polygon> endPolygon;
 
     // For water navigation, verify points are in water and use them directly
+    // If points are on land, snap to nearest water polygon vertex
     if (mBoundaryType == BoundariesType::Water)
     {
         startPolygon = findContainingPolygon(start);
@@ -679,22 +684,49 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
 
         if (!startPolygon)
         {
-            qWarning() << "Dijkstra: Start point not in any water polygon:"
-                       << start->toString();
-            return ShortestPathResult();
+            // Start point is on land - snap to nearest water vertex
+            qDebug() << "Dijkstra: Start point on land, snapping to "
+                        "nearest water vertex:"
+                     << start->toString();
+            startNavPoint = quadtree->findNearestNeighborPoint(start);
+            if (!startNavPoint)
+            {
+                qWarning() << "Dijkstra: Could not find nearest water "
+                              "point for start:"
+                           << start->toString();
+                return ShortestPathResult();
+            }
+            qDebug() << "Dijkstra: Snapped start to:"
+                     << startNavPoint->toString();
         }
-        if (!endPolygon)
+        else
         {
-            qWarning() << "Dijkstra: End point not in any water polygon:"
-                       << end->toString();
-            return ShortestPathResult();
+            // Start point is in water - use it directly
+            startNavPoint = start;
         }
 
-        // Use actual start/end points directly - they're verified to be
-        // inside water polygons. The visibility graph will connect them
-        // to visible polygon vertices for pathfinding.
-        startNavPoint = start;
-        endNavPoint = end;
+        if (!endPolygon)
+        {
+            // End point is on land - snap to nearest water vertex
+            qDebug() << "Dijkstra: End point on land, snapping to "
+                        "nearest water vertex:"
+                     << end->toString();
+            endNavPoint = quadtree->findNearestNeighborPoint(end);
+            if (!endNavPoint)
+            {
+                qWarning() << "Dijkstra: Could not find nearest water "
+                              "point for end:"
+                           << end->toString();
+                return ShortestPathResult();
+            }
+            qDebug() << "Dijkstra: Snapped end to:"
+                     << endNavPoint->toString();
+        }
+        else
+        {
+            // End point is in water - use it directly
+            endNavPoint = end;
+        }
     }
     else
     {
@@ -980,6 +1012,7 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     std::shared_ptr<Polygon> endPolygon;
 
     // For water navigation, verify points are in water and use them directly
+    // If points are on land, snap to nearest water polygon vertex
     if (mBoundaryType == BoundariesType::Water)
     {
         startPolygon = findContainingPolygon(start);
@@ -987,24 +1020,51 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
 
         if (!startPolygon)
         {
-            qWarning() << "A*: Start point not in any water polygon:"
-                       << start->toString();
-            return ShortestPathResult();
+            // Start point is on land - snap to nearest water vertex
+            qDebug() << "A*: Start point on land, snapping to "
+                        "nearest water vertex:"
+                     << start->toString();
+            startNavPoint = quadtree->findNearestNeighborPoint(start);
+            if (!startNavPoint)
+            {
+                qWarning() << "A*: Could not find nearest water "
+                              "point for start:"
+                           << start->toString();
+                return ShortestPathResult();
+            }
+            qDebug() << "A*: Snapped start to:"
+                     << startNavPoint->toString();
         }
+        else
+        {
+            // Start point is in water - use it directly
+            startNavPoint = start;
+        }
+
         if (!endPolygon)
         {
-            qWarning() << "A*: End point not in any water polygon:"
-                       << end->toString();
-            return ShortestPathResult();
+            // End point is on land - snap to nearest water vertex
+            qDebug() << "A*: End point on land, snapping to "
+                        "nearest water vertex:"
+                     << end->toString();
+            endNavPoint = quadtree->findNearestNeighborPoint(end);
+            if (!endNavPoint)
+            {
+                qWarning() << "A*: Could not find nearest water "
+                              "point for end:"
+                           << end->toString();
+                return ShortestPathResult();
+            }
+            qDebug() << "A*: Snapped end to:"
+                     << endNavPoint->toString();
+        }
+        else
+        {
+            // End point is in water - use it directly
+            endNavPoint = end;
         }
 
-        // Use actual start/end points directly - they're verified to be
-        // inside water polygons. The visibility graph will connect them
-        // to visible polygon vertices for pathfinding.
-        startNavPoint = start;
-        endNavPoint = end;
-
-        if (startPolygon != endPolygon)
+        if (startPolygon && endPolygon && startPolygon != endPolygon)
         {
             qDebug() << "A*: Start and end in different polygons";
         }

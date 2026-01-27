@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QMap>
 #include <QString>
+#include <QThreadPool>
 #include <any>
 
 namespace ShipNetSimCore
@@ -488,5 +489,63 @@ SHIPNETSIM_EXPORT bool stringToBool(const QString &str,
                                     bool          *ok = nullptr);
 
 } // namespace Utils
+
+/**
+ * @namespace ThreadConfig
+ * @brief Thread pool configuration utilities for controlling parallelism.
+ *
+ * This namespace provides utilities for configuring thread pools used
+ * in computationally intensive operations like pathfinding. It allows
+ * limiting CPU usage to prevent system resource exhaustion.
+ */
+namespace ThreadConfig
+{
+
+/**
+ * @brief Set the maximum number of threads for parallel operations.
+ *
+ * This limits CPU usage during parallel computations like visibility
+ * checks and pathfinding. By default, Qt uses all available cores.
+ * This method allows limiting to prevent system resource exhaustion.
+ *
+ * @param maxThreads Maximum threads to use.
+ *        - If <= 0: Uses half of available cores (minimum 1)
+ *        - If > available cores: Uses all available cores
+ *        - Otherwise: Uses the specified number
+ */
+SHIPNETSIM_EXPORT void setMaxThreads(int maxThreads);
+
+/**
+ * @brief Get the current maximum threads setting.
+ * @return Current max thread count for the shared thread pool.
+ */
+SHIPNETSIM_EXPORT int getMaxThreads();
+
+/**
+ * @brief Get the number of available CPU cores.
+ * @return Number of logical CPU cores on the system.
+ */
+SHIPNETSIM_EXPORT int getAvailableCores();
+
+/**
+ * @brief Get the shared thread pool used for parallel operations.
+ *
+ * This returns a dedicated thread pool that is separate from Qt's
+ * global thread pool. Use this for computationally intensive tasks
+ * to have better control over resource usage.
+ *
+ * @return Pointer to the shared thread pool.
+ */
+SHIPNETSIM_EXPORT QThreadPool* getSharedThreadPool();
+
+/**
+ * @brief Reset the thread pool to default settings.
+ *
+ * Resets the max thread count to half of available cores.
+ */
+SHIPNETSIM_EXPORT void resetToDefault();
+
+} // namespace ThreadConfig
+
 }; // namespace ShipNetSimCore
 #endif // UTILS_H
