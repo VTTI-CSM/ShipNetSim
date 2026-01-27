@@ -8,12 +8,16 @@
 namespace ShipNetSimCore
 {
 
-bool ShortestPathResult::isValid()
+bool ShortestPathResult::isValid() const
 {
     return (points.size() >= 2 && lines.size() >= 1
             && lines.size() == (points.size() - 1));
 }
-OptimizedVisibilityGraph::OptimizedVisibilityGraph() {}
+OptimizedVisibilityGraph::OptimizedVisibilityGraph()
+    : enableWrapAround(false)
+    , mBoundaryType(BoundariesType::Water)
+    , quadtree(nullptr)
+{}
 
 OptimizedVisibilityGraph::OptimizedVisibilityGraph(
     const QVector<std::shared_ptr<Polygon>> usedPolygons,
@@ -60,17 +64,33 @@ OptimizedVisibilityGraph::~OptimizedVisibilityGraph() {}
 
 GPoint OptimizedVisibilityGraph::getMinMapPoint()
 {
+    if (!quadtree)
+    {
+        qWarning() << "getMinMapPoint: Quadtree not initialized";
+        return GPoint();
+    }
     return quadtree->getMapMinPoint();
 }
 
 GPoint OptimizedVisibilityGraph::getMaxMapPoint()
 {
+    if (!quadtree)
+    {
+        qWarning() << "getMaxMapPoint: Quadtree not initialized";
+        return GPoint();
+    }
     return quadtree->getMapMaxPoint();
 }
 
 void OptimizedVisibilityGraph::loadSeaPortsPolygonCoordinates(
     QVector<std::shared_ptr<SeaPort>> &seaPorts)
 {
+    if (!quadtree)
+    {
+        qWarning() << "loadSeaPortsPolygonCoordinates: "
+                      "Quadtree not initialized";
+        return;
+    }
     for (auto &seaPort : seaPorts)
     {
         std::shared_ptr<GPoint> portCoord =
@@ -85,7 +105,14 @@ void OptimizedVisibilityGraph::setPolygons(
 {
     QWriteLocker locker(&quadtreeLock); // Acquire write lock
     visibilityCache.clear();
-    quadtree->clearTree();
+    {
+        QWriteLocker containmentLocker(&containmentCacheLock);
+        polygonContainmentCache.clear();
+    }
+    if (quadtree)
+    {
+        quadtree->clearTree();
+    }
     polygons = newPolygons;
 }
 
@@ -103,10 +130,16 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
     // Prepare tasks
     QVector<std::shared_ptr<GPoint>> tasks;
 
-    // Prepare candidate points using efficient iteration
+    // For water navigation, only get vertices from polygons where this node
+    // is either on the boundary (ringsContain) or inside (isPointWithinPolygon)
+    // This prevents trying to connect to unrelated polygons
     for (const auto &polygon : allPolygons)
     {
-        if (polygon->ringsContain(node))
+        // Check if node is part of this polygon (boundary or inside)
+        bool isPartOfPolygon = polygon->ringsContain(node)
+                               || polygon->isPointWithinPolygon(*node);
+
+        if (!isPartOfPolygon)
             continue;
 
         // Add outer boundary points
@@ -155,45 +188,37 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
     const std::shared_ptr<GPoint>  &node,
     const std::shared_ptr<Polygon> &polygon)
 {
-    // 1. check if the visibility for the node is already cached
-    {
-        QReadLocker locker(&cacheLock);
-        if (visibilityCache.contains(node))
-        {
-            // Return the cached result
-            return visibilityCache[node];
-        }
-    } // locker goes out of scope here, releasing the read lock >>>
-      // important
+    // NOTE: We don't use caching here because with overlapping polygons,
+    // the same node can have different visible neighbors depending on
+    // which polygon is being checked. The caller handles merging results.
 
-    // 2. Prepare points list (exclude node itself)
+    // Prepare points list (exclude node itself)
+    // Include both outer boundary points AND hole vertices
+    // (for water polygons, holes are islands - ships navigate around them)
     QVector<std::shared_ptr<GPoint>> candidates;
-    const auto                      &outerPoints = polygon->outer();
+
+    // Add outer boundary points
+    const auto &outerPoints = polygon->outer();
     std::copy_if(outerPoints.begin(), outerPoints.end(),
                  std::back_inserter(candidates),
                  [&node](const auto &p) { return *p != *node; });
 
-    // 3. Parallel visibility check using filtered
+    // Add hole vertices (island corners for navigation waypoints)
+    for (const auto &hole : polygon->inners())
+    {
+        std::copy_if(hole.begin(), hole.end(),
+                     std::back_inserter(candidates),
+                     [&node](const auto &p) { return *p != *node; });
+    }
+
+    // Parallel visibility check
     QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
         candidates,
         [this, node](const std::shared_ptr<GPoint> &point) {
             return isVisible(node, point);
         });
 
-    // 4. Wait for completion and get results
-    QVector<std::shared_ptr<GPoint>> visibleNodes =
-        future.results().toVector();
-
-    // 5. Double-checked locking pattern for cache update
-    {
-        QWriteLocker writeLocker(&cacheLock);
-        if (!visibilityCache.contains(node))
-        {
-            visibilityCache.insert(node, visibleNodes);
-        }
-    }
-
-    return visibilityCache.value(node);
+    return future.results().toVector();
 }
 
 void OptimizedVisibilityGraph::addManualVisibleLine(
@@ -201,8 +226,8 @@ void OptimizedVisibilityGraph::addManualVisibleLine(
 {
     QWriteLocker locker(&cacheLock);
 
-    // Add line to manualLines
-    manualLines.append(line);
+    // Add line to manualLinesSet (O(1) insertion with hash set)
+    manualLinesSet.insert(line);
 
     // Track connections for both directions
     manualConnections[line->startPoint()].append(line->endPoint());
@@ -219,15 +244,23 @@ void OptimizedVisibilityGraph::addManualVisibleLine(
     }
 
     visibilityCache.clear(); // Invalidate cache
+    {
+        QWriteLocker containmentLocker(&containmentCacheLock);
+        polygonContainmentCache.clear();
+    }
 }
 
 void OptimizedVisibilityGraph::clearManualLines()
 {
     QWriteLocker locker(&cacheLock);
-    manualLines.clear();
+    manualLinesSet.clear();
     manualConnections.clear();
     manualPoints.clear();
     visibilityCache.clear();
+    {
+        QWriteLocker containmentLocker(&containmentCacheLock);
+        polygonContainmentCache.clear();
+    }
 }
 
 bool OptimizedVisibilityGraph::isVisible(
@@ -256,14 +289,26 @@ bool OptimizedVisibilityGraph::isVisible(
 bool OptimizedVisibilityGraph::isSegmentVisible(
     const std::shared_ptr<GLine> &segment) const
 {
-    // Check if the segment is in manualLines (in any direction)
-    for (const auto &manualLine : manualLines)
+    if (!segment)
     {
-        if (*manualLine == *segment
-            || *manualLine == segment->reverse())
+        return false;
+    }
+
+    // Check if the segment is in manualLinesSet (O(1) lookup)
+    // The hash set uses direction-independent hash/equality,
+    // so a→b will match b→a automatically
+    if (!manualLinesSet.empty())
+    {
+        if (manualLinesSet.find(segment) != manualLinesSet.end())
         {
             return true;
         }
+    }
+
+    // Check if graph is initialized
+    if (!quadtree)
+    {
+        return false;
     }
 
     // Handle wrap-around segments
@@ -274,7 +319,9 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
         for (const auto &seg : splitSegments)
         {
             if (!isSegmentVisible(seg))
+            {
                 return false;
+            }
         }
         return true;
     }
@@ -291,26 +338,49 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
     // 2. Water polygon validation
     if (mBoundaryType == BoundariesType::Water)
     {
-        // Check if segment is valid within any containing polygon
-        auto startPolygon =
-            findContainingPolygon(segment->startPoint());
-        auto endPolygon = findContainingPolygon(segment->endPoint());
+        // Find ALL polygons containing each endpoint
+        // (handles overlapping polygons like Atlantic/Mediterranean)
+        auto startPolygons =
+            findAllContainingPolygons(segment->startPoint());
+        auto endPolygons = findAllContainingPolygons(segment->endPoint());
 
-        // If both points are in the same water polygon, validate the
-        // segment
-        if (startPolygon && endPolygon && startPolygon == endPolygon)
+        // Find any common polygon that contains both endpoints
+        std::shared_ptr<Polygon> commonPolygon = nullptr;
+        for (const auto &sp : startPolygons)
         {
-            if (!startPolygon->isValidWaterSegment(segment))
+            for (const auto &ep : endPolygons)
+            {
+                if (sp == ep)
+                {
+                    commonPolygon = sp;
+                    break;
+                }
+            }
+            if (commonPolygon)
+                break;
+        }
+
+        // If both points share a common polygon, validate within it
+        if (commonPolygon)
+        {
+            if (!commonPolygon->isValidWaterSegment(segment))
             {
                 return false;
             }
         }
-        // If points are in different polygons or one is outside,
+        // If points don't share a common polygon,
         // check if segment crosses any polygon holes
+        // Only check polygons whose bounding box intersects the segment
         else
         {
             for (const auto &polygon : polygons)
             {
+                // Skip polygons that don't intersect the segment's
+                // bounding box
+                if (!polygon->segmentBoundsIntersect(segment))
+                {
+                    continue;
+                }
                 if (polygon->segmentCrossesHoles(segment))
                 {
                     return false;
@@ -326,52 +396,133 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
     // 3. Get segment bounds manually
     auto   segmentStart = segment->startPoint();
     auto   segmentEnd   = segment->endPoint();
-    double segMinLon = std::min(segmentStart->getLongitude().value(),
-                                segmentEnd->getLongitude().value());
-    double segMaxLon = std::max(segmentStart->getLongitude().value(),
-                                segmentEnd->getLongitude().value());
+    double startLon = segmentStart->getLongitude().value();
+    double endLon = segmentEnd->getLongitude().value();
     double segMinLat = std::min(segmentStart->getLatitude().value(),
                                 segmentEnd->getLatitude().value());
     double segMaxLat = std::max(segmentStart->getLatitude().value(),
                                 segmentEnd->getLatitude().value());
 
-    // 4. Check edges in intersecting nodes
-    auto checkEdge = [&](const std::shared_ptr<GLine> &edge) {
-        // ONLY skip edges that share BOTH endpoints (i.e., the exact
-        // same line)
-        bool sharesBothEndpoints =
-            ((*(edge->startPoint()) == *segmentStart)
-             && (*(edge->endPoint()) == *segmentEnd))
-            || ((*(edge->startPoint()) == *segmentEnd)
-                && (*(edge->endPoint()) == *segmentStart));
+    // Special handling for segments that have been split at the antimeridian
+    // If one endpoint is at ±180° and the other is far away (> 90° apart),
+    // the segment was likely split and should be bounded to one hemisphere
+    double segMinLon, segMaxLon;
+    double lonDiff = std::abs(endLon - startLon);
+    const double ANTIMERIDIAN_TOLERANCE = 1e-6;
+    bool startAtAntimeridian = std::abs(std::abs(startLon) - 180.0) < ANTIMERIDIAN_TOLERANCE;
+    bool endAtAntimeridian = std::abs(std::abs(endLon) - 180.0) < ANTIMERIDIAN_TOLERANCE;
+    bool isAntimeridianSplit = (startAtAntimeridian || endAtAntimeridian) && lonDiff > 90.0;
 
-        if (sharesBothEndpoints)
+    if (isAntimeridianSplit)
+    {
+        // Determine which hemisphere the segment is in based on the
+        // non-antimeridian endpoint
+        double otherLon = startAtAntimeridian ? endLon : startLon;
+
+        if (otherLon < 0)
         {
-            return false; // Skip identical edge
+            // Segment is in the Western hemisphere (negative longitudes to -180)
+            // Path: otherLon → ... → -180 (or equivalently 180)
+            segMinLon = -180.0;
+            segMaxLon = otherLon;
+        }
+        else
+        {
+            // Segment is in the Eastern hemisphere (positive longitudes to +180)
+            // Path: otherLon → ... → 180
+            segMinLon = otherLon;
+            segMaxLon = 180.0;
+        }
+    }
+    else
+    {
+        segMinLon = std::min(startLon, endLon);
+        segMaxLon = std::max(startLon, endLon);
+    }
+
+    // Pre-extract segment coordinates for optimized comparisons
+    double startLat = segmentStart->getLatitude().value();
+    double endLat = segmentEnd->getLatitude().value();
+
+    // 4. Check edges in intersecting nodes
+    // Optimized: bounding box rejection FIRST, then coordinate-based checks
+    auto checkEdge = [&](const std::shared_ptr<GLine> &edge) {
+        // STEP 1: Extract edge coordinates ONCE
+        auto edgeStartPt = edge->startPoint();
+        auto edgeEndPt = edge->endPoint();
+        double eLon1 = edgeStartPt->getLongitude().value();
+        double eLat1 = edgeStartPt->getLatitude().value();
+        double eLon2 = edgeEndPt->getLongitude().value();
+        double eLat2 = edgeEndPt->getLatitude().value();
+
+        // STEP 2: Antimeridian check (cheap)
+        double edgeLonDiff = std::abs(eLon1 - eLon2);
+        if (edgeLonDiff > 180.0)
+        {
+            return false;  // Skip antimeridian-crossing edges
         }
 
-        // Manual bounds check
-        auto   edgeStart = edge->startPoint();
-        auto   edgeEnd   = edge->endPoint();
-        double edgeMinLon =
-            std::min(edgeStart->getLongitude().value(),
-                     edgeEnd->getLongitude().value());
-        double edgeMaxLon =
-            std::max(edgeStart->getLongitude().value(),
-                     edgeEnd->getLongitude().value());
-        double edgeMinLat = std::min(edgeStart->getLatitude().value(),
-                                     edgeEnd->getLatitude().value());
-        double edgeMaxLat = std::max(edgeStart->getLatitude().value(),
-                                     edgeEnd->getLatitude().value());
+        // STEP 3: Bounding box rejection FIRST (cheapest filter)
+        double edgeMinLon = std::min(eLon1, eLon2);
+        double edgeMaxLon = std::max(eLon1, eLon2);
+        double edgeMinLat = std::min(eLat1, eLat2);
+        double edgeMaxLat = std::max(eLat1, eLat2);
 
-        // Bounding box rejection
         if (edgeMaxLon < segMinLon || edgeMinLon > segMaxLon
             || edgeMaxLat < segMinLat || edgeMinLat > segMaxLat)
         {
-            return false;
+            return false;  // Bounding boxes don't overlap
         }
 
-        // Use existing intersects method with edge point checking
+        // STEP 4: Coordinate-based endpoint check (no geodesic calculation)
+        // 0.00001 degrees ≈ 1.1 meters at equator
+        const double COORD_TOL = 0.00001;
+        auto coordsNear = [COORD_TOL](double lon1, double lat1, double lon2, double lat2) {
+            return std::abs(lon1 - lon2) < COORD_TOL
+                && std::abs(lat1 - lat2) < COORD_TOL;
+        };
+
+        bool sharesEndpoint =
+            coordsNear(eLon1, eLat1, startLon, startLat) ||
+            coordsNear(eLon1, eLat1, endLon, endLat) ||
+            coordsNear(eLon2, eLat2, startLon, startLat) ||
+            coordsNear(eLon2, eLat2, endLon, endLat);
+
+        if (sharesEndpoint)
+        {
+            return false;  // Skip edge connected at a vertex
+        }
+
+        // STEP 5: Point-on-edge check using coordinate math (T-intersection)
+        auto pointOnEdgeFast = [&](double pLon, double pLat) {
+            // Bounding box check
+            if (pLon < edgeMinLon - COORD_TOL || pLon > edgeMaxLon + COORD_TOL ||
+                pLat < edgeMinLat - COORD_TOL || pLat > edgeMaxLat + COORD_TOL)
+            {
+                return false;
+            }
+
+            // Collinearity check using cross product
+            // Point is on line segment if cross product ≈ 0
+            double dx = eLon2 - eLon1;
+            double dy = eLat2 - eLat1;
+            double dpx = pLon - eLon1;
+            double dpy = pLat - eLat1;
+
+            double cross = dx * dpy - dy * dpx;
+            double lenSq = dx * dx + dy * dy;
+
+            // Avoid division - compare cross^2 to tolerance^2 * lenSq
+            // Scale tolerance for better accuracy on longer edges
+            return (cross * cross) < (COORD_TOL * COORD_TOL * lenSq * 100.0);
+        };
+
+        if (pointOnEdgeFast(startLon, startLat) || pointOnEdgeFast(endLon, endLat))
+        {
+            return false;  // Skip edge - segment endpoint lies on it
+        }
+
+        // STEP 6: Full intersection check (only reaches here after all filters)
         return segment->intersects(*edge, true);
     };
 
@@ -416,14 +567,77 @@ std::shared_ptr<Polygon>
 OptimizedVisibilityGraph::findContainingPolygon(
     const std::shared_ptr<GPoint> &point) const
 {
-    for (const auto &polygon : polygons)
+    if (!point)
     {
-        if (polygon->ringsContain(point))
+        return nullptr;
+    }
+
+    // Check cache first (read lock for concurrent access)
+    {
+        QReadLocker readLocker(&containmentCacheLock);
+        auto it = polygonContainmentCache.find(point);
+        if (it != polygonContainmentCache.end())
         {
-            return polygon;
+            return it->second;  // Return cached result (may be nullptr)
         }
     }
-    return nullptr; // the case when the point is not in any polygon
+
+    // Cache miss - compute the containing polygon
+    // Acquire read lock to safely iterate over polygons vector
+    std::shared_ptr<Polygon> result = nullptr;
+    {
+        QReadLocker locker(&quadtreeLock);
+        for (const auto &polygon : polygons)
+        {
+            // Use isPointWithinPolygon which checks if point is:
+            // 1. Inside the exterior ring (including boundary), AND
+            // 2. NOT inside any interior holes
+            // This correctly identifies points that are within navigable water
+            if (polygon->isPointWithinPolygon(*point))
+            {
+                result = polygon;
+                break;
+            }
+        }
+    }
+
+    // Store result in cache (write lock)
+    {
+        QWriteLocker writeLocker(&containmentCacheLock);
+        polygonContainmentCache[point] = result;
+    }
+
+    return result;
+}
+
+QVector<std::shared_ptr<Polygon>>
+OptimizedVisibilityGraph::findAllContainingPolygons(
+    const std::shared_ptr<GPoint> &point) const
+{
+    QVector<std::shared_ptr<Polygon>> result;
+    if (!point)
+    {
+        return result;
+    }
+
+    // Acquire read lock to safely iterate over polygons vector
+    QReadLocker locker(&quadtreeLock);
+
+    // Check all polygons (no early return like findContainingPolygon)
+    for (const auto &polygon : polygons)
+    {
+        // Include polygons where the point is:
+        // 1. Inside the polygon (but not in holes), OR
+        // 2. On any ring boundary (outer or hole)
+        // This handles navigation waypoints on island boundaries
+        if (polygon->isPointWithinPolygon(*point)
+            || polygon->ringsContain(point))
+        {
+            result.append(polygon);
+        }
+    }
+
+    return result;
 }
 
 ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
@@ -437,6 +651,13 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         return ShortestPathResult();
     }
 
+    // Check if the graph is properly initialized
+    if (!quadtree || polygons.isEmpty())
+    {
+        qWarning() << "Dijkstra: Graph not initialized or empty";
+        return ShortestPathResult();
+    }
+
     if (*start == *end)
     {
         ShortestPathResult result;
@@ -444,39 +665,55 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         return result;
     }
 
-    // For ship navigation, always find closest navigable points on
-    // polygon vertices
+    // Navigation points - use actual start/end when inside water polygons
     std::shared_ptr<GPoint> startNavPoint;
     std::shared_ptr<GPoint> endNavPoint;
+    std::shared_ptr<Polygon> startPolygon;
+    std::shared_ptr<Polygon> endPolygon;
 
-    // Ships navigate between polygon vertices (ports, waypoints
-    // on coastlines)
-    startNavPoint = quadtree->findNearestNeighborPoint(start);
-    endNavPoint   = quadtree->findNearestNeighborPoint(end);
-
-    if (!startNavPoint || !endNavPoint)
+    // For water navigation, verify points are in water and use them directly
+    if (mBoundaryType == BoundariesType::Water)
     {
-        qWarning() << "Could not find navigable points for ship path";
-        return ShortestPathResult();
-    }
+        startPolygon = findContainingPolygon(start);
+        endPolygon = findContainingPolygon(end);
 
-    qDebug() << "Ship navigation:";
-    qDebug() << "  Start position:" << start->toString();
-    qDebug() << "  Nearest nav point:" << startNavPoint->toString();
-    qDebug() << "  End position:" << end->toString();
-    qDebug() << "  Nearest nav point:" << endNavPoint->toString();
+        if (!startPolygon)
+        {
+            qWarning() << "Dijkstra: Start point not in any water polygon:"
+                       << start->toString();
+            return ShortestPathResult();
+        }
+        if (!endPolygon)
+        {
+            qWarning() << "Dijkstra: End point not in any water polygon:"
+                       << end->toString();
+            return ShortestPathResult();
+        }
 
-    // If start/end are already very close to nav points, use them
-    // directly
-    const double PROXIMITY_THRESHOLD = 100.0; // meters
-    if (start->distance(*startNavPoint).value() < PROXIMITY_THRESHOLD)
-    {
+        // Use actual start/end points directly - they're verified to be
+        // inside water polygons. The visibility graph will connect them
+        // to visible polygon vertices for pathfinding.
         startNavPoint = start;
-    }
-    if (end->distance(*endNavPoint).value() < PROXIMITY_THRESHOLD)
-    {
         endNavPoint = end;
     }
+    else
+    {
+        // Land/other navigation uses global nearest neighbor
+        startNavPoint = quadtree->findNearestNeighborPoint(start);
+        endNavPoint = quadtree->findNearestNeighborPoint(end);
+
+        if (!startNavPoint || !endNavPoint)
+        {
+            qWarning() << "Could not find navigable points for path";
+            return ShortestPathResult();
+        }
+    }
+
+    qDebug() << "Dijkstra Ship navigation:";
+    qDebug() << "  Start position:" << start->toString();
+    qDebug() << "  Nav point:" << startNavPoint->toString();
+    qDebug() << "  End position:" << end->toString();
+    qDebug() << "  Nav point:" << endNavPoint->toString();
 
     // Initialize data structures
     std::unordered_map<std::shared_ptr<GPoint>,
@@ -519,6 +756,9 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
 
     // Add end point to ensure it's tracked
     initializeDistance(endNavPoint);
+
+    qDebug() << "Dijkstra: Starting search from" << startNavPoint->toString()
+             << "to" << endNavPoint->toString();
 
     // CRITICAL: Add manual connections for start/end if they're not
     // polygon vertices
@@ -568,62 +808,87 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         }
 
         // Get visible neighbors
+        // NOTE: Do NOT hold quadtreeLock while calling visibility functions
+        // that spawn QtConcurrent tasks - those functions have their own
+        // internal locking. Holding the lock here would cause thread pool
+        // starvation as worker threads try to acquire the same lock.
         QVector<std::shared_ptr<GPoint>> visibleNodes;
+
+        // Copy polygons while holding the lock for use in visibility checks
+        QVector<std::shared_ptr<Polygon>> localPolygons;
         {
             QReadLocker locker(&quadtreeLock);
+            localPolygons = polygons;
+        }
 
-            if (mBoundaryType == BoundariesType::Water)
+        if (mBoundaryType == BoundariesType::Water)
+        {
+            // For water navigation, find ALL containing polygons
+            // (handles overlapping regions like Atlantic/Mediterranean)
+            // findAllContainingPolygons has its own internal locking
+            auto containingPolygons =
+                findAllContainingPolygons(current);
+
+            if (containingPolygons.isEmpty())
             {
-                // For water navigation, find containing polygon
-                auto currentPolygon = findContainingPolygon(current);
-                if (!currentPolygon)
-                {
-                    // If current point is not in a polygon, it might
-                    // be a vertex Find all polygons and get visible
-                    // nodes between them
-                    visibleNodes = getVisibleNodesBetweenPolygons(
-                        current, polygons);
-                }
-                else
-                {
-                    visibleNodes = getVisibleNodesWithinPolygon(
-                        current, currentPolygon);
-                }
-
-                // CRITICAL: Ensure end navigation point is considered
-                // if visible
-                if (*current != *endNavPoint
-                    && isVisible(current, endNavPoint))
-                {
-                    if (!visibleNodes.contains(endNavPoint))
-                    {
-                        visibleNodes.append(endNavPoint);
-                    }
-                }
-
-                // If this is the start nav point and different from
-                // actual start, connect to actual start
-                if (*current == *startNavPoint
-                    && *startNavPoint != *start)
-                {
-                    if (isVisible(current, start))
-                    {
-                        visibleNodes.append(start);
-                    }
-                }
+                // If current point is not in a polygon, it might
+                // be a vertex Find all polygons and get visible
+                // nodes between them
+                visibleNodes = getVisibleNodesBetweenPolygons(
+                    current, localPolygons);
             }
             else
             {
-                visibleNodes =
-                    getVisibleNodesBetweenPolygons(current, polygons);
+                // Get visible nodes from ALL containing polygons
+                for (const auto &poly : containingPolygons)
+                {
+                    auto nodesInPoly =
+                        getVisibleNodesWithinPolygon(current, poly);
+                    for (const auto &node : nodesInPoly)
+                    {
+                        if (!visibleNodes.contains(node))
+                        {
+                            visibleNodes.append(node);
+                        }
+                    }
+                }
             }
 
-            // Add wrap-around connections if enabled
-            if (enableWrapAround)
+            // CRITICAL: Ensure end navigation point is considered
+            // if visible
+            // isVisible has its own internal locking
+            if (*current != *endNavPoint
+                && isVisible(current, endNavPoint))
             {
-                auto wrapPoints = connectWrapAroundPoints(current);
-                visibleNodes.append(wrapPoints);
+                if (!visibleNodes.contains(endNavPoint))
+                {
+                    visibleNodes.append(endNavPoint);
+                }
             }
+
+            // If this is the start nav point and different from
+            // actual start, connect to actual start
+            if (*current == *startNavPoint
+                && *startNavPoint != *start)
+            {
+                if (isVisible(current, start))
+                {
+                    visibleNodes.append(start);
+                }
+            }
+        }
+        else
+        {
+            visibleNodes =
+                getVisibleNodesBetweenPolygons(current, localPolygons);
+        }
+
+        // Add wrap-around connections if enabled
+        // connectWrapAroundPoints has its own internal locking
+        if (enableWrapAround)
+        {
+            auto wrapPoints = connectWrapAroundPoints(current);
+            visibleNodes.append(wrapPoints);
         }
 
         qDebug() << "Dijkstra: Point" << current->toString() << "has"
@@ -694,6 +959,13 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         return ShortestPathResult();
     }
 
+    // Check if the graph is properly initialized
+    if (!quadtree || polygons.isEmpty())
+    {
+        qWarning() << "A*: Graph not initialized or empty";
+        return ShortestPathResult();
+    }
+
     if (*start == *end)
     {
         ShortestPathResult result;
@@ -701,39 +973,60 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         return result;
     }
 
-    // For ship navigation, always find closest navigable points on
-    // polygon vertices
+    // Navigation points - use actual start/end when inside water polygons
     std::shared_ptr<GPoint> startNavPoint;
     std::shared_ptr<GPoint> endNavPoint;
+    std::shared_ptr<Polygon> startPolygon;
+    std::shared_ptr<Polygon> endPolygon;
 
-    // Ships navigate between polygon vertices (ports, waypoints
-    // on coastlines)
-    startNavPoint = quadtree->findNearestNeighborPoint(start);
-    endNavPoint   = quadtree->findNearestNeighborPoint(end);
-
-    if (!startNavPoint || !endNavPoint)
+    // For water navigation, verify points are in water and use them directly
+    if (mBoundaryType == BoundariesType::Water)
     {
-        qWarning() << "Could not find navigable points for ship path";
-        return ShortestPathResult();
+        startPolygon = findContainingPolygon(start);
+        endPolygon = findContainingPolygon(end);
+
+        if (!startPolygon)
+        {
+            qWarning() << "A*: Start point not in any water polygon:"
+                       << start->toString();
+            return ShortestPathResult();
+        }
+        if (!endPolygon)
+        {
+            qWarning() << "A*: End point not in any water polygon:"
+                       << end->toString();
+            return ShortestPathResult();
+        }
+
+        // Use actual start/end points directly - they're verified to be
+        // inside water polygons. The visibility graph will connect them
+        // to visible polygon vertices for pathfinding.
+        startNavPoint = start;
+        endNavPoint = end;
+
+        if (startPolygon != endPolygon)
+        {
+            qDebug() << "A*: Start and end in different polygons";
+        }
+    }
+    else
+    {
+        // Land/other navigation uses global nearest neighbor
+        startNavPoint = quadtree->findNearestNeighborPoint(start);
+        endNavPoint = quadtree->findNearestNeighborPoint(end);
+
+        if (!startNavPoint || !endNavPoint)
+        {
+            qWarning() << "Could not find navigable points for path";
+            return ShortestPathResult();
+        }
     }
 
     qDebug() << "A* Ship navigation:";
     qDebug() << "  Start position:" << start->toString();
-    qDebug() << "  Nearest nav point:" << startNavPoint->toString();
+    qDebug() << "  Nav point:" << startNavPoint->toString();
     qDebug() << "  End position:" << end->toString();
-    qDebug() << "  Nearest nav point:" << endNavPoint->toString();
-
-    // If start/end are already very close to nav points, use them
-    // directly
-    const double PROXIMITY_THRESHOLD = 100.0; // meters
-    if (start->distance(*startNavPoint).value() < PROXIMITY_THRESHOLD)
-    {
-        startNavPoint = start;
-    }
-    if (end->distance(*endNavPoint).value() < PROXIMITY_THRESHOLD)
-    {
-        endNavPoint = end;
-    }
+    qDebug() << "  Nav point:" << endNavPoint->toString();
 
     // Data structures for A* tracking
     std::unordered_map<std::shared_ptr<GPoint>,
@@ -828,71 +1121,97 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         }
 
         // Get neighbors
+        // NOTE: Do NOT hold quadtreeLock while calling visibility functions
+        // that spawn QtConcurrent tasks - those functions have their own
+        // internal locking. Holding the lock here would cause thread pool
+        // starvation as worker threads try to acquire the same lock.
         QVector<std::shared_ptr<GPoint>> neighbors;
+
+        // Copy polygons and manualPoints while holding the lock
+        QVector<std::shared_ptr<Polygon>> localPolygons;
+        QVector<std::shared_ptr<GPoint>> localManualPoints;
         {
             QReadLocker locker(&quadtreeLock);
+            localPolygons = polygons;
+            localManualPoints = manualPoints;
+        }
 
-            if (mBoundaryType == BoundariesType::Water)
+        if (mBoundaryType == BoundariesType::Water)
+        {
+            // For water navigation, find ALL containing polygons
+            // (handles overlapping regions like Atlantic/Mediterranean)
+            // findAllContainingPolygons has its own internal locking
+            auto containingPolygons =
+                findAllContainingPolygons(current);
+            if (containingPolygons.isEmpty())
             {
-                // For water navigation, find containing polygon
-                auto currentPolygon = findContainingPolygon(current);
-                if (!currentPolygon)
-                {
-                    // If current point is not in a polygon, it might
-                    // be a vertex Find all polygons and get visible
-                    // nodes between them
-                    neighbors = getVisibleNodesBetweenPolygons(
-                        current, polygons);
-                }
-                else
-                {
-                    neighbors = getVisibleNodesWithinPolygon(
-                        current, currentPolygon);
-                }
-
-                // CRITICAL: Ensure end navigation point is considered
-                // if visible
-                if (*current != *endNavPoint
-                    && isVisible(current, endNavPoint))
-                {
-                    if (!neighbors.contains(endNavPoint))
-                    {
-                        neighbors.append(endNavPoint);
-                    }
-                }
-
-                // If this is the start nav point and different from
-                // actual start, connect to actual start
-                if (*current == *startNavPoint
-                    && *startNavPoint != *start)
-                {
-                    if (isVisible(current, start))
-                    {
-                        neighbors.append(start);
-                    }
-                }
+                // If current point is not in a polygon, it might
+                // be a vertex Find all polygons and get visible
+                // nodes between them
+                neighbors = getVisibleNodesBetweenPolygons(
+                    current, localPolygons);
             }
             else
             {
-                neighbors =
-                    getVisibleNodesBetweenPolygons(current, polygons);
-
-                // Add manual points for visibility (same as in
-                // Dijkstra)
-                for (const auto &manualPoint : manualPoints)
+                // Get visible nodes from ALL containing polygons
+                for (const auto &poly : containingPolygons)
                 {
-                    if (isVisible(current, manualPoint))
+                    auto nodesInPoly =
+                        getVisibleNodesWithinPolygon(current, poly);
+                    for (const auto &node : nodesInPoly)
                     {
-                        neighbors.append(manualPoint);
+                        if (!neighbors.contains(node))
+                        {
+                            neighbors.append(node);
+                        }
                     }
                 }
             }
 
-            // Apply wrap-around logic if enabled
-            if (enableWrapAround)
+            // CRITICAL: Ensure end navigation point is considered
+            // if visible
+            // isVisible has its own internal locking
+            if (*current != *endNavPoint
+                && isVisible(current, endNavPoint))
             {
-                neighbors.append(connectWrapAroundPoints(current));
+                if (!neighbors.contains(endNavPoint))
+                {
+                    neighbors.append(endNavPoint);
+                }
             }
+
+            // If this is the start nav point and different from
+            // actual start, connect to actual start
+            if (*current == *startNavPoint
+                && *startNavPoint != *start)
+            {
+                if (isVisible(current, start))
+                {
+                    neighbors.append(start);
+                }
+            }
+        }
+        else
+        {
+            neighbors =
+                getVisibleNodesBetweenPolygons(current, localPolygons);
+
+            // Add manual points for visibility (same as in Dijkstra)
+            // isVisible has its own internal locking
+            for (const auto &manualPoint : localManualPoints)
+            {
+                if (isVisible(current, manualPoint))
+                {
+                    neighbors.append(manualPoint);
+                }
+            }
+        }
+
+        // Apply wrap-around logic if enabled
+        // connectWrapAroundPoints has its own internal locking
+        if (enableWrapAround)
+        {
+            neighbors.append(connectWrapAroundPoints(current));
         }
 
         qDebug() << "A*: Point" << current->toString() << "has"
@@ -1137,14 +1456,25 @@ OptimizedVisibilityGraph::connectWrapAroundPoints(
     const std::shared_ptr<GPoint> &point)
 {
     QVector<std::shared_ptr<GPoint>> wrapAroundPoints;
-    if (!quadtree->isNearBoundary(point))
-        return wrapAroundPoints;
 
-    // Get map boundaries
-    const auto   mapMin = quadtree->getMapMinPoint();
-    const auto   mapMax = quadtree->getMapMaxPoint();
-    const double mapWidth =
-        (mapMax.getLongitude() - mapMin.getLongitude()).value();
+    // Get map boundary data while holding the lock
+    GPoint mapMin, mapMax;
+    double mapWidth;
+    QVector<std::shared_ptr<Polygon>> localPolygons;
+    {
+        QReadLocker locker(&quadtreeLock);
+        if (!quadtree->isNearBoundary(point))
+            return wrapAroundPoints;
+
+        // Get map boundaries
+        mapMin = quadtree->getMapMinPoint();
+        mapMax = quadtree->getMapMaxPoint();
+        mapWidth =
+            (mapMax.getLongitude() - mapMin.getLongitude()).value();
+
+        // Copy polygons for later use outside the lock
+        localPolygons = polygons;
+    }
 
     // Create mirrored point
     auto createMirrorPoint = [&](double offset) {
@@ -1166,6 +1496,7 @@ OptimizedVisibilityGraph::connectWrapAroundPoints(
     }
 
     // Find visible nodes for mirrored points
+    // NOTE: Visibility functions have their own internal locking
     QVector<std::shared_ptr<GPoint>> allVisible;
     for (const auto &wrappedPoint : wrapAroundPoints)
     {
@@ -1182,7 +1513,7 @@ OptimizedVisibilityGraph::connectWrapAroundPoints(
         else
         {
             wrappedVisible = getVisibleNodesBetweenPolygons(
-                wrappedPoint, polygons);
+                wrappedPoint, localPolygons);
         }
 
         // Convert back to original coordinate system
@@ -1219,6 +1550,10 @@ void OptimizedVisibilityGraph::clear()
     quadtree->clearTree();
     polygons.clear();
     visibilityCache.clear();
+    {
+        QWriteLocker containmentLocker(&containmentCacheLock);
+        polygonContainmentCache.clear();
+    }
     // edges.clear();
     // nodes.clear();
 }

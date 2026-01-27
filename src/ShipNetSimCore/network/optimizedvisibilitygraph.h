@@ -36,6 +36,8 @@
 #include <QReadWriteLock>
 #include <QVector>
 #include <QtConcurrent>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace ShipNetSimCore
 {
@@ -76,7 +78,7 @@ struct ShortestPathResult
      *
      * @return true if the result is valid, false otherwise.
      */
-    bool isValid();
+    bool isValid() const;
 };
 
 /**
@@ -239,8 +241,9 @@ public:
 
     BoundariesType mBoundaryType;
 
-    /** Rivers representation */
-    QVector<std::shared_ptr<GLine>> manualLines;
+    /** Rivers/canals representation - uses hash set for O(1) lookup */
+    std::unordered_set<std::shared_ptr<GLine>, GLine::Hash, GLine::Equal>
+        manualLinesSet;
     QHash<std::shared_ptr<GPoint>, QVector<std::shared_ptr<GPoint>>>
                                      manualConnections;
     QVector<std::shared_ptr<GPoint>> manualPoints;
@@ -280,6 +283,19 @@ public:
     QHash<std::shared_ptr<GPoint>, QVector<std::shared_ptr<GPoint>>>
         visibilityCache;
 
+    /**
+     * @brief Cache for point-to-polygon containment lookups.
+     *
+     * Maps each point to the polygon that contains it (or nullptr if none).
+     * This avoids repeated O(p*v) polygon containment checks for the same point.
+     * Cache is invalidated when polygons change.
+     */
+    mutable std::unordered_map<std::shared_ptr<GPoint>,
+                               std::shared_ptr<Polygon>,
+                               GPoint::Hash,
+                               GPoint::Equal> polygonContainmentCache;
+    mutable QReadWriteLock containmentCacheLock;
+
     void addManualVisibleLine(const std::shared_ptr<GLine> &line);
     void clearManualLines();
 
@@ -315,6 +331,16 @@ public:
 
     std::shared_ptr<Polygon>
     findContainingPolygon(const std::shared_ptr<GPoint> &point) const;
+
+    /**
+     * @brief Finds all polygons that contain a given point.
+     *
+     * Unlike findContainingPolygon which returns the first match,
+     * this function returns all polygons where the point is inside.
+     * Useful for handling overlapping polygon regions.
+     */
+    QVector<std::shared_ptr<Polygon>>
+    findAllContainingPolygons(const std::shared_ptr<GPoint> &point) const;
 
     /// Connect left-right points of the map for a wrap-around
     /// technique
