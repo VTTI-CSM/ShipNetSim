@@ -26,6 +26,7 @@
 #include <osgEarth/EarthManipulator>
 #include <osgEarth/Style>
 #include <osgEarth/Feature>
+#include <osgEarth/FeatureNode>
 #include <osgEarth/Registry>
 #include <osgEarth/AnnotationNode>
 #include <osgEarth/AnnotationData>
@@ -47,7 +48,9 @@ private:
 
     std::unordered_map<osgEarth::ObjectID, osgEarth::PlaceNode*> portNodes;
     std::unordered_map<QString, osg::Node*> _shipTransforms;
-    std::unordered_map<QString, osg::ref_ptr<osg::MatrixTransform>> _shipPaths;
+    std::unordered_map<QString, osgEarth::FeatureNode*> _shipPaths;
+    osg::ref_ptr<osg::Group> _shipsGroup;  // Intermediate group for ship nodes
+    osg::ref_ptr<osg::Group> _pathsGroup;  // Intermediate group for path nodes
     osgEarth::Style _shipStyle;
     osg::ref_ptr<osg::Image> _normalImage;
     osg::ref_ptr<osg::Image> _highlightImage;
@@ -60,56 +63,63 @@ private:
                         const QVector<std::shared_ptr<
                             ShipNetSimCore::GLine>>& paths)
     {
-        // Remove old path if exists
-        auto it = _shipPaths.find(shipId);
-        if (it != _shipPaths.end() && _mapNode.valid()) {
-            _mapNode->removeChild(it->second);
+        if (!_mapNode.valid()) {
+            return;
         }
 
-        if (paths.isEmpty()) return;
+        // Create paths group if it doesn't exist
+        if (!_pathsGroup.valid()) {
+            _pathsGroup = new osg::Group();
+            _pathsGroup->setName("PathsGroup");
+            _mapNode->addChild(_pathsGroup);
+        }
 
-        // Create geometry
-        osg::ref_ptr<osg::Geometry> geometry = new osg::Geometry;
-        osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array;
-        osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array;
+        // Remove old path if exists
+        auto it = _shipPaths.find(shipId);
+        if (it != _shipPaths.end() && it->second) {
+            _pathsGroup->removeChild(it->second);
+            _shipPaths.erase(it);
+        }
 
-        // Add points
+        if (paths.isEmpty()) {
+            return;
+        }
+
+        // Create LineString geometry with geographic coordinates
+        osgEarth::LineString* lineString = new osgEarth::LineString();
+
+        // Add points from the path lines
         for (const auto& line : paths) {
-            vertices->push_back(osg::Vec3(
+            lineString->push_back(osg::Vec3d(
                 line->startPoint()->getLongitude().value(),
                 line->startPoint()->getLatitude().value(),
-                0.0f));
+                0.0));
 
             if (line == paths.last()) {
-                vertices->push_back(osg::Vec3(
+                lineString->push_back(osg::Vec3d(
                     line->endPoint()->getLongitude().value(),
                     line->endPoint()->getLatitude().value(),
-                    0.0f));
+                    0.0));
             }
         }
 
-        // Set color (blue)
-        colors->push_back(osg::Vec4(0.0f, 0.0f, 1.0f, 1.0f));
+        // Create feature with the geometry
+        const osgEarth::SpatialReference* geoSRS =
+            _mapNode->getMapSRS()->getGeographicSRS();
+        osgEarth::Feature* pathFeature = new osgEarth::Feature(lineString, geoSRS);
 
-        geometry->setVertexArray(vertices.get());
-        geometry->setColorArray(colors.get());
-        geometry->setColorBinding(osg::Geometry::BIND_OVERALL);
+        // Style the line
+        osgEarth::Style pathStyle;
+        auto* lineSymbol = pathStyle.getOrCreate<osgEarth::LineSymbol>();
+        lineSymbol->stroke().mutable_value().color() = osgEarth::Color::Blue;
+        lineSymbol->stroke().mutable_value().width() = osgEarth::Distance(2.0f, osgEarth::Units::PIXELS);
+        lineSymbol->stroke().mutable_value().smooth() = true;
+        lineSymbol->tessellationSize() = osgEarth::Distance(75000, osgEarth::Units::METERS);
 
-        // Set line width using OpenGL directly
-        geometry->getOrCreateStateSet()->setMode(GL_LINE_SMOOTH,
-                                                 osg::StateAttribute::ON);
-        glLineWidth(2.0f);
+        // Create FeatureNode
+        osgEarth::FeatureNode* pathNode = new osgEarth::FeatureNode(pathFeature, pathStyle);
 
-        geometry->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0,
-                                                      vertices->size()));
-
-        // Create transform to hold the geometry
-        osg::ref_ptr<osg::MatrixTransform> pathNode = new osg::MatrixTransform;
-        osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-        geode->addDrawable(geometry.get());
-        pathNode->addChild(geode);
-
-        _mapNode->addChild(pathNode);
+        _pathsGroup->addChild(pathNode);
         _shipPaths[shipId] = pathNode;
     }
 
@@ -428,6 +438,13 @@ public:
             return nullptr;
         }
 
+        // Create ships group if it doesn't exist
+        if (!_shipsGroup.valid()) {
+            _shipsGroup = new osg::Group();
+            _shipsGroup->setName("ShipsGroup");
+            _mapNode->addChild(_shipsGroup);
+        }
+
         osgEarth::PlaceNode* shipNode = new osgEarth::PlaceNode(
             osgEarth::GeoPoint(
                 _mapNode->getMapSRS(),
@@ -438,7 +455,7 @@ public:
             shipId.toStdString(),  // Display ship ID as text
             _shipStyle);
 
-        _mapNode->addChild(shipNode);
+        _shipsGroup->addChild(shipNode);
         _shipTransforms[shipId] = shipNode;
 
         return shipNode;
@@ -483,37 +500,33 @@ public:
     {
         auto it = _shipTransforms.find(shipId);
         if (it != _shipTransforms.end()) {
-            if (it->second && _mapNode.valid()) {
-                _mapNode->removeChild(it->second);
+            if (it->second && _shipsGroup.valid()) {
+                _shipsGroup->removeChild(it->second);
             }
             _shipTransforms.erase(it);
         }
 
         auto pathIt = _shipPaths.find(shipId);
         if (pathIt != _shipPaths.end()) {
-            if (pathIt->second && _mapNode.valid()) {
-                _mapNode->removeChild(pathIt->second);
+            if (pathIt->second && _pathsGroup.valid()) {
+                _pathsGroup->removeChild(pathIt->second);
             }
             _shipPaths.erase(pathIt);
         }
     }
 
     void clearAllShips() {
-        // Remove all ship nodes from the map
-        for (const auto& shipPair : _shipTransforms) {
-            if (shipPair.second && _mapNode.valid()) {
-                _mapNode->removeChild(shipPair.second);
-            }
+        // Remove all ship nodes from the ships group
+        if (_shipsGroup.valid()) {
+            _shipsGroup->removeChildren(0, _shipsGroup->getNumChildren());
         }
 
-        // Remove all path nodes
-        for (const auto& pathPair : _shipPaths) {
-            if (pathPair.second && _mapNode.valid()) {
-                _mapNode->removeChild(pathPair.second);
-            }
+        // Remove all path nodes from the paths group
+        if (_pathsGroup.valid()) {
+            _pathsGroup->removeChildren(0, _pathsGroup->getNumChildren());
         }
 
-        // Clear the map
+        // Clear the maps
         _shipTransforms.clear();
         _shipPaths.clear();
     }
