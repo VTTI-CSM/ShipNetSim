@@ -42,6 +42,10 @@ void SeaPort::setStatusOfEntry(QString status)
 void SeaPort::setClosestPointOnWaterPolygon(
     std::shared_ptr<GPoint> newCoordinate)
 {
+    if (!newCoordinate)
+    {
+        return;  // Handle null gracefully
+    }
     mClosestPointOnWaterPolygon = newCoordinate;
     if (!mClosestPointOnWaterPolygon->isPort())
     {
