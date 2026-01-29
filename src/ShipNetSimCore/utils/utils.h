@@ -491,6 +491,126 @@ SHIPNETSIM_EXPORT bool stringToBool(const QString &str,
 } // namespace Utils
 
 /**
+ * @namespace AngleUtils
+ * @brief Utilities for normalizing angles and geographic coordinates.
+ *
+ * These functions handle floating-point precision issues at boundaries
+ * (e.g., ±180°, 360°) that can cause incorrect wrapping behavior.
+ * The epsilon tolerance prevents values like 180.00000000000014 (from
+ * shapefiles or floating-point arithmetic) from being incorrectly wrapped.
+ */
+namespace AngleUtils
+{
+
+/// Tolerance for floating-point comparison at angle boundaries
+constexpr double EPSILON = 1e-9;
+
+/**
+ * @brief Normalize longitude to the range [-180, 180].
+ *
+ * Handles floating-point precision issues at ±180° boundaries.
+ * Values very close to ±180 are clamped rather than wrapped.
+ *
+ * @param lon Longitude value in degrees
+ * @return Normalized longitude in [-180, 180]
+ */
+inline double normalizeLongitude(double lon)
+{
+    // Clamp values very close to ±180 to prevent incorrect wrapping
+    if (lon > 180.0 && lon < 180.0 + EPSILON)
+        return 180.0;
+    if (lon < -180.0 && lon > -180.0 - EPSILON)
+        return -180.0;
+
+    // Standard normalization for values clearly outside [-180, 180]
+    while (lon > 180.0)
+        lon -= 360.0;
+    while (lon < -180.0)
+        lon += 360.0;
+
+    return lon;
+}
+
+/**
+ * @brief Normalize longitude to the range [0, 360).
+ *
+ * Used for antimeridian-crossing calculations where [0, 360) is more convenient.
+ *
+ * @param lon Longitude value in degrees
+ * @return Normalized longitude in [0, 360)
+ */
+inline double normalizeLongitude360(double lon)
+{
+    // Clamp values very close to boundaries
+    if (lon < 0.0 && lon > -EPSILON)
+        return 0.0;
+    if (lon >= 360.0 && lon < 360.0 + EPSILON)
+        return 0.0;  // 360 wraps to 0
+
+    while (lon < 0.0)
+        lon += 360.0;
+    while (lon >= 360.0)
+        lon -= 360.0;
+
+    return lon;
+}
+
+/**
+ * @brief Normalize an angle difference to the range [-180, 180].
+ *
+ * Used for heading differences, turn angles, etc.
+ * Handles floating-point precision at boundaries.
+ *
+ * @param angle Angle difference in degrees
+ * @return Normalized angle in [-180, 180]
+ */
+inline double normalizeAngleDifference(double angle)
+{
+    // Clamp values very close to ±180
+    if (angle > 180.0 && angle < 180.0 + EPSILON)
+        return 180.0;
+    if (angle < -180.0 && angle > -180.0 - EPSILON)
+        return -180.0;
+
+    while (angle > 180.0)
+        angle -= 360.0;
+    while (angle < -180.0)
+        angle += 360.0;
+
+    return angle;
+}
+
+/**
+ * @brief Normalize an angle to the range [0, 180].
+ *
+ * Used for turn magnitude calculations where direction doesn't matter.
+ *
+ * @param angle Angle in degrees
+ * @return Normalized angle in [0, 180]
+ */
+inline double normalizeAngle0To180(double angle)
+{
+    // Clamp values very close to boundaries
+    if (angle > 180.0 && angle < 180.0 + EPSILON)
+        return 180.0;
+    if (angle < 0.0 && angle > -EPSILON)
+        return 0.0;
+
+    while (angle > 180.0)
+        angle -= 360.0;
+    while (angle < 0.0)
+        angle += 360.0;
+
+    // If still > 180 after normalization to [0, 360), take supplement
+    if (angle > 180.0)
+        angle = 360.0 - angle;
+
+    return angle;
+}
+
+} // namespace AngleUtils
+
+/**
  * @namespace ThreadConfig
  * @brief Thread pool configuration utilities for controlling parallelism.
  *
