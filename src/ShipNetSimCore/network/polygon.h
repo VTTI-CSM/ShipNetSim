@@ -182,16 +182,6 @@ private:
      */
     bool crossesAntimeridian() const;
 
-    /**
-     * @brief Normalize longitude to [0, 360) range.
-     *
-     * Used internally for antimeridian crossing calculations.
-     *
-     * @param lon Longitude in degrees
-     * @return Normalized longitude in [0, 360) range
-     */
-    static double normalizeLongitude360(double lon);
-
     // =========================================================================
     // Constructors
     // =========================================================================
@@ -273,6 +263,17 @@ public:
      * @return true if point is within or on any hole
      */
     bool isPointWithinInteriorRings(const GPoint &pointToCheck) const;
+
+    /**
+     * @brief Find which interior ring (hole) contains a point.
+     *
+     * Returns the index of the hole containing the point, or -1 if
+     * the point is not in any hole.
+     *
+     * @param pointToCheck The point to test
+     * @return Index of containing hole (0-based), or -1 if not in any hole
+     */
+    int findContainingHoleIndex(const GPoint &pointToCheck) const;
 
     /**
      * @brief Check if a point is within the polygon (excluding holes).
