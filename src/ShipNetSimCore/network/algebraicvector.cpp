@@ -12,6 +12,7 @@
  */
 
 #include "algebraicvector.h" // Include AlgebraicVector class definition
+#include "../utils/utils.h"  // Include angle normalization utilities
 #include <QDebug>            // Include debugging utilities
 #include <cmath>             // Include mathematical functions
 
@@ -177,10 +178,8 @@ void AlgebraicVector::rotateToTargetByMaxROT(
     auto diff               = targetOrientation - currentOrientation;
 
     // Normalize difference to be within [-180, 180] degrees
-    while (diff.value() < -180)
-        diff += units::angle::degree_t(360);
-    while (diff.value() > 180)
-        diff -= units::angle::degree_t(360);
+    diff = units::angle::degree_t(
+        AngleUtils::normalizeAngleDifference(diff.value()));
 
     // Calculate allowable change in orientation
     auto orientationChange = maxROTPerSec * deltaTime.value();
@@ -233,12 +232,8 @@ AlgebraicVector::angleTo(const Point &otherPoint) const
     double angleDifference = targetAngle - currentAngle;
 
     // Normalize angle to be within [-180, 180] degrees
-    while (angleDifference > 180.0)
-        angleDifference -= 360.0;
-    while (angleDifference < -180.0)
-        angleDifference += 360.0;
-
-    return units::angle::degree_t(angleDifference);
+    return units::angle::degree_t(
+        AngleUtils::normalizeAngleDifference(angleDifference));
 }
 
 AlgebraicVector::Environment AlgebraicVector::getEnvironment() const
