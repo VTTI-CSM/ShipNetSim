@@ -16,6 +16,7 @@
 
 #include "polygon.h"
 #include "../utils/gdal_compat.h"
+#include "../utils/utils.h"
 #include "qdebug.h"
 #include <GeographicLib/Geodesic.hpp>
 #include <GeographicLib/PolygonArea.hpp>
@@ -154,19 +155,6 @@ void Polygon::validateRing(const OGRLinearRing &ring, const QString &description
                                      " is degenerate: points are collinear.");
         }
     }
-}
-
-double Polygon::normalizeLongitude360(double lon)
-{
-    while (lon < 0.0)
-    {
-        lon += 360.0;
-    }
-    while (lon >= 360.0)
-    {
-        lon -= 360.0;
-    }
-    return lon;
 }
 
 // =============================================================================
@@ -353,6 +341,11 @@ bool Polygon::isPointWithinExteriorRing(const GPoint &pointToCheck) const
 
 bool Polygon::isPointWithinInteriorRings(const GPoint &pointToCheck) const
 {
+    return findContainingHoleIndex(pointToCheck) >= 0;
+}
+
+int Polygon::findContainingHoleIndex(const GPoint &pointToCheck) const
+{
     const OGRPoint p = pointToCheck.getGDALPoint();
 
     for (int i = 0; i < mPolygon.getNumInteriorRings(); ++i)
@@ -361,15 +354,15 @@ bool Polygon::isPointWithinInteriorRings(const GPoint &pointToCheck) const
 
         if (r->isPointOnRingBoundary(&p, TRUE))
         {
-            return true;
+            return i;
         }
         if (r->isPointInRing(&p, TRUE))
         {
-            return true;
+            return i;
         }
     }
 
-    return false;
+    return -1;
 }
 
 bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
@@ -379,7 +372,7 @@ bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
     {
         double pointLon     = pointToCheck.getLongitude().value();
         double pointLat     = pointToCheck.getLatitude().value();
-        double normPointLon = normalizeLongitude360(pointLon);
+        double normPointLon = AngleUtils::normalizeLongitude360(pointLon);
 
         auto *ring = mPolygon.getExteriorRing();
         if (!ring)
@@ -391,7 +384,7 @@ bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
         OGRLinearRing normRing;
         for (int i = 0; i < ring->getNumPoints(); ++i)
         {
-            double normLon = normalizeLongitude360(ring->getX(i));
+            double normLon = AngleUtils::normalizeLongitude360(ring->getX(i));
             normRing.addPoint(normLon, ring->getY(i));
         }
 
@@ -408,7 +401,7 @@ bool Polygon::isPointWithinPolygon(const GPoint &pointToCheck) const
 
                 for (int i = 0; i < hole->getNumPoints(); ++i)
                 {
-                    double normLon = normalizeLongitude360(hole->getX(i));
+                    double normLon = AngleUtils::normalizeLongitude360(hole->getX(i));
                     normHole.addPoint(normLon, hole->getY(i));
                 }
 
@@ -785,15 +778,8 @@ bool Polygon::isSegmentPassingThroughHole(
         double lat = startLat * (1.0 - t) + endLat * t;
         double lon = startLon * (1.0 - t) + adjustedEndLon * t;
 
-        // Normalize longitude
-        while (lon > 180.0)
-        {
-            lon -= 360.0;
-        }
-        while (lon < -180.0)
-        {
-            lon += 360.0;
-        }
+        // Normalize longitude using centralized function with epsilon tolerance
+        lon = AngleUtils::normalizeLongitude(lon);
 
         // Optimized: pass coordinates directly instead of creating GPoint
         if (isPointInHoleByCoords(lon, lat, holeIndex))
