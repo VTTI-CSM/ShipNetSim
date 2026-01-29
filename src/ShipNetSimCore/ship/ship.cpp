@@ -3056,7 +3056,9 @@ Ship::distanceToFinishFromPathNodeIndex(qsizetype i)
         return units::length::meter_t(0.0);
     }
 
-    auto passedLength = mLinksCumLengths[i - 1];
+    auto passedLength = (i > 0)
+                            ? mLinksCumLengths[i - 1]
+                            : units::length::meter_t(0);
     return mLinksCumLengths.back() - passedLength;
 }
 
@@ -3073,9 +3075,8 @@ Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
         emit errorOccurred(errorMsg);
         qFatal("%s", qPrintable(errorMsg));
     }
-    if (startIndex < 0 || endIndex >= mLinksCumLengths.size())
+    if (startIndex < 0 || endIndex > mLinksCumLengths.size())
     {
-
         QString errorMsg =
             QString("Ship ID: %1 - Node indices should "
                     "be within zero and node path size!")
@@ -3092,7 +3093,7 @@ Ship::distanceToNodePathIndexFromPathNodeIndex(qsizetype startIndex,
     auto passedLength = (startIndex > 0)
                             ? mLinksCumLengths[startIndex - 1]
                             : units::length::meter_t(0);
-    return mLinksCumLengths[endIndex] - passedLength;
+    return mLinksCumLengths[endIndex - 1] - passedLength;
 }
 
 units::length::meter_t
@@ -3424,16 +3425,9 @@ bool Ship::isShipOnCorrectPath() const
         mCurrentState.angleTo(*currentTarget);
 
     // Normalize heading difference to [-180, 180]
-    units::angle::degree_t headingDifference =
-        courseToTarget - currentHeading;
-    while (headingDifference.value() > 180.0)
-    {
-        headingDifference -= units::angle::degree_t(360.0);
-    }
-    while (headingDifference.value() <= -180.0)
-    {
-        headingDifference += units::angle::degree_t(360.0);
-    }
+    units::angle::degree_t headingDifference = units::angle::degree_t(
+        AngleUtils::normalizeAngleDifference(
+            (courseToTarget - currentHeading).value()));
 
     // Calculate turning parameters
     bool                   isApproachingTurn = false;
@@ -3447,15 +3441,9 @@ bool Ship::isShipOnCorrectPath() const
             mCurrentState.angleTo(*nextTarget);
 
         // Normalize turn angle to [-180, 180]
-        turnAngle = courseToNextTarget - courseToTarget;
-        while (turnAngle.value() > 180.0)
-        {
-            turnAngle -= units::angle::degree_t(360.0);
-        }
-        while (turnAngle.value() <= -180.0)
-        {
-            turnAngle += units::angle::degree_t(360.0);
-        }
+        turnAngle = units::angle::degree_t(
+            AngleUtils::normalizeAngleDifference(
+                (courseToNextTarget - courseToTarget).value()));
 
         // Calculate theoretical turn start distance
         units::length::meter_t turnStartDistance =
@@ -3486,15 +3474,11 @@ bool Ship::isShipOnCorrectPath() const
         // to align with next target
         if (nextTarget)
         {
-            units::angle::degree_t headingToNextTarget =
-                units::math::abs(mCurrentState.angleTo(*nextTarget)
-                                 - currentHeading);
-
-            // Normalize to [-180, 180]
-            while (headingToNextTarget.value() > 180.0)
-            {
-                headingToNextTarget -= units::angle::degree_t(360.0);
-            }
+            // Calculate and normalize heading difference to next target
+            double rawDiff = (mCurrentState.angleTo(*nextTarget)
+                             - currentHeading).value();
+            units::angle::degree_t headingToNextTarget = units::angle::degree_t(
+                std::abs(AngleUtils::normalizeAngleDifference(rawDiff)));
 
             // If we're aligning with next target, we're still on path
             if (std::abs(headingToNextTarget.value())
@@ -3697,14 +3681,9 @@ void Ship::processTravelledDistance(
         // target
         units::angle::degree_t turningAngleInDegrees =
             mCurrentState.angleTo(*nextTarget);
-        while (turningAngleInDegrees.value() > 180.0)
-        {
-            turningAngleInDegrees -= units::angle::degree_t(360);
-        }
-        while (turningAngleInDegrees.value() < 0.0)
-        {
-            turningAngleInDegrees += units::angle::degree_t(360);
-        }
+        // Normalize to [0, 180] range using centralized utility
+        turningAngleInDegrees = units::angle::degree_t(
+            AngleUtils::normalizeAngle0To180(turningAngleInDegrees.value()));
         auto turningAngleInRad =
             turningAngleInDegrees.convert<units::angle::radian>();
 
