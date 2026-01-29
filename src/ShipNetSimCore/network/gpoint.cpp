@@ -19,6 +19,7 @@
 #include "point.h"
 #include "qendian.h"
 #include "../utils/gdal_compat.h"
+#include "../utils/utils.h"
 #include <GeographicLib/Geodesic.hpp>
 #include <ogr_geometry.h>
 #include <ogr_spatialref.h>
@@ -92,31 +93,6 @@ double normalizeLatitude(double lat)
         }
     }
     return lat;
-}
-
-/**
- * @brief Normalize longitude to the range [-180, 180].
- *
- * Wraps longitude values that exceed the valid range.
- * For example, 270 degrees becomes -90 degrees.
- *
- * @param lon Raw longitude value in degrees
- * @return Normalized longitude in [-180, 180]
- */
-double normalizeLongitude(double lon)
-{
-    while (lon > 180.0 || lon < -180.0)
-    {
-        if (lon > 180.0)
-        {
-            lon -= 360.0;
-        }
-        else if (lon < -180.0)
-        {
-            lon += 360.0;
-        }
-    }
-    return lon;
 }
 
 /**
@@ -266,7 +242,7 @@ void GPoint::setLatitude(units::angle::degree_t lat)
 
 void GPoint::setLongitude(units::angle::degree_t lon)
 {
-    mOGRPoint.setX(normalizeLongitude(lon.value()));
+    mOGRPoint.setX(AngleUtils::normalizeLongitude(lon.value()));
 }
 
 // =============================================================================
