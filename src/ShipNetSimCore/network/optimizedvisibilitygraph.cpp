@@ -1266,21 +1266,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         if (*current == *endNavPoint)
         {
             qDebug() << "Dijkstra: Reached navigation end point";
-
-            // If end nav point is different from actual end, add
-            // final connection
-            if (*endNavPoint != *end)
-            {
-                initializeDistance(end);
-                double finalDist =
-                    dist[endNavPoint]
-                    + endNavPoint->distance(*end).value();
-                if (finalDist < dist[end])
-                {
-                    dist[end] = finalDist;
-                    prev[end] = endNavPoint;
-                }
-            }
             break;
         }
 
@@ -1391,10 +1376,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
 
     // Determine which end point to use for reconstruction
     std::shared_ptr<GPoint> pathEndPoint = endNavPoint;
-    if (*endNavPoint != *end && prev.find(end) != prev.end())
-    {
-        pathEndPoint = end; // Use actual end if we found a path to it
-    }
 
     // Check if we found a path
     if (prev.find(pathEndPoint) == prev.end()
@@ -1409,18 +1390,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
     qDebug() << "Dijkstra: Reconstructing path to"
              << pathEndPoint->toString();
     auto result = reconstructPath(prev, pathEndPoint);
-
-    // If we used navigation points, prepend/append the actual
-    // start/end
-    if (*startNavPoint != *start && !result.points.isEmpty())
-    {
-        result.points.prepend(start);
-        if (!result.lines.isEmpty())
-        {
-            result.lines.prepend(
-                std::make_shared<GLine>(start, result.points[1]));
-        }
-    }
 
     return result;
 }
@@ -1716,21 +1685,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         if (*current == *endNavPoint)
         {
             qDebug() << "A*: Reached navigation end point";
-
-            // If end nav point is different from actual end, add
-            // final connection
-            if (*endNavPoint != *end)
-            {
-                initializeScores(end);
-                double finalGScore =
-                    gScore[endNavPoint]
-                    + endNavPoint->distance(*end).value();
-                if (finalGScore < gScore[end])
-                {
-                    gScore[end]   = finalGScore;
-                    cameFrom[end] = endNavPoint;
-                }
-            }
             break;
         }
 
@@ -1865,10 +1819,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
 
     // Determine which end point to use for reconstruction
     std::shared_ptr<GPoint> pathEndPoint = endNavPoint;
-    if (*endNavPoint != *end && cameFrom.find(end) != cameFrom.end())
-    {
-        pathEndPoint = end; // Use actual end if we found a path to it
-    }
 
     // Check if we found a path
     if (cameFrom.find(pathEndPoint) == cameFrom.end()
@@ -1883,18 +1833,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     qDebug() << "A*: Reconstructing path to"
              << pathEndPoint->toString();
     auto result = reconstructPath(cameFrom, pathEndPoint);
-
-    // If we used navigation points, prepend/append the actual
-    // start/end
-    if (*startNavPoint != *start && !result.points.isEmpty())
-    {
-        result.points.prepend(start);
-        if (!result.lines.isEmpty())
-        {
-            result.lines.prepend(
-                std::make_shared<GLine>(start, result.points[1]));
-        }
-    }
 
     return result;
 }
