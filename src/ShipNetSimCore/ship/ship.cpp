@@ -1,5 +1,6 @@
 #include "ship.h"
 #include "../../third_party/units/units.h"
+#include "../network/dubinspathsmoother.h"
 #include "../network/gpoint.h"
 #include "../network/seaportloader.h"
 #include "../utils/utils.h"
@@ -1717,17 +1718,28 @@ void Ship::setPath(const QVector<std::shared_ptr<GPoint>> points,
                       "in the middle of the trip!";
     }
 
-    mPathPoints      = points;
-    mPathLines       = lines;
+    // Create path result for smoothing
+    ShortestPathResult rawPath{lines, points};
+
+    // Configure Dubins path smoothing with ship-specific turning radius
+    DubinsSmoothingConfig smoothConfig;
+    smoothConfig.turningRadius = calcTurningRadius();
+    smoothConfig.arcStepSize = units::length::meter_t(5.0);
+    smoothConfig.minTurnAngle = units::angle::degree_t(5.0);
+    smoothConfig.allowRadiusReduction = true;
+    smoothConfig.minRadius = units::length::meter_t(50.0);
+
+    // Apply path smoothing
+    ShortestPathResult smoothedPath =
+        DubinsPathSmoother::smoothPath(rawPath, smoothConfig);
+
+    mPathPoints      = smoothedPath.points;
+    mPathLines       = smoothedPath.lines;
     mLinksCumLengths = generateCumLinesLengths();
     mTotalPathLength = mLinksCumLengths.back();
     mCurrentState =
         GAlgebraicVector(*(mPathPoints.at(0)), *(mPathPoints.at(1)));
     computeStoppingPointIndices();
-
-    qDebug() << "Ship ID:" << mShipUserID << "Setting path with"
-             << points.size() << "points and" << lines.size()
-             << "lines.";
 }
 
 std::shared_ptr<GPoint> Ship::startPoint()
@@ -1780,7 +1792,7 @@ void Ship::enableCommunications()
 
 units::angle::degree_t Ship::getCurrentHeading() const
 {
-    return mCurrentState.getVectorAzimuth();
+    return mCurrentState.getCourse();
 }
 
 GPoint Ship::getCurrentTarget()
@@ -3108,6 +3120,13 @@ Ship::distanceFromCurrentPositionToNodePathIndex(qsizetype endIndex)
         emit errorOccurred(errorMsg);
         qFatal("%s", qPrintable(errorMsg));
     }
+
+    // Guard: if already at or past the last point, return 0
+    if (mPreviousPathPointIndex + 1 >= mPathPoints.size())
+    {
+        return units::length::meter_t(0.0);
+    }
+
     qsizetype nextIndex = mPreviousPathPointIndex + 1;
     auto      rest      = (nextIndex == endIndex)
                               ? units::length::meter_t(0.0)
@@ -3126,6 +3145,9 @@ double Ship::progress()
     // if the ship reached its destination, return 1.0
     if (isReachedDestination())
         return 1.0;
+    // if at or past the last point, return 1.0
+    if (mPreviousPathPointIndex + 1 >= mPathPoints.size())
+        return 1.0;
 
     // if neither, calculate the progress
 
@@ -3141,62 +3163,6 @@ double Ship::progress()
     return ((mLinksCumLengths.back().value() - cumToFinish.value())
             / mLinksCumLengths.back().value());
 }
-
-// units::velocity::meters_per_second_t Ship::getCurrentMaxSpeed()
-// {
-//     return mPathLines[mPreviousPathPointIndex]->getMaxSpeed();
-// }
-
-// QHash<qsizetype, units::velocity::meters_per_second_t>
-// Ship::getAheadLowerSpeeds(qsizetype nextStopIndex)
-// {
-//     if (mLowerSpeedLinkIndex.isEmpty() ||
-//         mLowerSpeedLinkIndex[mPreviousPathPointIndex].isEmpty() ||
-//         mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex].empty())
-//     {
-//         QHash<qsizetype, units::velocity::meters_per_second_t>
-//             lowerSpeedMapping;
-
-//         for(qsizetype i = mPreviousPathPointIndex + 1;
-//              i < mPathLines.size(); ++i)
-//         {
-//             const auto& currentLine = mPathLines[i];
-//             const auto& previousLine = mPathLines[i - 1];
-
-//             // if(currentLine->getMaxSpeed() <
-//             previousLine->getMaxSpeed())
-//             // {
-//             //     lowerSpeedMapping.insert(i,
-//             currentLine->getMaxSpeed());
-//             // }
-//         }
-
-//         // resize mLowerSpeedLinkIndex to store the calculated
-//         values if (mLowerSpeedLinkIndex.size() - 1 <=
-//         mPreviousPathPointIndex)
-//         {
-//             mLowerSpeedLinkIndex.resize(mPreviousPathPointIndex +
-//             1);
-//         }
-//         if (mLowerSpeedLinkIndex[mPreviousPathPointIndex].size() -
-//         1 <=
-//             nextStopIndex)
-//         {
-//             mLowerSpeedLinkIndex[mPreviousPathPointIndex].resize(
-//                 nextStopIndex + 1);
-//         }
-//         mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex]
-//         =
-//             lowerSpeedMapping;
-//         return lowerSpeedMapping;
-//     }
-//     else
-//     {
-//         return
-//         mLowerSpeedLinkIndex[mPreviousPathPointIndex][nextStopIndex];
-//     }
-
-// }
 
 void Ship::computeStoppingPointIndices()
 {
@@ -3279,110 +3245,6 @@ void Ship::setStepTravelledDistance(units::length::meter_t distance,
     }
 }
 
-// Point Ship::getPositionByTravelledDistance(
-//     units::length::meter_t newTotalDistance)
-// {
-//     if (newTotalDistance >= mTotalPathLength)
-//     {
-//         return *(mPathPoints.back());
-//     }
-//     // Initialize a Point object, assuming Point is
-//     default-constructible. Point result;
-
-//     for (qsizetype i = mPreviousPathPointIndex;
-//          i < mLinksCumLengths.size();
-//          ++i)
-//     {
-//         if (mLinksCumLengths[i] >= newTotalDistance)
-//         {
-//             // Update previousPathPointIndex to the index of the
-//             highest value
-//             // that is lower than newTotalDistance.
-//             mPreviousPathPointIndex = (i == 0) ? 0 : i - 1;
-//             break;
-//         }
-//     }
-
-//     if (mPreviousPathPointIndex >= mLinksCumLengths.size())
-//     {
-//         // If no such value exists, then all elements in
-//         // mLinksCumLengths are lower than newTotalDistance.
-//         // In this case, set previousPathPointIndex to the
-//         // last index in mLinksCumLengths.
-//         if (!mLinksCumLengths.empty())
-//         {
-//             mPreviousPathPointIndex = mLinksCumLengths.size() - 1;
-//         }
-//     }
-
-//     units::length::meter_t remainingDistance;
-//     if (mPreviousPathPointIndex == 0)
-//     {
-//         remainingDistance = mTraveledDistance;
-//     }
-//     else
-//     {
-//         remainingDistance =
-//             mTraveledDistance -
-//             mLinksCumLengths[mPreviousPathPointIndex - 1];
-//     }
-
-//     // Calculate the current coordinates based on the
-//     // line and traveled distance. This assumes that
-//     // getPointByDistance returns a Point when provided with
-//     // the remaining distance and a starting point.
-//     result =
-//     mPathLines[mPreviousPathPointIndex]->getPointByDistance(
-//         remainingDistance,
-//         mPathPoints[mPreviousPathPointIndex]
-//         );
-
-//     return result;
-// }
-
-// bool Ship::isShipOnCorrectPath()
-// {
-//     return true;
-//     // // No path or single point path, consider it on path
-//     // if (mPathPoints.size() < 2) return true;
-
-//     // units::length::meter_t positionTolerance =
-//     units::length::meter_t(10.0);
-//     // units::angle::degree_t orientationTolerance =
-//     units::angle::degree_t(5.0);
-//     // auto currentPosition = mCurrentState.getCurrentPosition();
-//     // auto currentOrientation =
-//     mCurrentState.getOrientationWithRespectToTarget();
-
-//     // for(int i = 0; i < mPathPoints.size() - 1; i++)
-//     // {
-//     //     auto startPoint = mPathPoints[i];
-//     //     auto endPoint = mPathPoints[i + 1];
-
-//     //     auto l = Line(startPoint, endPoint);
-//     //     // Check Positional Deviation
-//     //     auto distance =
-//     l.getPerpendicularDistance(currentPosition);
-
-//     //     if (distance > positionTolerance) {
-//     //         return false; // Positional deviation is too high
-//     //     }
-
-//     //     // Check Orientation Deviation
-//     //     auto pathSegmentOrientation =
-//     //
-//     l.toAlgebraicVector(startPoint).getOrientationWithRespectToTarget();
-//     //     auto orientationDifference =
-//     //         units::math::abs((currentOrientation -
-//     pathSegmentOrientation));
-//     //     if (orientationDifference > orientationTolerance) {
-//     //         return false; // Orientation deviation is too high
-//     //     }
-//     // }
-
-//     // return true; // The ship is on path
-// }
-
 bool Ship::isShipOnCorrectPath() const
 {
     // If we have no path or only one point, consider the ship on path
@@ -3391,10 +3253,16 @@ bool Ship::isShipOnCorrectPath() const
         return true;
     }
 
+    // If at or past the last point, consider the ship on path
+    if (mPreviousPathPointIndex + 1 >= mPathPoints.size())
+    {
+        return true;
+    }
+
     // Get current state
     GPoint currentPos = mCurrentState.getCurrentPosition();
     units::angle::degree_t currentHeading =
-        mCurrentState.getVectorAzimuth();
+        mCurrentState.getCourse();
 
     // Get current and next path points
     std::shared_ptr<GPoint> currentTarget =
@@ -3508,91 +3376,6 @@ bool Ship::isShipStillMoving()
     return mIsShipMoving;
 }
 
-// void Ship::handleStepDistanceChanged(units::length::meter_t
-// newTotalDistance,
-//                                      units::time::second_t
-//                                      timeStep) {
-//     if (mPathPoints.size() < 2) {
-//         qWarning() << "Path is empty or has only one point. "
-//                       "No movement will occur.";
-//         return;
-//     }
-
-//     QVector<std::shared_ptr<GLine>> pathLines;
-
-//     // update the ton.km
-//     mTotalCargoTonKm += mCargoWeight * newTotalDistance;
-
-//     // Get current target and next target
-//     std::shared_ptr<GPoint> currentTarget =
-//         mPathPoints[mPreviousPathPointIndex + 1];
-//     std::shared_ptr<GPoint> nextTarget = nullptr;
-
-//     if (mPreviousPathPointIndex + 2 <= mPathPoints.size() - 1) {
-//         nextTarget = mPathPoints[mPreviousPathPointIndex + 2];
-//     }
-
-//     // Calculate turning parameters
-//     auto r = calcTurningRadius();
-//     auto distanceToTarget =
-//         mCurrentState.getCurrentPosition().distance(*currentTarget);
-
-//     if (nextTarget) {
-//         // Calculate turn parameters
-//         units::angle::degree_t turningAngleInDegrees =
-//             mCurrentState.angleTo(*nextTarget);
-
-//         // Normalize angle to [0, 180]
-//         while (turningAngleInDegrees.value() > 180.0) {
-//             turningAngleInDegrees -= units::angle::degree_t(180);
-//         }
-//         while (turningAngleInDegrees.value() < 0.0) {
-//             turningAngleInDegrees += units::angle::degree_t(180);
-//         }
-
-//         auto turningAngleInRad =
-//             turningAngleInDegrees.convert<units::angle::radian>();
-
-//         // Check if ship is moving almost straight
-//         if (turningAngleInDegrees.value() > (180.0 -
-//         mRudderAngle.value()) &&
-//             turningAngleInDegrees.value() < (180.0 +
-//             mRudderAngle.value())) { r =
-//             units::length::meter_t(0.0);
-//         }
-
-//         auto distanceToStartTurning =
-//             r * std::tan(turningAngleInRad.value() / 2.0);
-
-//         // Handle turning point transition
-//         if (distanceToTarget <= distanceToStartTurning) {
-//             auto maxROT = calcMaxROT(r);
-//             mCurrentState.setTargetAndMaxROT(*nextTarget, maxROT);
-//         }
-
-//         // Increment mPreviousPathPointIndex if passing the target
-//         if (distanceToTarget <= newTotalDistance) {
-//             mPreviousPathPointIndex++;
-//         }
-//     }
-
-//     // Move the ship
-//     mCurrentState.moveByDistance(newTotalDistance, timeStep);
-
-//     // Update visualization lines
-//     updatePathLines(pathLines);
-
-//     // Check for path deviation
-//     // if (!isShipOnCorrectPath()) {
-//     //     emit pathDeviation("Ship is deviating from Path");
-//     // }
-
-//     // Emit position update with full remaining path
-//     emit positionUpdated(mCurrentState.getCurrentPosition(),
-//                          mCurrentState.getVectorAzimuth(),
-//                          pathLines);
-// }
-
 void Ship::updatePathLines(QVector<std::shared_ptr<GLine>> &pathLines)
 {
     // Clear existing path lines
@@ -3648,6 +3431,15 @@ void Ship::processTravelledDistance(
     units::length::meter_t stepTravelledDistance,
     units::time::second_t  timeStep)
 {
+    // -----------------------------------------------------------------------
+    // 0) Guard: Check if we've already reached the final destination
+    // -----------------------------------------------------------------------
+    if (mPreviousPathPointIndex >= mPathPoints.size() - 1)
+    {
+        qWarning() << "  -> GUARD TRIGGERED: Already at final point";
+        return;
+    }
+
     // -----------------------------------------------------------------------
     // 1) Retrieve current and next targets, and distance to current
     // target
@@ -3729,264 +3521,70 @@ void Ship::processTravelledDistance(
     }
     else
     {
-
         // Set the current target
         mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
 
-        // If there is enough distance remaining to reach the target,
-        // update orientation and move the ship to the target
-        mCurrentState.moveByDistance(stepTravelledDistance, timeStep);
+        // Check if we would overshoot the current target
+        if (stepTravelledDistance >= distanceToCurrentTarget)
+        {
+            // Move only to the target, not past it
+            mCurrentState.moveByDistance(distanceToCurrentTarget, timeStep);
+
+            // Always increment index when we reach a waypoint
+            mPreviousPathPointIndex++;
+
+            // If there's a next target and remaining distance, continue
+            if (nextTarget)
+            {
+                auto remainingDistance =
+                    stepTravelledDistance - distanceToCurrentTarget;
+
+                if (remainingDistance > units::length::meter_t(0.0))
+                {
+                    processTravelledDistance(remainingDistance, timeStep);
+                    return; // Exit to avoid duplicate signal emission
+                }
+            }
+            else
+            {
+                // Emit final position update before stopping
+                QVector<std::shared_ptr<GLine>> pathLines;
+                updatePathLines(pathLines);
+                emit positionUpdated(mCurrentState.getCurrentPosition(),
+                                     mCurrentState.getCourse(), pathLines);
+                return; // Stop processing - we've arrived at destination
+            }
+        }
+        else
+        {
+            // Before moving, check if we're heading towards the target
+            // by checking the angle between heading and direction to target
+            units::angle::degree_t angleToTarget =
+                mCurrentState.angleTo(*currentTarget);
+
+            // If angle > 90 degrees, we're heading away from target
+            // In that case, just rotate towards target without moving forward
+            if (std::abs(angleToTarget.value()) > 90.0)
+            {
+                // Just rotate towards target, don't move forward
+                // This will be handled in the next timestep
+                mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
+                // Perform rotation without movement
+                mCurrentState.moveByDistance(units::length::meter_t(0.0), timeStep);
+            }
+            else
+            {
+                // Normal case - ship is heading towards target, move forward
+                mCurrentState.moveByDistance(stepTravelledDistance, timeStep);
+            }
+        }
     }
 
     QVector<std::shared_ptr<GLine>> pathLines;
     updatePathLines(pathLines);
     emit positionUpdated(mCurrentState.getCurrentPosition(),
-                         mCurrentState.getVectorAzimuth(), pathLines);
+                         mCurrentState.getCourse(), pathLines);
 }
-
-// // this has a problem here. if the ship needs to turn in
-// // raduis that is large and the line length is very short,
-// // the ship may not be able to rotate appropiately
-// void Ship::handleStepDistanceChanged(units::length::meter_t
-// newTotalDistance,
-//                                      units::time::second_t
-//                                      timeStep)
-// {
-//     // Check if the path has less than two points,
-//     // if so, the ship cannot move.
-//     if (mPathPoints.size() < 2) {
-//         qWarning() << "Path is empty or has only one point."
-//                       " No movement will occur.";
-//         return;
-//     }
-
-//     QVector<std::shared_ptr<GLine>> pathLines = {};
-
-//     // update the ton.km
-//     mTotalCargoTonKm += mCargoWeight * newTotalDistance;
-
-//     // Obtain the current target point from the path.
-//     std::shared_ptr<GPoint> currentTarget =
-//         mPathPoints[mPreviousPathPointIndex + 1];
-
-//     // Calculate the distance at which the ship should start
-//     turning auto r = calcTurningRadius();
-
-//     // get the next target
-//     if (mPreviousPathPointIndex + 2 > mPathPoints.size() - 1)
-//     {
-
-//         auto maxROT = calcMaxROT(r);
-//         mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
-//         mCurrentState.moveByDistance(newTotalDistance, timeStep);
-//         std::shared_ptr<GPoint> currentPoint =
-//             std::make_shared<GPoint>(mCurrentState.getCurrentPosition());
-//         auto l = std::make_shared<GLine>(currentPoint,
-//         currentTarget); pathLines.push_back(l); emit
-//         positionUpdated(mCurrentState.getCurrentPosition(),
-//                              mCurrentState.getVectorAzimuth(),
-//                              pathLines);
-//         return;
-//     }
-//     std::shared_ptr<GPoint> nextTarget =
-//         mPathPoints[mPreviousPathPointIndex + 2];
-
-//     // Calculate the remaining distance to the target point.
-//     units::length::meter_t distanceToTarget =
-//         mCurrentState.getCurrentPosition().distance(*currentTarget);
-
-//     // calculate the angle between the ship orientation and next
-//     target units::angle::degree_t turningAngleInDegrees =
-//         mCurrentState.angleTo(*nextTarget);
-//     while (turningAngleInDegrees.value() > 180.0)
-//     {
-//         turningAngleInDegrees -= units::angle::degree_t(180);
-//     }
-//     while (turningAngleInDegrees.value() < 0.0)
-//     {
-//         turningAngleInDegrees += units::angle::degree_t(180);
-//     }
-//     auto turningAngleInRad =
-//         turningAngleInDegrees.convert<units::angle::radian>();
-
-//     // Check if turningAngleInDegrees is within [150, 210] degrees
-//     range if(turningAngleInDegrees.value() > (180.0 -
-//     mRudderAngle.value()) &&
-//         turningAngleInDegrees.value() < (180.0 +
-//         mRudderAngle.value()))
-//     {
-//         // If ship is moving almost in straight line,
-//         // set turning radius to zero
-//         r = units::length::meter_t(0.0);
-//     }
-
-//     auto distanceToStartTurning =
-//         r * std::tan(turningAngleInRad.value() / 2.0);
-
-//     // if the distance to target is less than
-//     // the required distance to turn, do the turn immediately
-//     if (distanceToTarget <= distanceToStartTurning)
-//     {
-//         // Move to the next segment
-//         mPreviousPathPointIndex++;
-
-//         // If there are more points in the path,
-//         // update the orientation before moving to the next segment
-//         if (mPreviousPathPointIndex < mPathPoints.size() - 2)
-//         {
-//             std::shared_ptr<GPoint> newTarget =
-//                 mPathPoints[mPreviousPathPointIndex + 1];
-//             auto maxROT = calcMaxROT(r);
-//             mCurrentState.setTargetAndMaxROT(*newTarget, maxROT);
-//         }
-
-//         // If there is enough distance remaining to reach the
-//         target,
-//         // update orientation and move the ship to the target
-//         mCurrentState.moveByDistance(newTotalDistance, timeStep);
-
-//         emit positionUpdated(mCurrentState.getCurrentPosition(),
-//                              mCurrentState.getVectorAzimuth(),
-//                              pathLines);
-
-//     }
-//     else
-//     {
-//         // Move only by the remaining distance,
-//         // and adjust the position and orientation accordingly
-//         mCurrentState.moveByDistance(newTotalDistance, timeStep);
-
-//         emit positionUpdated(mCurrentState.getCurrentPosition(),
-//                              mCurrentState.getVectorAzimuth(),
-//                              pathLines);
-//         newTotalDistance = units::length::meter_t(0.0);
-//     }
-
-//     // Similar logic applies for the last point in the path
-//     if (mPreviousPathPointIndex == mPathPoints.size() - 2)
-//     {
-//         std::shared_ptr<GPoint> lastPoint = mPathPoints.last();
-//         units::length::meter_t distanceToLast =
-//             mCurrentState.getCurrentPosition().distance(*lastPoint);
-
-//         if (newTotalDistance >= distanceToLast)
-//         {
-//             mCurrentState.moveByDistance(distanceToLast, timeStep);
-//         }
-//         else
-//         {
-//             mCurrentState.moveByDistance(newTotalDistance,
-//             timeStep);
-//         }
-//     }
-
-//     // Emit a signal if the ship is deviating from the correct path
-//     if (!isShipOnCorrectPath())
-//     {
-//         emit pathDeviation("Ship is deviating from Path");
-//     }
-// }
-
-// void Ship::handleStepDistanceChanged(units::length::meter_t
-// newTotalDistance,
-//                                      units::time::second_t
-//                                      timeStep)
-//{
-//     // Check for empty path or single-point path
-//     if (mPathPoints.size() < 2) {
-//         qWarning() << "Path is empty or has only one point. "
-//                       "No movement will occur.";
-//         return;
-//     }
-
-//    while (newTotalDistance > units::length::meter_t(0.0) &&
-//           mPreviousPathPointIndex < mPathPoints.size() - 2)
-//    {
-//        // Calculate remaining distance to the target
-//        std::shared_ptr<Point> currentTarget =
-//            mPathPoints[mPreviousPathPointIndex + 1];
-
-//        units::length::meter_t distanceToTarget =
-//            mCurrentState.getCurrentPosition().distance(*currentTarget);
-
-//        if (newTotalDistance >= distanceToTarget) {
-//            // Move to the current target point
-//            mCurrentState.moveByDistance(distanceToTarget,
-//            timeStep);
-
-//            // Update to next point in path
-//            mPreviousPathPointIndex++;
-
-//            // Deduct the distance to current target from remaining
-//            distance newTotalDistance -= distanceToTarget;
-
-//            // Update orientation before moving, if there is another
-//            target if (mPreviousPathPointIndex < mPathPoints.size()
-//            - 2)
-//            {
-//                std::shared_ptr<Point> newTarget =
-//                    mPathPoints[mPreviousPathPointIndex + 1];
-//                // assuming the ship does not reduce speed while
-//                turning auto r = calcTurningRaduis(); auto maxROT =
-//                calcMaxROT(r);
-//                mCurrentState.setTargetAndMaxROT(*newTarget,
-//                maxROT);
-//            }
-//        }
-//        else
-//        {
-//            // If remaining distance is less than the distance to
-//            the target,
-//            // move only by the remaining distance
-//            mCurrentState.moveByDistance(newTotalDistance,
-//            timeStep); newTotalDistance =
-//            units::length::meter_t(0.0);
-//        }
-//    }
-
-//    // If mPreviousPathPointIndex is size() - 2,
-//    // then simply move to the last point
-//    if (mPreviousPathPointIndex == mPathPoints.size() - 2)
-//    {
-//        std::shared_ptr<Point> lastPoint = mPathPoints.last();
-//        units::length::meter_t distanceToLast =
-//            mCurrentState.getCurrentPosition().distance(*lastPoint);
-
-//        if (newTotalDistance >= distanceToLast)
-//        {
-//            mCurrentState.moveByDistance(distanceToLast, timeStep);
-//        }
-//        else
-//        {
-//            // In this scenario, we shouldn't be here but just to be
-//            safe. mCurrentState.moveByDistance(newTotalDistance,
-//            timeStep);
-//        }
-//    }
-
-//    if (!isShipOnCorrectPath())
-//    {
-//        emit pathDeviation("Ship is deviating from Path");
-//    }
-//}
-
-// units::velocity::meters_per_second_t
-// Ship::calc_shallowWaterSpeedReduction(
-//     units::velocity::meters_per_second_t speed,
-//     units::length::meter_t waterDepth)
-//{
-//     return units::velocity::meters_per_second_t(
-//         ((0.1242 *
-//               (mMidshipSectionCoef /
-//                std::pow(waterDepth.value(),2.0) ) -
-//           0.05) +
-//          1.0 -
-//          std::sqrt(
-//              std::tanh(mCurrentLink->depth().value() *
-//                        hydrology::G.value() /
-//                        std::pow(speed.value(),2.0)))) *
-//                        speed.value());
-// }
 
 units::angle::degree_t
 Ship::calcMaxROT(units::length::meter_t turnRaduis) const
