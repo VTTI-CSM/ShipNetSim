@@ -1,237 +1,241 @@
 /**
  * @file galgebraicvector.cpp
- *
  * @brief Implementation of the GAlgebraicVector class.
- *
- * This file contains the implementation of the GAlgebraicVector
- * class, which is used to represent a vector in a 3D space with
- * additional functionalities such as rotation and translation.
- *
  * @author Ahmed Aredah
  * @date 10.12.2023
  */
 
-#include "galgebraicvector.h" // Include GAlgebraicVector class definition
+#include "galgebraicvector.h"
 #include "gline.h"
 #include "gpoint.h"
-#include <QDebug> // Include debugging utilities
-#include <cmath>  // Include mathematical functions
+#include "../utils/utils.h"
+#include <QDebug>
+#include <cmath>
 
 namespace ShipNetSimCore
 {
-// Default constructor
+
+// =============================================================================
+// Constructors
+// =============================================================================
+
 GAlgebraicVector::GAlgebraicVector()
 {
-    // Initialize position with default value (0.0, 0.0)
-    // Initialize orientation with default value
-    // This represents a vector pointing along the y-axis.
-    std::shared_ptr<GPoint> currentPos =
-        std::make_shared<GPoint>(GPoint(units::angle::degree_t(0.0),
-                                        units::angle::degree_t(0.0)));
-    std::shared_ptr<GPoint> targetPos =
-        std::make_shared<GPoint>(GPoint(units::angle::degree_t(1.0),
-                                        units::angle::degree_t(0.0)));
+    // Initialize at origin facing north (toward lat 1°)
+    auto currentPos = std::make_shared<GPoint>(
+        GPoint(units::angle::degree_t(0.0), units::angle::degree_t(0.0)));
+    auto targetPos = std::make_shared<GPoint>(
+        GPoint(units::angle::degree_t(1.0), units::angle::degree_t(0.0)));
 
-    mCurrentHeadingVector        = GLine(currentPos, targetPos);
-    mCurrentHeadingVector_backup = mCurrentHeadingVector;
-
-    mCurrentCourse = units::angle::degree_t(0.0);
-    // Initialize rotation status to false
-    mIsRotating = false;
+    mNavigationLine        = GLine(currentPos, targetPos);
+    mNavigationLine_backup = mNavigationLine;
+    mCurrentCourse         = units::angle::degree_t(0.0);
+    mIsRotating            = false;
 }
 
-// Constructor with start and end points
 GAlgebraicVector::GAlgebraicVector(const GPoint  startPoint,
                                    const GPoint &endPoint)
 {
-    // Set position to startPoint
-    std::shared_ptr<GPoint> currentPos =
-        std::make_shared<GPoint>(startPoint);
-    std::shared_ptr<GPoint> targetPos =
-        std::make_shared<GPoint>(endPoint);
+    auto currentPos = std::make_shared<GPoint>(startPoint);
+    auto targetPos  = std::make_shared<GPoint>(endPoint);
 
-    mCurrentHeadingVector        = GLine(currentPos, targetPos);
-    mCurrentHeadingVector_backup = mCurrentHeadingVector;
-
-    mCurrentCourse = mCurrentHeadingVector.forwardAzimuth();
-
-    // Initialize rotation status to false
-    mIsRotating = false;
+    mNavigationLine        = GLine(currentPos, targetPos);
+    mNavigationLine_backup = mNavigationLine;
+    mCurrentCourse         = mNavigationLine.forwardAzimuth();
+    mIsRotating            = false;
 }
 
-// Check if the vector is rotating
-bool GAlgebraicVector::isRotating() const
-{
-    return mIsRotating; // Return rotation status
-}
+// =============================================================================
+// Position & Heading
+// =============================================================================
 
-// Get getAngleToTarget angle in degrees
-units::angle::degree_t GAlgebraicVector::getAngleToTarget() const
-{
-    return mCurrentCourse - mCurrentHeadingVector.forwardAzimuth();
-}
-
-// Set target point and maximum rate of turn
-void GAlgebraicVector::setTargetAndMaxROT(
-    const GPoint &target, units::angle::degree_t maxROTPerSec)
-{
-    // Set target point
-    std::shared_ptr<GPoint> targetPos =
-        std::make_shared<GPoint>(target);
-    mCurrentHeadingVector.setEndPoint(targetPos);
-    mCurrentHeadingVector_backup.setEndPoint(targetPos);
-
-    // Set maximum rate of turn
-    mMaxROTPerSec_ = maxROTPerSec;
-}
-
-GPoint GAlgebraicVector::getTarget()
-{
-    return *mCurrentHeadingVector.endPoint();
-}
-
-// Set orientation based on end point
-void GAlgebraicVector::setHeadingByEndPoint(const GPoint &endPoint)
-{
-    std::shared_ptr<GPoint> ePoint =
-        std::make_shared<GPoint>(endPoint);
-    mCurrentHeadingVector.setEndPoint(ePoint);
-    mCurrentHeadingVector_backup.setEndPoint(ePoint);
-
-    // Set orientation based on endPoint
-    mCurrentCourse = mCurrentHeadingVector.forwardAzimuth();
-}
-
-units::angle::degree_t GAlgebraicVector::getVectorAzimuth() const
-{
-    return mCurrentHeadingVector.forwardAzimuth();
-}
-
-// Move by a specified distance
-void GAlgebraicVector::moveByDistance(units::length::meter_t distance,
-                                      units::time::second_t  timeStep)
-{
-    // Perform rotation to the target by max ROT
-    rotateToTargetByMaxROT(*mCurrentHeadingVector.endPoint(),
-                           mMaxROTPerSec_, timeStep);
-    mCurrentHeadingVector_backup = mCurrentHeadingVector;
-
-    if (mIsUpdating)
-    {
-        std::shared_ptr<GPoint> newCurrentPos =
-            std::make_shared<GPoint>(
-                mCurrentHeadingVector.startPoint()
-                    ->pointAtDistanceAndHeading(distance,
-                                                mCurrentCourse));
-
-        mCurrentHeadingVector.setStartPoint(newCurrentPos);
-    }
-    else
-    {
-        std::shared_ptr<GPoint> newCurrentPos =
-            std::make_shared<GPoint>(
-                mCurrentHeadingVector.startPoint()
-                    ->pointAtDistanceAndHeading(distance,
-                                                mCurrentCourse));
-
-        mCurrentHeadingVector_backup.setStartPoint(newCurrentPos);
-    }
-}
-
-// Get current position
 GPoint GAlgebraicVector::getCurrentPosition() const
 {
-    return *mCurrentHeadingVector
-                .startPoint(); // Return current position
+    return *mNavigationLine.startPoint();
 }
 
 void GAlgebraicVector::setCurrentPosition(GPoint newPosition)
 {
-    auto newStartPoint = std::make_shared<GPoint>(newPosition);
+    auto newStartPoint     = std::make_shared<GPoint>(newPosition);
+    auto currentStartPoint = mNavigationLine.startPoint();
+    auto currentEndPoint   = mNavigationLine.endPoint();
 
-    // Get the current start and end points
-    auto currentStartPoint = mCurrentHeadingVector.startPoint();
-    auto currentEndPoint   = mCurrentHeadingVector.endPoint();
-
-    // Calculate the direction vector (end - start)
+    // Calculate direction vector (end - start) to preserve target direction
     GPoint directionVector = *currentEndPoint - *currentStartPoint;
 
-    // Set the new start point
-    mCurrentHeadingVector.setStartPoint(newStartPoint);
+    // Set new start point
+    mNavigationLine.setStartPoint(newStartPoint);
 
-    // Calculate and set the new end point (new start + direction
-    // vector)
+    // Update end point to maintain relative target position
     GPoint newEndPoint    = *newStartPoint + directionVector;
     auto   newEndPointPtr = std::make_shared<GPoint>(newEndPoint);
-    mCurrentHeadingVector.setEndPoint(newEndPointPtr);
+    mNavigationLine.setEndPoint(newEndPointPtr);
 }
 
-// Rotate to target point within maximum allowable rate of turn
-void GAlgebraicVector::rotateToTargetByMaxROT(
-    const GPoint &target, units::angle::degree_t maxROTPerSec,
-    units::time::second_t deltaTime)
+units::angle::degree_t GAlgebraicVector::getCourse() const
 {
-    // Calculate difference between current and target orientations
-    auto angleDiff = getAngleToTarget();
-
-    // Calculate allowable change in orientation
-    auto maxOrientationChange = maxROTPerSec * deltaTime.value();
-
-    // Check if difference is within allowable change
-    if (std::abs(angleDiff.value()) < maxOrientationChange.value())
-    {
-        setHeadingByEndPoint(target);
-        mIsRotating = false; // No longer rotating
-        return;
-    }
-
-    // Otherwise, rotate by maximum allowable amount
-    mIsRotating = true; // Still rotating
-    if (angleDiff.value() > 0)
-    {
-        // if angle between current heading and target heading is +ve,
-        // reduce it so we reach the target
-        mCurrentCourse -= maxOrientationChange;
-    }
-    else
-    {
-        // if angle between current heading and target heading is -ve,
-        // increase it so we reach the target
-        mCurrentCourse += maxOrientationChange;
-    }
+    return mCurrentCourse;
 }
 
-// Calculate angle to another point
+bool GAlgebraicVector::isRotating() const
+{
+    return mIsRotating;
+}
+
+// =============================================================================
+// Target & Navigation
+// =============================================================================
+
+GPoint GAlgebraicVector::getTarget()
+{
+    return *mNavigationLine.endPoint();
+}
+
+void GAlgebraicVector::setTargetAndMaxROT(const GPoint          &target,
+                                          units::angle::degree_t maxROTPerSec)
+{
+    auto targetPos = std::make_shared<GPoint>(target);
+    mNavigationLine.setEndPoint(targetPos);
+    mNavigationLine_backup.setEndPoint(targetPos);
+    mMaxROTPerSec = maxROTPerSec;
+}
+
+units::angle::degree_t GAlgebraicVector::getAngleToTarget() const
+{
+    // Calculate raw angle difference between course and direction to target
+    double diff = mCurrentCourse.value() -
+                  mNavigationLine.forwardAzimuth().value();
+
+    // Normalize to [-180, 180] for correct antimeridian handling
+    return units::angle::degree_t(AngleUtils::normalizeAngleDifference(diff));
+}
+
 units::angle::degree_t
 GAlgebraicVector::angleTo(const GPoint &otherPoint) const
 {
-    GLine l = GLine(mCurrentHeadingVector.startPoint(),
-                    std::make_shared<GPoint>(otherPoint));
-    return mCurrentHeadingVector.smallestAngleWith(l);
+    GLine lineToPoint = GLine(mNavigationLine.startPoint(),
+                              std::make_shared<GPoint>(otherPoint));
+    return mNavigationLine.smallestAngleWith(lineToPoint);
 }
+
+// =============================================================================
+// Movement
+// =============================================================================
+
+void GAlgebraicVector::moveByDistance(units::length::meter_t distance,
+                                      units::time::second_t  timeStep)
+{
+    // Step 1: Rotate toward target (limited by max ROT)
+    rotateToTargetByMaxROT(*mNavigationLine.endPoint(), mMaxROTPerSec, timeStep);
+    mNavigationLine_backup = mNavigationLine;
+
+    // Step 2: Move forward along current course
+    auto newCurrentPos = std::make_shared<GPoint>(
+        mNavigationLine.startPoint()->pointAtDistanceAndHeading(
+            distance, mCurrentCourse));
+
+    if (mIsUpdating)
+    {
+        mNavigationLine.setStartPoint(newCurrentPos);
+    }
+    else
+    {
+        mNavigationLine_backup.setStartPoint(newCurrentPos);
+    }
+}
+
+// =============================================================================
+// Environment
+// =============================================================================
 
 AlgebraicVector::Environment GAlgebraicVector::getEnvironment() const
 {
     return mStateEnv;
 }
 
-void GAlgebraicVector::setEnvironment(
-    const AlgebraicVector::Environment env)
+void GAlgebraicVector::setEnvironment(const AlgebraicVector::Environment env)
 {
     mStateEnv = env;
 }
+
+// =============================================================================
+// GPS State (Cyber Attack Simulation)
+// =============================================================================
 
 void GAlgebraicVector::setGPSUpdateState(bool isUpdating)
 {
     if (isUpdating && !mIsUpdating)
     {
-        mCurrentHeadingVector = mCurrentHeadingVector_backup;
+        // Recovering from GPS spoofing - restore backup
+        mNavigationLine = mNavigationLine_backup;
     }
     mIsUpdating = isUpdating;
 }
 
 void GAlgebraicVector::restoreLatestCorrectPosition()
 {
-    mCurrentHeadingVector = mCurrentHeadingVector_backup;
+    mNavigationLine = mNavigationLine_backup;
 }
+
+// =============================================================================
+// Private Methods
+// =============================================================================
+
+void GAlgebraicVector::setHeadingByEndPoint(const GPoint &endPoint)
+{
+    auto ePoint = std::make_shared<GPoint>(endPoint);
+    mNavigationLine.setEndPoint(ePoint);
+    mNavigationLine_backup.setEndPoint(ePoint);
+
+    // Skip course update if endpoint is at same location (antimeridian portal)
+    constexpr double MIN_HEADING_DISTANCE_M = 1.0;
+    auto distanceToEndPoint = getCurrentPosition().distance(endPoint);
+    if (distanceToEndPoint.value() < MIN_HEADING_DISTANCE_M)
+    {
+        return;  // Maintain current heading
+    }
+
+    mCurrentCourse = mNavigationLine.forwardAzimuth();
+}
+
+void GAlgebraicVector::rotateToTargetByMaxROT(const GPoint          &target,
+                                              units::angle::degree_t maxROTPerSec,
+                                              units::time::second_t  deltaTime)
+{
+    // Skip rotation if target is at same location (antimeridian portal points)
+    constexpr double MIN_ROTATION_DISTANCE_M = 1.0;
+    auto distanceToTarget = getCurrentPosition().distance(target);
+    if (distanceToTarget.value() < MIN_ROTATION_DISTANCE_M)
+    {
+        mIsRotating = false;
+        return;
+    }
+
+    auto angleDiff            = getAngleToTarget();
+    auto maxOrientationChange = maxROTPerSec * deltaTime.value();
+
+    // Check if we can reach target heading this timestep
+    if (std::abs(angleDiff.value()) < maxOrientationChange.value())
+    {
+        setHeadingByEndPoint(target);
+        mIsRotating = false;
+        return;
+    }
+
+    // Rotate by maximum allowable amount
+    mIsRotating = true;
+    if (angleDiff.value() > 0)
+    {
+        mCurrentCourse -= maxOrientationChange;  // Turn port (left)
+    }
+    else
+    {
+        mCurrentCourse += maxOrientationChange;  // Turn starboard (right)
+    }
+
+    // Normalize course to [0, 360)
+    mCurrentCourse = units::angle::degree_t(
+        AngleUtils::normalizeLongitude360(mCurrentCourse.value()));
+}
+
 }; // namespace ShipNetSimCore
