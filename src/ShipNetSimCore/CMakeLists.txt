@@ -48,6 +48,7 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   network/gline.h network/gline.cpp
   network/galgebraicvector.h network/galgebraicvector.cpp
   network/seaport.h network/seaport.cpp
+  network/dubinspathsmoother.h network/dubinspathsmoother.cpp
   utils/updatechecker.h utils/updatechecker.cpp
   network/networkdefaults.h
   utils/shipscommon.h
