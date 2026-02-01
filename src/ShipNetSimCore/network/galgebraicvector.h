@@ -112,7 +112,7 @@ public:
 
     /**
      * @brief Gets angle difference between current course and target direction.
-     * @return Angle in degrees [-180, 180]. Positive = target is to starboard.
+     * @return Angle in degrees [-180, 180]. Positive = target is to port (left).
      * @note Normalized to handle antimeridian crossing correctly.
      */
     units::angle::degree_t getAngleToTarget() const;

@@ -113,9 +113,15 @@ units::angle::degree_t GAlgebraicVector::getAngleToTarget() const
 units::angle::degree_t
 GAlgebraicVector::angleTo(const GPoint &otherPoint) const
 {
-    GLine lineToPoint = GLine(mNavigationLine.startPoint(),
-                              std::make_shared<GPoint>(otherPoint));
-    return mNavigationLine.smallestAngleWith(lineToPoint);
+    // Azimuth from current position to the other point
+    double azimuthToPoint =
+        getCurrentPosition().forwardAzimuth(otherPoint).value();
+
+    // Difference between direction to point and current heading
+    double diff = azimuthToPoint - mCurrentCourse.value();
+
+    // Normalize to [-180, 180]
+    return units::angle::degree_t(AngleUtils::normalizeAngleDifference(diff));
 }
 
 // =============================================================================
