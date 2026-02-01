@@ -3,8 +3,10 @@
 #include <QQueue>
 #include <QSet>
 #include <functional>
+#include <queue>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace ShipNetSimCore
 {
@@ -1199,8 +1201,19 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         prev;
     std::unordered_map<std::shared_ptr<GPoint>, double, GPoint::Hash,
                        GPoint::Equal>
-                                                         dist;
-    std::set<std::pair<double, std::shared_ptr<GPoint>>> queue;
+        dist;
+
+    // Use priority_queue with lazy deletion pattern (no removeFromQueue needed)
+    // Min-heap: smallest distance at top
+    std::priority_queue<
+        std::pair<double, std::shared_ptr<GPoint>>,
+        std::vector<std::pair<double, std::shared_ptr<GPoint>>>,
+        std::greater<std::pair<double, std::shared_ptr<GPoint>>>>
+        pq;
+
+    // Visited set for O(1) "already processed" check (lazy deletion)
+    std::unordered_set<std::shared_ptr<GPoint>, GPoint::Hash, GPoint::Equal>
+        visited;
 
     // Lambda for safe distance initialization
     auto initializeDistance =
@@ -1211,25 +1224,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
             }
         };
 
-    // Lambda for removing point from queue
-    auto removeFromQueue = [&queue](
-                               const std::shared_ptr<GPoint> &point) {
-        auto it = std::find_if(
-            queue.begin(), queue.end(),
-            [&point](const std::pair<double, std::shared_ptr<GPoint>>
-                         &element) {
-                return *(element.second) == *point;
-            });
-        if (it != queue.end())
-        {
-            queue.erase(it);
-        }
-    };
-
     // Initialize start point
     initializeDistance(startNavPoint);
     dist[startNavPoint] = 0.0;
-    queue.insert({0.0, startNavPoint});
+    pq.push({0.0, startNavPoint});
 
     // Add end point to ensure it's tracked
     initializeDistance(endNavPoint);
@@ -1248,19 +1246,17 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         initializeDistance(end);
     }
 
-    while (!queue.empty())
+    while (!pq.empty())
     {
-        auto currentPair = *queue.begin();
-        queue.erase(queue.begin());
+        auto [currentDist, current] = pq.top();
+        pq.pop();
 
-        std::shared_ptr<GPoint> current     = currentPair.second;
-        double                  currentDist = currentPair.first;
-
-        // Skip if we've already found a better path
-        if (currentDist > dist[current])
+        // LAZY DELETION: Skip if already visited (stale entry in queue)
+        if (visited.count(current))
         {
             continue;
         }
+        visited.insert(current);
 
         // Check if we reached the navigation end point
         if (*current == *endNavPoint)
@@ -1302,13 +1298,15 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
             else
             {
                 // Get visible nodes from ALL containing polygons
+                // Use visited set to avoid duplicates efficiently
                 for (const auto &poly : containingPolygons)
                 {
                     auto nodesInPoly =
                         getVisibleNodesWithinPolygon(current, poly);
                     for (const auto &node : nodesInPoly)
                     {
-                        if (!visibleNodes.contains(node))
+                        // Skip already visited nodes (O(1) check)
+                        if (!visited.count(node))
                         {
                             visibleNodes.append(node);
                         }
@@ -1320,12 +1318,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
             // if visible
             // isVisible has its own internal locking
             if (*current != *endNavPoint
+                && !visited.count(endNavPoint)
                 && isVisible(current, endNavPoint))
             {
-                if (!visibleNodes.contains(endNavPoint))
-                {
-                    visibleNodes.append(endNavPoint);
-                }
+                visibleNodes.append(endNavPoint);
             }
 
             // If this is the start nav point and different from
@@ -1359,6 +1355,12 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
         // Process all neighbors
         for (const auto &neighbor : visibleNodes)
         {
+            // Skip already visited nodes
+            if (visited.count(neighbor))
+            {
+                continue;
+            }
+
             initializeDistance(neighbor);
 
             double edgeWeight = current->distance(*neighbor).value();
@@ -1366,10 +1368,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathDijkstra(
 
             if (alt < dist[neighbor])
             {
-                removeFromQueue(neighbor);
+                // No removeFromQueue needed - lazy deletion handles stale entries
                 dist[neighbor] = alt;
                 prev[neighbor] = current;
-                queue.insert({dist[neighbor], neighbor});
+                pq.push({alt, neighbor});
             }
         }
     }
@@ -1619,10 +1621,22 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     std::unordered_map<std::shared_ptr<GPoint>, double, GPoint::Hash,
                        GPoint::Equal>
         gScore;
-    std::unordered_map<std::shared_ptr<GPoint>, double, GPoint::Hash,
-                       GPoint::Equal>
-                                                         fScore;
-    std::set<std::pair<double, std::shared_ptr<GPoint>>> openSet;
+
+    // Use priority_queue with lazy deletion pattern (no removeFromOpenSet needed)
+    // Min-heap: smallest fScore at top
+    std::priority_queue<
+        std::pair<double, std::shared_ptr<GPoint>>,
+        std::vector<std::pair<double, std::shared_ptr<GPoint>>>,
+        std::greater<std::pair<double, std::shared_ptr<GPoint>>>>
+        openSet;
+
+    // Visited set for O(1) "already processed" check (lazy deletion)
+    std::unordered_set<std::shared_ptr<GPoint>, GPoint::Hash, GPoint::Equal>
+        closedSet;
+
+    // Heuristic scale factor to ensure admissibility
+    // Geodesic distance may overestimate when obstacles force detours
+    constexpr double HEURISTIC_SCALE = 0.7;
 
     // Lambda for safe score initialization
     auto initializeScores =
@@ -1631,33 +1645,19 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             {
                 gScore[point] =
                     std::numeric_limits<double>::infinity();
-                fScore[point] =
-                    std::numeric_limits<double>::infinity();
             }
         };
 
-    // Lambda for removing point from openSet
-    auto removeFromOpenSet =
-        [&openSet](const std::shared_ptr<GPoint> &point) {
-            auto it = std::find_if(
-                openSet.begin(), openSet.end(),
-                [&point](
-                    const std::pair<double, std::shared_ptr<GPoint>>
-                        &element) {
-                    return *(element.second) == *point;
-                });
-            if (it != openSet.end())
-            {
-                openSet.erase(it);
-            }
-        };
+    // Heuristic function (scaled geodesic distance for admissibility)
+    auto heuristic = [&](const std::shared_ptr<GPoint> &point) {
+        return point->distance(*endNavPoint).value() * HEURISTIC_SCALE;
+    };
 
     // Initialize start point
     initializeScores(startNavPoint);
     gScore[startNavPoint] = 0.0;
-    fScore[startNavPoint] =
-        startNavPoint->distance(*endNavPoint).value();
-    openSet.insert({fScore[startNavPoint], startNavPoint});
+    double startFScore = gScore[startNavPoint] + heuristic(startNavPoint);
+    openSet.push({startFScore, startNavPoint});
 
     // Initialize end point
     initializeScores(endNavPoint);
@@ -1676,10 +1676,15 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     while (!openSet.empty())
     {
         // Get the node in openSet having the lowest fScore value
-        auto currentPair = *openSet.begin();
-        openSet.erase(openSet.begin());
+        auto [currentFScore, current] = openSet.top();
+        openSet.pop();
 
-        std::shared_ptr<GPoint> current = currentPair.second;
+        // LAZY DELETION: Skip if already in closed set (stale entry)
+        if (closedSet.count(current))
+        {
+            continue;
+        }
+        closedSet.insert(current);
 
         // Check if we reached the navigation end point
         if (*current == *endNavPoint)
@@ -1722,13 +1727,15 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             else
             {
                 // Get visible nodes from ALL containing polygons
+                // Use closedSet to avoid duplicates efficiently
                 for (const auto &poly : containingPolygons)
                 {
                     auto nodesInPoly =
                         getVisibleNodesWithinPolygon(current, poly);
                     for (const auto &node : nodesInPoly)
                     {
-                        if (!neighbors.contains(node))
+                        // Skip already processed nodes (O(1) check)
+                        if (!closedSet.count(node))
                         {
                             neighbors.append(node);
                         }
@@ -1740,12 +1747,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             // if visible
             // isVisible has its own internal locking
             if (*current != *endNavPoint
+                && !closedSet.count(endNavPoint)
                 && isVisible(current, endNavPoint))
             {
-                if (!neighbors.contains(endNavPoint))
-                {
-                    neighbors.append(endNavPoint);
-                }
+                neighbors.append(endNavPoint);
             }
 
             // If this is the start nav point and different from
@@ -1788,6 +1793,12 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         // Process all neighbors
         for (const auto &neighbor : neighbors)
         {
+            // Skip already processed nodes
+            if (closedSet.count(neighbor))
+            {
+                continue;
+            }
+
             // Initialize neighbor scores if needed
             initializeScores(neighbor);
 
@@ -1801,18 +1812,16 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
                 // This path is the best until now. Record it!
                 cameFrom[neighbor] = current;
                 gScore[neighbor]   = tentative_gScore;
-                fScore[neighbor] =
-                    gScore[neighbor]
-                    + neighbor->distance(*endNavPoint).value();
+                double neighborFScore =
+                    gScore[neighbor] + heuristic(neighbor);
 
-                // Update openSet (remove old entry, add new one)
-                removeFromOpenSet(neighbor);
-                openSet.insert({fScore[neighbor], neighbor});
+                // No removeFromOpenSet needed - lazy deletion handles stale entries
+                openSet.push({neighborFScore, neighbor});
 
                 qDebug()
                     << "A*: Updated neighbor" << neighbor->toString()
                     << "gScore=" << gScore[neighbor]
-                    << "fScore=" << fScore[neighbor];
+                    << "fScore=" << neighborFScore;
             }
         }
     }
