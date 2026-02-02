@@ -8,6 +8,7 @@
 #include <queue>
 #include <stack>
 #include <thread>
+#include <unordered_set>
 
 namespace ShipNetSimCore
 {
@@ -1259,6 +1260,61 @@ bool Quadtree::segmentIntersectsRange(
            || segment->intersects(bottomEdge)
            || segment->intersects(leftEdge)
            || segment->intersects(rightEdge);
+}
+
+QVector<std::shared_ptr<GPoint>>
+Quadtree::findVerticesInRange(const QRectF &range) const
+{
+    // Get segments in the range using existing range query
+    auto segments = rangeQuery(range);
+
+    // Extract range bounds for point filtering
+    double minLon = range.left();
+    double maxLon = range.right();
+    double minLat = range.top();
+    double maxLat = range.bottom();
+
+    // Handle QRectF coordinate system (top < bottom in screen coords,
+    // but we use geographic where lat increases upward)
+    if (minLat > maxLat)
+    {
+        std::swap(minLat, maxLat);
+    }
+
+    // Use unordered_set with custom hash/equal for deduplication
+    std::unordered_set<std::shared_ptr<GPoint>, GPoint::Hash, GPoint::Equal>
+        uniqueVertices;
+
+    // Lambda to check if a point is within the range
+    auto isPointInRange = [&](const std::shared_ptr<GPoint> &point) -> bool {
+        double lon = point->getLongitude().value();
+        double lat = point->getLatitude().value();
+        return lon >= minLon && lon <= maxLon &&
+               lat >= minLat && lat <= maxLat;
+    };
+
+    // Extract unique vertices from segments
+    for (const auto &segment : segments)
+    {
+        if (isPointInRange(segment->startPoint()))
+        {
+            uniqueVertices.insert(segment->startPoint());
+        }
+        if (isPointInRange(segment->endPoint()))
+        {
+            uniqueVertices.insert(segment->endPoint());
+        }
+    }
+
+    // Convert to QVector
+    QVector<std::shared_ptr<GPoint>> result;
+    result.reserve(uniqueVertices.size());
+    for (const auto &vertex : uniqueVertices)
+    {
+        result.append(vertex);
+    }
+
+    return result;
 }
 
 std::shared_ptr<GLine> Quadtree::findNearestNeighbor(

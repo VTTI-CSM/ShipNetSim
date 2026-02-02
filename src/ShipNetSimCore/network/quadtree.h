@@ -318,6 +318,23 @@ public:
      */
     QVector<std::shared_ptr<GLine>>
     rangeQueryParallel(const QRectF &range) const;
+
+    /**
+     * @brief Finds all unique vertices within a rectangular range.
+     *
+     * This function uses range query to find segments in the specified
+     * area, then extracts and returns unique vertices (segment endpoints)
+     * that fall within the range. Useful for finding polygon vertices
+     * in a specific geographic region without iterating all polygons.
+     *
+     * @param range The rectangular area to search within (in degrees).
+     *              Format: QRectF(minLon, minLat, width, height)
+     * @return A vector of unique points whose coordinates fall within
+     *         the range.
+     */
+    QVector<std::shared_ptr<GPoint>>
+    findVerticesInRange(const QRectF &range) const;
+
     /**
      * @brief Finds the nearest line segment to a given point.
      * @param point The reference point for the search.
