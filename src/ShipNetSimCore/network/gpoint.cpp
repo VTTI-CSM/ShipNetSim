@@ -100,25 +100,33 @@ double normalizeLatitude(double lat)
  *
  * @param point The OGRPoint to assign the SR to
  * @param crc The optional custom spatial reference
+ *
+ * @note For performance, when using the default WGS84 reference, we assign
+ *       the shared static reference directly rather than cloning it.
+ *       OGRSpatialReference::Clone() is extremely expensive (involves PROJ
+ *       library operations), and during pathfinding millions of temporary
+ *       GPoints may be created. The shared static reference has a longer
+ *       lifetime than any GPoint, so this is safe.
  */
 void assignSpatialReference(OGRPoint &point, const OGRSpatialReference &crc)
 {
-    OGRSpatialReference *sr = nullptr;
-
     if (!crc.IsEmpty())
     {
+        // Custom spatial reference - must clone for ownership
         if (!crc.IsGeographic())
         {
             throw std::runtime_error("Spatial reference must be geodetic!");
         }
-        sr = crc.Clone();
+        OGRSpatialReference *sr = crc.Clone();
+        point.assignSpatialReference(sr);
     }
     else
     {
-        sr = GPoint::getDefaultReprojectionReference()->Clone();
+        // Default WGS84 - use shared static reference directly (no clone!)
+        // This is safe because the static spatialRef outlives all GPoints
+        auto defaultSR = GPoint::getDefaultReprojectionReference();
+        point.assignSpatialReference(defaultSR.get());
     }
-
-    point.assignSpatialReference(sr);
 }
 
 }  // anonymous namespace
