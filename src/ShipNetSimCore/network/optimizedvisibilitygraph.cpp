@@ -51,12 +51,6 @@ OptimizedVisibilityGraph::OptimizedVisibilityGraph(
     {
         quadtree         = std::make_unique<Quadtree>(polygons);
         enableWrapAround = true;
-
-        // Build antimeridian portal connections for water navigation
-        if (enableWrapAround && mBoundaryType == BoundariesType::Water)
-        {
-            buildAntimeridianPortals();
-        }
     }
     catch (const std::exception &e)
     {
@@ -123,15 +117,6 @@ void OptimizedVisibilityGraph::setPolygons(
         quadtree->clearTree();
     }
     polygons = newPolygons;
-
-    // Rebuild antimeridian portals for water navigation
-    if (enableWrapAround && mBoundaryType == BoundariesType::Water)
-    {
-        // Need to release lock before calling buildAntimeridianPortals
-        // which calls isSegmentVisible that needs the lock
-        locker.unlock();
-        buildAntimeridianPortals();
-    }
 }
 
 QVector<std::shared_ptr<GPoint>>
@@ -148,11 +133,26 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
     // Prepare tasks
     QVector<std::shared_ptr<GPoint>> tasks;
 
+    // Pre-extract node coordinates for bounding box checks
+    double nodeLon = node->getLongitude().value();
+    double nodeLat = node->getLatitude().value();
+
     // For water navigation, only get vertices from polygons where this node
     // is either on the boundary (ringsContain) or inside (isPointWithinPolygon)
     // This prevents trying to connect to unrelated polygons
     for (const auto &polygon : allPolygons)
     {
+        // Quick bounding box check first - skip polygons where node
+        // is clearly outside
+        double minLon, maxLon, minLat, maxLat;
+        polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
+
+        if (nodeLon < minLon || nodeLon > maxLon ||
+            nodeLat < minLat || nodeLat > maxLat)
+        {
+            continue;  // Node outside polygon bounding box - skip
+        }
+
         // Check if node is part of this polygon (boundary or inside)
         bool isPartOfPolygon = polygon->ringsContain(node)
                                || polygon->isPointWithinPolygon(*node);
@@ -160,18 +160,18 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
         if (!isPartOfPolygon)
             continue;
 
-        // Add outer boundary points
-        const auto outerPoints = polygon->outer();
-        std::copy_if(outerPoints.begin(), outerPoints.end(),
-                     std::back_inserter(tasks),
-                     [&node](const auto &p) { return *p != *node; });
+        // Use QuadTree range query to find vertices within polygon bounds
+        // This is O(log n + k) instead of O(v) for iterating all vertices
+        QRectF searchRange(minLon, minLat,
+                           maxLon - minLon, maxLat - minLat);
+        auto nearbyVertices = quadtree->findVerticesInRange(searchRange);
 
-        // Add hole points
-        for (const auto &hole : polygon->inners())
+        for (const auto &vertex : nearbyVertices)
         {
-            std::copy_if(
-                hole.begin(), hole.end(), std::back_inserter(tasks),
-                [&node](const auto &p) { return *p != *node; });
+            if (*vertex != *node)
+            {
+                tasks.append(vertex);
+            }
         }
     }
 
@@ -216,23 +216,24 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
     // the same node can have different visible neighbors depending on
     // which polygon is being checked. The caller handles merging results.
 
-    // Prepare points list (exclude node itself)
-    // Include both outer boundary points AND hole vertices
-    // (for water polygons, holes are islands - ships navigate around them)
+    // Use QuadTree range query to find vertices within polygon bounds
+    // This is O(log n + k) instead of O(v+h) for iterating all vertices
+    double minLon, maxLon, minLat, maxLat;
+    polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
+
+    QRectF searchRange(minLon, minLat,
+                       maxLon - minLon, maxLat - minLat);
+    auto nearbyVertices = quadtree->findVerticesInRange(searchRange);
+
+    // Filter to exclude the node itself
     QVector<std::shared_ptr<GPoint>> candidates;
-
-    // Add outer boundary points
-    const auto &outerPoints = polygon->outer();
-    std::copy_if(outerPoints.begin(), outerPoints.end(),
-                 std::back_inserter(candidates),
-                 [&node](const auto &p) { return *p != *node; });
-
-    // Add hole vertices (island corners for navigation waypoints)
-    for (const auto &hole : polygon->inners())
+    candidates.reserve(nearbyVertices.size());
+    for (const auto &vertex : nearbyVertices)
     {
-        std::copy_if(hole.begin(), hole.end(),
-                     std::back_inserter(candidates),
-                     [&node](const auto &p) { return *p != *node; });
+        if (*vertex != *node)
+        {
+            candidates.append(vertex);
+        }
     }
 
     // Parallel visibility check with limited thread pool
@@ -314,237 +315,6 @@ bool OptimizedVisibilityGraph::shouldCrossAntimeridian(
     double directDiff = std::abs(goalLon - startLon);
     // If direct path > 180 degrees, wrap-around is shorter
     return directDiff > 180.0;
-}
-
-void OptimizedVisibilityGraph::buildAntimeridianPortals()
-{
-    mEastPortalVertices.clear();
-    mWestPortalVertices.clear();
-
-    // Collect vertices near antimeridian from all polygons
-    for (const auto &polygon : polygons)
-    {
-        if (!polygon)
-            continue;
-
-        // Process outer boundary
-        for (const auto &vertex : polygon->outer())
-        {
-            if (!vertex)
-                continue;
-            double lon = vertex->getLongitude().value();
-            if (lon >= (180.0 - PORTAL_ZONE_DEGREES))
-            {
-                mEastPortalVertices.append(vertex);
-            }
-            else if (lon <= (-180.0 + PORTAL_ZONE_DEGREES))
-            {
-                mWestPortalVertices.append(vertex);
-            }
-        }
-
-        // Process holes (islands)
-        for (const auto &hole : polygon->inners())
-        {
-            for (const auto &vertex : hole)
-            {
-                if (!vertex)
-                    continue;
-                double lon = vertex->getLongitude().value();
-                if (lon >= (180.0 - PORTAL_ZONE_DEGREES))
-                {
-                    mEastPortalVertices.append(vertex);
-                }
-                else if (lon <= (-180.0 + PORTAL_ZONE_DEGREES))
-                {
-                    mWestPortalVertices.append(vertex);
-                }
-            }
-        }
-    }
-
-    qDebug() << "Antimeridian portals: Found" << mEastPortalVertices.size()
-             << "east vertices and" << mWestPortalVertices.size()
-             << "west vertices from polygons";
-
-    // =========================================================================
-    // Generate synthetic portal vertices at regular latitude intervals
-    // This ensures ships can cross the antimeridian at any latitude where
-    // there is water, not just where polygon vertices happen to exist.
-    // =========================================================================
-    const double SYNTHETIC_PORTAL_INTERVAL = 5.0;  // degrees latitude
-    const double SYNTHETIC_PORTAL_MIN_LAT = -80.0; // avoid polar regions
-    const double SYNTHETIC_PORTAL_MAX_LAT = 80.0;
-
-    int syntheticPortalCount = 0;
-
-    for (double lat = SYNTHETIC_PORTAL_MIN_LAT;
-         lat <= SYNTHETIC_PORTAL_MAX_LAT;
-         lat += SYNTHETIC_PORTAL_INTERVAL)
-    {
-        // Create portal vertices at exactly ±180° longitude
-        auto eastPortal = std::make_shared<GPoint>(
-            units::angle::degree_t(180.0), units::angle::degree_t(lat));
-        auto westPortal = std::make_shared<GPoint>(
-            units::angle::degree_t(-180.0), units::angle::degree_t(lat));
-
-        // Check if both sides are in water (for Water boundaries)
-        // For Land boundaries, we'd check differently
-        bool eastInWater = false;
-        bool westInWater = false;
-
-        if (mBoundaryType == BoundariesType::Water)
-        {
-            // Check if the portal point is inside any water polygon
-            for (const auto &polygon : polygons)
-            {
-                if (polygon && polygon->isPointWithinPolygon(*eastPortal))
-                {
-                    eastInWater = true;
-                    break;
-                }
-            }
-            for (const auto &polygon : polygons)
-            {
-                if (polygon && polygon->isPointWithinPolygon(*westPortal))
-                {
-                    westInWater = true;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            // For land boundaries, portals are valid if NOT inside land
-            eastInWater = true;
-            westInWater = true;
-            for (const auto &polygon : polygons)
-            {
-                if (polygon && polygon->isPointWithinPolygon(*eastPortal))
-                {
-                    eastInWater = false;
-                    break;
-                }
-            }
-            for (const auto &polygon : polygons)
-            {
-                if (polygon && polygon->isPointWithinPolygon(*westPortal))
-                {
-                    westInWater = false;
-                    break;
-                }
-            }
-        }
-
-        // If both sides are navigable, create the portal connection
-        if (eastInWater && westInWater)
-        {
-            // Add to portal vertex lists (for getPortalVerticesNear)
-            mEastPortalVertices.append(eastPortal);
-            mWestPortalVertices.append(westPortal);
-
-            // Connect the pair - they're the same physical point
-            // so this is effectively a zero-cost teleport
-            addManualVisibleLine(
-                std::make_shared<GLine>(eastPortal, westPortal));
-
-            syntheticPortalCount++;
-        }
-    }
-
-    qDebug() << "Antimeridian portals: Created" << syntheticPortalCount
-             << "synthetic portal pairs at" << SYNTHETIC_PORTAL_INTERVAL
-             << "degree intervals";
-
-    // Create portal connections between east and west sides
-    // (for polygon vertices that aren't at exact ±180°)
-    int portalCount = 0;
-    for (const auto &eastVertex : mEastPortalVertices)
-    {
-        for (const auto &westVertex : mWestPortalVertices)
-        {
-            // Skip if both are synthetic (already connected above)
-            bool eastIsSynthetic =
-                std::abs(eastVertex->getLongitude().value() - 180.0) < 0.001;
-            bool westIsSynthetic =
-                std::abs(westVertex->getLongitude().value() + 180.0) < 0.001;
-            if (eastIsSynthetic && westIsSynthetic)
-            {
-                continue;
-            }
-
-            double latDiff = std::abs(
-                eastVertex->getLatitude().value() -
-                westVertex->getLatitude().value());
-
-            if (latDiff <= PORTAL_LAT_TOLERANCE)
-            {
-                auto portalLine =
-                    std::make_shared<GLine>(eastVertex, westVertex);
-                if (isSegmentVisible(portalLine))
-                {
-                    addManualVisibleLine(portalLine);
-                    portalCount++;
-                }
-            }
-        }
-    }
-
-    // Connect vertices exactly at +/-180 (same physical location)
-    // that weren't already handled by synthetic portal generation
-    const double BOUNDARY_TOL = 0.01;
-    for (const auto &east : mEastPortalVertices)
-    {
-        if (std::abs(east->getLongitude().value() - 180.0) < BOUNDARY_TOL)
-        {
-            for (const auto &west : mWestPortalVertices)
-            {
-                if (std::abs(west->getLongitude().value() + 180.0)
-                    < BOUNDARY_TOL)
-                {
-                    double latDiff = std::abs(
-                        east->getLatitude().value() -
-                        west->getLatitude().value());
-                    if (latDiff < BOUNDARY_TOL)
-                    {
-                        // Same physical point - connect directly
-                        // (may duplicate synthetic connections, but that's OK)
-                        addManualVisibleLine(
-                            std::make_shared<GLine>(east, west));
-                        portalCount++;
-                    }
-                }
-            }
-        }
-    }
-
-    qDebug() << "Antimeridian portals: Created" << portalCount
-             << "additional portal connections between polygon vertices";
-
-    qDebug() << "Antimeridian portals: Total portal vertices -"
-             << mEastPortalVertices.size() << "east,"
-             << mWestPortalVertices.size() << "west";
-}
-
-QVector<std::shared_ptr<GPoint>>
-OptimizedVisibilityGraph::getPortalVerticesNear(
-    double targetLon, double currentLat, double latRange) const
-{
-    QVector<std::shared_ptr<GPoint>> result;
-
-    const auto &vertices = (targetLon > 0) ?
-        mEastPortalVertices : mWestPortalVertices;
-
-    for (const auto &vertex : vertices)
-    {
-        double latDiff =
-            std::abs(vertex->getLatitude().value() - currentLat);
-        if (latDiff <= latRange)
-        {
-            result.append(vertex);
-        }
-    }
-    return result;
 }
 
 bool OptimizedVisibilityGraph::isVisible(
@@ -905,12 +675,27 @@ OptimizedVisibilityGraph::findAllContainingPolygons(
         return result;
     }
 
+    // Pre-extract point coordinates for bounding box checks
+    double ptLon = point->getLongitude().value();
+    double ptLat = point->getLatitude().value();
+
     // Acquire read lock to safely iterate over polygons vector
     QReadLocker locker(&quadtreeLock);
 
     // Check all polygons (no early return like findContainingPolygon)
     for (const auto &polygon : polygons)
     {
+        // Quick bounding box check first (O(1)) - skip polygons
+        // where point is clearly outside
+        double minLon, maxLon, minLat, maxLat;
+        polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
+
+        if (ptLon < minLon || ptLon > maxLon ||
+            ptLat < minLat || ptLat > maxLat)
+        {
+            continue;  // Point outside bounding box - skip
+        }
+
         // Include polygons where the point is:
         // 1. Inside the polygon (but not in holes), OR
         // 2. On any ring boundary (outer or hole)
@@ -2056,9 +1841,15 @@ OptimizedVisibilityGraph::connectWrapAroundPoints(
             // Determine which direction leads toward antimeridian
             double targetLon = (pointLon > 0) ? 180.0 : -180.0;
 
-            // Get portal vertices near the antimeridian in the right direction
-            auto portalVertices = getPortalVerticesNear(
-                targetLon, pointLat, PORTAL_LAT_TOLERANCE * 2);
+            // Query QuadTree directly for vertices near antimeridian zone
+            double zoneLon = (targetLon > 0) ? 180.0 - PORTAL_ZONE_DEGREES : -180.0;
+            double latRange = PORTAL_LAT_TOLERANCE * 2;
+            QRectF portalZone(zoneLon,
+                              pointLat - latRange,
+                              PORTAL_ZONE_DEGREES,
+                              latRange * 2);
+
+            auto portalVertices = quadtree->findVerticesInRange(portalZone);
 
             // Add visible portal vertices as potential neighbors
             for (const auto &portalVertex : portalVertices)
@@ -2163,11 +1954,7 @@ void OptimizedVisibilityGraph::clear()
     }
     polygons.clear();
 
-    // Clear antimeridian portal vertices
-    mEastPortalVertices.clear();
-    mWestPortalVertices.clear();
-
-    // Clear manual lines (includes portal connections)
+    // Clear manual lines and caches
     {
         QWriteLocker cacheLocker(&cacheLock);
         manualLinesSet.clear();

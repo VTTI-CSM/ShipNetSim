@@ -296,12 +296,6 @@ public:
                                GPoint::Equal> polygonContainmentCache;
     mutable QReadWriteLock containmentCacheLock;
 
-    /** Cached portal vertices near +180° longitude for antimeridian crossing */
-    QVector<std::shared_ptr<GPoint>> mEastPortalVertices;
-
-    /** Cached portal vertices near -180° longitude for antimeridian crossing */
-    QVector<std::shared_ptr<GPoint>> mWestPortalVertices;
-
     /** Zone width from antimeridian for portal consideration (degrees) */
     static constexpr double PORTAL_ZONE_DEGREES = 30.0;
 
@@ -361,15 +355,6 @@ public:
                             const std::shared_ptr<GPoint> &goalPoint = nullptr);
 
     /**
-     * @brief Build pre-computed antimeridian portal connections.
-     *
-     * Finds polygon vertices near +180° and -180° longitude and creates
-     * bidirectional manual connections between matching pairs. Called
-     * once during graph construction.
-     */
-    void buildAntimeridianPortals();
-
-    /**
      * @brief Determine if crossing the antimeridian is shorter.
      *
      * @param startLon Current position longitude in degrees
@@ -377,17 +362,6 @@ public:
      * @return true if path through antimeridian is geometrically shorter
      */
     static bool shouldCrossAntimeridian(double startLon, double goalLon);
-
-    /**
-     * @brief Get cached portal vertices near a specific longitude.
-     *
-     * @param targetLon Target longitude (typically +180 or -180)
-     * @param currentLat Current latitude for proximity filtering
-     * @param latRange Maximum latitude difference to consider
-     * @return Vector of portal vertices meeting criteria
-     */
-    QVector<std::shared_ptr<GPoint>> getPortalVerticesNear(
-        double targetLon, double currentLat, double latRange) const;
 
     ShortestPathResult findShortestPathHelper(
         QVector<std::shared_ptr<GPoint>> mustTraversePoints,
