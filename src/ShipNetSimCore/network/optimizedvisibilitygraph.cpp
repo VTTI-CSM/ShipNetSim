@@ -160,18 +160,20 @@ OptimizedVisibilityGraph::getVisibleNodesBetweenPolygons(
         if (!isPartOfPolygon)
             continue;
 
-        // Use QuadTree range query to find vertices within polygon bounds
-        // This is O(log n + k) instead of O(v) for iterating all vertices
-        QRectF searchRange(minLon, minLat,
-                           maxLon - minLon, maxLat - minLat);
-        auto nearbyVertices = quadtree->findVerticesInRange(searchRange);
+        // Get vertices ONLY from this specific polygon (const references)
+        // This is more memory-efficient than range query which returns
+        // ALL vertices from ANY polygon within the bounding box
+        const auto outerPoints = polygon->outer();
+        std::copy_if(outerPoints.begin(), outerPoints.end(),
+                     std::back_inserter(tasks),
+                     [&node](const auto &p) { return *p != *node; });
 
-        for (const auto &vertex : nearbyVertices)
+        // Add hole points
+        for (const auto &hole : polygon->inners())
         {
-            if (*vertex != *node)
-            {
-                tasks.append(vertex);
-            }
+            std::copy_if(
+                hole.begin(), hole.end(), std::back_inserter(tasks),
+                [&node](const auto &p) { return *p != *node; });
         }
     }
 
@@ -216,24 +218,23 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
     // the same node can have different visible neighbors depending on
     // which polygon is being checked. The caller handles merging results.
 
-    // Use QuadTree range query to find vertices within polygon bounds
-    // This is O(log n + k) instead of O(v+h) for iterating all vertices
-    double minLon, maxLon, minLat, maxLat;
-    polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
-
-    QRectF searchRange(minLon, minLat,
-                       maxLon - minLon, maxLat - minLat);
-    auto nearbyVertices = quadtree->findVerticesInRange(searchRange);
-
-    // Filter to exclude the node itself
+    // Get vertices ONLY from this specific polygon (const references, no copy)
+    // This is more memory-efficient than range query which returns ALL vertices
+    // from ANY polygon within the bounding box
     QVector<std::shared_ptr<GPoint>> candidates;
-    candidates.reserve(nearbyVertices.size());
-    for (const auto &vertex : nearbyVertices)
+
+    // Add outer boundary points
+    const auto &outerPoints = polygon->outer();
+    std::copy_if(outerPoints.begin(), outerPoints.end(),
+                 std::back_inserter(candidates),
+                 [&node](const auto &p) { return *p != *node; });
+
+    // Add hole vertices (island corners for navigation waypoints)
+    for (const auto &hole : polygon->inners())
     {
-        if (*vertex != *node)
-        {
-            candidates.append(vertex);
-        }
+        std::copy_if(hole.begin(), hole.end(),
+                     std::back_inserter(candidates),
+                     [&node](const auto &p) { return *p != *node; });
     }
 
     // Parallel visibility check with limited thread pool

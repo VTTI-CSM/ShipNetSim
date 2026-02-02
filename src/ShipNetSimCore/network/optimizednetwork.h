@@ -240,6 +240,15 @@ public:
     findShortestPath(QVector<std::shared_ptr<GPoint>> points,
                      PathFindingAlgorithm             algorithm);
 
+    /**
+     * @brief Get the visibility graph for diagnostic purposes.
+     * @return Shared pointer to the visibility graph.
+     */
+    [[nodiscard]] std::shared_ptr<OptimizedVisibilityGraph> getVisibilityGraph() const
+    {
+        return mVisibilityGraph;
+    }
+
 signals:
     void NetworkLoaded();
     void errorOccurred(QString error);
