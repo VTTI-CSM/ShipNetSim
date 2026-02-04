@@ -1721,10 +1721,22 @@ void Ship::setPath(const QVector<std::shared_ptr<GPoint>> points,
     // Create path result for smoothing
     ShortestPathResult rawPath{lines, points};
 
-    // Configure Dubins path smoothing with ship-specific turning radius
+    // Configure Dubins path smoothing with ship-specific parameters
     DubinsSmoothingConfig smoothConfig;
     smoothConfig.turningRadius = calcTurningRadius();
-    smoothConfig.arcStepSize = units::length::meter_t(5.0);
+
+    // Calculate arc step size based on ship's physical characteristics
+    // Formula: stepSize = shipLength * 0.1 / tan(maxRudderAngle)
+    // This gives ~15 waypoints per 90° turn, scaled appropriately for ship size
+    units::length::meter_t dynamicStepSize = getLengthInWaterline() * 0.1 /
+        units::math::tan(mRudderAngle.convert<units::angle::radian>()).value();
+
+    // Apply minimum floor to prevent excessively small steps for tiny vessels
+    smoothConfig.arcStepSize = units::math::max(
+        units::length::meter_t(10.0),
+        dynamicStepSize
+    );
+
     smoothConfig.minTurnAngle = units::angle::degree_t(5.0);
     smoothConfig.allowRadiusReduction = true;
     smoothConfig.minRadius = units::length::meter_t(50.0);
@@ -3431,153 +3443,99 @@ void Ship::processTravelledDistance(
     units::length::meter_t stepTravelledDistance,
     units::time::second_t  timeStep)
 {
-    // -----------------------------------------------------------------------
-    // 0) Guard: Check if we've already reached the final destination
-    // -----------------------------------------------------------------------
+    // Guard: already at final destination
     if (mPreviousPathPointIndex >= mPathPoints.size() - 1)
+        return;
+
+    // --- Get targets and distance ---
+    auto currentTarget = mPathPoints[mPreviousPathPointIndex + 1];
+
+    std::shared_ptr<GPoint> nextTarget = nullptr;
+    if (mPreviousPathPointIndex + 2 <= mPathPoints.size() - 1)
+        nextTarget = mPathPoints[mPreviousPathPointIndex + 2];
+
+    auto distanceToCurrentTarget =
+        mCurrentState.getCurrentPosition().distance(*currentTarget);
+
+    // --- Skip waypoints the ship has passed ---
+    // If facing >90° away from a non-final waypoint, the ship has
+    // overshot it. Skip to the next one rather than trying to U-turn.
+    auto angleToTarget = mCurrentState.angleTo(*currentTarget);
+    if (std::abs(angleToTarget.value()) > 90.0 && nextTarget)
     {
-        qWarning() << "  -> GUARD TRIGGERED: Already at final point";
+        mPreviousPathPointIndex++;
+        processTravelledDistance(stepTravelledDistance, timeStep);
         return;
     }
 
-    // -----------------------------------------------------------------------
-    // 1) Retrieve current and next targets, and distance to current
-    // target
-    // -----------------------------------------------------------------------
-
-    // Obtain the current target point from the path.
-    std::shared_ptr<GPoint> currentTarget =
-        mPathPoints[mPreviousPathPointIndex + 1];
-
-    // Get the next target if there is one
-    std::shared_ptr<GPoint> nextTarget = nullptr;
-    if (mPreviousPathPointIndex + 2 <= mPathPoints.size() - 1)
-    {
-        nextTarget = mPathPoints[mPreviousPathPointIndex + 2];
-    }
-
-    // Calculate the remaining distance to the target point.
-    units::length::meter_t distanceToCurrentTarget =
-        mCurrentState.getCurrentPosition().distance(*currentTarget);
-
-    // -----------------------------------------------------------------------
-    // 2) Calculate the distance required to turn the ship.
-    // -----------------------------------------------------------------------
-    units::length::meter_t distanceToStartTurning =
-        units::length::meter_t(0.0);
-    // Calculate the distance at which the ship should start turning
+    // --- Calculate turning parameters ---
     auto r = calcTurningRadius();
-    if (nextTarget && !nextTarget->isPort())
-    {
-        // calculate the angle between the ship orientation and next
-        // target
-        units::angle::degree_t turningAngleInDegrees =
-            mCurrentState.angleTo(*nextTarget);
-        // Normalize to [0, 180] range using centralized utility
-        turningAngleInDegrees = units::angle::degree_t(
-            AngleUtils::normalizeAngle0To180(turningAngleInDegrees.value()));
-        auto turningAngleInRad =
-            turningAngleInDegrees.convert<units::angle::radian>();
-
-        distanceToStartTurning =
-            r * std::tan(turningAngleInRad.value() / 2.0);
-    }
-
-    // ----------------------------------------------------------------------
-    // 3) Process movement (either turn or continue).
-    // ----------------------------------------------------------------------
-
-    // Calculate the max Rate of Turn for the ship
     auto maxROT = calcMaxROT(r);
 
-    /// If the next target is not a port ( does not require a stop)
-    /// and the available distance to rotate is shorter than the step
-    /// travelled distance, rotate the ship towards the next target
-    if ((distanceToCurrentTarget - distanceToStartTurning
-         < stepTravelledDistance)
-        && nextTarget && !nextTarget->isPort())
+    units::length::meter_t distanceToStartTurning(0.0);
+    if (nextTarget && !nextTarget->isPort())
     {
-        // Increment the previous point index when the travelling
-        // distance is greater than the available distance to target
+        auto turningAngle = units::angle::degree_t(
+            AngleUtils::normalizeAngle0To180(
+                mCurrentState.angleTo(*nextTarget).value()));
+        auto turningRad =
+            turningAngle.convert<units::angle::radian>();
+        distanceToStartTurning =
+            r * std::tan(turningRad.value() / 2.0);
+    }
+
+    mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
+
+    // --- Case 1: Early turn toward next waypoint ---
+    // Start turning before reaching waypoint for a smooth arc.
+    // Only when distanceToTurn > 0 (ship hasn't passed the turning
+    // point — a negative value would move the ship backward).
+    auto distanceToTurn =
+        distanceToCurrentTarget - distanceToStartTurning;
+    if (nextTarget && !nextTarget->isPort()
+        && distanceToTurn > units::length::meter_t(0.0)
+        && distanceToTurn < stepTravelledDistance)
+    {
+        mPreviousPathPointIndex++;
+        mCurrentState.moveByDistance(distanceToTurn, timeStep);
+        mCurrentState.setTargetAndMaxROT(*nextTarget, maxROT);
+        processTravelledDistance(
+            stepTravelledDistance - distanceToTurn, timeStep);
+        return;
+    }
+
+    // --- Case 2: Would reach or overshoot current target ---
+    if (stepTravelledDistance >= distanceToCurrentTarget)
+    {
+        mCurrentState.moveByDistance(distanceToCurrentTarget, timeStep);
         mPreviousPathPointIndex++;
 
-        // Set the current target
-        mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
-
-        // Move the ship till the turning point
-        auto distanceToTurn =
-            distanceToCurrentTarget - distanceToStartTurning;
-        mCurrentState.moveByDistance(distanceToTurn, timeStep);
-
-        // Rotate the ship towards the next target
-        mCurrentState.setTargetAndMaxROT(
-            *nextTarget, maxROT); // Is this necessary?
-        processTravelledDistance(stepTravelledDistance
-                                     - distanceToTurn,
-                                 timeStep); // Recurring call
-        return; // exit the recurring call,
-                // and leave the last recurring call to emit the
-                // signal
-    }
-    else
-    {
-        // Set the current target
-        mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
-
-        // Check if we would overshoot the current target
-        if (stepTravelledDistance >= distanceToCurrentTarget)
+        if (nextTarget)
         {
-            // Move only to the target, not past it
-            mCurrentState.moveByDistance(distanceToCurrentTarget, timeStep);
-
-            // Always increment index when we reach a waypoint
-            mPreviousPathPointIndex++;
-
-            // If there's a next target and remaining distance, continue
-            if (nextTarget)
+            auto remaining =
+                stepTravelledDistance - distanceToCurrentTarget;
+            if (remaining > units::length::meter_t(0.0))
             {
-                auto remainingDistance =
-                    stepTravelledDistance - distanceToCurrentTarget;
-
-                if (remainingDistance > units::length::meter_t(0.0))
-                {
-                    processTravelledDistance(remainingDistance, timeStep);
-                    return; // Exit to avoid duplicate signal emission
-                }
-            }
-            else
-            {
-                // Emit final position update before stopping
-                QVector<std::shared_ptr<GLine>> pathLines;
-                updatePathLines(pathLines);
-                emit positionUpdated(mCurrentState.getCurrentPosition(),
-                                     mCurrentState.getCourse(), pathLines);
-                return; // Stop processing - we've arrived at destination
+                processTravelledDistance(remaining, timeStep);
+                return;
             }
         }
         else
         {
-            // Before moving, check if we're heading towards the target
-            // by checking the angle between heading and direction to target
-            units::angle::degree_t angleToTarget =
-                mCurrentState.angleTo(*currentTarget);
-
-            // If angle > 90 degrees, we're heading away from target
-            // In that case, just rotate towards target without moving forward
-            if (std::abs(angleToTarget.value()) > 90.0)
-            {
-                // Just rotate towards target, don't move forward
-                // This will be handled in the next timestep
-                mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
-                // Perform rotation without movement
-                mCurrentState.moveByDistance(units::length::meter_t(0.0), timeStep);
-            }
-            else
-            {
-                // Normal case - ship is heading towards target, move forward
-                mCurrentState.moveByDistance(stepTravelledDistance, timeStep);
-            }
+            // Arrived at final destination
+            QVector<std::shared_ptr<GLine>> pathLines;
+            updatePathLines(pathLines);
+            emit positionUpdated(mCurrentState.getCurrentPosition(),
+                                 mCurrentState.getCourse(), pathLines);
+            return;
         }
+    }
+    // --- Case 3: Normal movement ---
+    // moveByDistance rotates toward target first, then moves forward.
+    // This naturally handles slight heading deviations.
+    else
+    {
+        mCurrentState.moveByDistance(stepTravelledDistance, timeStep);
     }
 
     QVector<std::shared_ptr<GLine>> pathLines;
