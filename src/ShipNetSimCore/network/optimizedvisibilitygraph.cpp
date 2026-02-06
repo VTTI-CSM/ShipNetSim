@@ -1,5 +1,6 @@
 #include "optimizedvisibilitygraph.h"
 #include "../utils/utils.h"
+#include <QElapsedTimer>
 #include <QQueue>
 #include <QSet>
 #include <functional>
@@ -60,6 +61,34 @@ OptimizedVisibilityGraph::OptimizedVisibilityGraph(
         quadtree = std::make_unique<Quadtree>(
             QVector<std::shared_ptr<Polygon>>());
     }
+
+    // Set polygon ownership on vertices for O(1) lookup in isVisible()
+    // This avoids expensive O(P×V) findAllContainingPolygons() calls
+    for (const auto &polygon : polygons)
+    {
+        if (!polygon) continue;
+
+        // Outer boundary vertices belong to this polygon
+        for (const auto &vertex : polygon->outer())
+        {
+            if (vertex)
+            {
+                vertex->addOwningPolygon(polygon);
+            }
+        }
+
+        // Hole vertices also belong to this polygon
+        for (const auto &hole : polygon->inners())
+        {
+            for (const auto &vertex : hole)
+            {
+                if (vertex)
+                {
+                    vertex->addOwningPolygon(polygon);
+                }
+            }
+        }
+    }
 }
 
 // Destructor
@@ -116,7 +145,58 @@ void OptimizedVisibilityGraph::setPolygons(
     {
         quadtree->clearTree();
     }
+
+    // Clear ownership and visibility cache from old polygon vertices
+    for (const auto &polygon : polygons)
+    {
+        if (!polygon) continue;
+        for (const auto &vertex : polygon->outer())
+        {
+            if (vertex)
+            {
+                vertex->clearOwningPolygons();
+                vertex->clearVisibleNeighborsCache();
+            }
+        }
+        for (const auto &hole : polygon->inners())
+        {
+            for (const auto &vertex : hole)
+            {
+                if (vertex)
+                {
+                    vertex->clearOwningPolygons();
+                    vertex->clearVisibleNeighborsCache();
+                }
+            }
+        }
+    }
+
     polygons = newPolygons;
+
+    // Set ownership on new polygon vertices
+    for (const auto &polygon : polygons)
+    {
+        if (!polygon) continue;
+
+        for (const auto &vertex : polygon->outer())
+        {
+            if (vertex)
+            {
+                vertex->addOwningPolygon(polygon);
+            }
+        }
+
+        for (const auto &hole : polygon->inners())
+        {
+            for (const auto &vertex : hole)
+            {
+                if (vertex)
+                {
+                    vertex->addOwningPolygon(polygon);
+                }
+            }
+        }
+    }
 }
 
 QVector<std::shared_ptr<GPoint>>
@@ -214,10 +294,14 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
     const std::shared_ptr<GPoint>  &node,
     const std::shared_ptr<Polygon> &polygon)
 {
-    // NOTE: We don't use caching here because with overlapping polygons,
-    // the same node can have different visible neighbors depending on
-    // which polygon is being checked. The caller handles merging results.
+    // Fast path: check if this node has cached visibility for this polygon
+    // Cache is stored in the GPoint itself for O(1) access
+    if (node->hasVisibleNeighborsCache(polygon.get()))
+    {
+        return node->getVisibleNeighborsInPolygon(polygon.get());
+    }
 
+    // Cache miss - compute visibility
     // Get vertices ONLY from this specific polygon (const references, no copy)
     // This is more memory-efficient than range query which returns ALL vertices
     // from ANY polygon within the bounding box
@@ -263,6 +347,9 @@ OptimizedVisibilityGraph::getVisibleNodesWithinPolygon(
             }
         }
     }
+
+    // Cache the result in the node itself for future lookups
+    node->setVisibleNeighborsInPolygon(polygon.get(), visibleNodes);
 
     return visibleNodes;
 }
@@ -395,9 +482,22 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
     {
         // Find ALL polygons containing each endpoint
         // (handles overlapping polygons like Atlantic/Mediterranean)
-        auto startPolygons =
-            findAllContainingPolygons(segment->startPoint());
-        auto endPolygons = findAllContainingPolygons(segment->endPoint());
+        // Use vertex ownership for O(1) lookup, fall back to search for non-vertices
+        QVector<std::shared_ptr<Polygon>> startPolygons =
+            segment->startPoint()->getOwningPolygons();
+        QVector<std::shared_ptr<Polygon>> endPolygons =
+            segment->endPoint()->getOwningPolygons();
+
+        // Fall back to findAllContainingPolygons only for non-vertex points
+        // (e.g., arbitrary start/end waypoints that aren't on polygon boundaries)
+        if (startPolygons.isEmpty())
+        {
+            startPolygons = findAllContainingPolygons(segment->startPoint());
+        }
+        if (endPolygons.isEmpty())
+        {
+            endPolygons = findAllContainingPolygons(segment->endPoint());
+        }
 
         // Find any common polygon that contains both endpoints
         std::shared_ptr<Polygon> commonPolygon = nullptr;
@@ -1459,6 +1559,11 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
         initializeScores(end);
     }
 
+    // Timer for periodic progress updates during A* search
+    QElapsedTimer astarProgressTimer;
+    astarProgressTimer.start();
+    qint64 lastProgressEmit = 0;
+
     while (!openSet.empty())
     {
         // Get the node in openSet having the lowest fScore value
@@ -1471,6 +1576,16 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
             continue;
         }
         closedSet.insert(current);
+
+        // Emit progress every 1 second during A* search
+        qint64 nowMs = astarProgressTimer.elapsed();
+        if (nowMs - lastProgressEmit >= 1000)
+        {
+            lastProgressEmit = nowMs;
+            // Use seg=-1 to indicate "within segment" progress
+            // GUI will show elapsed time only for this case
+            emit pathFindingProgress(-1, 0, nowMs / 1000.0);
+        }
 
         // Check if we reached the navigation end point
         if (*current == *endNavPoint)
@@ -1721,6 +1836,15 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathHelper(
         }
     }
 
+    // Start timer for progress reporting
+    QElapsedTimer progressTimer;
+    progressTimer.start();
+    int totalSegments = mustTraversePoints.size() - 1;
+
+    // Emit initial progress (0%)
+    emit pathFindingProgress(0, totalSegments,
+                             progressTimer.elapsed() / 1000.0);
+
     // Initial point
     result.points.append(mustTraversePoints.first());
 
@@ -1793,6 +1917,10 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathHelper(
                        << e.what();
             continue; // Skip this segment
         }
+
+        // Emit progress after each segment completes
+        emit pathFindingProgress(static_cast<int>(i + 1), totalSegments,
+                                 progressTimer.elapsed() / 1000.0);
     }
 
     return result;
@@ -1952,6 +2080,31 @@ void OptimizedVisibilityGraph::clear()
     if (quadtree)
     {
         quadtree->clearTree();
+    }
+
+    // Clear vertex ownership and visibility cache before clearing polygons
+    for (const auto &polygon : polygons)
+    {
+        if (!polygon) continue;
+        for (const auto &vertex : polygon->outer())
+        {
+            if (vertex)
+            {
+                vertex->clearOwningPolygons();
+                vertex->clearVisibleNeighborsCache();
+            }
+        }
+        for (const auto &hole : polygon->inners())
+        {
+            for (const auto &vertex : hole)
+            {
+                if (vertex)
+                {
+                    vertex->clearOwningPolygons();
+                    vertex->clearVisibleNeighborsCache();
+                }
+            }
+        }
     }
     polygons.clear();
 
