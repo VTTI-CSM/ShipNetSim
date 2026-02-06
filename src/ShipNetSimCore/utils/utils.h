@@ -488,6 +488,20 @@ SHIPNETSIM_EXPORT QString getHomeDirectory();
 SHIPNETSIM_EXPORT bool stringToBool(const QString &str,
                                     bool          *ok = nullptr);
 
+/**
+ * @brief Display a CLI progress bar for path finding operations.
+ *
+ * Shows: "Finding path [====    ] 40% (3.2s)"
+ *
+ * @param segmentIndex Current segment being processed (0-based)
+ * @param totalSegments Total number of segments to process
+ * @param elapsedSeconds Time elapsed since operation started
+ * @param barLength Length of the progress bar in characters (default: 20)
+ */
+SHIPNETSIM_EXPORT void displayPathFindingProgress(
+    int segmentIndex, int totalSegments,
+    double elapsedSeconds, int barLength = 20);
+
 } // namespace Utils
 
 /**

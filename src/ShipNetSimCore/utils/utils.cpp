@@ -4,7 +4,12 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QStandardPaths>
+#include <QTextStream>
 #include <QThread>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 namespace ShipNetSimCore
 {
 namespace Utils
@@ -282,6 +287,50 @@ int accumulateShipValuesInt(
             return total + func(ship);
         });
 }
+
+void displayPathFindingProgress(int segmentIndex, int totalSegments,
+                                double elapsedSeconds, int barLength)
+{
+    // Calculate percentage based on segments completed
+    int percent = (totalSegments > 0)
+                      ? (segmentIndex * 100 / totalSegments)
+                      : 0;
+    int filled = percent * barLength / 100;
+
+    QString bar =
+        QString(filled, '=') + QString(barLength - filled, ' ');
+    QChar ending = (percent >= 100) ? '\n' : '\r';
+
+    QTextStream out(stdout);
+
+#ifdef Q_OS_WIN
+    // Windows color handling
+    HANDLE  hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO consoleInfo;
+    GetConsoleScreenBufferInfo(hConsole, &consoleInfo);
+    WORD saved_attributes = consoleInfo.wAttributes;
+
+    // Set to cyan (FOREGROUND_GREEN | FOREGROUND_BLUE | INTENSITY)
+    SetConsoleTextAttribute(
+        hConsole, FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
+
+    out << "Finding path [" << bar << "] " << percent << "% ("
+        << QString::number(elapsedSeconds, 'f', 1) << "s)" << ending;
+
+    // Reset to original attributes
+    SetConsoleTextAttribute(hConsole, saved_attributes);
+#else
+    // Linux/macOS: use ANSI escape codes
+    // \033[1;36m = Bright Cyan, \033[0m = Reset
+    out << "\033[1;36m"
+        << "Finding path [" << bar << "] " << percent << "% ("
+        << QString::number(elapsedSeconds, 'f', 1) << "s)"
+        << "\033[0m" << ending;
+#endif
+
+    out.flush();
+}
+
 } // namespace Utils
 
 namespace ThreadConfig
