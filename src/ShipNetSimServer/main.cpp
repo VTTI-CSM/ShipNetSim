@@ -73,14 +73,29 @@ int main(int argc, char *argv[])
     // Process the command-line arguments
     parser.process(app);
 
-    // Retrieve the hostname and port from CLI arguments or use
-    // default values
-    QString hostname = parser.value(hostnameOption);
-    int     port     = parser.value(portOption).toInt();
-
     // Start the simulation server
+    // Server loads config from rabbitmq.xml in constructor
     SimulationServer server;
-    server.startRabbitMQServer(hostname.toStdString(), port);
+
+    // CLI arguments override config file values only if explicitly set
+    std::string hostname = "localhost";
+    int         port     = 5672;
+
+    if (parser.isSet(hostnameOption))
+    {
+        hostname = parser.value(hostnameOption).toStdString();
+    }
+
+    if (parser.isSet(portOption))
+    {
+        port = parser.value(portOption).toInt();
+    }
+
+    // If CLI args were set, they override the config file values
+    // If not set, startRabbitMQServer uses values loaded from config
+    server.startRabbitMQServer(hostname, port,
+                               parser.isSet(hostnameOption),
+                               parser.isSet(portOption));
 
     QObject::connect(&app, &QCoreApplication::aboutToQuit,
                      []() { ShipNetSimCore::Logger::detach(); });
