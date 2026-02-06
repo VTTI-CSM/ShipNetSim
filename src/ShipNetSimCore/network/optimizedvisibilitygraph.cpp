@@ -471,11 +471,15 @@ bool OptimizedVisibilityGraph::isSegmentVisible(
     QReadLocker locker(&quadtreeLock);
 
     // 1. Quick distance check
-    if (segment->startPoint()->distance(*segment->endPoint())
-        < units::length::meter_t(1.0))
+    if (segment->length() < units::length::meter_t(1.0))
     {
         return true;
     }
+    // if (segment->startPoint()->distance(*segment->endPoint())
+    //     < units::length::meter_t(1.0))
+    // {
+    //     return true;
+    // }
 
     // 2. Water polygon validation
     if (mBoundaryType == BoundariesType::Water)
@@ -1520,10 +1524,6 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
     std::unordered_set<std::shared_ptr<GPoint>, GPoint::Hash, GPoint::Equal>
         closedSet;
 
-    // Heuristic scale factor to ensure admissibility
-    // Geodesic distance may overestimate when obstacles force detours
-    constexpr double HEURISTIC_SCALE = 0.7;
-
     // Lambda for safe score initialization
     auto initializeScores =
         [&](const std::shared_ptr<GPoint> &point) {
@@ -1536,7 +1536,7 @@ ShortestPathResult OptimizedVisibilityGraph::findShortestPathAStar(
 
     // Heuristic function (scaled geodesic distance for admissibility)
     auto heuristic = [&](const std::shared_ptr<GPoint> &point) {
-        return point->distance(*endNavPoint).value() * HEURISTIC_SCALE;
+        return point->distance(*endNavPoint).value();
     };
 
     // Initialize start point
