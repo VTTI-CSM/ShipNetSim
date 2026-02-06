@@ -2,6 +2,7 @@
 #include <QtAlgorithms>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include <QDateTime>
 #include <any>
 #include <limits>
 
@@ -1219,8 +1220,53 @@ void ShipNetSim::simulate() {
         SimulatorAPI::ContinuousMode::getSimulator(MAIN_SIMULATION_NAME)->
             restartSimulation();
 
+        // Show processing window for path finding
+        if (!processingWindow) {
+            processingWindow = new ProcessingWindow(this);
+        }
+        processingWindow->reset();
+        processingWindow->setTitle("Finding Ship Paths...");
+        processingWindow->show();
+        QApplication::processEvents();  // Ensure window is displayed
+
+        // Connect path finding progress signal
+        // NOTE: Must use ContinuousMode::getInstance() - base getInstance() is protected
+        static qint64 lastUpdateTime = 0;
+        auto pathProgressConnection = connect(
+            &SimulatorAPI::ContinuousMode::getInstance(),
+            &SimulatorAPI::pathFindingProgress, this,
+            [this](QString networkName, int seg, int total, double elapsed) {
+                if (networkName == MAIN_SIMULATION_NAME && processingWindow) {
+                    // Throttle: only update every 1 second to minimize algorithm slowdown
+                    qint64 now = QDateTime::currentMSecsSinceEpoch();
+                    if (now - lastUpdateTime < 1000) return;
+                    lastUpdateTime = now;
+
+                    if (seg < 0) {
+                        // Intra-segment progress (during A* search)
+                        // Show elapsed time only since we can't estimate percentage
+                        processingWindow->setStatusText(
+                            QString("Searching for optimal path... (%1)")
+                                .arg(ProcessingWindow::formatElapsedTime(elapsed)));
+                    } else {
+                        // Segment-level progress
+                        int percent = (total > 0) ? (seg * 100 / total) : 0;
+                        processingWindow->setProgress(percent);
+                        processingWindow->setStatusText(
+                            QString("Processing segment %1 of %2 (%3)")
+                                .arg(seg).arg(total)
+                                .arg(ProcessingWindow::formatElapsedTime(elapsed)));
+                    }
+                }
+            }, Qt::BlockingQueuedConnection);
+
+        // Load ships (blocking call with path finding)
         QVector<std::shared_ptr<ShipNetSimCore::Ship>> ships =
             SimulatorAPI::loadShips(shipsRecords, MAIN_SIMULATION_NAME);
+
+        // Disconnect and hide processing window
+        disconnect(pathProgressConnection);
+        processingWindow->hide();
 
         // Clear any existing ships from previous simulation runs
         GlobalMapManager::getInstance()->clearAllShips();
