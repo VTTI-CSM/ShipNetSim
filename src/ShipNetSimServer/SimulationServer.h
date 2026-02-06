@@ -30,7 +30,9 @@ class SimulationServer : public QObject
 public:
     explicit SimulationServer(QObject *parent = nullptr);
     ~SimulationServer();
-    void startRabbitMQServer(const std::string &hostname, int port);
+    void startRabbitMQServer(const std::string &hostname, int port,
+                             bool overrideHostname = false,
+                             bool overridePort     = false);
     void sendRabbitMQMessage(const QString     &routingKey,
                              const QJsonObject &message);
     void stopRabbitMQServer(); // stop RabbitMQ server cleanly
@@ -85,6 +87,8 @@ private slots:
 private:
     std::string mHostname;
     int         mPort;
+    QString     mUsername = "guest";
+    QString     mPassword = "guest";
     QMutex      mMutex;         // Mutex for protecting access to
                                 // mWorkerBusy
     bool           mWorkerBusy; // To control the server run loop
@@ -94,6 +98,8 @@ private:
     QMetaObject::Connection m_progressConnection;
 
     QString commandID;
+
+    void loadRabbitMQConfig();
 
     void processCommand(QJsonObject &jsonMessage);
     void consumeFromRabbitMQ(); // Function for consuming

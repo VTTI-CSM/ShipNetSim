@@ -3,9 +3,15 @@
 #include "simulatorapi.h"
 #include "utils/serverutils.h"
 #include <QDebug>
+#include <QDomDocument>
+#include <QEventLoop>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <containerLib/container.h>
+#ifdef HAVE_QTKEYCHAIN
+#include <qt6keychain/keychain.h>
+#endif
 
 static const int MAX_RECONNECT_ATTEMPTS = 5;
 static const int RECONNECT_DELAY_SECONDS =
@@ -31,6 +37,7 @@ SimulationServer::SimulationServer(QObject *parent)
     , mWorkerBusy(false)
 {
     qRegisterMetaType<ShipParamsMap>("ShipParamsMap");
+    loadRabbitMQConfig();
     setupServer();
 }
 
@@ -89,6 +96,114 @@ void SimulationServer::setupServer()
             &SimulationServer::onContainersUnloaded);
 }
 
+void SimulationServer::loadRabbitMQConfig()
+{
+    QString configPath =
+        ServerUtils::findConfigFilePath("rabbitmq.xml");
+
+    if (configPath.isEmpty())
+    {
+        qDebug() << "RabbitMQ config file not found. "
+                    "Using default settings.";
+        return;
+    }
+
+    QFile file(configPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        qWarning() << "Failed to open RabbitMQ config file:"
+                   << configPath;
+        return;
+    }
+
+    QDomDocument doc;
+    auto         result = doc.setContent(&file);
+    file.close();
+
+    if (!result)
+    {
+        qWarning() << "Failed to parse RabbitMQ config XML:"
+                   << result.errorMessage << "at line"
+                   << result.errorLine;
+        return;
+    }
+
+    QDomElement root = doc.documentElement();
+    if (root.tagName() != "rabbitmq")
+    {
+        qWarning() << "Invalid RabbitMQ config: "
+                      "root element is not 'rabbitmq'";
+        return;
+    }
+
+    // Load host
+    QDomElement hostElem = root.firstChildElement("host");
+    if (!hostElem.isNull() && !hostElem.text().isEmpty())
+    {
+        mHostname = hostElem.text().toStdString();
+    }
+
+    // Load port
+    QDomElement portElem = root.firstChildElement("port");
+    if (!portElem.isNull())
+    {
+        bool ok;
+        int  port = portElem.text().toInt(&ok);
+        if (ok && port > 0 && port <= 65535)
+        {
+            mPort = port;
+        }
+    }
+
+    // Load username
+    QDomElement usernameElem = root.firstChildElement("username");
+    if (!usernameElem.isNull() && !usernameElem.text().isEmpty())
+    {
+        mUsername = usernameElem.text();
+    }
+
+    // Load password - try keychain first, then XML fallback
+    QString password;
+
+#ifdef HAVE_QTKEYCHAIN
+    QKeychain::ReadPasswordJob job("ShipNetSim");
+    job.setAutoDelete(false);
+    job.setKey("rabbitmq-password");
+
+    QEventLoop loop;
+    QObject::connect(&job, &QKeychain::ReadPasswordJob::finished,
+                     &loop, &QEventLoop::quit);
+    job.start();
+    loop.exec();
+
+    if (job.error() == QKeychain::NoError)
+    {
+        password = job.textData();
+    }
+#endif
+
+    if (password.isEmpty())
+    {
+        // Fallback: load from XML
+        QDomElement passwordElem =
+            root.firstChildElement("password");
+        if (!passwordElem.isNull())
+        {
+            password = passwordElem.text();
+        }
+    }
+
+    if (!password.isEmpty())
+    {
+        mPassword = password;
+    }
+
+    qInfo() << "RabbitMQ config loaded from:" << configPath;
+    qDebug() << "  Host:" << QString::fromStdString(mHostname);
+    qDebug() << "  Port:" << mPort;
+    qDebug() << "  Username:" << mUsername;
+}
+
 SimulationServer::~SimulationServer()
 {
     stopRabbitMQServer(); // Ensure server stops cleanly
@@ -101,10 +216,29 @@ SimulationServer::~SimulationServer()
 }
 
 void SimulationServer::startRabbitMQServer(
-    const std::string &hostname, int port)
+    const std::string &hostname, int port, bool overrideHostname,
+    bool overridePort)
 {
-    mHostname = hostname;
-    mPort     = port;
+    // Only override values from config if CLI args were explicitly set
+    if (overrideHostname)
+    {
+        mHostname = hostname;
+    }
+    if (overridePort)
+    {
+        mPort = port;
+    }
+
+    // If config didn't set values and CLI didn't override, use defaults
+    if (mHostname.empty())
+    {
+        mHostname = "localhost";
+    }
+    if (mPort <= 0)
+    {
+        mPort = 5672;
+    }
+
     reconnectToRabbitMQ();
 }
 
@@ -163,7 +297,9 @@ void SimulationServer::reconnectToRabbitMQ()
 
         amqp_rpc_reply_t loginRes =
             amqp_login(mRabbitMQConnection, "/", 0, 131072, 0,
-                       AMQP_SASL_METHOD_PLAIN, "guest", "guest");
+                       AMQP_SASL_METHOD_PLAIN,
+                       mUsername.toStdString().c_str(),
+                       mPassword.toStdString().c_str());
         if (loginRes.reply_type != AMQP_RESPONSE_NORMAL)
         {
             qCritical() << "Error: RabbitMQ login failed. "
