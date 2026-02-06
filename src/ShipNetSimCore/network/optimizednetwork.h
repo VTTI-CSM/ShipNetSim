@@ -252,6 +252,14 @@ public:
 signals:
     void NetworkLoaded();
     void errorOccurred(QString error);
+    /**
+     * @brief Emitted during path finding to report progress.
+     * @param segmentIndex Current segment being processed (0-based)
+     * @param totalSegments Total number of segments to process
+     * @param elapsedSeconds Time elapsed since path finding started
+     */
+    void pathFindingProgress(int segmentIndex, int totalSegments,
+                             double elapsedSeconds);
 };
 }; // namespace ShipNetSimCore
 #endif // OPTIMIZEDNETWORK_H

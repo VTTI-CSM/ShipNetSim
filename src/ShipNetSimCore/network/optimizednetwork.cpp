@@ -111,6 +111,11 @@ void OptimizedNetwork::initializeNetwork(
     mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
         std::as_const(mBoundaries), boundariesType);
 
+    // Forward progress signal from visibility graph
+    connect(mVisibilityGraph.get(),
+            &OptimizedVisibilityGraph::pathFindingProgress,
+            this, &OptimizedNetwork::pathFindingProgress);
+
     mRegionName = regionName; // Set region name
 
     // load the sea ports
@@ -342,6 +347,11 @@ void OptimizedNetwork::loadTxtFile(const QString &filename)
     {
         mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
             std::as_const(mBoundaries), BoundariesType::Water);
+
+        // Forward progress signal from visibility graph
+        connect(mVisibilityGraph.get(),
+                &OptimizedVisibilityGraph::pathFindingProgress,
+                this, &OptimizedNetwork::pathFindingProgress);
     }
     catch (const std::exception &e)
     {
@@ -504,6 +514,11 @@ void OptimizedNetwork::loadPolygonShapeFile(const QString &filepath)
     {
         mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
             std::as_const(mBoundaries), BoundariesType::Water);
+
+        // Forward progress signal from visibility graph
+        connect(mVisibilityGraph.get(),
+                &OptimizedVisibilityGraph::pathFindingProgress,
+                this, &OptimizedNetwork::pathFindingProgress);
     }
     catch (const std::exception &e)
     {
