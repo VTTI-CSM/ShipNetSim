@@ -624,6 +624,15 @@ SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
         //    retrieve the existing APIData for the network
         APIData apiData = getApiDataAndEnsureThread(networkName);
 
+        // Connect pathfinding progress signal to forward through API
+        QMetaObject::Connection progressConnection = connect(
+            apiData.network,
+            &ShipNetSimCore::OptimizedNetwork::pathFindingProgress, this,
+            [this, networkName](int seg, int total, double elapsed) {
+                emit pathFindingProgress(networkName, seg, total, elapsed);
+            },
+            Qt::DirectConnection);
+
         // --------------------------------------------------------------------
         // 3) Because 'loadShips' is async and emits a signal, we use
         // an
@@ -656,7 +665,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
             });
 
         // --------------------------------------------------------------------
-        // 4) Invoke the worker’s loadShips(...) in the worker thread.
+        // 4) Invoke the worker's loadShips(...) in the worker thread.
         //    We do NOT use BlockingQueuedConnection because we want
         //    the worker to emit a signal and let this thread’s event
         //    loop catch it.
@@ -679,6 +688,7 @@ SimulatorAPI::mLoadShips(QJsonObject &ships, QString networkName)
         // connections
         disconnect(connSuccess);
         disconnect(connError);
+        disconnect(progressConnection);
 
         // 7) Now 'loadedShips' contains our result (if any), so
         // return
@@ -731,6 +741,16 @@ SimulatorAPI::mLoadShips(QJsonObject                      &ships,
 
     try
     {
+        // Connect pathfinding progress signal to forward through API
+        QString networkName = network->getRegionName();
+        QMetaObject::Connection progressConnection = connect(
+            network,
+            &ShipNetSimCore::OptimizedNetwork::pathFindingProgress, this,
+            [this, networkName](int seg, int total, double elapsed) {
+                emit pathFindingProgress(networkName, seg, total, elapsed);
+            },
+            Qt::DirectConnection);
+
         // --------------------------------------------------------------------
         // 4) We want to call loadShips(...) in the worker thread
         //    asynchronously, but still return the result
@@ -783,6 +803,7 @@ SimulatorAPI::mLoadShips(QJsonObject                      &ships,
         // 9) Disconnect the temporary connections
         disconnect(connSuccess);
         disconnect(connError);
+        disconnect(progressConnection);
 
         // 10) Return the ships we loaded (or empty if an error
         // occurred)
@@ -808,6 +829,15 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, QString>> ships,
         // 2) Ensure we have APIData for this network and
         //    retrieve the existing APIData for the network
         APIData apiData = getApiDataAndEnsureThread(networkName);
+
+        // Connect pathfinding progress signal to forward through API
+        QMetaObject::Connection progressConnection = connect(
+            apiData.network,
+            &ShipNetSimCore::OptimizedNetwork::pathFindingProgress, this,
+            [this, networkName](int seg, int total, double elapsed) {
+                emit pathFindingProgress(networkName, seg, total, elapsed);
+            },
+            Qt::DirectConnection);
 
         // ------------------------------------------------------------------
         // 3) Setup a local QEventLoop to wait for the result or an
@@ -858,6 +888,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, QString>> ships,
         // 8) Disconnect temporary connections
         disconnect(connSuccess);
         disconnect(connError);
+        disconnect(progressConnection);
 
         // 9) Return the result (either populated or empty if error)
         return loadedShips;
@@ -882,6 +913,15 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, std::any>> ships,
         // 2) Ensure we have APIData for this network and
         //    retrieve the existing APIData for the network
         APIData apiData = getApiDataAndEnsureThread(networkName);
+
+        // Connect pathfinding progress signal to forward through API
+        QMetaObject::Connection progressConnection = connect(
+            apiData.network,
+            &ShipNetSimCore::OptimizedNetwork::pathFindingProgress, this,
+            [this, networkName](int seg, int total, double elapsed) {
+                emit pathFindingProgress(networkName, seg, total, elapsed);
+            },
+            Qt::DirectConnection);
 
         // -------------------------------------------------------------------
         // 3) We'll use a local QEventLoop to block until we get
@@ -932,6 +972,7 @@ SimulatorAPI::mLoadShips(QVector<QMap<QString, std::any>> ships,
         // 8) Disconnect temporary connections
         disconnect(connSuccess);
         disconnect(connError);
+        disconnect(progressConnection);
 
         // 9) Return the final result
         return loadedShips;
@@ -955,6 +996,15 @@ SimulatorAPI::mLoadShips(QString shipsFilePath, QString networkName)
         // 2) Ensure we have APIData for this network and
         //    retrieve the existing APIData for the network
         APIData apiData = getApiDataAndEnsureThread(networkName);
+
+        // Connect pathfinding progress signal to forward through API
+        QMetaObject::Connection progressConnection = connect(
+            apiData.network,
+            &ShipNetSimCore::OptimizedNetwork::pathFindingProgress, this,
+            [this, networkName](int seg, int total, double elapsed) {
+                emit pathFindingProgress(networkName, seg, total, elapsed);
+            },
+            Qt::DirectConnection);
 
         // -------------------------------------------------------------------
         // 7) We'll use a local QEventLoop to block until
@@ -1005,6 +1055,7 @@ SimulatorAPI::mLoadShips(QString shipsFilePath, QString networkName)
         // 12) Disconnect the temporary connections
         disconnect(connSuccess);
         disconnect(connError);
+        disconnect(progressConnection);
 
         // 13) Return the final result
         return loadedShips;

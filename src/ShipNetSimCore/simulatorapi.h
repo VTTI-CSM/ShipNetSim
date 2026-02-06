@@ -214,6 +214,16 @@ signals:
                                    int     currentSimulationProgress);
 
     /**
+     * @brief Emitted during path finding to report progress.
+     * @param networkName Name of the network being processed
+     * @param segmentIndex Current segment being processed (0-based)
+     * @param totalSegments Total number of segments to process
+     * @param elapsedSeconds Time elapsed since path finding started
+     */
+    void pathFindingProgress(QString networkName, int segmentIndex,
+                             int totalSegments, double elapsedSeconds);
+
+    /**
      * @brief Emitted when ships reach their designated destinations.
      * @param shipsStates JSON object containing states of ships that
      * reached destination
