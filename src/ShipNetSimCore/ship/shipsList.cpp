@@ -185,8 +185,19 @@ QMap<QString, std::any> readShipFromString(QString           line,
                 QVector<std::shared_ptr<GPoint>>>(
                 parameters, "Path",
                 QVector<std::shared_ptr<GPoint>>());
+
+            // Connect progress signal for CLI feedback
+            auto progressConnection = QObject::connect(
+                network, &OptimizedNetwork::pathFindingProgress,
+                [](int seg, int total, double elapsed) {
+                    Utils::displayPathFindingProgress(seg, total, elapsed);
+                });
+
             ShortestPathResult results = network->findShortestPath(
                 pathPoints, PathFindingAlgorithm::AStar);
+
+            // Disconnect after path finding completes
+            QObject::disconnect(progressConnection);
 
             if (!results.isValid())
             {
@@ -337,8 +348,19 @@ loadShipFromParameters(QMap<QString, T>  shipDetails,
             Utils::getValueFromMap<QVector<std::shared_ptr<GPoint>>>(
                 convertedParameters, "Path",
                 QVector<std::shared_ptr<GPoint>>());
+
+        // Connect progress signal for CLI feedback
+        auto progressConnection = QObject::connect(
+            network, &OptimizedNetwork::pathFindingProgress,
+            [](int seg, int total, double elapsed) {
+                Utils::displayPathFindingProgress(seg, total, elapsed);
+            });
+
         ShortestPathResult results = network->findShortestPath(
             pathPoints, PathFindingAlgorithm::AStar);
+
+        // Disconnect after path finding completes
+        QObject::disconnect(progressConnection);
 
         if (!results.isValid())
         {
@@ -466,9 +488,19 @@ loadShipFromParameters(QJsonObject       shipJson,
                 convertedParameters, "Path",
                 QVector<std::shared_ptr<GPoint>>());
 
+        // Connect progress signal for CLI feedback
+        auto progressConnection = QObject::connect(
+            network, &OptimizedNetwork::pathFindingProgress,
+            [](int seg, int total, double elapsed) {
+                Utils::displayPathFindingProgress(seg, total, elapsed);
+            });
+
         // Use the network to find the shortest path
         ShortestPathResult results = network->findShortestPath(
             pathPoints, PathFindingAlgorithm::AStar);
+
+        // Disconnect after path finding completes
+        QObject::disconnect(progressConnection);
 
         if (!results.isValid())
         {

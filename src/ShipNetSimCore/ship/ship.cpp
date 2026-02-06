@@ -15,6 +15,7 @@
 #include "shipgearbox.h"
 #include "shippropeller.h"
 #include <QDebug>
+#include <algorithm>
 #include <cmath>
 #include <QMutexLocker>
 
@@ -1294,6 +1295,14 @@ units::length::meter_t Ship::getMeanDraft() const
 {
     if (std::isnan(mMeanDraft.value()))
     {
+
+        // Calculate from forward and aft drafts if available
+        if (!std::isnan(mDraftAtForward.value())
+            && !std::isnan(mDraftAtAft.value()))
+        {
+            return (mDraftAtForward + mDraftAtAft) / 2.0;
+        }
+
         throw ShipException("Mean draft is not assigned yet!");
     }
     return mMeanDraft;
@@ -1439,9 +1448,9 @@ units::velocity::meters_per_second_t Ship::getSpeed() const
     return mSpeed;
 }
 
-void Ship::setSpeed(const units::velocity::knot_t $newSpeed)
+void Ship::setSpeed(const units::velocity::knot_t newSpeed)
 {
-    mSpeed = $newSpeed.convert<velocity::meters_per_second>();
+    mSpeed = newSpeed.convert<velocity::meters_per_second>();
 }
 
 void Ship::setSpeed(
@@ -1728,8 +1737,16 @@ void Ship::setPath(const QVector<std::shared_ptr<GPoint>> points,
     // Calculate arc step size based on ship's physical characteristics
     // Formula: stepSize = shipLength * 0.1 / tan(maxRudderAngle)
     // This gives ~15 waypoints per 90° turn, scaled appropriately for ship size
-    units::length::meter_t dynamicStepSize = getLengthInWaterline() * 0.1 /
-        units::math::tan(mRudderAngle.convert<units::angle::radian>()).value();
+    double tanValue = units::math::tan(
+        mRudderAngle.convert<units::angle::radian>()).value();
+
+    // Guard against division by zero (tan(0) = 0) or invalid tangent
+    if (std::abs(tanValue) < 0.01 || std::isnan(tanValue) || std::isinf(tanValue)) {
+        tanValue = 0.466;  // tan(25°) as safe fallback
+    }
+
+    units::length::meter_t dynamicStepSize =
+        getLengthInWaterline() * 0.1 / tanValue;
 
     // Apply minimum floor to prevent excessively small steps for tiny vessels
     smoothConfig.arcStepSize = units::math::max(
@@ -3326,9 +3343,13 @@ bool Ship::isShipOnCorrectPath() const
                 (courseToNextTarget - courseToTarget).value()));
 
         // Calculate theoretical turn start distance
+        // Guard against tan(90°) when turnAngle = 180°
+        double halfTurnRad = std::abs(turnAngle.value()) * M_PI / 360.0;
+        if (halfTurnRad > M_PI_2 - 0.01) {  // Near or beyond 90°
+            halfTurnRad = M_PI_2 - 0.01;     // Cap at ~89.4°
+        }
         units::length::meter_t turnStartDistance =
-            turningRadius
-            * std::tan(std::abs(turnAngle.value()) * M_PI / 360.0);
+            turningRadius * std::tan(halfTurnRad);
 
         // Check if we're approaching a turn
         isApproachingTurn =
@@ -3457,17 +3478,6 @@ void Ship::processTravelledDistance(
     auto distanceToCurrentTarget =
         mCurrentState.getCurrentPosition().distance(*currentTarget);
 
-    // --- Skip waypoints the ship has passed ---
-    // If facing >90° away from a non-final waypoint, the ship has
-    // overshot it. Skip to the next one rather than trying to U-turn.
-    auto angleToTarget = mCurrentState.angleTo(*currentTarget);
-    if (std::abs(angleToTarget.value()) > 90.0 && nextTarget)
-    {
-        mPreviousPathPointIndex++;
-        processTravelledDistance(stepTravelledDistance, timeStep);
-        return;
-    }
-
     // --- Calculate turning parameters ---
     auto r = calcTurningRadius();
     auto maxROT = calcMaxROT(r);
@@ -3480,8 +3490,19 @@ void Ship::processTravelledDistance(
                 mCurrentState.angleTo(*nextTarget).value()));
         auto turningRad =
             turningAngle.convert<units::angle::radian>();
-        distanceToStartTurning =
-            r * std::tan(turningRad.value() / 2.0);
+
+        // Guard against tan(90°) undefined (when turning angle = 180°)
+        double halfTurnRad = turningRad.value() / 2.0;
+        if (halfTurnRad > M_PI_2 - 0.01) {  // Near or beyond 90°
+            halfTurnRad = M_PI_2 - 0.01;     // Cap at ~89.4°
+        }
+        distanceToStartTurning = r * std::tan(halfTurnRad);
+
+        // Guard against invalid result
+        if (std::isnan(distanceToStartTurning.value()) ||
+            std::isinf(distanceToStartTurning.value())) {
+            distanceToStartTurning = r;  // Use turning radius as fallback
+        }
     }
 
     mCurrentState.setTargetAndMaxROT(*currentTarget, maxROT);
@@ -3547,15 +3568,124 @@ void Ship::processTravelledDistance(
 units::angle::degree_t
 Ship::calcMaxROT(units::length::meter_t turnRaduis) const
 {
-    return units::angle::degree_t(mSpeed.value() / turnRaduis.value()
-                                  / 60.0);
+    // V/R gives rad/s; multiply by 180/π to convert to deg/s
+    // Guard against invalid turn radius
+    double radius = turnRaduis.value();
+    if (radius < 1.0 || std::isnan(radius) || std::isinf(radius)) {
+        qWarning() << "calcMaxROT: invalid turnRadius=" << radius
+                   << ", using 100m fallback";
+        radius = 100.0;
+    }
+
+    double result = mSpeed.value() / radius * (180.0 / M_PI);
+
+    // Guard against invalid result
+    if (std::isnan(result) || std::isinf(result) || result < 0) {
+        qWarning() << "calcMaxROT: invalid result=" << result
+                   << "(speed=" << mSpeed.value() << ", radius=" << radius
+                   << "), using 1 deg/s fallback";
+        result = 1.0;
+    }
+
+    return units::angle::degree_t(result);
 }
 units::length::meter_t Ship::calcTurningRadius() const
 {
-    return getLengthInWaterline()
-           / units::math::tan(
-                 mRudderAngle.convert<units::angle::radian>())
-                 .value();
+    // ================================================================
+    // NOMOTO MODEL: R = U / (K_eff × δ)
+    // ================================================================
+    // Ship turning follows: Rudder → Yaw rate (r) → Radius (R = U/r)
+    // NOT the Ackermann steering model used for wheeled vehicles.
+    //
+    // References:
+    // - Nomoto, K. et al. (1957). "On the steering qualities of ships"
+    // - Clarke, D. (1983). "Ship Manoeuvrability" - Trans RINA
+    // - Fossen, T.I. (2011). "Handbook of Marine Craft Hydrodynamics"
+    // ================================================================
+
+    // Get ship parameters
+    double C_B = getBlockCoef();
+    double T = getMeanDraft().value();
+    double B = getBeam().value();
+    double L = getLengthInWaterline().value();
+    double U = mSpeed.value();  // m/s
+    double delta = mRudderAngle.convert<units::angle::radian>().value();
+
+    // =================================================================
+    // INPUT VALIDATION - Prevent division by zero and NaN propagation
+    // =================================================================
+
+    // Guard against zero/invalid rudder angle (minimum ~0.06 degrees)
+    if (std::abs(delta) < 0.001 || std::isnan(delta)) {
+        qWarning() << "calcTurningRadius: invalid delta=" << delta
+                   << ", using 0.436 rad (25 deg) fallback";
+        delta = 0.436;  // 25 degrees in radians
+    }
+
+    // Guard against zero/invalid ship parameters
+    if (C_B < 0.01 || std::isnan(C_B)) {
+        qWarning() << "calcTurningRadius: invalid C_B=" << C_B
+                   << ", using 0.6 fallback";
+        C_B = 0.6;  // Typical cargo ship
+    }
+    if (T < 0.1 || std::isnan(T)) {
+        qWarning() << "calcTurningRadius: invalid T (draft)=" << T
+                   << ", using 1.0m fallback";
+        T = 1.0;
+    }
+    if (B < 0.1 || std::isnan(B)) {
+        qWarning() << "calcTurningRadius: invalid B (beam)=" << B
+                   << ", using 1.0m fallback";
+        B = 1.0;
+    }
+    if (L < 1.0 || std::isnan(L)) {
+        qWarning() << "calcTurningRadius: invalid L (length)=" << L
+                   << ", using 10.0m fallback";
+        L = 10.0;
+    }
+
+    // Froude number using existing hydrology utility
+    double F_n = hydrology::F_n(mSpeed, getLengthInWaterline());
+
+    // Base yaw rate coefficient K₀ (s⁻¹)
+    // Calibrated to give K_eff ≈ 0.02-0.04 s⁻¹ for typical merchant ships
+    constexpr double K_0 = 0.008;  // s⁻¹
+
+    // Hull form correction:
+    // - Fuller ships (high C_B) have lower yaw rate gain → turn wider
+    // - Higher T/B increases directional stability → turn wider
+    double K_hull = K_0 / (C_B * (T / B));
+
+    // Speed correction based on Froude number:
+    // - Low F_n: reduced rudder effectiveness
+    // - Design F_n (~0.20): optimal effectiveness
+    constexpr double F_n_design = 0.20;
+    double speed_factor = std::sqrt(std::max(F_n, 0.05) / F_n_design);
+    speed_factor = std::clamp(speed_factor, 0.5, 1.5);
+
+    // Effective yaw rate gain
+    double K_eff = K_hull * speed_factor;
+
+    // Clamp K_eff to physically reasonable range (0.01-0.06 s⁻¹)
+    K_eff = std::clamp(K_eff, 0.01, 0.06);
+
+    // Turning radius from Nomoto model: R = U / (K × δ)
+    double R = U / (K_eff * delta);
+
+    // Safety: minimum radius = ship length
+    R = std::max(R, L);
+
+    // =================================================================
+    // OUTPUT VALIDATION - Ensure valid result
+    // =================================================================
+    if (std::isnan(R) || std::isinf(R) || R <= 0) {
+        qWarning() << "calcTurningRadius: invalid R=" << R
+                   << "(U=" << U << ", K_eff=" << K_eff << ", delta=" << delta
+                   << "), using ship length=" << L << " as fallback";
+        R = L;
+    }
+
+    return units::length::meter_t(R);
 }
 
 }; // namespace ShipNetSimCore
