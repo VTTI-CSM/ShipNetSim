@@ -17,6 +17,7 @@
 
 #include "gpoint.h"
 #include "point.h"
+#include "polygon.h"
 #include "qendian.h"
 #include "../utils/gdal_compat.h"
 #include "../utils/utils.h"
@@ -122,9 +123,13 @@ void assignSpatialReference(OGRPoint &point, const OGRSpatialReference &crc)
     }
     else
     {
-        // Default WGS84 - use shared static reference directly (no clone!)
-        // This is safe because the static spatialRef outlives all GPoints
+        // Default WGS84 - increment ref count before passing to GDAL
+        // GDAL's assignSpatialReference(OGRSpatialReference*) takes ownership,
+        // but OGRSpatialReference uses reference counting. By calling Reference()
+        // first, we ensure GDAL's eventual Release() won't destroy the object
+        // since the shared_ptr still holds a reference.
         auto defaultSR = GPoint::getDefaultReprojectionReference();
+        defaultSR->Reference();  // Increment ref count
         point.assignSpatialReference(defaultSR.get());
     }
 }
@@ -435,6 +440,60 @@ void GPoint::MarkAsNonPort()
 }
 
 // =============================================================================
+// Polygon Ownership
+// =============================================================================
+
+QVector<std::shared_ptr<Polygon>> GPoint::getOwningPolygons() const
+{
+    return mOwningPolygons;
+}
+
+void GPoint::addOwningPolygon(const std::shared_ptr<Polygon>& polygon)
+{
+    if (polygon)
+    {
+        mOwningPolygons.append(polygon);
+    }
+}
+
+void GPoint::clearOwningPolygons()
+{
+    mOwningPolygons.clear();
+}
+
+// =============================================================================
+// Visibility Cache
+// =============================================================================
+
+bool GPoint::hasVisibleNeighborsCache(const Polygon* polygon) const
+{
+    return mVisibleNeighborsCache.find(polygon) != mVisibleNeighborsCache.end();
+}
+
+QVector<std::shared_ptr<GPoint>>
+GPoint::getVisibleNeighborsInPolygon(const Polygon* polygon) const
+{
+    auto it = mVisibleNeighborsCache.find(polygon);
+    if (it != mVisibleNeighborsCache.end())
+    {
+        return it->second;
+    }
+    return {};
+}
+
+void GPoint::setVisibleNeighborsInPolygon(
+    const Polygon* polygon,
+    const QVector<std::shared_ptr<GPoint>>& neighbors) const
+{
+    mVisibleNeighborsCache[polygon] = neighbors;
+}
+
+void GPoint::clearVisibleNeighborsCache() const
+{
+    mVisibleNeighborsCache.clear();
+}
+
+// =============================================================================
 // Serialization
 // =============================================================================
 
@@ -532,9 +591,11 @@ void GPoint::deserialize(std::istream &in)
         qFromBigEndian(std::bit_cast<double>(dwellTimeNet)));
 
     // Restore default spatial reference (critical for subsequent operations)
+    // Use Reference() to increment ref count before GDAL takes "ownership"
     auto defaultSR = getDefaultReprojectionReference();
     if (defaultSR)
     {
+        defaultSR->Reference();  // Increment ref count
         mOGRPoint.assignSpatialReference(defaultSR.get());
     }
 }

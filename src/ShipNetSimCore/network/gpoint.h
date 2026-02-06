@@ -25,6 +25,8 @@
 #include "../export.h"
 #include "basegeometry.h"
 #include <QString>
+#include <QVector>
+#include <memory>
 #include <gdal.h>
 #include <ogr_geometry.h>
 #include <ogr_spatialref.h>
@@ -32,7 +34,8 @@
 namespace ShipNetSimCore
 {
 
-class Point;  // Forward declaration for projected point type
+class Point;    // Forward declaration for projected point type
+class Polygon;  // Forward declaration for polygon ownership
 
 /**
  * @class GPoint
@@ -53,6 +56,17 @@ private:
     QString  mUserID;    ///< Optional user-defined identifier
     bool     mIsPort;    ///< Flag indicating if this point is a port
     units::time::second_t mDwellTime;  ///< Dwell time at port (if applicable)
+
+    /// Polygons that own this vertex (for polygon boundary vertices).
+    /// Uses shared_ptr to avoid circular reference with Polygon.
+    /// Empty for points that are not polygon vertices.
+    QVector<std::shared_ptr<Polygon>> mOwningPolygons;
+
+    /// Visibility cache: maps polygon → visible vertices within that polygon.
+    /// Uses raw Polygon* as key (polygon lifetime managed by visibility graph).
+    /// mutable because visibility computation is logically const.
+    mutable std::unordered_map<const Polygon*,
+                               QVector<std::shared_ptr<GPoint>>> mVisibleNeighborsCache;
 
     /// Default coordinate reference system (WGS84)
     static std::shared_ptr<OGRSpatialReference> spatialRef;
@@ -286,6 +300,72 @@ public:
      * @brief Clear the port status of this point.
      */
     void MarkAsNonPort();
+
+    // =========================================================================
+    // Polygon Ownership (for visibility graph optimization)
+    // =========================================================================
+
+    /**
+     * @brief Get the polygons that own this vertex.
+     *
+     * For polygon boundary vertices, returns the polygon(s) this vertex
+     * belongs to. Returns empty vector for non-vertex points.
+     * Used for O(1) visibility lookups instead of O(P×V) containment checks.
+     *
+     * @return Vector of owning polygons (may be empty)
+     */
+    [[nodiscard]] QVector<std::shared_ptr<Polygon>> getOwningPolygons() const;
+
+    /**
+     * @brief Add an owning polygon to this vertex.
+     *
+     * Called during polygon/visibility graph construction to register
+     * that this vertex belongs to the specified polygon's boundary.
+     *
+     * @param polygon The polygon that owns this vertex
+     */
+    void addOwningPolygon(const std::shared_ptr<Polygon>& polygon);
+
+    /**
+     * @brief Clear all owning polygon references.
+     *
+     * Called when polygons are cleared or replaced in the visibility graph.
+     */
+    void clearOwningPolygons();
+
+    // =========================================================================
+    // Visibility Cache (for pathfinding optimization)
+    // =========================================================================
+
+    /**
+     * @brief Check if visibility to neighbors in a polygon is cached.
+     * @param polygon The polygon to check
+     * @return true if cache exists for this polygon
+     */
+    [[nodiscard]] bool hasVisibleNeighborsCache(const Polygon* polygon) const;
+
+    /**
+     * @brief Get cached visible neighbors within a polygon.
+     * @param polygon The polygon containing this vertex
+     * @return Cached visible neighbors, or empty if not cached
+     */
+    [[nodiscard]] QVector<std::shared_ptr<GPoint>>
+    getVisibleNeighborsInPolygon(const Polygon* polygon) const;
+
+    /**
+     * @brief Cache visible neighbors within a polygon.
+     * @param polygon The polygon containing this vertex
+     * @param neighbors The visible neighbors to cache
+     */
+    void setVisibleNeighborsInPolygon(
+        const Polygon* polygon,
+        const QVector<std::shared_ptr<GPoint>>& neighbors) const;
+
+    /**
+     * @brief Clear all visibility caches.
+     * Called when polygons change.
+     */
+    void clearVisibleNeighborsCache() const;
 
     // =========================================================================
     // Serialization
