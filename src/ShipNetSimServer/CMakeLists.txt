@@ -8,6 +8,9 @@ project(${SHIPNETSIM_SERVER_NAME} VERSION ${ShipNetSim_VERSION} LANGUAGES CXX)
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core Concurrent Xml Sql Network)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Concurrent Xml Sql Network)
 
+# Optional: Qt6Keychain for secure password storage
+find_package(Qt6Keychain QUIET)
+
 
 # Include directories for ShipNetSimServer
 # These include directories should point to where the headers are installed or located
@@ -46,6 +49,13 @@ target_link_libraries(${SHIPNETSIM_SERVER_NAME} PRIVATE
 # Include Container library
 target_include_directories(${SHIPNETSIM_SERVER_NAME} PRIVATE ${CONTAINER_INCLUDE_DIRS})
 target_compile_definitions(${SHIPNETSIM_SERVER_NAME} PRIVATE BUILD_SERVER_ENABLED)
+
+# Conditionally link Qt6Keychain if available for secure password storage
+if(Qt6Keychain_FOUND)
+    target_link_libraries(${SHIPNETSIM_SERVER_NAME} PRIVATE Qt6Keychain::Qt6Keychain)
+    target_compile_definitions(${SHIPNETSIM_SERVER_NAME} PRIVATE HAVE_QTKEYCHAIN)
+    message(STATUS "Qt6Keychain found - secure password storage enabled for ShipNetSimServer")
+endif()
 
 
 # Set compiler options for different build types using generator expressions
