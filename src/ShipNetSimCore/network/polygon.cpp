@@ -1081,6 +1081,95 @@ void Polygon::transformInnerHolesBoundaries(bool                   inward,
 }
 
 // =============================================================================
+// Simplification
+// =============================================================================
+
+std::shared_ptr<Polygon> Polygon::simplify(double toleranceMeters) const
+{
+    // Convert meters to approximate degrees for GDAL's Simplify()
+    // At the equator: 1 degree ≈ 111,000 meters
+    // This is an approximation; accuracy varies with latitude
+    constexpr double METERS_PER_DEGREE = 111000.0;
+    double toleranceDegrees = toleranceMeters / METERS_PER_DEGREE;
+
+    // Use GDAL's Simplify which implements Douglas-Peucker
+    std::unique_ptr<OGRGeometry> simplified(
+        mPolygon.Simplify(toleranceDegrees));
+
+    if (!simplified || simplified->getGeometryType() != wkbPolygon)
+    {
+        // If simplification fails, return a copy of the original
+        return std::make_shared<Polygon>(mOutterBoundary, mInnerHoles, mUserID);
+    }
+
+    OGRPolygon* simplifiedPoly = static_cast<OGRPolygon*>(simplified.get());
+
+    // Extract outer boundary points from simplified polygon
+    const OGRLinearRing* extRing = simplifiedPoly->getExteriorRing();
+    QVector<std::shared_ptr<GPoint>> newOuter;
+
+    if (extRing)
+    {
+        int numPoints = extRing->getNumPoints();
+        // Skip last point if it's the same as first (closed ring)
+        if (numPoints > 1 &&
+            extRing->getX(0) == extRing->getX(numPoints - 1) &&
+            extRing->getY(0) == extRing->getY(numPoints - 1))
+        {
+            numPoints--;
+        }
+
+        for (int i = 0; i < numPoints; ++i)
+        {
+            newOuter.append(std::make_shared<GPoint>(
+                units::angle::degree_t(extRing->getX(i)),
+                units::angle::degree_t(extRing->getY(i))));
+        }
+    }
+
+    // Extract inner holes from simplified polygon
+    QVector<QVector<std::shared_ptr<GPoint>>> newHoles;
+    int numInteriorRings = simplifiedPoly->getNumInteriorRings();
+
+    for (int h = 0; h < numInteriorRings; ++h)
+    {
+        const OGRLinearRing* holeRing = simplifiedPoly->getInteriorRing(h);
+        QVector<std::shared_ptr<GPoint>> holePoints;
+
+        if (holeRing)
+        {
+            int numPoints = holeRing->getNumPoints();
+            // Skip last point if it's the same as first (closed ring)
+            if (numPoints > 1 &&
+                holeRing->getX(0) == holeRing->getX(numPoints - 1) &&
+                holeRing->getY(0) == holeRing->getY(numPoints - 1))
+            {
+                numPoints--;
+            }
+
+            for (int i = 0; i < numPoints; ++i)
+            {
+                holePoints.append(std::make_shared<GPoint>(
+                    units::angle::degree_t(holeRing->getX(i)),
+                    units::angle::degree_t(holeRing->getY(i))));
+            }
+        }
+
+        if (!holePoints.isEmpty())
+        {
+            newHoles.append(holePoints);
+        }
+    }
+
+    return std::make_shared<Polygon>(newOuter, newHoles, mUserID + "_simplified");
+}
+
+int Polygon::outerVertexCount() const
+{
+    return mOutterBoundary.size();
+}
+
+// =============================================================================
 // String Representation
 // =============================================================================
 

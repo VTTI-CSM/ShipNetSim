@@ -430,6 +430,30 @@ public:
                                        units::length::meter_t offset);
 
     // =========================================================================
+    // Simplification
+    // =========================================================================
+
+    /**
+     * @brief Create a simplified version of this polygon using Douglas-Peucker.
+     *
+     * Reduces the number of vertices while preserving the overall shape.
+     * Useful for hierarchical pathfinding where a coarse representation
+     * is needed for fast global navigation.
+     *
+     * @param toleranceMeters Simplification tolerance in meters.
+     *        Larger values = fewer vertices but less accurate shape.
+     *        Typical values: 500-5000 meters for ocean navigation.
+     * @return New simplified Polygon with reduced vertex count
+     */
+    std::shared_ptr<Polygon> simplify(double toleranceMeters) const;
+
+    /**
+     * @brief Get the number of vertices in the outer boundary.
+     * @return Number of vertices in exterior ring
+     */
+    int outerVertexCount() const;
+
+    // =========================================================================
     // String Representation
     // =========================================================================
 
