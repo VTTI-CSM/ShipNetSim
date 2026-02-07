@@ -41,7 +41,7 @@ add_library(${SHIPNETSIM_CORE_DLL_NAME} SHARED
   ship/shipsList.h ship/shipsList.cpp
   ship/defaults.h
   network/quadtree.h network/quadtree.cpp
-  network/optimizedvisibilitygraph.h network/optimizedvisibilitygraph.cpp
+  network/hierarchicalvisibilitygraph.h network/hierarchicalvisibilitygraph.cpp
   network/optimizednetwork.h network/optimizednetwork.cpp
   ship/langmaomethod.h ship/langmaomethod.cpp
   network/gpoint.h network/gpoint.cpp
