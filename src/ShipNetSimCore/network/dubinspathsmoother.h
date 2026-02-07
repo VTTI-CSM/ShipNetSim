@@ -18,7 +18,7 @@
 #include "../export.h"
 #include "gline.h"
 #include "gpoint.h"
-#include "optimizedvisibilitygraph.h"
+#include "hierarchicalvisibilitygraph.h"
 #include <QVector>
 #include <memory>
 
