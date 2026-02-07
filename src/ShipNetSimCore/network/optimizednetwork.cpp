@@ -108,12 +108,12 @@ void OptimizedNetwork::initializeNetwork(
 {
     GDALAllRegister();
 
-    mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
-        std::as_const(mBoundaries), boundariesType);
+    mVisibilityGraph = std::make_shared<HierarchicalVisibilityGraph>(
+        std::as_const(mBoundaries));
 
     // Forward progress signal from visibility graph
     connect(mVisibilityGraph.get(),
-            &OptimizedVisibilityGraph::pathFindingProgress,
+            &HierarchicalVisibilityGraph::pathFindingProgress,
             this, &OptimizedNetwork::pathFindingProgress);
 
     mRegionName = regionName; // Set region name
@@ -345,18 +345,18 @@ void OptimizedNetwork::loadTxtFile(const QString &filename)
 
     try
     {
-        mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
-            std::as_const(mBoundaries), BoundariesType::Water);
+        mVisibilityGraph = std::make_shared<HierarchicalVisibilityGraph>(
+            std::as_const(mBoundaries));
 
         // Forward progress signal from visibility graph
         connect(mVisibilityGraph.get(),
-                &OptimizedVisibilityGraph::pathFindingProgress,
+                &HierarchicalVisibilityGraph::pathFindingProgress,
                 this, &OptimizedNetwork::pathFindingProgress);
     }
     catch (const std::exception &e)
     {
         QString errorMsg = QString("Failed to create"
-                                   " OptimizedVisibilityGraph: %1")
+                                   " HierarchicalVisibilityGraph: %1")
                                .arg(e.what());
         emit errorOccurred(errorMsg);
         throw;
@@ -512,18 +512,18 @@ void OptimizedNetwork::loadPolygonShapeFile(const QString &filepath)
 
     try
     {
-        mVisibilityGraph = std::make_shared<OptimizedVisibilityGraph>(
-            std::as_const(mBoundaries), BoundariesType::Water);
+        mVisibilityGraph = std::make_shared<HierarchicalVisibilityGraph>(
+            std::as_const(mBoundaries));
 
         // Forward progress signal from visibility graph
         connect(mVisibilityGraph.get(),
-                &OptimizedVisibilityGraph::pathFindingProgress,
+                &HierarchicalVisibilityGraph::pathFindingProgress,
                 this, &OptimizedNetwork::pathFindingProgress);
     }
     catch (const std::exception &e)
     {
         QString errorMsg =
-            QString("Failed to create OptimizedVisibilityGraph: %1")
+            QString("Failed to create HierarchicalVisibilityGraph: %1")
                 .arg(e.what());
         emit errorOccurred(errorMsg);
         throw;
@@ -735,16 +735,8 @@ OptimizedNetwork::findShortestPath(std::shared_ptr<GPoint> startPoint,
         return ShortestPathResult();
     }
 
-    if (algorithm == PathFindingAlgorithm::AStar)
-    {
-        return mVisibilityGraph->findShortestPathAStar(startPoint,
-                                                       endpoint);
-    }
-    else // if (algorithm == PathFindingAlgorithm::Dijkstra)
-    {
-        return mVisibilityGraph->findShortestPathDijkstra(startPoint,
-                                                          endpoint);
-    }
+    // Algorithm parameter ignored - hierarchical A* is always used
+    return mVisibilityGraph->findShortestPath(startPoint, endpoint);
 }
 
 ShortestPathResult OptimizedNetwork::findShortestPath(
@@ -761,25 +753,27 @@ ShortestPathResult OptimizedNetwork::findShortestPath(
     // Same-thread case
     if (QThread::currentThread() == this->thread())
     {
-        return mVisibilityGraph->findShortestPath(points, algorithm);
+        return mVisibilityGraph->findShortestPath(points);
     }
 
-    // Cross-thread case - use QFuture for safer data passing
-    QFutureInterface<ShortestPathResult> futureInterface;
-    futureInterface.reportStarted();
+    // Cross-thread case - use shared_ptr to ensure QFutureInterface
+    // outlives the lambda (avoids dangling reference from capture-by-ref)
+    auto futureInterface =
+        std::make_shared<QFutureInterface<ShortestPathResult>>();
+    futureInterface->reportStarted();
 
     QMetaObject::invokeMethod(
         this,
-        [this, points, algorithm, &futureInterface]() {
+        [this, points, algorithm, futureInterface]() {
             // Execute in the correct thread
             ShortestPathResult localResult =
-                mVisibilityGraph->findShortestPath(points, algorithm);
-            futureInterface.reportResult(localResult);
-            futureInterface.reportFinished();
+                mVisibilityGraph->findShortestPath(points);
+            futureInterface->reportResult(localResult);
+            futureInterface->reportFinished();
         },
         Qt::QueuedConnection);
 
-    QFuture<ShortestPathResult> future = futureInterface.future();
+    QFuture<ShortestPathResult> future = futureInterface->future();
     future.waitForFinished();
     return future.result();
 }

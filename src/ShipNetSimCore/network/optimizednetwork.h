@@ -4,12 +4,25 @@
 #include "../export.h"
 #include "./algebraicvector.h"
 #include "QObject"
-#include "optimizedvisibilitygraph.h"
+#include "hierarchicalvisibilitygraph.h"
 #include "polygon.h"
 #include "seaport.h"
 
 namespace ShipNetSimCore
 {
+
+enum class BoundariesType
+{
+    Water,
+    Land
+};
+
+enum class PathFindingAlgorithm
+{
+    AStar,
+    Dijkstra
+};
+
 class Ship;
 
 struct tiffFileData
@@ -148,7 +161,7 @@ private:
 
     // The visibility graph representing navigable paths in the
     // region.
-    std::shared_ptr<OptimizedVisibilityGraph> mVisibilityGraph;
+    std::shared_ptr<HierarchicalVisibilityGraph> mVisibilityGraph;
 
     // Differentiate between land and water bodies
     BoundariesType mBoundaryType;
@@ -244,7 +257,7 @@ public:
      * @brief Get the visibility graph for diagnostic purposes.
      * @return Shared pointer to the visibility graph.
      */
-    [[nodiscard]] std::shared_ptr<OptimizedVisibilityGraph> getVisibilityGraph() const
+    [[nodiscard]] std::shared_ptr<HierarchicalVisibilityGraph> getVisibilityGraph() const
     {
         return mVisibilityGraph;
     }
