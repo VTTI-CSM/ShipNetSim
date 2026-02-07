@@ -106,6 +106,10 @@ public:
 
     Quadtree* getLevel0Quadtree() const;
 
+    void buildLevel0Adjacency();
+    bool saveAdjacencyCache(const QString& filePath) const;
+    bool loadAdjacencyCache(const QString& filePath);
+
     bool enableWrapAround;
 
     std::unordered_set<std::shared_ptr<GLine>, GLine::Hash, GLine::Equal>

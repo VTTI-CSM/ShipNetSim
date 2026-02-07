@@ -1,6 +1,9 @@
 #include "hierarchicalvisibilitygraph.h"
 #include "../utils/utils.h"
+#include <QCryptographicHash>
+#include <QDataStream>
 #include <QElapsedTimer>
+#include <QFile>
 #include <chrono>
 #include <functional>
 #include <numeric>
@@ -631,37 +634,68 @@ ShortestPathResult HierarchicalVisibilityGraph::hierarchicalSearch(
     auto snapped0Start = snapToWater(start, 0);
     auto snapped0Goal  = snapToWater(goal, 0);
 
-    // Pre-compute adjacency within corridor for instant neighbor lookups.
-    // Each wider corridor incrementally expands the previous one.
     double expansion0 = LEVEL_TOLERANCES[1] * 3.0;
-    auto corridor0 = buildCorridor(bestCoarseResult, 0, expansion0);
-    precomputeCorridorAdjacency(corridor0, start, goal);
-    auto result0 = aStarAtLevel(start, goal, 0, &corridor0,
-                                snapped0Start, snapped0Goal);
+    bool hasLevel0Adj = !mLevels[0].adjacency.empty();
 
-    if (result0.isValid())
-        return result0;
+    if (hasLevel0Adj)
+    {
+        // Level 0 adjacency is pre-computed — corridors act only as
+        // geographic filters via allowedVertexIndices. No per-query
+        // precomputeCorridorAdjacency needed.
+        auto corridor0 = buildCorridor(bestCoarseResult, 0, expansion0);
+        auto result0 = aStarAtLevel(start, goal, 0, &corridor0,
+                                    snapped0Start, snapped0Goal);
 
-    // Wider corridor — carry forward corridor0's adjacency
-    auto widerCorridor0 = buildCorridor(bestCoarseResult, 0,
-                                        expansion0 * 3.0);
-    precomputeCorridorAdjacency(widerCorridor0, start, goal, &corridor0);
-    result0 = aStarAtLevel(start, goal, 0, &widerCorridor0,
-                           snapped0Start, snapped0Goal);
+        if (result0.isValid())
+            return result0;
 
-    if (result0.isValid())
-        return result0;
+        auto widerCorridor0 = buildCorridor(bestCoarseResult, 0,
+                                            expansion0 * 3.0);
+        result0 = aStarAtLevel(start, goal, 0, &widerCorridor0,
+                               snapped0Start, snapped0Goal);
 
-    // Very wide corridor — carry forward widerCorridor0's adjacency
-    auto veryWideCorridor0 = buildCorridor(bestCoarseResult, 0,
-                                           expansion0 * 10.0);
-    precomputeCorridorAdjacency(veryWideCorridor0, start, goal,
-                                &widerCorridor0);
-    result0 = aStarAtLevel(start, goal, 0, &veryWideCorridor0,
-                           snapped0Start, snapped0Goal);
+        if (result0.isValid())
+            return result0;
 
-    if (result0.isValid())
-        return result0;
+        auto veryWideCorridor0 = buildCorridor(bestCoarseResult, 0,
+                                               expansion0 * 10.0);
+        result0 = aStarAtLevel(start, goal, 0, &veryWideCorridor0,
+                               snapped0Start, snapped0Goal);
+
+        if (result0.isValid())
+            return result0;
+    }
+    else
+    {
+        // Fallback: pre-compute corridor adjacency on-demand (old path)
+        auto corridor0 = buildCorridor(bestCoarseResult, 0, expansion0);
+        precomputeCorridorAdjacency(corridor0, start, goal);
+        auto result0 = aStarAtLevel(start, goal, 0, &corridor0,
+                                    snapped0Start, snapped0Goal);
+
+        if (result0.isValid())
+            return result0;
+
+        auto widerCorridor0 = buildCorridor(bestCoarseResult, 0,
+                                            expansion0 * 3.0);
+        precomputeCorridorAdjacency(widerCorridor0, start, goal,
+                                    &corridor0);
+        result0 = aStarAtLevel(start, goal, 0, &widerCorridor0,
+                               snapped0Start, snapped0Goal);
+
+        if (result0.isValid())
+            return result0;
+
+        auto veryWideCorridor0 = buildCorridor(bestCoarseResult, 0,
+                                               expansion0 * 10.0);
+        precomputeCorridorAdjacency(veryWideCorridor0, start, goal,
+                                    &widerCorridor0);
+        result0 = aStarAtLevel(start, goal, 0, &veryWideCorridor0,
+                               snapped0Start, snapped0Goal);
+
+        if (result0.isValid())
+            return result0;
+    }
 
     // Final fallback: unconstrained Level 0 A*
     qDebug() << "All corridor attempts failed, "
@@ -1306,7 +1340,7 @@ HierarchicalVisibilityGraph::getVisibleNodesForPoint(
 
     // Check if node is a known vertex with pre-computed adjacency (levels 1-3)
     auto it = lvl.vertexIndex.find(node);
-    if (it != lvl.vertexIndex.end() && level > 0)
+    if (it != lvl.vertexIndex.end() && !lvl.adjacency.empty())
     {
         int idx = it->second;
         if (idx < static_cast<int>(lvl.adjacency.size()))
@@ -1942,6 +1976,185 @@ void HierarchicalVisibilityGraph::setPolygons(
     }
 
     buildAllLevels();
+}
+
+// =============================================================================
+// Level 0 Adjacency Cache
+// =============================================================================
+
+void HierarchicalVisibilityGraph::buildLevel0Adjacency()
+{
+    buildAdjacencyForLevel(0);
+}
+
+bool HierarchicalVisibilityGraph::saveAdjacencyCache(
+    const QString& filePath) const
+{
+    const auto& lvl = mLevels[0];
+    int n = lvl.vertices.size();
+
+    if (n == 0 || lvl.adjacency.empty())
+    {
+        qWarning() << "saveAdjacencyCache: No Level 0 adjacency to save";
+        return false;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly))
+    {
+        qWarning() << "saveAdjacencyCache: Cannot open" << filePath;
+        return false;
+    }
+
+    QDataStream out(&file);
+    out.setByteOrder(QDataStream::LittleEndian);
+    out.setFloatingPointPrecision(QDataStream::DoublePrecision);
+
+    // Magic bytes "HVG0"
+    out.writeRawData("HVG0", 4);
+
+    // Version
+    qint32 version = 1;
+    out << version;
+
+    // Vertex count
+    qint32 vertexCount = static_cast<qint32>(n);
+    out << vertexCount;
+
+    // SHA-256 of vertex coordinates
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    for (int i = 0; i < n; ++i)
+    {
+        double lon = lvl.vertices[i]->getLongitude().value();
+        double lat = lvl.vertices[i]->getLatitude().value();
+        hash.addData(reinterpret_cast<const char*>(&lon), sizeof(double));
+        hash.addData(reinterpret_cast<const char*>(&lat), sizeof(double));
+    }
+    QByteArray coordHash = hash.result();
+    out.writeRawData(coordHash.constData(), 32);
+
+    // Write adjacency lists
+    for (int i = 0; i < n; ++i)
+    {
+        qint32 neighborCount = static_cast<qint32>(lvl.adjacency[i].size());
+        out << neighborCount;
+        for (int neighbor : lvl.adjacency[i])
+        {
+            qint32 idx = static_cast<qint32>(neighbor);
+            out << idx;
+        }
+    }
+
+    file.close();
+    qDebug() << "Saved Level 0 adjacency cache to" << filePath
+             << "(" << file.size() << "bytes)";
+    return true;
+}
+
+bool HierarchicalVisibilityGraph::loadAdjacencyCache(
+    const QString& filePath)
+{
+    auto& lvl = mLevels[0];
+    int n = lvl.vertices.size();
+
+    if (n == 0)
+    {
+        qWarning() << "loadAdjacencyCache: No Level 0 vertices";
+        return false;
+    }
+
+    QFile file(filePath);
+    if (!file.exists() || !file.open(QIODevice::ReadOnly))
+    {
+        qDebug() << "loadAdjacencyCache: Cache file not found:" << filePath;
+        return false;
+    }
+
+    QDataStream in(&file);
+    in.setByteOrder(QDataStream::LittleEndian);
+    in.setFloatingPointPrecision(QDataStream::DoublePrecision);
+
+    // Validate magic
+    char magic[4];
+    if (in.readRawData(magic, 4) != 4 ||
+        memcmp(magic, "HVG0", 4) != 0)
+    {
+        qWarning() << "loadAdjacencyCache: Invalid magic bytes";
+        return false;
+    }
+
+    // Validate version
+    qint32 version;
+    in >> version;
+    if (version != 1)
+    {
+        qWarning() << "loadAdjacencyCache: Unsupported version" << version;
+        return false;
+    }
+
+    // Validate vertex count
+    qint32 vertexCount;
+    in >> vertexCount;
+    if (vertexCount != static_cast<qint32>(n))
+    {
+        qDebug() << "loadAdjacencyCache: Vertex count mismatch"
+                 << "(cache:" << vertexCount << "current:" << n << ")";
+        return false;
+    }
+
+    // Validate coordinate hash
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    for (int i = 0; i < n; ++i)
+    {
+        double lon = lvl.vertices[i]->getLongitude().value();
+        double lat = lvl.vertices[i]->getLatitude().value();
+        hash.addData(reinterpret_cast<const char*>(&lon), sizeof(double));
+        hash.addData(reinterpret_cast<const char*>(&lat), sizeof(double));
+    }
+    QByteArray expectedHash = hash.result();
+
+    char storedHash[32];
+    if (in.readRawData(storedHash, 32) != 32 ||
+        memcmp(storedHash, expectedHash.constData(), 32) != 0)
+    {
+        qDebug() << "loadAdjacencyCache: Coordinate hash mismatch "
+                    "(shapefile changed)";
+        return false;
+    }
+
+    // Read adjacency lists
+    lvl.adjacency.resize(n);
+    for (int i = 0; i < n; ++i)
+    {
+        qint32 neighborCount;
+        in >> neighborCount;
+        if (neighborCount < 0 || neighborCount > n)
+        {
+            qWarning() << "loadAdjacencyCache: Invalid neighbor count"
+                       << neighborCount << "at vertex" << i;
+            lvl.adjacency.clear();
+            return false;
+        }
+        lvl.adjacency[i].resize(neighborCount);
+        for (int j = 0; j < neighborCount; ++j)
+        {
+            qint32 idx;
+            in >> idx;
+            if (idx < 0 || idx >= n)
+            {
+                qWarning() << "loadAdjacencyCache: Invalid neighbor index"
+                           << idx << "at vertex" << i;
+                lvl.adjacency.clear();
+                return false;
+            }
+            lvl.adjacency[i][j] = idx;
+        }
+    }
+
+    file.close();
+    qDebug() << "Loaded Level 0 adjacency cache from" << filePath
+             << "(" << n << "vertices)";
+    return true;
 }
 
 // =============================================================================
