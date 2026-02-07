@@ -756,26 +756,18 @@ ShortestPathResult OptimizedNetwork::findShortestPath(
         return mVisibilityGraph->findShortestPath(points);
     }
 
-    // Cross-thread case - use shared_ptr to ensure QFutureInterface
-    // outlives the lambda (avoids dangling reference from capture-by-ref)
-    auto futureInterface =
-        std::make_shared<QFutureInterface<ShortestPathResult>>();
-    futureInterface->reportStarted();
+    // Cross-thread case — BlockingQueuedConnection handles
+    // the blocking natively without QFutureInterface overhead
+    ShortestPathResult crossThreadResult;
 
     QMetaObject::invokeMethod(
         this,
-        [this, points, algorithm, futureInterface]() {
-            // Execute in the correct thread
-            ShortestPathResult localResult =
-                mVisibilityGraph->findShortestPath(points);
-            futureInterface->reportResult(localResult);
-            futureInterface->reportFinished();
+        [this, points, &crossThreadResult]() {
+            crossThreadResult = mVisibilityGraph->findShortestPath(points);
         },
-        Qt::QueuedConnection);
+        Qt::BlockingQueuedConnection);
 
-    QFuture<ShortestPathResult> future = futureInterface->future();
-    future.waitForFinished();
-    return future.result();
+    return crossThreadResult;
 }
 
 QString OptimizedNetwork::getRegionName()
