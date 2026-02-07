@@ -1908,10 +1908,16 @@ void SimulatorAPI::requestTerminateSimulation(
         // Retrieve the APIData for the specified network
         APIData apiData = apiDataMap.get(networkName);
 
+        // Request interruption on the worker thread to cancel any ongoing
+        // pathfinding operations before terminating the simulator
+        if (apiData.workerThread && apiData.workerThread->isRunning())
+        {
+            apiData.workerThread->requestInterruption();
+        }
+
         // Check if the simulator exists
         if (apiData.simulator)
         {
-
             apiData.simulator->terminateSimulation();
         }
     }
