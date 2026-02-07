@@ -668,8 +668,11 @@ std::size_t GPoint::Hash::operator()(const std::shared_ptr<GPoint> &p) const
     auto lat = p->getLatitude().value();
     auto lon = p->getLongitude().value();
 
-    return std::hash<decltype(lat)>()(lat)
-           ^ std::hash<decltype(lon)>()(lon);
+    auto h1 = std::hash<decltype(lat)>()(lat);
+    auto h2 = std::hash<decltype(lon)>()(lon);
+    // Boost-style hash combine to avoid clustering from simple XOR
+    return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL +
+                 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
 }
 
 bool GPoint::Equal::operator()(const std::shared_ptr<GPoint> &lhs,
@@ -695,6 +698,9 @@ std::hash<ShipNetSimCore::GPoint>::operator()(
     auto lat = p.getLatitude().value();
     auto lon = p.getLongitude().value();
 
-    return std::hash<decltype(lat)>()(lat)
-           ^ std::hash<decltype(lon)>()(lon);
+    auto h1 = std::hash<decltype(lat)>()(lat);
+    auto h2 = std::hash<decltype(lon)>()(lon);
+    // Boost-style hash combine to avoid clustering from simple XOR
+    return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL +
+                 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
 }
