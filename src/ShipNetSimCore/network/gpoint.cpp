@@ -277,6 +277,18 @@ units::length::meter_t GPoint::distance(const GPoint &other) const
     return units::length::meter_t(dist);
 }
 
+units::length::meter_t GPoint::fastDistance(const GPoint &other) const
+{
+    const auto& geod = wgs84Geodesic();
+
+    double dist;
+    geod.Inverse(getLatitude().value(), getLongitude().value(),
+                 other.getLatitude().value(), other.getLongitude().value(),
+                 dist);
+
+    return units::length::meter_t(dist);
+}
+
 units::angle::degree_t GPoint::forwardAzimuth(const GPoint &other) const
 {
     validateSpatialReferences(mOGRPoint.getSpatialReference(),

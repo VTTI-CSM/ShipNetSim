@@ -198,6 +198,18 @@ public:
     [[nodiscard]] units::length::meter_t distance(const GPoint &other) const;
 
     /**
+     * @brief Calculate geodesic distance without spatial reference validation.
+     *
+     * Identical to distance() but skips validateSpatialReferences() for
+     * performance in hot paths where all points are known to use WGS84.
+     *
+     * @param other The target point
+     * @return Geodesic distance in meters
+     */
+    [[nodiscard]] units::length::meter_t
+    fastDistance(const GPoint &other) const;
+
+    /**
      * @brief Calculate forward azimuth to another point.
      *
      * Returns the initial bearing (azimuth) from this point toward the
