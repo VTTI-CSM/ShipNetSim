@@ -19,7 +19,7 @@
 #include <unordered_map>
 #include "../../third_party/units/units.h"
 #include "visibilitygraph.h"
-#include "optimizedvisibilitygraph.h"
+#include "hierarchicalvisibilitygraph.h"
 
 /**
  * @struct ShortestPathResult

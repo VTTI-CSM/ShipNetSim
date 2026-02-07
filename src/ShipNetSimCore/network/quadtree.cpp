@@ -602,58 +602,82 @@ Quadtree::splitSegmentAtAntimeridian(
 bool Quadtree::Node::standardIntersectionCheck(
     const std::shared_ptr<GLine> &segment) const
 {
-    // Check if either of the line segment's endpoints
-    // is inside the node's bounding box
-    if (min_point->getLongitude()
-            <= segment->startPoint()->getLongitude()
-        && segment->startPoint()->getLongitude()
-               <= max_point->getLongitude()
-        && min_point->getLatitude()
-               <= segment->startPoint()->getLatitude()
-        && segment->startPoint()->getLatitude()
-               <= max_point->getLatitude())
+    // Pure AABB arithmetic — no GLine/GPoint construction, no geodesic math.
+    // Extract raw coordinates once.
+    double nodeMinLon = min_point->getLongitude().value();
+    double nodeMaxLon = max_point->getLongitude().value();
+    double nodeMinLat = min_point->getLatitude().value();
+    double nodeMaxLat = max_point->getLatitude().value();
+
+    double sx = segment->startPoint()->getLongitude().value();
+    double sy = segment->startPoint()->getLatitude().value();
+    double ex = segment->endPoint()->getLongitude().value();
+    double ey = segment->endPoint()->getLatitude().value();
+
+    // Check if either endpoint is inside the node's bounding box
+    if (sx >= nodeMinLon && sx <= nodeMaxLon &&
+        sy >= nodeMinLat && sy <= nodeMaxLat)
+    {
+        return true;
+    }
+    if (ex >= nodeMinLon && ex <= nodeMaxLon &&
+        ey >= nodeMinLat && ey <= nodeMaxLat)
     {
         return true;
     }
 
-    if (min_point->getLongitude()
-            <= segment->endPoint()->getLongitude()
-        && segment->endPoint()->getLongitude()
-               <= max_point->getLongitude()
-        && min_point->getLatitude()
-               <= segment->endPoint()->getLatitude()
-        && segment->endPoint()->getLatitude()
-               <= max_point->getLatitude())
+    // Segment bounding box vs node bounding box — quick reject
+    double segMinLon = std::min(sx, ex);
+    double segMaxLon = std::max(sx, ex);
+    double segMinLat = std::min(sy, ey);
+    double segMaxLat = std::max(sy, ey);
+
+    if (segMaxLon < nodeMinLon || segMinLon > nodeMaxLon ||
+        segMaxLat < nodeMinLat || segMinLat > nodeMaxLat)
     {
-        return true;
+        return false;
     }
 
-    // Check for intersection with each of
-    // the four edges of the node
-    GLine topEdge(min_point,
-                  std::make_shared<GPoint>(max_point->getLongitude(),
-                                           min_point->getLatitude()));
-    GLine bottomEdge(
-        std::make_shared<GPoint>(min_point->getLongitude(),
-                                 max_point->getLatitude()),
-        max_point);
-    GLine leftEdge(min_point, std::make_shared<GPoint>(
-                                  min_point->getLongitude(),
-                                  max_point->getLatitude()));
-    GLine rightEdge(
-        std::make_shared<GPoint>(max_point->getLongitude(),
-                                 min_point->getLatitude()),
-        max_point);
+    // Cohen-Sutherland style: check if the segment crosses
+    // the AABB using a 2D line-segment vs rectangle test.
+    // Test segment against each edge of the rectangle.
+    double dx = ex - sx;
+    double dy = ey - sy;
 
-    if (segment->intersects(topEdge)
-        || segment->intersects(bottomEdge)
-        || segment->intersects(leftEdge)
-        || segment->intersects(rightEdge))
-    {
+    // Helper: test segment (sx,sy)-(ex,ey) against an edge defined by
+    // two corners using cross-product orientation test.
+    // For a segment to cross a rectangle, it must cross at least one edge.
+    // We use parametric line intersection with each of the 4 axis-aligned edges.
+
+    auto clipTest = [](double p, double q, double &tMin, double &tMax) -> bool {
+        if (std::abs(p) < 1e-15)
+        {
+            // Parallel to this edge
+            return q >= 0.0;
+        }
+        double t = q / p;
+        if (p < 0.0)
+        {
+            if (t > tMax) return false;
+            if (t > tMin) tMin = t;
+        }
+        else
+        {
+            if (t < tMin) return false;
+            if (t < tMax) tMax = t;
+        }
         return true;
-    }
+    };
 
-    return false;
+    // Liang-Barsky algorithm for line-segment vs AABB clipping
+    double tMin = 0.0, tMax = 1.0;
+
+    if (!clipTest(-dx, sx - nodeMinLon, tMin, tMax)) return false;
+    if (!clipTest( dx, nodeMaxLon - sx, tMin, tMax)) return false;
+    if (!clipTest(-dy, sy - nodeMinLat, tMin, tMax)) return false;
+    if (!clipTest( dy, nodeMaxLat - sy, tMin, tMax)) return false;
+
+    return true;
 }
 
 bool Quadtree::isSegmentCrossingAntimeridian(
