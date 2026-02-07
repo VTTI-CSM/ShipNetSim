@@ -97,6 +97,9 @@ public:
     bool isSegmentVisible(const std::shared_ptr<GLine>& segment,
                           int level = 0) const;
 
+    bool isSegmentVisible(const GLine& segment,
+                          int level = 0) const;
+
     void clear();
 
     void setPolygons(const QVector<std::shared_ptr<Polygon>>& newPolygons);

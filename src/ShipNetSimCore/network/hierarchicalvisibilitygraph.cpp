@@ -1,7 +1,6 @@
 #include "hierarchicalvisibilitygraph.h"
 #include "../utils/utils.h"
 #include <QElapsedTimer>
-#include <QMutex>
 #include <chrono>
 #include <functional>
 #include <numeric>
@@ -126,6 +125,19 @@ void HierarchicalVisibilityGraph::buildLevel(int idx)
             QVector<std::shared_ptr<Polygon>>());
     }
 
+    // Estimate total vertex count for pre-allocation
+    int estimatedVertices = 0;
+    for (const auto& poly : level.polygons)
+    {
+        if (!poly) continue;
+        estimatedVertices += poly->outer().size();
+        for (const auto& hole : poly->inners())
+            estimatedVertices += hole.size();
+    }
+    level.vertices.reserve(estimatedVertices);
+    level.vertexPolygonId.reserve(estimatedVertices);
+    level.vertexIndex.reserve(estimatedVertices);
+
     // Collect all vertices
     int vertexIdx = 0;
     for (int pi = 0; pi < level.polygons.size(); ++pi)
@@ -181,6 +193,11 @@ void HierarchicalVisibilityGraph::buildAdjacencyForLevel(int idx)
     // No mutex needed during the parallel phase.
     std::vector<std::vector<int>> perVertexNeighbors(n);
 
+    QAtomicInt completedVertices(0);
+    // Benign race on lastProgressEmit — worst case is a few extra signals
+    qint64 lastProgressEmit = 0;
+    int progressInterval = std::max(1, n / 100);
+
     QtConcurrent::blockingMap(indices, [&](int i) {
         int polyI = level.vertexPolygonId[i];
 
@@ -210,6 +227,17 @@ void HierarchicalVisibilityGraph::buildAdjacencyForLevel(int idx)
                 perVertexNeighbors[i].push_back(j);
             }
         }
+
+        int done = completedVertices.fetchAndAddRelaxed(1) + 1;
+        if (done % progressInterval == 0)
+        {
+            qint64 nowMs = timer.elapsed();
+            if (nowMs - lastProgressEmit >= 1000)
+            {
+                lastProgressEmit = nowMs;
+                emit pathFindingProgress(-1, 0, nowMs / 1000.0);
+            }
+        }
     });
 
     // Single-threaded merge: build symmetric adjacency from per-vertex results
@@ -234,10 +262,19 @@ std::shared_ptr<GPoint> HierarchicalVisibilityGraph::snapToWater(
     const std::shared_ptr<GPoint>& point, int level) const
 {
     const auto& lvl = mLevels[level];
+    const double ptLon = point->getLongitude().value();
+    const double ptLat = point->getLatitude().value();
 
     // Check if point is already in a water polygon
     for (const auto& polygon : lvl.polygons)
     {
+        // Envelope pre-filter to skip polygons far from point
+        double minLon, maxLon, minLat, maxLat;
+        polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
+        if (ptLon < minLon || ptLon > maxLon ||
+            ptLat < minLat || ptLat > maxLat)
+            continue;
+
         if (polygon->isPointWithinPolygon(*point))
         {
             // Ensure owning polygons are set so isSegmentVisible
@@ -253,6 +290,13 @@ std::shared_ptr<GPoint> HierarchicalVisibilityGraph::snapToWater(
     // Point is on land - determine why and snap
     for (const auto& polygon : lvl.polygons)
     {
+        // Envelope pre-filter
+        double minLon, maxLon, minLat, maxLat;
+        polygon->getEnvelope(minLon, maxLon, minLat, maxLat);
+        if (ptLon < minLon || ptLon > maxLon ||
+            ptLat < minLat || ptLat > maxLat)
+            continue;
+
         if (!polygon->isPointWithinExteriorRing(*point))
             continue;
 
@@ -268,7 +312,7 @@ std::shared_ptr<GPoint> HierarchicalVisibilityGraph::snapToWater(
 
             for (const auto& vertex : holeVertices)
             {
-                auto dist = point->distance(*vertex);
+                auto dist = point->fastDistance(*vertex);
                 if (dist < minDist)
                 {
                     minDist = dist;
@@ -293,7 +337,7 @@ std::shared_ptr<GPoint> HierarchicalVisibilityGraph::snapToWater(
     {
         for (const auto& vertex : polygon->outer())
         {
-            auto dist = point->distance(*vertex);
+            auto dist = point->fastDistance(*vertex);
             if (dist < minDist)
             {
                 minDist = dist;
@@ -345,76 +389,110 @@ ShortestPathResult HierarchicalVisibilityGraph::aStarAtLevel(
     qDebug() << "A* level" << level << ": from"
              << startNav->toString() << "to" << endNav->toString();
 
-    // A* data structures
-    std::unordered_map<std::shared_ptr<GPoint>, std::shared_ptr<GPoint>,
-                       GPoint::Hash, GPoint::Equal> cameFrom;
-    std::unordered_map<std::shared_ptr<GPoint>, double,
-                       GPoint::Hash, GPoint::Equal> gScore;
+    // --- Integer-based A* for performance ---
+    // Avoid shared_ptr hash/refcount overhead by mapping points to ints.
+    // Points are stored in a flat vector; all A* structures use int indices.
+    QVector<std::shared_ptr<GPoint>> idxToPoint;
+    std::unordered_map<std::shared_ptr<GPoint>, int,
+                       GPoint::Hash, GPoint::Equal> pointToIdx;
 
-    // Min-heap with lazy deletion
+    auto getOrAddIndex = [&](const std::shared_ptr<GPoint>& pt) -> int {
+        auto it = pointToIdx.find(pt);
+        if (it != pointToIdx.end())
+            return it->second;
+        int idx = idxToPoint.size();
+        idxToPoint.append(pt);
+        pointToIdx[pt] = idx;
+        return idx;
+    };
+
+    int startIdx = getOrAddIndex(startNav);
+    int endIdx   = getOrAddIndex(endNav);
+
+    // Pre-cache the goal coordinates for fast heuristic
+    const double endLat = endNav->getLatitude().value();
+    const double endLon = endNav->getLongitude().value();
+
+    // Heuristic using haversine (avoids validateSpatialReferences overhead)
+    auto heuristic = [endLat, endLon](const std::shared_ptr<GPoint>& pt)
+        -> double {
+        double lat1 = pt->getLatitude().value() * M_PI / 180.0;
+        double lat2 = endLat * M_PI / 180.0;
+        double dLat = lat2 - lat1;
+        double dLon = (pt->getLongitude().value() - endLon) * M_PI / 180.0;
+        double a = std::sin(dLat / 2.0) * std::sin(dLat / 2.0) +
+                   std::cos(lat1) * std::cos(lat2) *
+                   std::sin(dLon / 2.0) * std::sin(dLon / 2.0);
+        return 6371000.0 * 2.0 * std::asin(std::sqrt(a));
+    };
+
+    // A* data structures using integer indices
+    // Dynamic vectors that grow as new points are discovered
+    std::vector<double> gScore(2, std::numeric_limits<double>::infinity());
+    std::vector<int> cameFrom(2, -1);
+    std::vector<bool> closed(2, false);
+
+    auto ensureCapacity = [&](int idx) {
+        if (idx >= static_cast<int>(gScore.size()))
+        {
+            int newSize = idx + 1;
+            gScore.resize(newSize, std::numeric_limits<double>::infinity());
+            cameFrom.resize(newSize, -1);
+            closed.resize(newSize, false);
+        }
+    };
+
+    // Min-heap: (fScore, vertexIndex)
     std::priority_queue<
-        std::pair<double, std::shared_ptr<GPoint>>,
-        std::vector<std::pair<double, std::shared_ptr<GPoint>>>,
-        std::greater<std::pair<double, std::shared_ptr<GPoint>>>>
+        std::pair<double, int>,
+        std::vector<std::pair<double, int>>,
+        std::greater<std::pair<double, int>>>
         openSet;
 
-    std::unordered_set<std::shared_ptr<GPoint>,
-                       GPoint::Hash, GPoint::Equal> closedSet;
-
-    auto initScore = [&](const std::shared_ptr<GPoint>& pt) {
-        if (gScore.find(pt) == gScore.end())
-            gScore[pt] = std::numeric_limits<double>::infinity();
-    };
-
-    auto heuristic = [&](const std::shared_ptr<GPoint>& pt) {
-        return pt->distance(*endNav).value();
-    };
-
-    initScore(startNav);
-    gScore[startNav] = 0.0;
-    openSet.push({heuristic(startNav), startNav});
-    initScore(endNav);
+    gScore[startIdx] = 0.0;
+    openSet.push({heuristic(startNav), startIdx});
 
     QElapsedTimer progressTimer;
     progressTimer.start();
     qint64 lastProgressEmit = 0;
+    int iterationCount = 0;
 
     while (!openSet.empty())
     {
-        if (QThread::currentThread()->isInterruptionRequested())
+        if (++iterationCount % 64 == 0)
         {
-            qWarning() << "A* cancelled by thread interruption";
-            return ShortestPathResult();
+            if (QThread::currentThread()->isInterruptionRequested())
+            {
+                qWarning() << "A* cancelled by thread interruption";
+                return ShortestPathResult();
+            }
+
+            qint64 nowMs = progressTimer.elapsed();
+            if (nowMs - lastProgressEmit >= 1000)
+            {
+                lastProgressEmit = nowMs;
+                emit pathFindingProgress(-1, 0, nowMs / 1000.0);
+            }
         }
 
-        auto [currentF, current] = openSet.top();
+        auto [currentF, currentIdx] = openSet.top();
         openSet.pop();
 
-        if (closedSet.count(current))
+        if (closed[currentIdx])
             continue;
-        closedSet.insert(current);
+        closed[currentIdx] = true;
 
-        // Emit progress every 1 second
-        qint64 nowMs = progressTimer.elapsed();
-        if (nowMs - lastProgressEmit >= 1000)
-        {
-            lastProgressEmit = nowMs;
-            emit pathFindingProgress(-1, 0, nowMs / 1000.0);
-        }
-
-        if (*current == *endNav)
-        {
+        if (currentIdx == endIdx)
             break;
-        }
+
+        auto current = idxToPoint[currentIdx];
 
         // Get neighbors
         auto neighbors = getVisibleNodesForPoint(current, level, corridor);
 
         // Check direct visibility to goal only when reasonably close.
-        // heuristic(current) is the geodesic distance to goal.
-        // Only attempt expensive visibility check when within threshold.
         double distToGoal = heuristic(current);
-        if (*current != *endNav && !closedSet.count(endNav)
+        if (currentIdx != endIdx && !closed[endIdx]
             && distToGoal < 50000.0  // 50km threshold
             && isVisible(current, endNav, level))
         {
@@ -429,31 +507,42 @@ ShortestPathResult HierarchicalVisibilityGraph::aStarAtLevel(
 
         for (const auto& neighbor : neighbors)
         {
-            if (closedSet.count(neighbor))
+            int neighborIdx = getOrAddIndex(neighbor);
+            ensureCapacity(neighborIdx);
+
+            if (closed[neighborIdx])
                 continue;
 
-            initScore(neighbor);
+            double tentG = gScore[currentIdx]
+                           + current->fastDistance(*neighbor).value();
 
-            double tentG = gScore[current]
-                           + current->distance(*neighbor).value();
-
-            if (tentG < gScore[neighbor])
+            if (tentG < gScore[neighborIdx])
             {
-                cameFrom[neighbor] = current;
-                gScore[neighbor] = tentG;
-                openSet.push({tentG + heuristic(neighbor), neighbor});
+                cameFrom[neighborIdx] = currentIdx;
+                gScore[neighborIdx] = tentG;
+                openSet.push({tentG + heuristic(neighbor), neighborIdx});
             }
         }
     }
 
-    if (cameFrom.find(endNav) == cameFrom.end()
-        && *startNav != *endNav)
+    if (cameFrom[endIdx] == -1 && startIdx != endIdx)
     {
         qDebug() << "A* level" << level << ": no path found";
         return ShortestPathResult();
     }
 
-    return reconstructPath(cameFrom, endNav, level);
+    // Reconstruct path from integer indices
+    std::unordered_map<std::shared_ptr<GPoint>, std::shared_ptr<GPoint>,
+                       GPoint::Hash, GPoint::Equal> cameFromMap;
+    for (int i = 0; i < static_cast<int>(cameFrom.size()); ++i)
+    {
+        if (cameFrom[i] >= 0)
+        {
+            cameFromMap[idxToPoint[i]] = idxToPoint[cameFrom[i]];
+        }
+    }
+
+    return reconstructPath(cameFromMap, endNav, level);
 }
 
 // =============================================================================
@@ -465,6 +554,12 @@ ShortestPathResult HierarchicalVisibilityGraph::hierarchicalSearch(
     const std::shared_ptr<GPoint>& goal)
 {
     qDebug() << "=== Hierarchical Search ===";
+
+    if (!start || !goal)
+    {
+        qWarning() << "hierarchicalSearch: null start or goal";
+        return ShortestPathResult();
+    }
 
     // Track the best coarse result available for corridor building.
     // Coarse results are NEVER returned — only used to guide Level 0.
@@ -506,7 +601,7 @@ ShortestPathResult HierarchicalVisibilityGraph::hierarchicalSearch(
 
     if (result2.isValid())
     {
-        bestCoarseResult = result2;
+        bestCoarseResult = std::move(result2);
     }
 
     // --- Level 1 ---
@@ -528,7 +623,7 @@ ShortestPathResult HierarchicalVisibilityGraph::hierarchicalSearch(
 
     if (result1.isValid())
     {
-        bestCoarseResult = result1;
+        bestCoarseResult = std::move(result1);
     }
 
     // --- Level 0 (original polygons — only valid final result) ---
@@ -611,15 +706,36 @@ Corridor HierarchicalVisibilityGraph::buildCorridor(
         corridor.maxLat = std::max(corridor.maxLat, lat + latExpand);
     }
 
-    // Populate allowed vertex indices from target level
+    // Populate allowed vertex indices using quadtree range query
+    // instead of linear scan over all vertices — O(sqrt(n)) vs O(n).
     const auto& lvl = mLevels[targetLevel];
-    for (int i = 0; i < lvl.vertices.size(); ++i)
+    if (lvl.quadtree)
     {
-        double lon = lvl.vertices[i]->getLongitude().value();
-        double lat = lvl.vertices[i]->getLatitude().value();
-        if (corridor.containsPoint(lon, lat))
+        double width  = corridor.maxLon - corridor.minLon;
+        double height = corridor.maxLat - corridor.minLat;
+        QRectF range(corridor.minLon, corridor.minLat, width, height);
+
+        auto rangeVertices = lvl.quadtree->findVerticesInRange(range);
+        for (const auto& v : rangeVertices)
         {
-            corridor.allowedVertexIndices.insert(i);
+            auto it = lvl.vertexIndex.find(v);
+            if (it != lvl.vertexIndex.end())
+            {
+                corridor.allowedVertexIndices.insert(it->second);
+            }
+        }
+    }
+    else
+    {
+        // Fallback to linear scan if quadtree unavailable
+        for (int i = 0; i < lvl.vertices.size(); ++i)
+        {
+            double lon = lvl.vertices[i]->getLongitude().value();
+            double lat = lvl.vertices[i]->getLatitude().value();
+            if (corridor.containsPoint(lon, lat))
+            {
+                corridor.allowedVertexIndices.insert(i);
+            }
         }
     }
 
@@ -716,11 +832,18 @@ void HierarchicalVisibilityGraph::precomputeCorridorAdjacency(
     QVector<int> indices(n);
     std::iota(indices.begin(), indices.end(), 0);
 
-    QMutex adjacencyMutex;
+    // Per-vertex neighbor lists — each thread writes only to its own slot.
+    // No mutex needed during the parallel phase.
+    std::vector<std::vector<int>> perVertexNeighbors(n);
+
+    QElapsedTimer progressTimer;
+    progressTimer.start();
+    QAtomicInt completedVertices(0);
+    // Benign race on lastProgressEmit — worst case is a few extra signals
+    qint64 lastProgressEmit = 0;
+    int progressInterval = std::max(1, n / 100);
 
     QtConcurrent::blockingMap(indices, [&](int i) {
-        std::vector<int> myNeighbors;
-
         // For inherited vertices (i < inheritedCount), only check
         // against new vertices (j >= inheritedCount).
         // For new vertices, check against all j > i.
@@ -730,17 +853,31 @@ void HierarchicalVisibilityGraph::precomputeCorridorAdjacency(
         {
             if (isVisible(corridor.vertices[i], corridor.vertices[j], 0))
             {
-                myNeighbors.push_back(j);
+                perVertexNeighbors[i].push_back(j);
             }
         }
 
-        QMutexLocker lock(&adjacencyMutex);
-        for (int neighbor : myNeighbors)
+        int done = completedVertices.fetchAndAddRelaxed(1) + 1;
+        if (done % progressInterval == 0)
+        {
+            qint64 nowMs = progressTimer.elapsed();
+            if (nowMs - lastProgressEmit >= 1000)
+            {
+                lastProgressEmit = nowMs;
+                emit pathFindingProgress(-1, 0, nowMs / 1000.0);
+            }
+        }
+    });
+
+    // Single-threaded merge: build symmetric adjacency from per-vertex results
+    for (int i = 0; i < n; ++i)
+    {
+        for (int neighbor : perVertexNeighbors[i])
         {
             corridor.adjacency[i].push_back(neighbor);
             corridor.adjacency[neighbor].push_back(i);
         }
-    });
+    }
 
     corridor.hasAdjacency = true;
 
@@ -778,8 +915,8 @@ bool HierarchicalVisibilityGraph::isVisible(
     if (approxDistMeters < 1.0)
         return true;
 
-    // Construct GLine only when needed — this is the expensive part
-    auto segment = std::make_shared<GLine>(node1, node2);
+    // Construct GLine on stack — avoids heap allocation + atomic refcount
+    GLine segment(node1, node2);
     return isSegmentVisible(segment, level);
 }
 
@@ -994,6 +1131,18 @@ bool HierarchicalVisibilityGraph::isSegmentVisible(
     }
 
     return true;
+}
+
+bool HierarchicalVisibilityGraph::isSegmentVisible(
+    const GLine& segment,
+    int level) const
+{
+    // Wrap in shared_ptr for APIs that require it.
+    // The GLine is already constructed on the stack by the caller;
+    // the shared_ptr here has a no-op deleter to avoid double-free.
+    auto segPtr = std::shared_ptr<GLine>(
+        const_cast<GLine*>(&segment), [](GLine*){});
+    return isSegmentVisible(segPtr, level);
 }
 
 bool HierarchicalVisibilityGraph::isVisibleInSimplifiedPolygon(
@@ -1239,15 +1388,29 @@ HierarchicalVisibilityGraph::getVisibleNodesWithinPolygon(
                      [&node](const auto& p) { return *p != *node; });
     }
 
-    QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
-        ThreadConfig::getSharedThreadPool(),
-        candidates,
-        [this, node](const std::shared_ptr<GPoint>& point) {
-            return isVisible(node, point, 0);
-        });
+    static constexpr int PARALLEL_THRESHOLD = 50;
 
-    QVector<std::shared_ptr<GPoint>> visibleNodes =
-        future.results().toVector();
+    QVector<std::shared_ptr<GPoint>> visibleNodes;
+
+    if (candidates.size() > PARALLEL_THRESHOLD)
+    {
+        QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
+            ThreadConfig::getSharedThreadPool(),
+            candidates,
+            [this, node](const std::shared_ptr<GPoint>& point) {
+                return isVisible(node, point, 0);
+            });
+        visibleNodes = future.results().toVector();
+    }
+    else
+    {
+        visibleNodes.reserve(candidates.size());
+        for (const auto& point : candidates)
+        {
+            if (isVisible(node, point, 0))
+                visibleNodes.append(point);
+        }
+    }
 
     // Add manual connections
     {
@@ -1300,14 +1463,28 @@ HierarchicalVisibilityGraph::getVisibleNodesBetweenPolygons(
         }
     }
 
-    QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
-        ThreadConfig::getSharedThreadPool(),
-        tasks, [this, node](const std::shared_ptr<GPoint>& point) {
-            return isVisible(node, point, 0);
-        });
+    static constexpr int PARALLEL_THRESHOLD = 50;
 
-    QVector<std::shared_ptr<GPoint>> visibleNodes =
-        future.results().toVector();
+    QVector<std::shared_ptr<GPoint>> visibleNodes;
+
+    if (tasks.size() > PARALLEL_THRESHOLD)
+    {
+        QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
+            ThreadConfig::getSharedThreadPool(),
+            tasks, [this, node](const std::shared_ptr<GPoint>& point) {
+                return isVisible(node, point, 0);
+            });
+        visibleNodes = future.results().toVector();
+    }
+    else
+    {
+        visibleNodes.reserve(tasks.size());
+        for (const auto& point : tasks)
+        {
+            if (isVisible(node, point, 0))
+                visibleNodes.append(point);
+        }
+    }
 
     QReadLocker locker(&mManualLock);
     auto it = manualConnections.find(node);
