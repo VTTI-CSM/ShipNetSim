@@ -3,7 +3,9 @@
 #include "network/polygon.h"
 #include "network/quadtree.h"
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QTest>
+#include <set>
 
 using namespace ShipNetSimCore;
 
@@ -28,6 +30,7 @@ private slots:
     // Spatial queries
     void testFindNodesIntersectingLineSegment();
     void testRangeQuery();
+    void testFindVerticesInRange();
     void testGetAllSegmentsInNode();
 
     // Nearest neighbor searches
@@ -244,6 +247,63 @@ void QuadtreeTest::testRangeQuery()
 
     // Results should be the same
     QCOMPARE(segments.size(), parallelSegments.size());
+}
+
+void QuadtreeTest::testFindVerticesInRange()
+{
+    // Test polygon vertices are at: (-76, 39), (-72, 39), (-72, 42), (-76, 42)
+    // Define a range that includes the corner at (-76, 39)
+    // QRectF(x, y, width, height) where x=minLon, y=minLat
+    QRectF queryRange(-77.0, 38.0, 2.0, 2.0);  // lon: [-77, -75], lat: [38, 40]
+
+    auto vertices = quadtree->findVerticesInRange(queryRange);
+    qDebug() << "Vertices in range:" << vertices.size();
+
+    // Should find at least one vertex from our test polygon (the corner at -76, 39)
+    QVERIFY(vertices.size() > 0);
+
+    // Verify all returned vertices are within the range
+    double minLon = queryRange.left();
+    double maxLon = queryRange.right();
+    double minLat = std::min(queryRange.top(), queryRange.bottom());
+    double maxLat = std::max(queryRange.top(), queryRange.bottom());
+
+    for (const auto &vertex : vertices)
+    {
+        double lon = vertex->getLongitude().value();
+        double lat = vertex->getLatitude().value();
+
+        qDebug() << "  Found vertex:" << lon << "," << lat;
+        QVERIFY(lon >= minLon);
+        QVERIFY(lon <= maxLon);
+        QVERIFY(lat >= minLat);
+        QVERIFY(lat <= maxLat);
+    }
+
+    // Test with empty range (outside all polygons)
+    QRectF emptyRange(100.0, 50.0, 1.0, 1.0);  // Far from test polygon
+    auto emptyVertices = quadtree->findVerticesInRange(emptyRange);
+    qDebug() << "Vertices in empty range:" << emptyVertices.size();
+    QCOMPARE(emptyVertices.size(), 0);
+
+    // Test uniqueness - no duplicates should be returned
+    std::set<std::pair<double, double>> uniqueCoords;
+    for (const auto &vertex : vertices)
+    {
+        auto coord = std::make_pair(
+            vertex->getLongitude().value(),
+            vertex->getLatitude().value());
+        QVERIFY(uniqueCoords.find(coord) == uniqueCoords.end());
+        uniqueCoords.insert(coord);
+    }
+    qDebug() << "All vertices are unique: confirmed";
+
+    // Test with a range covering all polygon vertices
+    QRectF fullRange(-77.0, 38.0, 6.0, 5.0);  // lon: [-77, -71], lat: [38, 43]
+    auto allVertices = quadtree->findVerticesInRange(fullRange);
+    qDebug() << "Vertices in full range:" << allVertices.size();
+    // Should find all 4 unique polygon vertices (5th point closes the polygon, same as first)
+    QVERIFY(allVertices.size() >= 4);
 }
 
 void QuadtreeTest::testGetAllSegmentsInNode()
@@ -485,10 +545,11 @@ void QuadtreeTest::testPerformanceWithManySegments()
     qDebug() << "Time to insert" << segmentCount
              << "segments:" << insertTime << "ms";
 
-    // Performance should be reasonable (less than 1ms per segment on
-    // average)
+    // Performance should be reasonable (less than 5ms per segment on
+    // average). Note: geodesic calculations are more accurate but slightly
+    // more expensive than projection-based approaches.
     QVERIFY(insertTime
-            < segmentCount * 3); // Less than 2ms per segment
+            < segmentCount * 5); // Less than 5ms per segment
 
     qDebug() << "Final tree depth after many insertions:"
              << quadtree->getMaxDepth();

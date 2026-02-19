@@ -27,9 +27,6 @@ endif()
 # Third-party dependencies or shared libraries
 add_subdirectory(third_party)
 
-# Add the sudirectory 'test' to the build.
-# add_subdirectory(test)
-
 # Add the subdirectory 'ShipNetSimInstaller' to the build.
 if(BUILD_INSTALLER)
     add_subdirectory(ShipNetSimInstaller)
