@@ -11,6 +11,9 @@ add_subdirectory(ShipNetSimCore)
 # Executable program
 add_subdirectory(ShipNetSim)
 
+# Standalone adjacency cache builder
+add_subdirectory(ShipNetSimAdjBuilder)
+
 # GUI components
 if (BUILD_GUI)
     add_subdirectory(ShipNetSimGUI)
