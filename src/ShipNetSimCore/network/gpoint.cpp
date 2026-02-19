@@ -24,6 +24,7 @@
 #include <GeographicLib/Geodesic.hpp>
 #include <ogr_geometry.h>
 #include <ogr_spatialref.h>
+#include <mutex>
 
 namespace ShipNetSimCore
 {
@@ -123,13 +124,12 @@ void assignSpatialReference(OGRPoint &point, const OGRSpatialReference &crc)
     }
     else
     {
-        // Default WGS84 - increment ref count before passing to GDAL
-        // GDAL's assignSpatialReference(OGRSpatialReference*) takes ownership,
-        // but OGRSpatialReference uses reference counting. By calling Reference()
-        // first, we ensure GDAL's eventual Release() won't destroy the object
-        // since the shared_ptr still holds a reference.
+        // Default WGS84 — GDAL's assignSpatialReference() internally calls
+        // Reference() on the new SR and Release() on the old one. We must
+        // NOT call Reference() ourselves; that would leak one GDAL ref per
+        // GPoint, eventually overflowing the int32 refcount and causing
+        // Release() to prematurely 'delete this' on the shared SR.
         auto defaultSR = GPoint::getDefaultReprojectionReference();
-        defaultSR->Reference();  // Increment ref count
         point.assignSpatialReference(defaultSR.get());
     }
 }
@@ -181,43 +181,58 @@ GPoint::GPoint(units::angle::degree_t lon, units::angle::degree_t lat,
 std::shared_ptr<OGRSpatialReference>
 GPoint::getDefaultReprojectionReference()
 {
-    if (!spatialRef)
-    {
-        spatialRef       = std::make_shared<OGRSpatialReference>();
-        OGRErr err       = spatialRef->SetWellKnownGeogCS("WGS84");
+    static std::once_flag initFlag;
+    std::call_once(initFlag, []() {
+        // CRITICAL: Use 'new' instead of make_shared.
+        // GDAL manages OGRSpatialReference lifetime via Reference()/Release().
+        // When the OGR refcount reaches 0, Release() calls 'delete this'.
+        // With make_shared, the object is embedded inside the shared_ptr
+        // control block, so 'delete this' passes an address that was never
+        // returned by operator new — causing heap corruption.
+        // Using 'new' ensures the address is valid for 'delete'.
+        auto* sr = new OGRSpatialReference();
+        OGRErr err = sr->SetWellKnownGeogCS("WGS84");
         if (err != OGRERR_NONE)
         {
-            throw std::runtime_error("Failed to set WGS84 spatial reference");
+            delete sr;
+            throw std::runtime_error(
+                "Failed to set WGS84 spatial reference");
         }
-    }
+        // The shared_ptr holds a permanent GDAL reference. Use a custom
+        // deleter that calls Release() to balance the initial refcount
+        // (nRefCount starts at 1 in GDAL). This lets GDAL free the
+        // object correctly when the shared_ptr is destroyed at exit.
+        spatialRef = std::shared_ptr<OGRSpatialReference>(
+            sr, [](OGRSpatialReference* p) { p->Release(); });
+    });
     return spatialRef;
 }
 
 void GPoint::setDefaultReprojectionReference(std::string wellknownCS)
 {
-    if (!spatialRef)
-    {
-        spatialRef = std::make_shared<OGRSpatialReference>();
-    }
-
     // Validate the new reference before assigning
-    auto tempRef = std::make_shared<OGRSpatialReference>();
-    OGRErr err   = tempRef->SetWellKnownGeogCS(wellknownCS.c_str());
+    auto* sr = new OGRSpatialReference();
+    OGRErr err = sr->SetWellKnownGeogCS(wellknownCS.c_str());
 
     if (err != OGRERR_NONE)
     {
+        delete sr;
         throw std::runtime_error(
             "Failed to interpret the provided spatial reference: "
             + wellknownCS);
     }
 
-    if (!tempRef->IsGeographic())
+    if (!sr->IsGeographic())
     {
+        delete sr;
         throw std::runtime_error(
             "The provided spatial reference is not geodetic: " + wellknownCS);
     }
 
-    spatialRef = tempRef;
+    // Same pattern as getDefaultReprojectionReference: use 'new' + Release
+    // deleter so GDAL's 'delete this' in Release() uses a valid address.
+    spatialRef = std::shared_ptr<OGRSpatialReference>(
+        sr, [](OGRSpatialReference* p) { p->Release(); });
 }
 
 // =============================================================================
@@ -603,11 +618,10 @@ void GPoint::deserialize(std::istream &in)
         qFromBigEndian(std::bit_cast<double>(dwellTimeNet)));
 
     // Restore default spatial reference (critical for subsequent operations)
-    // Use Reference() to increment ref count before GDAL takes "ownership"
+    // GDAL's assignSpatialReference() handles Reference()/Release() internally.
     auto defaultSR = getDefaultReprojectionReference();
     if (defaultSR)
     {
-        defaultSR->Reference();  // Increment ref count
         mOGRPoint.assignSpatialReference(defaultSR.get());
     }
 }
