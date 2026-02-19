@@ -116,6 +116,9 @@ void OptimizedNetwork::initializeNetwork(
             &HierarchicalVisibilityGraph::pathFindingProgress,
             this, &OptimizedNetwork::pathFindingProgress);
 
+    // Level 0 adjacency not available (no shapefile path for cache lookup).
+    // Pathfinding will use on-demand visibility instead.
+
     mRegionName = regionName; // Set region name
 
     // load the sea ports
@@ -352,6 +355,18 @@ void OptimizedNetwork::loadTxtFile(const QString &filename)
         connect(mVisibilityGraph.get(),
                 &HierarchicalVisibilityGraph::pathFindingProgress,
                 this, &OptimizedNetwork::pathFindingProgress);
+
+        // Load Level 0 adjacency cache (pre-built by ShipNetSimAdjBuilder)
+        QString cachePath = QFileInfo(filename).absolutePath() + "/" +
+                            QFileInfo(filename).completeBaseName() +
+                            ".hvg_adj";
+        if (!mVisibilityGraph->loadAdjacencyCache(cachePath))
+        {
+            qWarning() << "Level 0 adjacency cache not found:" << cachePath;
+            qWarning() << "Pathfinding will use on-demand visibility (slower).";
+            qWarning() << "For faster pathfinding, generate the cache using "
+                          "ShipNetSimAdjBuilder.";
+        }
     }
     catch (const std::exception &e)
     {
@@ -519,6 +534,18 @@ void OptimizedNetwork::loadPolygonShapeFile(const QString &filepath)
         connect(mVisibilityGraph.get(),
                 &HierarchicalVisibilityGraph::pathFindingProgress,
                 this, &OptimizedNetwork::pathFindingProgress);
+
+        // Load Level 0 adjacency cache (pre-built by ShipNetSimAdjBuilder)
+        QString cachePath = QFileInfo(filepath).absolutePath() + "/" +
+                            QFileInfo(filepath).completeBaseName() +
+                            ".hvg_adj";
+        if (!mVisibilityGraph->loadAdjacencyCache(cachePath))
+        {
+            qWarning() << "Level 0 adjacency cache not found:" << cachePath;
+            qWarning() << "Pathfinding will use on-demand visibility (slower).";
+            qWarning() << "For faster pathfinding, generate the cache using "
+                          "ShipNetSimAdjBuilder.";
+        }
     }
     catch (const std::exception &e)
     {
