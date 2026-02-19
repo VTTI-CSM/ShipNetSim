@@ -8,8 +8,9 @@
 #include <QHash>
 #include <QReadWriteLock>
 #include <QVector>
-#include <QtConcurrent>
 #include <array>
+#include <atomic>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -107,6 +108,7 @@ public:
     Quadtree* getLevel0Quadtree() const;
 
     void buildLevel0Adjacency();
+    void buildLevel0AdjacencyAsync(const QString& cachePath = QString());
     bool saveAdjacencyCache(const QString& filePath) const;
     bool loadAdjacencyCache(const QString& filePath);
 
@@ -142,6 +144,9 @@ signals:
 
 private:
     std::array<GraphLevel, NUM_LEVELS> mLevels;
+
+    std::atomic<bool> mLevel0AdjReady{false};
+    QString mLevel0CachePath;
 
     mutable QReadWriteLock mManualLock;
 

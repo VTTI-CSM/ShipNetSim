@@ -6,7 +6,6 @@
 #include <QFile>
 #include <chrono>
 #include <functional>
-#include <numeric>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -64,7 +63,9 @@ HierarchicalVisibilityGraph::HierarchicalVisibilityGraph(
     buildAllLevels();
 }
 
-HierarchicalVisibilityGraph::~HierarchicalVisibilityGraph() {}
+HierarchicalVisibilityGraph::~HierarchicalVisibilityGraph()
+{
+}
 
 // =============================================================================
 // Level Building
@@ -77,12 +78,11 @@ void HierarchicalVisibilityGraph::buildAllLevels()
         buildLevel(i);
     }
 
-    // Build adjacency for coarser levels (1-3) in parallel
-    // Level 0 adjacency is computed on-demand since it's the full resolution
+    // Build adjacency for coarser levels (1-3) sequentially.
+    // OGRSpatialReference / PROJ is NOT thread-safe for concurrent access
+    // to the same objects, so all adjacency building is single-threaded.
     for (int i = 1; i < NUM_LEVELS; ++i)
-    {
         buildAdjacencyForLevel(i);
-    }
 }
 
 void HierarchicalVisibilityGraph::buildLevel(int idx)
@@ -175,6 +175,17 @@ void HierarchicalVisibilityGraph::buildLevel(int idx)
              << level.vertices.size();
 }
 
+// Per-level maximum distance thresholds (meters) for adjacency pre-filter.
+// Pairs beyond this distance skip the expensive visibility check.
+// Level 0 uses 0.0 (no cutoff — full resolution, pre-computed separately).
+static constexpr double LEVEL_MAX_DISTANCE[
+    HierarchicalVisibilityGraph::NUM_LEVELS] = {
+    0.0,        // Level 0: not used here
+    200000.0,   // Level 1: 200 km
+    500000.0,   // Level 2: 500 km
+    2000000.0   // Level 3: 2000 km
+};
+
 void HierarchicalVisibilityGraph::buildAdjacencyForLevel(int idx)
 {
     auto& level = mLevels[idx];
@@ -189,50 +200,78 @@ void HierarchicalVisibilityGraph::buildAdjacencyForLevel(int idx)
     QElapsedTimer timer;
     timer.start();
 
-    QVector<int> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
+    double maxDist = LEVEL_MAX_DISTANCE[idx];
 
-    // Per-vertex neighbor lists — each thread writes only to its own slot.
-    // No mutex needed during the parallel phase.
-    std::vector<std::vector<int>> perVertexNeighbors(n);
-
-    QAtomicInt completedVertices(0);
-    // Benign race on lastProgressEmit — worst case is a few extra signals
+    int completedVertices = 0;
     qint64 lastProgressEmit = 0;
     int progressInterval = std::max(1, n / 100);
 
-    QtConcurrent::blockingMap(indices, [&](int i) {
+    for (int i = 0; i < n; ++i)
+    {
         int polyI = level.vertexPolygonId[i];
+
+        // Pre-cache vertex i coordinates for distance pre-filter
+        double lat1Rad = 0.0, cosLat1 = 1.0, lon1Deg = 0.0;
+        if (maxDist > 0.0)
+        {
+            lat1Rad = level.vertices[i]->getLatitude().value()
+                      * M_PI / 180.0;
+            lon1Deg = level.vertices[i]->getLongitude().value();
+            cosLat1 = std::cos(lat1Rad);
+        }
 
         for (int j = i + 1; j < n; ++j)
         {
+            // Fast haversine distance pre-filter
+            if (maxDist > 0.0)
+            {
+                double lat2Rad =
+                    level.vertices[j]->getLatitude().value()
+                    * M_PI / 180.0;
+                double dLat = lat2Rad - lat1Rad;
+                double dLon =
+                    (level.vertices[j]->getLongitude().value()
+                     - lon1Deg) * M_PI / 180.0;
+                double a = std::sin(dLat / 2.0)
+                               * std::sin(dLat / 2.0) +
+                           cosLat1 * std::cos(lat2Rad)
+                               * std::sin(dLon / 2.0)
+                               * std::sin(dLon / 2.0);
+                if (6371000.0 * 2.0 * std::asin(std::sqrt(a))
+                    > maxDist)
+                    continue;
+            }
+
             int polyJ = level.vertexPolygonId[j];
 
             bool visible = false;
 
-            if (polyI == polyJ)
+            if (polyI == polyJ && idx > 0)
             {
-                // Same polygon: use fast planar check
+                // Same polygon at coarse levels: fast planar check
+                // (simplified polygons have reduced/no holes)
                 visible = isVisibleInSimplifiedPolygon(
                     level.vertices[i], level.vertices[j],
                     level.polygons[polyI]);
             }
             else
             {
-                // Different polygons: use quadtree-based check
+                // Different polygons, or Level 0 same-polygon:
+                // full quadtree + hole visibility check
                 visible = isVisible(level.vertices[i],
                                     level.vertices[j], idx);
             }
 
             if (visible)
             {
-                // Thread processing vertex i is the only writer to slot i
-                perVertexNeighbors[i].push_back(j);
+                // Write directly — no concurrent access
+                level.adjacency[i].push_back(j);
+                level.adjacency[j].push_back(i);
             }
         }
 
-        int done = completedVertices.fetchAndAddRelaxed(1) + 1;
-        if (done % progressInterval == 0)
+        ++completedVertices;
+        if (completedVertices % progressInterval == 0)
         {
             qint64 nowMs = timer.elapsed();
             if (nowMs - lastProgressEmit >= 1000)
@@ -240,16 +279,6 @@ void HierarchicalVisibilityGraph::buildAdjacencyForLevel(int idx)
                 lastProgressEmit = nowMs;
                 emit pathFindingProgress(-1, 0, nowMs / 1000.0);
             }
-        }
-    });
-
-    // Single-threaded merge: build symmetric adjacency from per-vertex results
-    for (int i = 0; i < n; ++i)
-    {
-        for (int neighbor : perVertexNeighbors[i])
-        {
-            level.adjacency[i].push_back(neighbor);
-            level.adjacency[neighbor].push_back(i);
         }
     }
 
@@ -635,7 +664,7 @@ ShortestPathResult HierarchicalVisibilityGraph::hierarchicalSearch(
     auto snapped0Goal  = snapToWater(goal, 0);
 
     double expansion0 = LEVEL_TOLERANCES[1] * 3.0;
-    bool hasLevel0Adj = !mLevels[0].adjacency.empty();
+    bool hasLevel0Adj = mLevel0AdjReady.load(std::memory_order_acquire);
 
     if (hasLevel0Adj)
     {
@@ -863,21 +892,14 @@ void HierarchicalVisibilityGraph::precomputeCorridorAdjacency(
 
     // Only compute visibility for pairs involving at least one new vertex.
     // Old-old pairs are already in the inherited adjacency.
-    QVector<int> indices(n);
-    std::iota(indices.begin(), indices.end(), 0);
-
-    // Per-vertex neighbor lists — each thread writes only to its own slot.
-    // No mutex needed during the parallel phase.
-    std::vector<std::vector<int>> perVertexNeighbors(n);
-
     QElapsedTimer progressTimer;
     progressTimer.start();
-    QAtomicInt completedVertices(0);
-    // Benign race on lastProgressEmit — worst case is a few extra signals
+    int completedVertices = 0;
     qint64 lastProgressEmit = 0;
     int progressInterval = std::max(1, n / 100);
 
-    QtConcurrent::blockingMap(indices, [&](int i) {
+    for (int i = 0; i < n; ++i)
+    {
         // For inherited vertices (i < inheritedCount), only check
         // against new vertices (j >= inheritedCount).
         // For new vertices, check against all j > i.
@@ -887,12 +909,13 @@ void HierarchicalVisibilityGraph::precomputeCorridorAdjacency(
         {
             if (isVisible(corridor.vertices[i], corridor.vertices[j], 0))
             {
-                perVertexNeighbors[i].push_back(j);
+                corridor.adjacency[i].push_back(j);
+                corridor.adjacency[j].push_back(i);
             }
         }
 
-        int done = completedVertices.fetchAndAddRelaxed(1) + 1;
-        if (done % progressInterval == 0)
+        ++completedVertices;
+        if (completedVertices % progressInterval == 0)
         {
             qint64 nowMs = progressTimer.elapsed();
             if (nowMs - lastProgressEmit >= 1000)
@@ -900,16 +923,6 @@ void HierarchicalVisibilityGraph::precomputeCorridorAdjacency(
                 lastProgressEmit = nowMs;
                 emit pathFindingProgress(-1, 0, nowMs / 1000.0);
             }
-        }
-    });
-
-    // Single-threaded merge: build symmetric adjacency from per-vertex results
-    for (int i = 0; i < n; ++i)
-    {
-        for (int neighbor : perVertexNeighbors[i])
-        {
-            corridor.adjacency[i].push_back(neighbor);
-            corridor.adjacency[neighbor].push_back(i);
         }
     }
 
@@ -1132,29 +1145,6 @@ bool HierarchicalVisibilityGraph::isSegmentVisible(
         return segment->intersects(*edge, true);
     };
 
-    if (intersectingNodes.size() > 1000)
-    {
-        QAtomicInt hasIntersection(0);
-
-        auto processNode = [&](Quadtree::Node* node) {
-            if (hasIntersection.loadAcquire())
-                return;
-            for (const auto& edge :
-                 lvl.quadtree->getAllSegmentsInNode(node))
-            {
-                if (checkEdge(edge))
-                {
-                    hasIntersection.storeRelease(1);
-                    break;
-                }
-            }
-        };
-
-        QtConcurrent::blockingMap(ThreadConfig::getSharedThreadPool(),
-                                   intersectingNodes, processNode);
-        return !hasIntersection.loadAcquire();
-    }
-
     for (auto* node : intersectingNodes)
     {
         for (const auto& edge : lvl.quadtree->getAllSegmentsInNode(node))
@@ -1338,9 +1328,15 @@ HierarchicalVisibilityGraph::getVisibleNodesForPoint(
         // Node not in corridor adjacency — fall through to on-demand
     }
 
-    // Check if node is a known vertex with pre-computed adjacency (levels 1-3)
+    // Check if node is a known vertex with pre-computed adjacency.
+    // For Level 0, only use adjacency when the atomic flag confirms the
+    // build is complete — otherwise the background thread may be writing
+    // to the same vectors (data race -> crash).
     auto it = lvl.vertexIndex.find(node);
-    if (it != lvl.vertexIndex.end() && !lvl.adjacency.empty())
+    bool adjReady = !lvl.adjacency.empty()
+                    && (level > 0
+                        || mLevel0AdjReady.load(std::memory_order_acquire));
+    if (it != lvl.vertexIndex.end() && adjReady)
     {
         int idx = it->second;
         if (idx < static_cast<int>(lvl.adjacency.size()))
@@ -1422,28 +1418,12 @@ HierarchicalVisibilityGraph::getVisibleNodesWithinPolygon(
                      [&node](const auto& p) { return *p != *node; });
     }
 
-    static constexpr int PARALLEL_THRESHOLD = 50;
-
     QVector<std::shared_ptr<GPoint>> visibleNodes;
-
-    if (candidates.size() > PARALLEL_THRESHOLD)
+    visibleNodes.reserve(candidates.size());
+    for (const auto& point : candidates)
     {
-        QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
-            ThreadConfig::getSharedThreadPool(),
-            candidates,
-            [this, node](const std::shared_ptr<GPoint>& point) {
-                return isVisible(node, point, 0);
-            });
-        visibleNodes = future.results().toVector();
-    }
-    else
-    {
-        visibleNodes.reserve(candidates.size());
-        for (const auto& point : candidates)
-        {
-            if (isVisible(node, point, 0))
-                visibleNodes.append(point);
-        }
+        if (isVisible(node, point, 0))
+            visibleNodes.append(point);
     }
 
     // Add manual connections
@@ -1497,27 +1477,12 @@ HierarchicalVisibilityGraph::getVisibleNodesBetweenPolygons(
         }
     }
 
-    static constexpr int PARALLEL_THRESHOLD = 50;
-
     QVector<std::shared_ptr<GPoint>> visibleNodes;
-
-    if (tasks.size() > PARALLEL_THRESHOLD)
+    visibleNodes.reserve(tasks.size());
+    for (const auto& point : tasks)
     {
-        QFuture<std::shared_ptr<GPoint>> future = QtConcurrent::filtered(
-            ThreadConfig::getSharedThreadPool(),
-            tasks, [this, node](const std::shared_ptr<GPoint>& point) {
-                return isVisible(node, point, 0);
-            });
-        visibleNodes = future.results().toVector();
-    }
-    else
-    {
-        visibleNodes.reserve(tasks.size());
-        for (const auto& point : tasks)
-        {
-            if (isVisible(node, point, 0))
-                visibleNodes.append(point);
-        }
+        if (isVisible(node, point, 0))
+            visibleNodes.append(point);
     }
 
     QReadLocker locker(&mManualLock);
@@ -1862,6 +1827,8 @@ GPoint HierarchicalVisibilityGraph::getMaxMapPoint()
 
 void HierarchicalVisibilityGraph::clear()
 {
+    mLevel0AdjReady.store(false, std::memory_order_release);
+
     // Clear vertex ownership and visibility cache
     for (const auto& polygon : polygons)
     {
@@ -1915,6 +1882,8 @@ void HierarchicalVisibilityGraph::clear()
 void HierarchicalVisibilityGraph::setPolygons(
     const QVector<std::shared_ptr<Polygon>>& newPolygons)
 {
+    mLevel0AdjReady.store(false, std::memory_order_release);
+
     // Clear ownership from old vertices
     for (const auto& polygon : polygons)
     {
@@ -1985,6 +1954,17 @@ void HierarchicalVisibilityGraph::setPolygons(
 void HierarchicalVisibilityGraph::buildLevel0Adjacency()
 {
     buildAdjacencyForLevel(0);
+    mLevel0AdjReady.store(true, std::memory_order_release);
+}
+
+void HierarchicalVisibilityGraph::buildLevel0AdjacencyAsync(
+    const QString& cachePath)
+{
+    mLevel0CachePath = cachePath;
+    buildAdjacencyForLevel(0);
+    mLevel0AdjReady.store(true, std::memory_order_release);
+    if (!mLevel0CachePath.isEmpty())
+        saveAdjacencyCache(mLevel0CachePath);
 }
 
 bool HierarchicalVisibilityGraph::saveAdjacencyCache(
@@ -2152,6 +2132,7 @@ bool HierarchicalVisibilityGraph::loadAdjacencyCache(
     }
 
     file.close();
+    mLevel0AdjReady.store(true, std::memory_order_release);
     qDebug() << "Loaded Level 0 adjacency cache from" << filePath
              << "(" << n << "vertices)";
     return true;
