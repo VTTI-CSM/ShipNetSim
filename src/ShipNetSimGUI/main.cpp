@@ -5,6 +5,7 @@
 #include <osgQOpenGL/osgQOpenGLWidget.h>
 
 #include <osgDB/ReadFile>
+#include <osgDB/Registry>
 #include <osgUtil/Optimizer>
 #include <osg/CoordinateSystemNode>
 
@@ -32,6 +33,7 @@
 #include <osgEarth/Metrics>
 
 #include <QApplication>
+#include <QDir>
 #include <QSurfaceFormat>
 #include <QWindow>
 #include <qsplashscreen.h>
@@ -58,6 +60,17 @@ int main(int argc, char *argv[])
 
     // Attach the logger first thing:
     ShipNetSimCore::Logger::attach("ShipNetSimGUI");
+
+#ifdef __linux__
+    // Set OSG plugin search path relative to the executable so that
+    // installed deployments find plugins without a wrapper script.
+    {
+        QString libPath = QCoreApplication::applicationDirPath() + "/../lib";
+        osgDB::FilePathList& pathList =
+            osgDB::Registry::instance()->getLibraryFilePathList();
+        pathList.push_front(QDir(libPath).absolutePath().toStdString());
+    }
+#endif
 
     // Create and show splash immediately
     QString splashPath =

@@ -6,9 +6,17 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(InstallRequiredSystemLibraries)
 
-# Enable automatic runtime dependency detection
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+# RPATH configuration for portable/relocatable installs
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+if(UNIX AND NOT APPLE)
+    # Use $ORIGIN-based RPATH for portable installs on Linux
+    # $ORIGIN/../lib: executables in bin/ find libs in lib/
+    # $ORIGIN: shared libs in lib/ find peer libs in same directory
+    set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib;$ORIGIN")
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+else()
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
@@ -121,7 +129,17 @@ set(BUILD_INSTALLER ${BUILD_INSTALLER} CACHE BOOL "Build the INSTALLER component
 # -------------------------------------------------------
 
 # Allow the user to specify the Qt binary directory
-set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary directory")
+if(WIN32)
+    set(QT_BIN_DIR "C:/Qt/6.4.2/msvc2019_64/bin" CACHE PATH "Path to the Qt binary directory")
+elseif(UNIX AND NOT APPLE)
+    # Derive Qt paths from Qt6_DIR (set by LibrarySearchPaths.cmake or user)
+    if(DEFINED Qt6_DIR)
+        get_filename_component(QT_PREFIX_DIR "${Qt6_DIR}/../../.." ABSOLUTE)
+        set(QT_BIN_DIR "${QT_PREFIX_DIR}/bin" CACHE PATH "Path to the Qt binary directory")
+        set(QT_LIB_DIR "${QT_PREFIX_DIR}/lib" CACHE PATH "Path to the Qt library directory")
+        set(QT_PLUGINS_DIR "${QT_PREFIX_DIR}/plugins" CACHE PATH "Path to the Qt plugins directory")
+    endif()
+endif()
 
 if(BUILD_GUI)
     # -------------------------------------------------------------------------

@@ -46,6 +46,7 @@ if(BUILD_INSTALLER)
 # Ensure that ShipNetSimCore is built first by specifying it as a dependency
 add_dependencies(ShipNetSimInstaller ${SHIPNETSIM_CORE_DLL_NAME})
 add_dependencies(ShipNetSimInstaller ${SHIPNETSIM_NAME})
+add_dependencies(ShipNetSimInstaller ShipNetSimAdjBuilder)
 
 if (BUILD_GUI)
     add_dependencies(ShipNetSimInstaller ShipNetSimGUI)
@@ -53,6 +54,7 @@ endif()
 
 if (BUILD_SERVER)
     add_dependencies(ShipNetSimInstaller ${SHIPNETSIM_SERVER_NAME})
+    add_dependencies(ShipNetSimInstaller RabbitMQConfig)
 endif()
 
 # Define install paths for the executables and libraries
@@ -73,6 +75,11 @@ install(TARGETS ${SHIPNETSIM_NAME}
     ARCHIVE DESTINATION lib/static
     COMPONENT ShipNetSim_COMP)
 
+# Define install paths for the ShipNetSimAdjBuilder Executable
+install(TARGETS ShipNetSimAdjBuilder
+    RUNTIME DESTINATION bin
+    COMPONENT ShipNetSimAdjBuilder_COMP)
+
 # Conditionally include the server executable if BUILD_SERVER is ON
 if(BUILD_SERVER)
     install(TARGETS ${SHIPNETSIM_SERVER_NAME}
@@ -81,6 +88,10 @@ if(BUILD_SERVER)
         LIBRARY DESTINATION lib
         COMPONENT ShipNetSimServer_COMP
         ARCHIVE DESTINATION lib/static
+        COMPONENT ShipNetSimServer_COMP)
+
+    install(TARGETS RabbitMQConfig
+        RUNTIME DESTINATION bin
         COMPONENT ShipNetSimServer_COMP)
 endif()
 
@@ -467,6 +478,25 @@ endif()
 if(NOT RABBITMQ_FOUND)
     message(FATAL_ERROR "CRITICAL: RabbitMQ DLLs not found! RABBITMQ_BIN_DIR=${RABBITMQ_BIN_DIR}")
 endif()
+
+    # Qt GUI DLLs for RabbitMQConfig (only needed when GUI is not being built)
+    if(NOT BUILD_GUI)
+        set(SERVER_QT_GUI_DLLS
+            "${QT_BIN_DIR}/Qt6Gui.dll"
+            "${QT_BIN_DIR}/Qt6Widgets.dll"
+        )
+        foreach(QT_GUI_DLL ${SERVER_QT_GUI_DLLS})
+            if(NOT EXISTS "${QT_GUI_DLL}")
+                message(FATAL_ERROR "CRITICAL: Required Qt GUI DLL for RabbitMQConfig not found: ${QT_GUI_DLL}")
+            endif()
+        endforeach()
+        filter_debug_dlls(SERVER_QT_GUI_DLLS FILTERED_SERVER_QT_GUI_DLLS)
+        install(
+            FILES ${FILTERED_SERVER_QT_GUI_DLLS}
+            DESTINATION bin
+            COMPONENT ShipNetSimServer_COMP
+        )
+    endif()
 endif()
 
 # ========================================
@@ -801,40 +831,6 @@ endfunction()
 find_and_install_missing_dlls()
 
 # ========================================
-# INSTALL DATA DIRECTORY (Separate Component to Fix Compression Issues)
-# ========================================
-if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/data/")
-    message(FATAL_ERROR "CRITICAL: Data directory not found: ${CMAKE_SOURCE_DIR}/src/data/")
-endif()
-
-# Split data installation to avoid compression issues
-# Small configuration files with core component
-install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/src/data/
-    DESTINATION data
-    COMPONENT ShipNetSimCore_COMP
-    FILES_MATCHING
-    PATTERN "*.txt"
-    PATTERN "*.ini"
-    PATTERN "*.cfg"
-    PATTERN "*.xml"
-    PATTERN "*.json"
-)
-
-# Large geographic data files in separate component to avoid compression issues
-install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/src/data/
-    DESTINATION data
-    COMPONENT ShipNetSimData_COMP
-    PATTERN "*"
-    PATTERN "*.txt" EXCLUDE
-    PATTERN "*.ini" EXCLUDE
-    PATTERN "*.cfg" EXCLUDE
-    PATTERN "*.xml" EXCLUDE
-    PATTERN "*.json" EXCLUDE
-)
-
-# ========================================
 # VISUAL C++ RUNTIME LIBRARIES (WARN IF MISSING)
 # ========================================
 set(VCREDIST_SEARCH_PATHS
@@ -916,17 +912,6 @@ else()
 endif()
 
 # ========================================
-# Create qt.conf file for proper plugin discovery
-# ========================================
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
-    "[Paths]\nPlugins = plugins\n")
-install(
-    FILES "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
-    DESTINATION bin
-    COMPONENT ShipNetSimCore_COMP
-)
-
-# ========================================
 # SUMMARY MESSAGE
 # ========================================
 message(STATUS "=== DLL Detection Summary ===")
@@ -943,7 +928,436 @@ endif()
 message(STATUS "VC++ Redistributable: ${VCREDIST_FOUND}")
 message(STATUS "============================")
 
-endif() # WIN32
+elseif(UNIX AND NOT APPLE)
+    # ========================================
+    # LINUX: Shared Library (.so) Bundling
+    # ========================================
+    # Use file(GET_RUNTIME_DEPENDENCIES) at install time to discover and bundle
+    # all .so dependencies automatically.
+
+    # Collect all library search directories for dependency resolution
+    set(_LIB_SEARCH_DIRS "${QT_LIB_DIR}")
+    # Add build-type-specific lib dir (GDAL, GeographicLib, OSG, osgEarth, etc.)
+    if(EXISTS "/usr/local/${CMAKE_BUILD_TYPE}/lib")
+        list(APPEND _LIB_SEARCH_DIRS "/usr/local/${CMAKE_BUILD_TYPE}/lib")
+    endif()
+    list(APPEND _LIB_SEARCH_DIRS "/usr/local/lib")
+    # Add OSG lib dir if available
+    if(DEFINED OSG_DIR)
+        list(APPEND _LIB_SEARCH_DIRS "${OSG_DIR}/lib")
+    endif()
+    # Add osgEarth lib dir if available
+    if(DEFINED osgEarth_DIR)
+        get_filename_component(_OSGEARTH_PREFIX "${osgEarth_DIR}/../../.." ABSOLUTE)
+        list(APPEND _LIB_SEARCH_DIRS "${_OSGEARTH_PREFIX}/lib")
+    endif()
+    # Add GDAL lib dir if available
+    if(DEFINED GDAL_DIR)
+        get_filename_component(_GDAL_PREFIX "${GDAL_DIR}/../../.." ABSOLUTE)
+        list(APPEND _LIB_SEARCH_DIRS "${_GDAL_PREFIX}/lib")
+    endif()
+    list(REMOVE_DUPLICATES _LIB_SEARCH_DIRS)
+
+    # Build the DIRECTORIES string for file(GET_RUNTIME_DEPENDENCIES)
+    set(_DIRS_ARGS "")
+    foreach(_dir ${_LIB_SEARCH_DIRS})
+        string(APPEND _DIRS_ARGS "                \"${_dir}\"\n")
+    endforeach()
+    message(STATUS "Library search directories for dependency resolution: ${_LIB_SEARCH_DIRS}")
+
+    # Core dependencies (ShipNetSim, ShipNetSimAdjBuilder, ShipNetSimCore)
+    install(CODE "
+        file(GET_RUNTIME_DEPENDENCIES
+            EXECUTABLES
+                \$<TARGET_FILE:${SHIPNETSIM_NAME}>
+                \$<TARGET_FILE:ShipNetSimAdjBuilder>
+            LIBRARIES
+                \$<TARGET_FILE:${SHIPNETSIM_CORE_DLL_NAME}>
+            RESOLVED_DEPENDENCIES_VAR _resolved
+            UNRESOLVED_DEPENDENCIES_VAR _unresolved
+            PRE_EXCLUDE_REGEXES
+                \"^libc\\\\.so\" \"^libm\\\\.so\" \"^libpthread\" \"^libdl\\\\.so\"
+                \"^librt\\\\.so\" \"^ld-linux\" \"^libstdc\\\\+\\\\+\" \"^libgcc_s\"
+                \"^libX\" \"^libxcb\" \"^libGL\" \"^libEGL\" \"^libdrm\"
+            DIRECTORIES
+${_DIRS_ARGS}        )
+        foreach(dep \${_resolved})
+            file(INSTALL \${dep} DESTINATION \${CMAKE_INSTALL_PREFIX}/lib
+                 FOLLOW_SYMLINK_CHAIN)
+        endforeach()
+        if(_unresolved)
+            message(STATUS \"Unresolved core dependencies (may be system libs): \${_unresolved}\")
+        endif()
+    " COMPONENT ShipNetSimCore_COMP)
+
+    # GUI dependencies
+    if(BUILD_GUI)
+        install(CODE "
+            file(GET_RUNTIME_DEPENDENCIES
+                EXECUTABLES
+                    \$<TARGET_FILE:ShipNetSimGUI>
+                RESOLVED_DEPENDENCIES_VAR _resolved_gui
+                UNRESOLVED_DEPENDENCIES_VAR _unresolved_gui
+                PRE_EXCLUDE_REGEXES
+                    \"^libc\\\\.so\" \"^libm\\\\.so\" \"^libpthread\" \"^libdl\\\\.so\"
+                    \"^librt\\\\.so\" \"^ld-linux\" \"^libstdc\\\\+\\\\+\" \"^libgcc_s\"
+                    \"^libX\" \"^libxcb\" \"^libGL\" \"^libEGL\" \"^libdrm\"
+                DIRECTORIES
+${_DIRS_ARGS}            )
+            foreach(dep \${_resolved_gui})
+                file(INSTALL \${dep} DESTINATION \${CMAKE_INSTALL_PREFIX}/lib
+                     FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+        " COMPONENT ShipNetSimGUI_COMP)
+    endif()
+
+    # Server dependencies
+    if(BUILD_SERVER)
+        install(CODE "
+            file(GET_RUNTIME_DEPENDENCIES
+                EXECUTABLES
+                    \$<TARGET_FILE:${SHIPNETSIM_SERVER_NAME}>
+                    \$<TARGET_FILE:RabbitMQConfig>
+                RESOLVED_DEPENDENCIES_VAR _resolved_srv
+                UNRESOLVED_DEPENDENCIES_VAR _unresolved_srv
+                PRE_EXCLUDE_REGEXES
+                    \"^libc\\\\.so\" \"^libm\\\\.so\" \"^libpthread\" \"^libdl\\\\.so\"
+                    \"^librt\\\\.so\" \"^ld-linux\" \"^libstdc\\\\+\\\\+\" \"^libgcc_s\"
+                    \"^libX\" \"^libxcb\" \"^libGL\" \"^libEGL\" \"^libdrm\"
+                DIRECTORIES
+${_DIRS_ARGS}            )
+            foreach(dep \${_resolved_srv})
+                file(INSTALL \${dep} DESTINATION \${CMAKE_INSTALL_PREFIX}/lib
+                     FOLLOW_SYMLINK_CHAIN)
+            endforeach()
+        " COMPONENT ShipNetSimServer_COMP)
+    endif()
+
+    # ========================================
+    # LINUX: Qt Plugins
+    # ========================================
+    if(DEFINED QT_PLUGINS_DIR)
+        # Platform plugins (essential)
+        install(DIRECTORY "${QT_PLUGINS_DIR}/platforms/"
+            DESTINATION plugins/platforms
+            COMPONENT ShipNetSimCore_COMP
+            FILES_MATCHING PATTERN "*.so")
+
+        # Image format plugins
+        install(DIRECTORY "${QT_PLUGINS_DIR}/imageformats/"
+            DESTINATION plugins/imageformats
+            COMPONENT ShipNetSimCore_COMP
+            FILES_MATCHING PATTERN "*.so")
+
+        # SQL driver plugins
+        if(EXISTS "${QT_PLUGINS_DIR}/sqldrivers/")
+            install(DIRECTORY "${QT_PLUGINS_DIR}/sqldrivers/"
+                DESTINATION plugins/sqldrivers
+                COMPONENT ShipNetSimCore_COMP
+                FILES_MATCHING PATTERN "*.so")
+        endif()
+
+        # Optional plugins
+        foreach(PLUGIN_DIR "tls" "iconengines" "xcbglintegrations" "wayland-shell-integration")
+            if(EXISTS "${QT_PLUGINS_DIR}/${PLUGIN_DIR}/")
+                install(DIRECTORY "${QT_PLUGINS_DIR}/${PLUGIN_DIR}/"
+                    DESTINATION plugins/${PLUGIN_DIR}
+                    COMPONENT ShipNetSimCore_COMP
+                    FILES_MATCHING PATTERN "*.so")
+            endif()
+        endforeach()
+    else()
+        message(WARNING "QT_PLUGINS_DIR not defined - Qt plugins will not be bundled")
+    endif()
+
+    # ========================================
+    # LINUX: Qt Plugin Dependencies
+    # ========================================
+    # Qt plugins (e.g., libqxcb.so) have their own dependencies (e.g., libQt6XcbQpa.so.6)
+    # that are NOT direct dependencies of our executables. We must resolve and bundle these
+    # separately. Also bundle libxcb-cursor which is excluded by the ^libxcb regex but is
+    # required by the xcb platform plugin from Qt 6.5+.
+    if(DEFINED QT_PLUGINS_DIR)
+        install(CODE "
+            # Gather source plugin .so files (not installed copies, to avoid RPATH conflicts)
+            file(GLOB_RECURSE _plugin_libs
+                \"${QT_PLUGINS_DIR}/platforms/*.so\"
+                \"${QT_PLUGINS_DIR}/imageformats/*.so\"
+                \"${QT_PLUGINS_DIR}/sqldrivers/*.so\"
+                \"${QT_PLUGINS_DIR}/tls/*.so\"
+                \"${QT_PLUGINS_DIR}/iconengines/*.so\"
+                \"${QT_PLUGINS_DIR}/xcbglintegrations/*.so\"
+                \"${QT_PLUGINS_DIR}/wayland-shell-integration/*.so\")
+
+            if(_plugin_libs)
+                file(GET_RUNTIME_DEPENDENCIES
+                    LIBRARIES \${_plugin_libs}
+                    RESOLVED_DEPENDENCIES_VAR _resolved_plugin_deps
+                    UNRESOLVED_DEPENDENCIES_VAR _unresolved_plugin_deps
+                    PRE_EXCLUDE_REGEXES
+                        \"^libc\\\\.so\" \"^libm\\\\.so\" \"^libpthread\" \"^libdl\\\\.so\"
+                        \"^librt\\\\.so\" \"^ld-linux\" \"^libstdc\\\\+\\\\+\" \"^libgcc_s\"
+                        \"^libX\" \"^libGL\" \"^libEGL\" \"^libdrm\"
+                    DIRECTORIES
+${_DIRS_ARGS}                )
+                foreach(dep \${_resolved_plugin_deps})
+                    # Skip if already installed
+                    get_filename_component(_depname \"\${dep}\" NAME)
+                    if(NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/lib/\${_depname}\")
+                        file(INSTALL \${dep} DESTINATION \${CMAKE_INSTALL_PREFIX}/lib
+                             FOLLOW_SYMLINK_CHAIN)
+                    endif()
+                endforeach()
+                if(_unresolved_plugin_deps)
+                    message(STATUS \"Unresolved plugin deps (may be system libs): \${_unresolved_plugin_deps}\")
+                endif()
+            endif()
+
+            # Bundle libxcb-cursor (needed by Qt xcb platform plugin from 6.5+)
+            # The plugin dep resolution above should catch it, but ensure it as a fallback
+            if(NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/lib/libxcb-cursor.so.0\")
+                foreach(_xcb_search_dir /lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu /usr/lib)
+                    file(GLOB _xcb_cursor_libs \"\${_xcb_search_dir}/libxcb-cursor.so*\")
+                    if(_xcb_cursor_libs)
+                        foreach(_xcb_lib \${_xcb_cursor_libs})
+                            file(INSTALL \${_xcb_lib} DESTINATION \${CMAKE_INSTALL_PREFIX}/lib
+                                 FOLLOW_SYMLINK_CHAIN)
+                        endforeach()
+                        break()
+                    endif()
+                endforeach()
+            endif()
+        " COMPONENT ShipNetSimCore_COMP)
+    endif()
+
+    # ========================================
+    # LINUX: PROJ Data Files
+    # ========================================
+    find_path(PROJ_DATA_DIR proj.db
+        PATHS /usr/share/proj /usr/local/share/proj
+              /usr/local/${CMAKE_BUILD_TYPE}/share/proj
+        NO_DEFAULT_PATH)
+    if(PROJ_DATA_DIR)
+        message(STATUS "Found PROJ data directory: ${PROJ_DATA_DIR}")
+        install(DIRECTORY "${PROJ_DATA_DIR}/"
+            DESTINATION share/proj
+            COMPONENT ShipNetSimCore_COMP
+            FILES_MATCHING
+            PATTERN "*.db"
+            PATTERN "*.json"
+            PATTERN "*.gsb"
+            PATTERN "*.gtx")
+    else()
+        message(WARNING "PROJ data directory (proj.db) not found")
+    endif()
+
+    # ========================================
+    # LINUX: GUI-Specific Libraries (OSG, osgEarth)
+    # ========================================
+    if(BUILD_GUI)
+        # OpenSceneGraph plugin .so files
+        set(OSG_PLUGIN_SEARCH_PATHS "")
+        if(DEFINED OpenSceneGraph_DIR)
+            get_filename_component(OSG_PREFIX "${OpenSceneGraph_DIR}/../../.." ABSOLUTE)
+            list(APPEND OSG_PLUGIN_SEARCH_PATHS "${OSG_PREFIX}/lib")
+        endif()
+        list(APPEND OSG_PLUGIN_SEARCH_PATHS
+            "/usr/local/${CMAKE_BUILD_TYPE}/lib"
+            "/usr/local/lib"
+            "/usr/lib"
+            "/usr/lib/x86_64-linux-gnu")
+
+        set(OSG_PLUGINS_INSTALLED FALSE)
+        foreach(SEARCH_PATH ${OSG_PLUGIN_SEARCH_PATHS})
+            file(GLOB OSG_PLUGIN_DIRS "${SEARCH_PATH}/osgPlugins-*")
+            if(OSG_PLUGIN_DIRS)
+                foreach(PLUGIN_DIR ${OSG_PLUGIN_DIRS})
+                    if(IS_DIRECTORY "${PLUGIN_DIR}")
+                        get_filename_component(PLUGIN_DIR_NAME "${PLUGIN_DIR}" NAME)
+                        message(STATUS "Installing OSG plugins from: ${PLUGIN_DIR}")
+                        file(GLOB OSG_PLUGIN_SOS "${PLUGIN_DIR}/*.so")
+                        if(OSG_PLUGIN_SOS)
+                            install(FILES ${OSG_PLUGIN_SOS}
+                                DESTINATION lib/${PLUGIN_DIR_NAME}
+                                COMPONENT ShipNetSimGUI_COMP)
+                        endif()
+                        set(OSG_PLUGINS_INSTALLED TRUE)
+                    endif()
+                endforeach()
+                if(OSG_PLUGINS_INSTALLED)
+                    break()
+                endif()
+            endif()
+        endforeach()
+
+        if(NOT OSG_PLUGINS_INSTALLED)
+            message(WARNING "OpenSceneGraph plugin directory not found")
+        endif()
+
+        # osgEarth plugin .so files
+        set(OSGEARTH_PLUGIN_SEARCH_PATHS "")
+        if(DEFINED osgEarth_DIR)
+            get_filename_component(OSGEARTH_PREFIX "${osgEarth_DIR}/../../.." ABSOLUTE)
+            list(APPEND OSGEARTH_PLUGIN_SEARCH_PATHS "${OSGEARTH_PREFIX}/lib")
+        endif()
+        list(APPEND OSGEARTH_PLUGIN_SEARCH_PATHS
+            "/usr/local/${CMAKE_BUILD_TYPE}/lib"
+            "/usr/local/lib"
+            "/usr/lib"
+            "/usr/lib/x86_64-linux-gnu")
+
+        set(OSGEARTH_PLUGINS_INSTALLED FALSE)
+        foreach(SEARCH_PATH ${OSGEARTH_PLUGIN_SEARCH_PATHS})
+            file(GLOB OSGEARTH_PLUGIN_DIRS "${SEARCH_PATH}/osgPlugins-*")
+            if(OSGEARTH_PLUGIN_DIRS)
+                foreach(PLUGIN_DIR ${OSGEARTH_PLUGIN_DIRS})
+                    if(IS_DIRECTORY "${PLUGIN_DIR}")
+                        get_filename_component(PLUGIN_DIR_NAME "${PLUGIN_DIR}" NAME)
+                        file(GLOB OSGEARTH_PLUGIN_SOS "${PLUGIN_DIR}/osgdb_earth*.so")
+                        if(OSGEARTH_PLUGIN_SOS)
+                            message(STATUS "Installing osgEarth plugins from: ${PLUGIN_DIR}")
+                            install(FILES ${OSGEARTH_PLUGIN_SOS}
+                                DESTINATION lib/${PLUGIN_DIR_NAME}
+                                COMPONENT ShipNetSimGUI_COMP)
+                            set(OSGEARTH_PLUGINS_INSTALLED TRUE)
+                        endif()
+                    endif()
+                endforeach()
+                if(OSGEARTH_PLUGINS_INSTALLED)
+                    break()
+                endif()
+            endif()
+        endforeach()
+    endif()
+
+    # ========================================
+    # LINUX: ICU Libraries (Optional)
+    # ========================================
+    if(DEFINED QT_LIB_DIR)
+        file(GLOB ICU_LIBS "${QT_LIB_DIR}/libicu*.so*")
+        if(ICU_LIBS)
+            message(STATUS "Found ICU libraries: ${ICU_LIBS}")
+            install(FILES ${ICU_LIBS} DESTINATION lib COMPONENT ShipNetSimCore_COMP)
+        else()
+            message(STATUS "ICU libraries not found (this is usually OK)")
+        endif()
+    endif()
+
+    # ========================================
+    # LINUX: Fix RPATH on Bundled Shared Libraries
+    # ========================================
+    # Bundled third-party .so files (Qt, GDAL, OSG, etc.) have hardcoded
+    # RPATHs pointing to their original install locations. Use patchelf to
+    # set $ORIGIN-based RPATHs so transitive dependencies resolve from the
+    # installed lib/ directory on any machine.
+    find_program(PATCHELF_EXECUTABLE patchelf)
+    if(PATCHELF_EXECUTABLE)
+        message(STATUS "Found patchelf: ${PATCHELF_EXECUTABLE}")
+        install(CODE "
+            # Fix RPATH on shared libraries in lib/
+            file(GLOB _all_libs \"\${CMAKE_INSTALL_PREFIX}/lib/*.so*\")
+            foreach(_lib \${_all_libs})
+                if(IS_SYMLINK \"\${_lib}\")
+                    continue()
+                endif()
+                execute_process(
+                    COMMAND \"${PATCHELF_EXECUTABLE}\" --set-rpath \\$ORIGIN \"\${_lib}\"
+                    ERROR_QUIET)
+            endforeach()
+
+            # Fix RPATH on OSG/osgEarth plugins in lib/osgPlugins-*/
+            file(GLOB_RECURSE _osg_plugins \"\${CMAKE_INSTALL_PREFIX}/lib/osgPlugins-*/*.so\")
+            foreach(_plugin \${_osg_plugins})
+                execute_process(
+                    COMMAND \"${PATCHELF_EXECUTABLE}\" --set-rpath \\$ORIGIN/.. \"\${_plugin}\"
+                    ERROR_QUIET)
+            endforeach()
+
+            # Fix RPATH on Qt plugins in plugins/<type>/
+            file(GLOB_RECURSE _qt_plugins \"\${CMAKE_INSTALL_PREFIX}/plugins/*.so\")
+            foreach(_plugin \${_qt_plugins})
+                execute_process(
+                    COMMAND \"${PATCHELF_EXECUTABLE}\" --set-rpath \\$ORIGIN/../../lib \"\${_plugin}\"
+                    ERROR_QUIET)
+            endforeach()
+        " COMPONENT ShipNetSimCore_COMP)
+    else()
+        message(WARNING "patchelf not found - bundled .so RPATHs will not be fixed for portability. Install with: sudo apt install patchelf")
+    endif()
+
+    # ========================================
+    # LINUX: Summary
+    # ========================================
+    message(STATUS "=== Linux Library Detection Summary ===")
+    message(STATUS "QT_LIB_DIR: ${QT_LIB_DIR}")
+    message(STATUS "QT_PLUGINS_DIR: ${QT_PLUGINS_DIR}")
+    message(STATUS "PROJ_DATA_DIR: ${PROJ_DATA_DIR}")
+    if(BUILD_GUI)
+        message(STATUS "OSG plugins installed: ${OSG_PLUGINS_INSTALLED}")
+    endif()
+    message(STATUS "=======================================")
+
+endif() # WIN32 / UNIX
+
+# ========================================
+# PLATFORM-INDEPENDENT: Data Directory Install
+# ========================================
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/data/")
+    message(FATAL_ERROR "CRITICAL: Data directory not found: ${CMAKE_SOURCE_DIR}/src/data/")
+endif()
+
+# Small configuration and essential asset files with core component
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/src/data/
+    DESTINATION data
+    COMPONENT ShipNetSimCore_COMP
+    FILES_MATCHING
+    PATTERN "*.txt"
+    PATTERN "*.ini"
+    PATTERN "*.cfg"
+    PATTERN "*.xml"
+    PATTERN "*.json"
+    PATTERN "*.png"
+    PATTERN "*.sns"
+    PATTERN "*.dat"
+    PATTERN "*.earth"
+    PATTERN "*.geojson"
+    PATTERN "*.gltf"
+    PATTERN "*.bin"
+    PATTERN "*.cpg"
+    PATTERN "*.dbf"
+    PATTERN "*.prj"
+    PATTERN "*.shp"
+    PATTERN "*.shx"
+    PATTERN "*.html"
+    PATTERN "*.md"
+    PATTERN "*.hvg_adj"
+)
+
+# Large geographic data files (TIF) in separate component
+install(
+    DIRECTORY ${CMAKE_SOURCE_DIR}/src/data/
+    DESTINATION data
+    COMPONENT ShipNetSimData_COMP
+    FILES_MATCHING
+    PATTERN "*.tif"
+)
+
+# ========================================
+# PLATFORM-SPECIFIC: qt.conf for Plugin Discovery
+# ========================================
+if(WIN32)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
+        "[Paths]\nPlugins = plugins\n")
+elseif(UNIX AND NOT APPLE)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
+        "[Paths]\nPrefix = ..\nPlugins = plugins\nLibraries = lib\n")
+endif()
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
+    DESTINATION bin
+    COMPONENT ShipNetSimCore_COMP
+)
 
 # Include CPack module to generate the installer
 set(CPACK_GENERATOR "IFW")
@@ -1315,6 +1729,13 @@ Component.prototype.createOperations = function() {
                'workingDirectory=@TargetDir@',
                'iconPath=@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}.exe',
                'description=ShipNetSim Server Application');
+
+           component.addOperation('CreateShortcut',
+               '@TargetDir@/bin/RabbitMQConfig.exe',
+               '@AllUsersStartMenuProgramsPath@/ShipNetSim/RabbitMQ Config.lnk',
+               'workingDirectory=@TargetDir@',
+               'iconPath=@TargetDir@/bin/RabbitMQConfig.exe',
+               'description=RabbitMQ Connection Configuration');
        } else {
            // Create Server shortcuts for current user
            component.addOperation('CreateShortcut',
@@ -1323,6 +1744,13 @@ Component.prototype.createOperations = function() {
                'workingDirectory=@TargetDir@',
                'iconPath=@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}.exe',
                'description=ShipNetSim Server Application');
+
+           component.addOperation('CreateShortcut',
+               '@TargetDir@/bin/RabbitMQConfig.exe',
+               '@UserStartMenuProgramsPath@/ShipNetSim/RabbitMQ Config.lnk',
+               'workingDirectory=@TargetDir@',
+               'iconPath=@TargetDir@/bin/RabbitMQConfig.exe',
+               'description=RabbitMQ Connection Configuration');
        }
    } catch (e) {
        console.log('Error in Server createOperations: ' + e.message);
@@ -1330,33 +1758,241 @@ Component.prototype.createOperations = function() {
 }")
    endif()
 
-endif()
+   # AdjBuilder component script
+   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adjbuilder_component.qs" "
+function Component() {
+   // AdjBuilder Component constructor
+}
+
+Component.prototype.createOperations = function() {
+   try {
+       component.createOperations();
+       var installType = installer.value('InstallationType');
+
+       if (installType === 'SystemWide') {
+           component.addOperation('CreateShortcut',
+               '@TargetDir@/bin/ShipNetSimAdjBuilder.exe',
+               '@AllUsersStartMenuProgramsPath@/ShipNetSim/ShipNetSim Adjacency Builder.lnk',
+               'workingDirectory=@TargetDir@',
+               'iconPath=@TargetDir@/bin/ShipNetSimAdjBuilder.exe',
+               'description=ShipNetSim Adjacency Cache Builder');
+       } else {
+           component.addOperation('CreateShortcut',
+               '@TargetDir@/bin/ShipNetSimAdjBuilder.exe',
+               '@UserStartMenuProgramsPath@/ShipNetSim/ShipNetSim Adjacency Builder.lnk',
+               'workingDirectory=@TargetDir@',
+               'iconPath=@TargetDir@/bin/ShipNetSimAdjBuilder.exe',
+               'description=ShipNetSim Adjacency Cache Builder');
+       }
+   } catch (e) {
+       console.log('Error in AdjBuilder createOperations: ' + e.message);
+   }
+}")
+
+elseif(UNIX AND NOT APPLE)
+    # ========================================
+    # LINUX: QtIFW Package Settings
+    # ========================================
+    set(CPACK_IFW_PACKAGE_TITLE "ShipNetSim")
+    set(CPACK_IFW_PACKAGE_PUBLISHER "Virginia Tech Transportation Institute")
+    set(CPACK_IFW_PACKAGE_WIZARD_STYLE "Modern")
+    set(CPACK_IFW_PACKAGE_WIZARD_DEFAULT_WIDTH 800)
+    set(CPACK_IFW_PACKAGE_WIZARD_DEFAULT_HEIGHT 600)
+    set(CPACK_IFW_PACKAGE_ALLOW_NON_ASCII_CHARACTERS ON)
+    set(CPACK_IFW_PACKAGE_ALLOW_SPACE_IN_PATH ON)
+    set(CPACK_IFW_PACKAGE_WIZARD_SHOW_PAGE_LIST ON)
+    set(CPACK_IFW_PACKAGE_COMPRESSION_LEVEL "3")
+    set(CPACK_IFW_VERBOSE ON)
+    set(CPACK_IFW_PACKAGE_REMOVE_TARGET_DIR ON)
+    set(CPACK_IFW_PACKAGE_NAME "ShipNetSim")
+    set(CPACK_IFW_PACKAGE_VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}")
+    set(CPACK_IFW_PACKAGE_MAINTENANCE_TOOL_NAME "ShipNetSimMaintenanceTool")
+    # Linux-specific: default install to home directory
+    set(CPACK_IFW_PACKAGE_TARGET_DIR "@HomeDir@/ShipNetSim")
+
+    # ========================================
+    # LINUX: Control Script (no admin selection needed)
+    # ========================================
+    set(CPACK_IFW_PACKAGE_CONTROL_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/controlscript.qs")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/controlscript.qs" "
+function Controller() {
+    installer.setMessageBoxAutomaticAnswer('OverwriteTargetDirectory', QMessageBox.Yes);
+    installer.setMessageBoxAutomaticAnswer('stopProcessesForUpdates', QMessageBox.Ignore);
+}
+
+Controller.prototype.IntroductionPageCallback = function() {
+    console.log('ShipNetSim Linux Installer');
+}
+
+Controller.prototype.TargetDirectoryPageCallback = function() {
+    var widget = gui.currentPageWidget();
+    if (widget && widget.TargetDirectoryLineEdit) {
+        var currentPath = installer.value('TargetDir');
+        widget.TargetDirectoryLineEdit.setText(currentPath);
+    }
+}")
+
+    # ========================================
+    # LINUX: Core Component Script
+    # ========================================
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/core_component.qs" "
+function Component() {
+    // Core Component constructor - no admin selection page on Linux
+}
+
+Component.prototype.createOperations = function() {
+    try {
+        component.createOperations();
+
+        if (installer.value('os') === 'x11') {
+            // Create desktop entry for ShipNetSim
+            component.addOperation('CreateDesktopEntry',
+                'ShipNetSim.desktop',
+                'Version=1.0\\nType=Application\\nTerminal=true\\n' +
+                'Exec=@TargetDir@/bin/${SHIPNETSIM_NAME}\\n' +
+                'Name=ShipNetSim\\nCategories=Education;Science;\\n' +
+                'Comment=Ship Network Simulator');
+
+            // Make executables executable
+            component.addOperation('Execute', 'chmod', '+x',
+                '@TargetDir@/bin/${SHIPNETSIM_NAME}');
+            component.addOperation('Execute', 'chmod', '+x',
+                '@TargetDir@/bin/ShipNetSimAdjBuilder');
+        }
+    } catch (e) {
+        console.log('Error in Core createOperations: ' + e.message);
+    }
+}")
+
+    # ========================================
+    # LINUX: GUI Component Script
+    # ========================================
+    if(BUILD_GUI)
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/gui_component.qs" "
+function Component() {
+    // GUI Component constructor
+}
+
+Component.prototype.createOperations = function() {
+    try {
+        component.createOperations();
+
+        if (installer.value('os') === 'x11') {
+            component.addOperation('CreateDesktopEntry',
+                'ShipNetSimGUI.desktop',
+                'Version=1.0\\nType=Application\\nTerminal=false\\n' +
+                'Exec=@TargetDir@/bin/ShipNetSimGUI\\n' +
+                'Name=ShipNetSim GUI\\nCategories=Education;Science;\\n' +
+                'Comment=ShipNetSim GUI Application');
+
+            component.addOperation('Execute', 'chmod', '+x',
+                '@TargetDir@/bin/ShipNetSimGUI');
+        }
+    } catch (e) {
+        console.log('Error in GUI createOperations: ' + e.message);
+    }
+}")
+    endif()
+
+    # ========================================
+    # LINUX: Server Component Script
+    # ========================================
+    if(BUILD_SERVER)
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/server_component.qs" "
+function Component() {
+    // Server Component constructor
+}
+
+Component.prototype.createOperations = function() {
+    try {
+        component.createOperations();
+
+        if (installer.value('os') === 'x11') {
+            component.addOperation('CreateDesktopEntry',
+                'ShipNetSimServer.desktop',
+                'Version=1.0\\nType=Application\\nTerminal=true\\n' +
+                'Exec=@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}\\n' +
+                'Name=ShipNetSim Server\\nCategories=Education;Science;\\n' +
+                'Comment=ShipNetSim Server Application');
+
+            component.addOperation('Execute', 'chmod', '+x',
+                '@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}');
+            component.addOperation('Execute', 'chmod', '+x',
+                '@TargetDir@/bin/RabbitMQConfig');
+        }
+    } catch (e) {
+        console.log('Error in Server createOperations: ' + e.message);
+    }
+}")
+    endif()
+
+    # ========================================
+    # LINUX: AdjBuilder Component Script
+    # ========================================
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adjbuilder_component.qs" "
+function Component() {
+    // AdjBuilder Component constructor
+}
+
+Component.prototype.createOperations = function() {
+    try {
+        component.createOperations();
+
+        if (installer.value('os') === 'x11') {
+            component.addOperation('CreateDesktopEntry',
+                'ShipNetSimAdjBuilder.desktop',
+                'Version=1.0\\nType=Application\\nTerminal=true\\n' +
+                'Exec=@TargetDir@/bin/ShipNetSimAdjBuilder\\n' +
+                'Name=ShipNetSim Adjacency Builder\\nCategories=Education;Science;\\n' +
+                'Comment=ShipNetSim Adjacency Cache Builder');
+        }
+    } catch (e) {
+        console.log('Error in AdjBuilder createOperations: ' + e.message);
+    }
+}")
+
+endif() # WIN32 / UNIX QtIFW config
 
 # ========================================
 # QtIFW PATH CONFIGURATION
 # ========================================
 # Enhanced QtIFW path detection for version 4.10
 if(NOT DEFINED CPACK_IFW_ROOT)
-   set(POSSIBLE_IFW_ROOTS
-       "C:/Qt/Tools/QtInstallerFramework/4.10"
-       "C:/Qt/Tools/QtInstallerFramework/4.1"
-       "C:/QtIFW-4.10.0"
-       "C:/QtIFW"
-       "$ENV{QTIFWDIR}"
-   )
+    if(WIN32)
+        set(POSSIBLE_IFW_ROOTS
+            "C:/Qt/Tools/QtInstallerFramework/4.10"
+            "C:/Qt/Tools/QtInstallerFramework/4.1"
+            "C:/QtIFW-4.10.0"
+            "C:/QtIFW"
+            "$ENV{QTIFWDIR}"
+        )
+    elseif(UNIX)
+        set(POSSIBLE_IFW_ROOTS
+            "$ENV{HOME}/Qt/Tools/QtInstallerFramework/4.10"
+            "$ENV{HOME}/Qt/Tools/QtInstallerFramework/4.8"
+            "/opt/Qt/Tools/QtInstallerFramework/4.10"
+            "/opt/Qt/Tools/QtInstallerFramework/4.8"
+            "/usr/local/bin"
+            "$ENV{QTIFWDIR}"
+        )
+    endif()
 
-   foreach(IFW_PATH ${POSSIBLE_IFW_ROOTS})
-       if(EXISTS "${IFW_PATH}/bin/binarycreator.exe")
-           set(CPACK_IFW_ROOT "${IFW_PATH}")
-           message(STATUS "Found QtIFW at: ${IFW_PATH}")
-           break()
-       endif()
-   endforeach()
+    foreach(IFW_PATH ${POSSIBLE_IFW_ROOTS})
+        if(EXISTS "${IFW_PATH}/bin/binarycreator" OR EXISTS "${IFW_PATH}/bin/binarycreator.exe")
+            set(CPACK_IFW_ROOT "${IFW_PATH}")
+            message(STATUS "Found QtIFW at: ${IFW_PATH}")
+            break()
+        endif()
+    endforeach()
 
-   if(NOT DEFINED CPACK_IFW_ROOT)
-       message(WARNING "QtIFW not found. Please set CPACK_IFW_ROOT manually.")
-       set(CPACK_IFW_ROOT "C:/Qt/Tools/QtInstallerFramework/4.10")
-   endif()
+    if(NOT DEFINED CPACK_IFW_ROOT)
+        message(WARNING "QtIFW not found. Please set CPACK_IFW_ROOT manually.")
+        if(WIN32)
+            set(CPACK_IFW_ROOT "C:/Qt/Tools/QtInstallerFramework/4.10")
+        elseif(UNIX)
+            set(CPACK_IFW_ROOT "$ENV{HOME}/Qt/Tools/QtInstallerFramework/4.10")
+        endif()
+    endif()
 endif()
 
 include(CPack)
@@ -1391,16 +2027,29 @@ cpack_ifw_configure_component(ShipNetSimData_COMP
    VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}"
    SORTING_PRIORITY 50)
 
-cpack_ifw_configure_component(ShipNetSimCore_COMP
-   ESSENTIAL ON
-   FORCED_INSTALLATION ON
-   VISIBLE ON
-   NAME "shipnetsim.core"
-   VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}"
-   SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/core_component.qs"
-   USER_INTERFACES "${CMAKE_CURRENT_BINARY_DIR}/adminselectionform.ui"
-   LICENSES "GPL-3.0 License" ${CPACK_RESOURCE_FILE_LICENSE}
-   SORTING_PRIORITY 100)
+# Core component: USER_INTERFACES only needed on Windows (admin selection page)
+if(WIN32)
+    cpack_ifw_configure_component(ShipNetSimCore_COMP
+       ESSENTIAL ON
+       FORCED_INSTALLATION ON
+       VISIBLE ON
+       NAME "shipnetsim.core"
+       VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}"
+       SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/core_component.qs"
+       USER_INTERFACES "${CMAKE_CURRENT_BINARY_DIR}/adminselectionform.ui"
+       LICENSES "GPL-3.0 License" ${CPACK_RESOURCE_FILE_LICENSE}
+       SORTING_PRIORITY 100)
+else()
+    cpack_ifw_configure_component(ShipNetSimCore_COMP
+       ESSENTIAL ON
+       FORCED_INSTALLATION ON
+       VISIBLE ON
+       NAME "shipnetsim.core"
+       VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}"
+       SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/core_component.qs"
+       LICENSES "GPL-3.0 License" ${CPACK_RESOURCE_FILE_LICENSE}
+       SORTING_PRIORITY 100)
+endif()
 
 cpack_ifw_configure_component(ShipNetSim_COMP
    ESSENTIAL ON
@@ -1435,5 +2084,16 @@ if(BUILD_GUI)
        SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/gui_component.qs"
        SORTING_PRIORITY 80)
 endif()
+
+cpack_add_component(ShipNetSimAdjBuilder_COMP
+   DISPLAY_NAME "ShipNetSim Adjacency Builder"
+   DESCRIPTION "Standalone tool for pre-building adjacency caches for faster pathfinding.")
+
+cpack_ifw_configure_component(ShipNetSimAdjBuilder_COMP
+   VISIBLE ON
+   NAME "shipnetsim.adjbuilder"
+   VERSION "${ShipNetSim_VERSION_MAJOR}.${ShipNetSim_VERSION_MINOR}.${ShipNetSim_VERSION_PATCH}"
+   SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/adjbuilder_component.qs"
+   SORTING_PRIORITY 85)
 
 endif()
