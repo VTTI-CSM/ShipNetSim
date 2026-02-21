@@ -67,36 +67,44 @@ ShipNetSim is an open-source simulation software designed to analyze ship energy
 - **Adaptable Pathfinding**: Integrates visibility graphs and QuadTree indexing to optimize navigation and obstacle avoidance on real-world routes.
 
 ## Getting Started
-Download the latest release version on the releases page.
 
-## Prerequisites
-ShipNetSim requires no additional setup, as all third-party dependencies are bundled within the installer.
+Download the latest installer from the [Releases](https://github.com/VTTI-CSM/ShipNetSim/releases) page. All third-party dependencies are bundled — no additional setup is required.
 
 ## Installation
 
-- Download the installer file.
-- Double-click to open and follow the setup prompts. The default path is C:\Program Files\ShipNetSim, but this can be adjusted as needed.
+### Windows
+1. Download `ShipNetSim-<version>-win64.exe` from the [Releases](https://github.com/VTTI-CSM/ShipNetSim/releases) page.
+2. Run the installer and follow the setup prompts. The default path is `C:\Program Files\ShipNetSim`.
+
+### Linux
+1. Download `ShipNetSim-<version>-Linux.run` from the [Releases](https://github.com/VTTI-CSM/ShipNetSim/releases) page.
+2. Make the installer executable and run it:
+   ```bash
+   chmod +x ShipNetSim-<version>-Linux.run
+   ./ShipNetSim-<version>-Linux.run
+   ```
 
 ## Running
 
 ### GUI Interface
-- The GUI is still under developement. 
 
-### Shell Interface
-- Open a terminal or command prompt.
+ShipNetSim includes a graphical interface with interactive 3D globe visualization, real-time ship tracking, and simulation management. Launch `ShipNetSimGUI` from the installation directory or the desktop shortcut.
 
-- Navigate to the installation folder:
+### Command-Line Interface
 
-```shell
-cd "C:\Program Files\ShipNetSim"
-Type ShipNetSim -h to view command options.
-```
+View all available options:
 
 ```shell
-ShipNetSim.exe -s "path\to\ships\file"
+ShipNetSim -h
 ```
 
-## Data Files
+Run a simulation with a ships configuration file:
+
+```shell
+ShipNetSim -s "path/to/ships/file"
+```
+
+## Development Required Data Files
 
 ShipNetSim requires geographic data files (TIFF imagery, shapefiles, etc.) that are hosted separately due to their size. These must be placed in `src/data/` before building.
 
@@ -143,7 +151,8 @@ To build ShipNetSim from source code, please see our comprehensive [HOW_TO_BUILD
 ShipNetSim is licensed under GNU GPL v3. See the LICENSE file for more details.
 
 ## Contributing
-Interested in contributing? Please see our CONTRIBUTING.md file for guidelines on how to participate.
+
+Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
 
 ## Contributors
 
