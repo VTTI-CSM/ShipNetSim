@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     parser.process(app);
 
     // Start the simulation server
-    // Server loads config from rabbitmq.xml in constructor
+    // Server loads config from ShipNetSim_rabbitmq.xml in constructor
     SimulationServer server;
 
     // CLI arguments override config file values only if explicitly set

@@ -99,7 +99,7 @@ void SimulationServer::setupServer()
 void SimulationServer::loadRabbitMQConfig()
 {
     QString configPath =
-        ServerUtils::findConfigFilePath("rabbitmq.xml");
+        ServerUtils::findConfigFilePath("ShipNetSim_rabbitmq.xml");
 
     if (configPath.isEmpty())
     {

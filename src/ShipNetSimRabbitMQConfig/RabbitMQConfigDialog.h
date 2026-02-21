@@ -10,7 +10,7 @@
  * @brief Configuration dialog for RabbitMQ connection settings
  *
  * Provides a GUI to configure RabbitMQ connection parameters.
- * Configuration is saved to config/rabbitmq.xml with the password
+ * Configuration is saved to config/ShipNetSim_rabbitmq.xml with the password
  * stored securely in the OS keychain.
  */
 class RabbitMQConfigDialog : public QDialog

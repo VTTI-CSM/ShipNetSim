@@ -20,7 +20,7 @@ namespace ServerUtils
  * 3. Searches upward through directories for a config/ folder
  * 4. Falls back to the user's AppConfigLocation
  *
- * @param filename The name of the config file (e.g., "rabbitmq.xml")
+ * @param filename The name of the config file (e.g., "ShipNetSim_rabbitmq.xml")
  * @return The full path to the config file, or empty string if not found
  */
 inline QString findConfigFilePath(const QString &filename)

@@ -54,7 +54,7 @@ endif()
 
 if (BUILD_SERVER)
     add_dependencies(ShipNetSimInstaller ${SHIPNETSIM_SERVER_NAME})
-    add_dependencies(ShipNetSimInstaller RabbitMQConfig)
+    add_dependencies(ShipNetSimInstaller ShipNetSimRabbitMQConfig)
 endif()
 
 # Define install paths for the executables and libraries
@@ -90,7 +90,7 @@ if(BUILD_SERVER)
         ARCHIVE DESTINATION lib/static
         COMPONENT ShipNetSimServer_COMP)
 
-    install(TARGETS RabbitMQConfig
+    install(TARGETS ShipNetSimRabbitMQConfig
         RUNTIME DESTINATION bin
         COMPONENT ShipNetSimServer_COMP)
 endif()
@@ -479,7 +479,7 @@ if(NOT RABBITMQ_FOUND)
     message(FATAL_ERROR "CRITICAL: RabbitMQ DLLs not found! RABBITMQ_BIN_DIR=${RABBITMQ_BIN_DIR}")
 endif()
 
-    # Qt GUI DLLs for RabbitMQConfig (only needed when GUI is not being built)
+    # Qt GUI DLLs for ShipNetSimRabbitMQConfig (only needed when GUI is not being built)
     if(NOT BUILD_GUI)
         set(SERVER_QT_GUI_DLLS
             "${QT_BIN_DIR}/Qt6Gui.dll"
@@ -487,7 +487,7 @@ endif()
         )
         foreach(QT_GUI_DLL ${SERVER_QT_GUI_DLLS})
             if(NOT EXISTS "${QT_GUI_DLL}")
-                message(FATAL_ERROR "CRITICAL: Required Qt GUI DLL for RabbitMQConfig not found: ${QT_GUI_DLL}")
+                message(FATAL_ERROR "CRITICAL: Required Qt GUI DLL for ShipNetSimRabbitMQConfig not found: ${QT_GUI_DLL}")
             endif()
         endforeach()
         filter_debug_dlls(SERVER_QT_GUI_DLLS FILTERED_SERVER_QT_GUI_DLLS)
@@ -1017,7 +1017,7 @@ ${_DIRS_ARGS}            )
             file(GET_RUNTIME_DEPENDENCIES
                 EXECUTABLES
                     \$<TARGET_FILE:${SHIPNETSIM_SERVER_NAME}>
-                    \$<TARGET_FILE:RabbitMQConfig>
+                    \$<TARGET_FILE:ShipNetSimRabbitMQConfig>
                 RESOLVED_DEPENDENCIES_VAR _resolved_srv
                 UNRESOLVED_DEPENDENCIES_VAR _unresolved_srv
                 PRE_EXCLUDE_REGEXES
@@ -1342,6 +1342,14 @@ install(
     FILES_MATCHING
     PATTERN "*.tif"
 )
+
+# ========================================
+# PLATFORM-INDEPENDENT: Config Directory
+# ========================================
+# Create an empty config/ directory so ShipNetSimRabbitMQConfig and ShipNetSimServer
+# save/load ShipNetSim_rabbitmq.xml relative to the installation rather than falling
+# back to the user's AppConfigLocation (~/.config or AppData).
+install(DIRECTORY DESTINATION config COMPONENT ShipNetSimServer_COMP)
 
 # ========================================
 # PLATFORM-SPECIFIC: qt.conf for Plugin Discovery
@@ -1731,10 +1739,10 @@ Component.prototype.createOperations = function() {
                'description=ShipNetSim Server Application');
 
            component.addOperation('CreateShortcut',
-               '@TargetDir@/bin/RabbitMQConfig.exe',
+               '@TargetDir@/bin/ShipNetSimRabbitMQConfig.exe',
                '@AllUsersStartMenuProgramsPath@/ShipNetSim/RabbitMQ Config.lnk',
                'workingDirectory=@TargetDir@',
-               'iconPath=@TargetDir@/bin/RabbitMQConfig.exe',
+               'iconPath=@TargetDir@/bin/ShipNetSimRabbitMQConfig.exe',
                'description=RabbitMQ Connection Configuration');
        } else {
            // Create Server shortcuts for current user
@@ -1746,10 +1754,10 @@ Component.prototype.createOperations = function() {
                'description=ShipNetSim Server Application');
 
            component.addOperation('CreateShortcut',
-               '@TargetDir@/bin/RabbitMQConfig.exe',
+               '@TargetDir@/bin/ShipNetSimRabbitMQConfig.exe',
                '@UserStartMenuProgramsPath@/ShipNetSim/RabbitMQ Config.lnk',
                'workingDirectory=@TargetDir@',
-               'iconPath=@TargetDir@/bin/RabbitMQConfig.exe',
+               'iconPath=@TargetDir@/bin/ShipNetSimRabbitMQConfig.exe',
                'description=RabbitMQ Connection Configuration');
        }
    } catch (e) {
@@ -1918,7 +1926,7 @@ Component.prototype.createOperations = function() {
             component.addOperation('Execute', 'chmod', '+x',
                 '@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}');
             component.addOperation('Execute', 'chmod', '+x',
-                '@TargetDir@/bin/RabbitMQConfig');
+                '@TargetDir@/bin/ShipNetSimRabbitMQConfig');
         }
     } catch (e) {
         console.log('Error in Server createOperations: ' + e.message);

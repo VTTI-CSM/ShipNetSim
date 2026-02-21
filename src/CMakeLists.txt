@@ -21,7 +21,7 @@ endif()
 
 if (BUILD_SERVER)
     add_subdirectory(ShipNetSimServer)
-    add_subdirectory(rabbitmq-config)
+    add_subdirectory(ShipNetSimRabbitMQConfig)
 endif()
 
 # Third-party dependencies or shared libraries

@@ -7,9 +7,9 @@ set(RABBITMQ_CONFIG_SOURCES
     RabbitMQConfigDialog.cpp
 )
 
-add_executable(RabbitMQConfig ${RABBITMQ_CONFIG_SOURCES})
+add_executable(ShipNetSimRabbitMQConfig ${RABBITMQ_CONFIG_SOURCES})
 
-target_link_libraries(RabbitMQConfig
+target_link_libraries(ShipNetSimRabbitMQConfig
     PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -20,18 +20,18 @@ target_link_libraries(RabbitMQConfig
 
 # Conditionally link QtKeychain if available
 if(Qt6Keychain_FOUND)
-    target_link_libraries(RabbitMQConfig PRIVATE Qt6Keychain::Qt6Keychain)
-    target_compile_definitions(RabbitMQConfig PRIVATE HAVE_QTKEYCHAIN)
+    target_link_libraries(ShipNetSimRabbitMQConfig PRIVATE Qt6Keychain::Qt6Keychain)
+    target_compile_definitions(ShipNetSimRabbitMQConfig PRIVATE HAVE_QTKEYCHAIN)
 endif()
 
-target_include_directories(RabbitMQConfig
+target_include_directories(ShipNetSimRabbitMQConfig
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_BINARY_DIR}/..
 )
 
 # Installation
-install(TARGETS RabbitMQConfig
+install(TARGETS ShipNetSimRabbitMQConfig
     RUNTIME DESTINATION bin
     COMPONENT ShipNetSimServer_COMP
 )

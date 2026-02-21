@@ -79,7 +79,7 @@ RabbitMQConfigDialog::RabbitMQConfigDialog(QWidget *parent)
 
     // Show initial status
     QString statusMsg = "Configuration will be saved to: "
-                        + findConfigDir() + "/rabbitmq.xml";
+                        + findConfigDir() + "/ShipNetSim_rabbitmq.xml";
 #ifndef HAVE_QTKEYCHAIN
     statusMsg +=
         "\n\nWarning: QtKeychain not available. "
@@ -116,7 +116,7 @@ void RabbitMQConfigDialog::onTestConnectionClicked()
 
 void RabbitMQConfigDialog::loadConfig()
 {
-    QString configPath = findConfigDir() + "/rabbitmq.xml";
+    QString configPath = findConfigDir() + "/ShipNetSim_rabbitmq.xml";
 
     QFile file(configPath);
     if (!file.exists())
@@ -188,7 +188,7 @@ void RabbitMQConfigDialog::loadConfig()
 void RabbitMQConfigDialog::saveConfig()
 {
     QString configDir  = findConfigDir();
-    QString configPath = configDir + "/rabbitmq.xml";
+    QString configPath = configDir + "/ShipNetSim_rabbitmq.xml";
 
     // Ensure config directory exists
     QDir dir(configDir);
