@@ -20,7 +20,7 @@ endif()
 
 # Define the project name (ShipNetSim) and
 # the programming language used (CXX for C++)
-set(ShipNetSim_VERSION "0.0.3" CACHE STRING "Project version" FORCE)
+set(ShipNetSim_VERSION "1.0.0" CACHE STRING "Project version" FORCE)
 set(SHIPNETSIM_NAME "ShipNetSim" CACHE STRING "Project name" FORCE)
 set(SHIPNETSIM_VENDOR "Virginia Tech Transportation Institute - Center for Sustainable Mobility." CACHE STRING "Project vendor" FORCE)
 # Get the current date and time
