@@ -96,12 +96,30 @@ Type ShipNetSim -h to view command options.
 ShipNetSim.exe -s "path\to\ships\file"
 ```
 
+## Data Files
+
+ShipNetSim requires geographic data files (TIFF imagery, shapefiles, etc.) that are hosted separately due to their size. These must be placed in `src/data/` before building.
+
+**Automatic download (Linux/macOS):**
+```bash
+./scripts/download_data.sh
+```
+
+**Automatic download (Windows PowerShell):**
+```powershell
+.\scripts\download_data.ps1
+```
+
+**Manual download:**
+1. Download the data zip from [Dropbox](https://www.dropbox.com/scl/fi/obf8duo6ewnez5q363vwn/data.zip?rlkey=9by8u5ci1miag453rhvp2ilmw&st=ycbk7bjc&dl=1)
+2. Extract the contents into `src/data/`
+
 ## Building from Source
 
 To build ShipNetSim from source code, please see our comprehensive [HOW_TO_BUILD.md](HOW_TO_BUILD.md) guide, which includes:
 
 - Complete dependency installation instructions
-- Platform-specific build steps for Windows, Linux, and macOS  
+- Platform-specific build steps for Windows, Linux, and macOS
 - CMake configuration options and customization
 - Troubleshooting common build issues
 
