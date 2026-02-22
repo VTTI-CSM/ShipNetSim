@@ -658,23 +658,6 @@ if(BUILD_GUI)
     else()
         message(WARNING "OpenGL software renderer not found - GUI may not work on systems without proper graphics drivers")
     endif()
-
-# OpenGL software rendering support (OPTIONAL)
-find_file(OPENGL_SOFTWARE_RENDERER
-    NAMES "opengl32sw.dll" "d3dcompiler_47.dll"
-    PATHS "${QT_BIN_DIR}" "C:/Windows/System32"
-    DOC "OpenGL software renderer DLL"
-)
-if(OPENGL_SOFTWARE_RENDERER)
-    message(STATUS "Found OpenGL software renderer: ${OPENGL_SOFTWARE_RENDERER}")
-    install(
-        FILES "${OPENGL_SOFTWARE_RENDERER}"
-        DESTINATION bin
-        COMPONENT ShipNetSimGUI_COMP
-    )
-else()
-    message(WARNING "OpenGL software renderer not found - GUI may not work on systems without proper graphics drivers")
-endif()
 endif()
 
 
@@ -1246,15 +1229,18 @@ ${_DIRS_ARGS}                )
     # ========================================
     # LINUX: Fix RPATH on Bundled Shared Libraries
     # ========================================
-    # Bundled third-party .so files (Qt, GDAL, OSG, etc.) have hardcoded
-    # RPATHs pointing to their original install locations. Use patchelf to
-    # set $ORIGIN-based RPATHs so transitive dependencies resolve from the
-    # installed lib/ directory on any machine.
+    # Bundled third-party .so files have hardcoded RPATHs pointing to their
+    # original install locations. Use patchelf to set $ORIGIN-based RPATHs
+    # so transitive dependencies resolve from the installed lib/ directory.
+    #
+    # During CPack IFW packaging each component is installed into its own
+    # staging directory, so patchelf must run once per component that
+    # installs shared libraries.
     find_program(PATCHELF_EXECUTABLE patchelf)
     if(PATCHELF_EXECUTABLE)
         message(STATUS "Found patchelf: ${PATCHELF_EXECUTABLE}")
-        install(CODE "
-            # Fix RPATH on shared libraries in lib/
+
+        set(_PATCHELF_CODE "
             file(GLOB _all_libs \"\${CMAKE_INSTALL_PREFIX}/lib/*.so*\")
             foreach(_lib \${_all_libs})
                 if(IS_SYMLINK \"\${_lib}\")
@@ -1265,7 +1251,6 @@ ${_DIRS_ARGS}                )
                     ERROR_QUIET)
             endforeach()
 
-            # Fix RPATH on OSG/osgEarth plugins in lib/osgPlugins-*/
             file(GLOB_RECURSE _osg_plugins \"\${CMAKE_INSTALL_PREFIX}/lib/osgPlugins-*/*.so\")
             foreach(_plugin \${_osg_plugins})
                 execute_process(
@@ -1273,14 +1258,24 @@ ${_DIRS_ARGS}                )
                     ERROR_QUIET)
             endforeach()
 
-            # Fix RPATH on Qt plugins in plugins/<type>/
             file(GLOB_RECURSE _qt_plugins \"\${CMAKE_INSTALL_PREFIX}/plugins/*.so\")
             foreach(_plugin \${_qt_plugins})
                 execute_process(
                     COMMAND \"${PATCHELF_EXECUTABLE}\" --set-rpath \\$ORIGIN/../../lib \"\${_plugin}\"
                     ERROR_QUIET)
             endforeach()
-        " COMPONENT ShipNetSimCore_COMP)
+        ")
+
+        install(CODE "${_PATCHELF_CODE}" COMPONENT ShipNetSimCore_COMP)
+
+        if(BUILD_GUI)
+            install(CODE "${_PATCHELF_CODE}" COMPONENT ShipNetSimGUI_COMP)
+        endif()
+
+        if(BUILD_SERVER)
+            install(CODE "${_PATCHELF_CODE}" COMPONENT ShipNetSimServer_COMP)
+        endif()
+
     else()
         message(WARNING "patchelf not found - bundled .so RPATHs will not be fixed for portability. Install with: sudo apt install patchelf")
     endif()
@@ -1352,6 +1347,14 @@ install(
 install(DIRECTORY DESTINATION config COMPONENT ShipNetSimServer_COMP)
 
 # ========================================
+# PLATFORM-INDEPENDENT: Application Icon
+# ========================================
+install(FILES ${CMAKE_SOURCE_DIR}/src/resources/icons/Logo256x256.png
+    DESTINATION share/icons
+    RENAME ShipNetSim.png
+    COMPONENT ShipNetSim_COMP)
+
+# ========================================
 # PLATFORM-SPECIFIC: qt.conf for Plugin Discovery
 # ========================================
 if(WIN32)
@@ -1390,6 +1393,10 @@ if(WIN32)
     set(CPACK_IFW_PACKAGE_WIZARD_DEFAULT_HEIGHT 600)
     set(CPACK_IFW_PACKAGE_ALLOW_NON_ASCII_CHARACTERS ON)
     set(CPACK_IFW_PACKAGE_ALLOW_SPACE_IN_PATH ON)
+
+    # Installer icon and logo
+    set(CPACK_IFW_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/src/resources/icons/Logo256x256.ico")
+    set(CPACK_IFW_PACKAGE_LOGO "${CMAKE_SOURCE_DIR}/src/resources/icons/Logo64x64.png")
 
     # QtIFW 4.10-specific features
     set(CPACK_IFW_PACKAGE_WIZARD_SHOW_PAGE_LIST ON)
@@ -1808,6 +1815,9 @@ elseif(UNIX AND NOT APPLE)
     set(CPACK_IFW_PACKAGE_WIZARD_DEFAULT_HEIGHT 600)
     set(CPACK_IFW_PACKAGE_ALLOW_NON_ASCII_CHARACTERS ON)
     set(CPACK_IFW_PACKAGE_ALLOW_SPACE_IN_PATH ON)
+    # Installer icon and logo
+    set(CPACK_IFW_PACKAGE_ICON "${CMAKE_SOURCE_DIR}/src/resources/icons/Logo128x128.png")
+    set(CPACK_IFW_PACKAGE_LOGO "${CMAKE_SOURCE_DIR}/src/resources/icons/Logo64x64.png")
     set(CPACK_IFW_PACKAGE_WIZARD_SHOW_PAGE_LIST ON)
     set(CPACK_IFW_PACKAGE_COMPRESSION_LEVEL "3")
     set(CPACK_IFW_VERBOSE ON)
@@ -1858,7 +1868,8 @@ Component.prototype.createOperations = function() {
                 'ShipNetSim.desktop',
                 'Version=1.0\\nType=Application\\nTerminal=true\\n' +
                 'Exec=@TargetDir@/bin/${SHIPNETSIM_NAME}\\n' +
-                'Name=ShipNetSim\\nCategories=Education;Science;\\n' +
+                'Name=ShipNetSim\\nIcon=@TargetDir@/share/icons/ShipNetSim.png\\n' +
+                'Categories=Education;Science;\\n' +
                 'Comment=Ship Network Simulator');
 
             // Make executables executable
@@ -1890,7 +1901,8 @@ Component.prototype.createOperations = function() {
                 'ShipNetSimGUI.desktop',
                 'Version=1.0\\nType=Application\\nTerminal=false\\n' +
                 'Exec=@TargetDir@/bin/ShipNetSimGUI\\n' +
-                'Name=ShipNetSim GUI\\nCategories=Education;Science;\\n' +
+                'Name=ShipNetSim GUI\\nIcon=@TargetDir@/share/icons/ShipNetSim.png\\n' +
+                'Categories=Education;Science;\\n' +
                 'Comment=ShipNetSim GUI Application');
 
             component.addOperation('Execute', 'chmod', '+x',
@@ -1920,7 +1932,8 @@ Component.prototype.createOperations = function() {
                 'ShipNetSimServer.desktop',
                 'Version=1.0\\nType=Application\\nTerminal=true\\n' +
                 'Exec=@TargetDir@/bin/${SHIPNETSIM_SERVER_NAME}\\n' +
-                'Name=ShipNetSim Server\\nCategories=Education;Science;\\n' +
+                'Name=ShipNetSim Server\\nIcon=@TargetDir@/share/icons/ShipNetSim.png\\n' +
+                'Categories=Education;Science;\\n' +
                 'Comment=ShipNetSim Server Application');
 
             component.addOperation('Execute', 'chmod', '+x',
@@ -2001,6 +2014,21 @@ if(NOT DEFINED CPACK_IFW_ROOT)
             set(CPACK_IFW_ROOT "$ENV{HOME}/Qt/Tools/QtInstallerFramework/4.10")
         endif()
     endif()
+endif()
+
+# Explicitly list packaged components — excludes ShipNetSimDevel_COMP (headers)
+set(CPACK_COMPONENTS_ALL
+    ShipNetSimData_COMP
+    ShipNetSimCore_COMP
+    ShipNetSim_COMP
+    ShipNetSimAdjBuilder_COMP)
+
+if(BUILD_GUI)
+    list(APPEND CPACK_COMPONENTS_ALL ShipNetSimGUI_COMP)
+endif()
+
+if(BUILD_SERVER)
+    list(APPEND CPACK_COMPONENTS_ALL ShipNetSimServer_COMP)
 endif()
 
 include(CPack)

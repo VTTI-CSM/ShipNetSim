@@ -102,6 +102,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_UI_FILES}
         ${PROJECT_SOURCES}
         gui/media/src.qrc
+        ${CMAKE_CURRENT_SOURCE_DIR}/../resources/icons/icons.qrc
+        $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/ShipNetSim.rc>
 
         # guiclasses/osgwidget.h guiclasses/osgwidget.cpp
     )

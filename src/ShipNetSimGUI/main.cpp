@@ -34,6 +34,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QIcon>
 #include <QSurfaceFormat>
 #include <QWindow>
 #include <qsplashscreen.h>
@@ -57,6 +58,7 @@ int main(int argc, char *argv[])
 
     // Create application first
     QApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/Logo256x256.png"));
 
     // Attach the logger first thing:
     ShipNetSimCore::Logger::attach("ShipNetSimGUI");

@@ -5,7 +5,13 @@ set(RABBITMQ_CONFIG_SOURCES
     main.cpp
     RabbitMQConfigDialog.h
     RabbitMQConfigDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../resources/icons/icons.qrc
 )
+
+if(WIN32)
+    list(APPEND RABBITMQ_CONFIG_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/ShipNetSimRabbitMQConfig.rc)
+endif()
 
 add_executable(ShipNetSimRabbitMQConfig ${RABBITMQ_CONFIG_SOURCES})
 

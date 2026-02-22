@@ -134,7 +134,9 @@ install(TARGETS ${SHIPNETSIM_CORE_DLL_NAME}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/static
 )
 
-# Install header files
+# Install header files (development only, excluded from end-user installer)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/ShipNetSimCore/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ShipNetSimCore
+        COMPONENT ShipNetSimDevel_COMP
+        EXCLUDE_FROM_ALL
         FILES_MATCHING PATTERN "*.h")
